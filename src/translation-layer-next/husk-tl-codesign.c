@@ -82,7 +82,10 @@
 
 #define CS_HASHTYPE_SHA256          2
 #define CS_SHA256_LEN               32
-#define CS_PAGE_SIZE_LOG2           14  /* 16384 bytes (16 KiB) — matches Apple codesign on arm64 */
+/* 4 KiB, as Apple's codesign, ldid (SideStore, AltStore) and zsign (LiveContainer) write it for code signed with a certificate.
+ * 16 KiB pages are what ld64's ad-hoc (linker) signatures use; with a developer certificate on an iPhone with TXM (iOS 27,
+ * iPhone 14 Pro) Husk's 16 KiB signatures were refused ("code signature invalid", errno 1) with everything else in order. */
+#define CS_PAGE_SIZE_LOG2           12
 #define CS_PAGE_SIZE                (1 << CS_PAGE_SIZE_LOG2)
 
 #define CS_ADHOC                    0x2
@@ -460,6 +463,8 @@ static void ensure_wwdr_in_chain(void)
 {
     chain_add(k_apple_wwdr_g3, sizeof(k_apple_wwdr_g3));
 }
+
+static void describe_signature(const uint8_t *sig, size_t len, const char *whose);
 
 /* Whether the key signs for the certificate (checked on the first signature with an identity; reset when another opens). */
 static bool g_sig_checked, g_sig_matches;
@@ -1519,6 +1524,8 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
     tl_log_line("sign: %s ident='%s' codeLimit=0x%zx pages=%zu page=%u KiB blob=%u team=%s",
                 path, dylib_id, dataoff, n_pages, CS_PAGE_SIZE / 1024, (unsigned)sb.n,
                 has_identity ? meta.team_id : "adhoc");
+    static bool described;
+    if (!described) { described = true; describe_signature(sb.b, sb.n, "Husk's (first library)"); }
 
     /* Clean up resources */
     buf_free(&cd);
@@ -1568,6 +1575,90 @@ static bool der_next(const uint8_t *p, const uint8_t *end, uint8_t *tag, const u
 /* The end of the element whose contents are v..v+n (an indefinite one also has its 00 00 marker) */
 static const uint8_t *der_after(const uint8_t *elem, const uint8_t *v, size_t n) { return v + n + (elem[1] == 0x80 ? 2 : 0); }
 
+static const char *oid_name(const uint8_t *v, size_t n)
+{
+    static const struct { const char *hex, *name; } k[] = {
+        { "2a864886f70d010903", "contentType" }, { "2a864886f70d010905", "signingTime" }, { "2a864886f70d010904", "messageDigest" },
+        { "2a864886f763640901", "100.9.1" }, { "2a864886f763640902", "100.9.2" }, { "2a864886f70d010101", "rsaEncryption" },
+        { "2a864886f70d01010b", "sha256WithRSA" }, { "2a8648ce3d040302", "ecdsaSHA256" }, { "608648016503040201", "sha256" },
+        { "2b0e03021a", "sha1" },
+    };
+    static char hex[64];
+    size_t m = n > 30 ? 30 : n;
+    for (size_t i = 0; i < m; i++) snprintf(hex + 2 * i, 3, "%02x", v[i]);
+    hex[2 * m] = 0;
+    for (size_t i = 0; i < sizeof(k) / sizeof(k[0]); i++) if (!strcmp(hex, k[i].hex)) return k[i].name;
+    return hex;
+}
+
+/* One line on how a signature is made (its blobs, each CodeDirectory's version, flags, hash, page size, special slots; the CMS
+ * signer's algorithms, signed attributes and certificate count), for setting Husk's beside the app's own, which iOS took. */
+static void describe_signature(const uint8_t *sig, size_t len, const char *whose)
+{
+    if (len < 12 || rd_be32(sig) != 0xfade0cc0u) { tl_log_line("sign: format of %s: not an embedded signature", whose); return; }
+    char line[1200]; size_t at = 0;
+#define ADD(...) do { if (at < sizeof(line)) at += (size_t)snprintf(line + at, sizeof(line) - at, __VA_ARGS__); } while (0)
+    uint32_t count = rd_be32(sig + 8);
+    ADD("slots");
+    for (uint32_t i = 0; i < count && 12 + 8 * (size_t)(i + 1) <= len; i++) {
+        uint32_t type = rd_be32(sig + 12 + 8 * i), off = rd_be32(sig + 16 + 8 * i);
+        if ((size_t)off + 8 > len) continue;
+        uint32_t magic = rd_be32(sig + off), blen = rd_be32(sig + off + 4);
+        ADD(" %x", type);
+        if (magic == 0xfade0c02u && blen >= 44 && (size_t)off + blen <= len) {
+            const uint8_t *cd = sig + off;
+            ADD("[CD v%x flags %x hash %u page 2^%u special %u code %u", rd_be32(cd + 8), rd_be32(cd + 12), cd[37], cd[39],
+                rd_be32(cd + 24), rd_be32(cd + 28));
+            if (rd_be32(cd + 8) >= 0x20400 && blen >= 88)
+                ADD(" execseg %llx+%llx f%llx", (unsigned long long)((uint64_t)rd_be32(cd + 64) << 32 | rd_be32(cd + 68)),
+                    (unsigned long long)((uint64_t)rd_be32(cd + 72) << 32 | rd_be32(cd + 76)),
+                    (unsigned long long)((uint64_t)rd_be32(cd + 80) << 32 | rd_be32(cd + 84)));
+            ADD("]");
+        } else if (magic == 0xfade0b01u && blen > 8 && (size_t)off + blen <= len) {
+            /* ContentInfo { oid, [0] { SignedData { version, digestAlgs, encap, [0] certs, ..., signerInfos } } } */
+            const uint8_t *p = sig + off + 8, *end = sig + off + blen, *v; size_t n; uint8_t tag;
+            int ncerts = -1;
+            if (der_next(p, end, &tag, &v, &n) && tag == 0x30) {
+                const uint8_t *q = v, *qe = v + n;
+                if (der_next(q, qe, &tag, &v, &n)) q = der_after(q, v, n);              /* contentType */
+                if (q < qe && der_next(q, qe, &tag, &v, &n) && tag == 0xa0 && der_next(v, v + n, &tag, &v, &n) && tag == 0x30) {
+                    const uint8_t *r = v, *re = v + n, *last = NULL, *lastv = NULL; size_t lastn = 0;
+                    for (; r < re && der_next(r, re, &tag, &v, &n); r = der_after(r, v, n)) {
+                        if (tag == 0xa0) { ncerts = 0; for (const uint8_t *c = v, *ce = v + n; c < ce; ) { const uint8_t *cv; size_t cn; uint8_t t;
+                                if (!der_next(c, ce, &t, &cv, &cn)) break; ncerts++; c = der_after(c, cv, cn); } }
+                        last = r; lastv = v; lastn = n;
+                    }
+                    ADD("[CMS certs %d", ncerts);
+                    /* signerInfos SET { SignerInfo SEQUENCE { version, sid, digestAlg, [0] attrs, sigAlg, sig } } */
+                    if (last && last[0] == 0x31 && der_next(lastv, lastv + lastn, &tag, &v, &n) && tag == 0x30) {
+                        const uint8_t *e = v, *ee = v + n; int field = 0;
+                        for (; e < ee && der_next(e, ee, &tag, &v, &n); e = der_after(e, v, n), field++) {
+                            const uint8_t *ov; size_t on; uint8_t ot;
+                            if (tag == 0x30 && field != 1 && der_next(v, v + n, &ot, &ov, &on) && ot == 0x06)   /* digest and signature algorithms */
+                                ADD(" %s", oid_name(ov, on));
+                            if (tag == 0xa0) {
+                                ADD(" attrs(");
+                                for (const uint8_t *a = v, *ae = v + n; a < ae; ) {
+                                    const uint8_t *av; size_t an; uint8_t at2;
+                                    if (!der_next(a, ae, &at2, &av, &an)) break;
+                                    if (der_next(av, av + an, &ot, &ov, &on) && ot == 0x06) ADD(" %s", oid_name(ov, on));
+                                    a = der_after(a, av, an);
+                                }
+                                ADD(" )");
+                            }
+                        }
+                    }
+                    ADD("]");
+                }
+            }
+        } else if (magic == 0xfade7171u) ADD("[entitlements %u]", blen);
+        else if (magic == 0xfade7172u) ADD("[DER entitlements %u]", blen);
+        else if (magic == 0xfade0c01u) ADD("[requirements %u]", blen);
+    }
+#undef ADD
+    tl_log_line("sign: format of %s: %s", whose, line);
+}
+
 int husk_codesign_chain_from_executable(const char *path)
 {
     FILE *f = fopen(path, "rb");
@@ -1590,6 +1681,7 @@ int husk_codesign_chain_from_executable(const char *path)
     }
     uint8_t *sig = datasize && datasize < (16u << 20) ? malloc(datasize) : NULL;
     if (sig && fseek(f, dataoff, SEEK_SET) == 0 && fread(sig, 1, datasize, f) == datasize && rd_be32(sig) == 0xfade0cc0u) {
+        describe_signature(sig, datasize, "Husk's own executable (made by its store, which iOS accepted)");
         uint32_t count = rd_be32(sig + 8);
         for (uint32_t i = 0; i < count && 12 + 8 * (size_t)(i + 1) <= datasize; i++) {
             uint32_t type = rd_be32(sig + 12 + 8 * i), off = rd_be32(sig + 16 + 8 * i);

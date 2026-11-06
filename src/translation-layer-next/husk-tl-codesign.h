@@ -84,7 +84,7 @@ int husk_p12_check(const uint8_t *p12, size_t p12_len, const char *password,
  * Returns true on success, false on failure (with error in err).
  */
 /* Bumped whenever what husk_codesign_dylib writes changes in a way that matters to iOS: dylibs stamped with another are signed again. */
-#define HUSK_CODESIGN_FORMAT "cs2-rsaEncryption"
+#define HUSK_CODESIGN_FORMAT "cs3-4k-rsaEncryption"
 
 bool husk_codesign_dylib(const char *path, const uint8_t *p12, size_t p12_len, const char *password,
                          const char *ident, char *err, size_t errlen);

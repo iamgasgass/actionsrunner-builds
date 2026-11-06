@@ -101,6 +101,10 @@ struct AppDiagnosis: Identifiable, Equatable {
                 why = "The .p12 you imported holds a different certificate from the one Husk was installed with"
                     + (husk.map { " (\($0))" } ?? "") + ", and iOS only trusts that one. Export the .p12 again from the app that "
                     + "installed Husk (after its last refresh) and import it in Settings."
+            } else if lines.contains(where: { $0.contains("the .p12's certificate is the one Husk is installed with") }) {
+                why = "Your certificate is the right one, so it is the way Husk made the signature that this iOS version did not "
+                    + "accept. Share this report: it sets Husk's signature beside the one your store made, which iOS accepts. "
+                    + "Until then, turning on JIT runs the app without signing."
             } else if lines.contains(where: { $0.contains("does not belong to its certificate") }) {
                 why = "The private key in the .p12 is not the key of its certificate. Export the .p12 again and import it in Settings."
             } else {

@@ -76,6 +76,7 @@ def main():
     check(cl == len(cd), 'CD length')
     check(htype == 2 and hsize == 32, 'SHA-256 hashes')
     check(12 <= pshift <= 14, 'page size between 4 KiB and 16 KiB (XNU: PAGE_SHIFT_4K..PAGE_SHIFT)')
+    check(pshift == 12, '4 KiB pages, as codesign, ldid and zsign write them for certificate signatures')
     check(codelimit == dataoff, 'codeLimit is the signature offset')
     ps = 1 << pshift
     check(ncode == (codelimit + ps - 1) // ps, 'nCodeSlots covers codeLimit')
