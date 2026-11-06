@@ -1,73 +1,77 @@
-name: Build unsigned IPA
+name: Build iOS
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ["v*"]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-unsigned-ipa:
-    name: Build RespringSlide (unsigned)
-    runs-on: xcode-27
+  build:
+    name: Build unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 40
+
     steps:
-      - name: Checkout source
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode toolchain
-        run: |
-          xcodebuild -version
-          xcodebuild -showsdks
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: xcodegen generate --spec project.yml
+        run: xcodegen generate
 
-      - name: Build for iOS device (without code signing)
+      - name: Build (Release, unsigned)
         run: |
-          set -euo pipefail
+          set -o pipefail
           xcodebuild \
-            -project RespringSlide.xcodeproj \
-            -scheme RespringSlide \
+            -project OmniChat.xcodeproj \
+            -scheme OmniChat \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY='' \
-            clean build
+            CODE_SIGN_IDENTITY="" \
+            build | tee xcodebuild.log
 
-      - name: Package unsigned IPA
+      - name: Package IPA
         run: |
-          set -euo pipefail
-          APP_PATH="build/Build/Products/Release-iphoneos/RespringSlide.app"
+          APP_PATH="build/Build/Products/Release-iphoneos/OmniChat.app"
           test -d "$APP_PATH"
-          plutil -lint "$APP_PATH/Info.plist"
-          rm -rf staging RespringSlide-unsigned.ipa
-          mkdir -p staging/Payload
-          ditto "$APP_PATH" staging/Payload/RespringSlide.app
-          (cd staging && /usr/bin/zip -qry ../RespringSlide-unsigned.ipa Payload)
-          ls -lh RespringSlide-unsigned.ipa
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP_PATH" Payload/
+          zip -qry OmniChat-unsigned.ipa Payload
+          ls -lh OmniChat-unsigned.ipa
 
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: RespringSlide-unsigned-ipa
-          path: RespringSlide-unsigned.ipa
-          if-no-files-found: error
+          name: OmniChat-unsigned-ipa
+          path: OmniChat-unsigned.ipa
           retention-days: 30
 
-      - name: Attach IPA to GitHub Release on version tags
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log
+
+      - name: Publish GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: RespringSlide-unsigned.ipa
+          files: OmniChat-unsigned.ipa
           generate_release_notes: true

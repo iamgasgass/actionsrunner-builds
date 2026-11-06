@@ -1,9 +1,13 @@
-.DS_Store
-*.xcuserstate
-xcuserdata/
-DerivedData/
+# Xcode / XcodeGen
+*.xcodeproj
+*.xcworkspace
+Config/Info.plist
 build/
-staging/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+Payload/
 *.ipa
-*.xcarchive
-RespringSlide.xcodeproj/
+
+# macOS
+.DS_Store

@@ -1,37 +1,52 @@
-name: RespringSlide
+name: OmniChat
+
 options:
-  bundleIdPrefix: com.iamgasgass
+  bundleIdPrefix: com.omnichat
   deploymentTarget:
-    iOS: "26.0"
-  xcodeVersion: "27.0"
-  projectFormat: xcode27_0
-  generateEmptyDirectories: true
+    iOS: "17.0"
+  createIntermediateGroups: true
+  xcodeVersion: "16.0"
+
 settings:
   base:
-    SWIFT_VERSION: "6.0"
-    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-    TARGETED_DEVICE_FAMILY: "1,2"
-    ENABLE_PREVIEWS: YES
-    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+
 targets:
-  RespringSlide:
+  OmniChat:
     type: application
     platform: iOS
     sources:
-      - path: RespringSlide
+      - path: OmniChat
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleDisplayName: OmniChat
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSPhotoLibraryUsageDescription: "OmniChat usa le foto che scegli per allegarle ai messaggi."
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.respringslide
-        PRODUCT_NAME: RespringSlide
-        MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
-        INFOPLIST_KEY_CFBundleDisplayName: RespringSlide
-        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        GENERATE_INFOPLIST_FILE: YES
-        SWIFT_VERSION: "6.0"
-        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
-        TARGETED_DEVICE_FAMILY: "1,2"
+        PRODUCT_BUNDLE_IDENTIFIER: com.omnichat.app
+        PRODUCT_NAME: OmniChat
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    scheme:
-      testTargets: []
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        ENABLE_PREVIEWS: YES
+    scheme: {}
