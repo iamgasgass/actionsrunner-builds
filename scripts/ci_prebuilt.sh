@@ -127,7 +127,10 @@ case "$KIND" in
         n="$(find "$ROOT/fonts" -type f \( -name '*.ttf' -o -name '*.otf' -o -name '*.ttc' \) | wc -l | tr -d ' ')"
         [ "$n" -gt 0 ] || fail "fonts/ has no fonts"
         rm -rf "$DEST"; mkdir -p "$DEST"; cp -R "$ROOT/." "$DEST/"
-        say "installed: $(du -sh "$DEST" | cut -f1), $n fonts$([ -d "$DEST/etc/security/cacerts" ] && echo ", $(ls "$DEST/etc/security/cacerts" | wc -l | tr -d ' ') CA certificates")"
+        certs="$DEST/cacerts"; [ -d "$certs" ] || certs="$DEST/etc/security/cacerts"
+        nc=0; [ -d "$certs" ] && nc="$(ls "$certs" | wc -l | tr -d ' ')"
+        [ "$nc" -gt 0 ] || echo "::warning title=Prebuilt android-system::no CA certificates in it (cacerts/): HTTPS in Flutter apps will fail"
+        say "installed: $(du -sh "$DEST" | cut -f1), $n fonts, $nc CA certificates"
         ;;
     ps4)
         lib="$(find "$ROOT" -name 'libhuskps4.dylib' -type f | head -1)"

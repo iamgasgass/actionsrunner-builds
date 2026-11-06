@@ -19,7 +19,11 @@
 #   HUSK_ANDROID_SYSTEM_URL  + _SHA256   build/android-system   (scripts/build_android_system.sh) Flutter apps' fonts, CAs
 #   HUSK_PS4_DYLIB_URL       + _SHA256   libhuskps4.dylib       (scripts/build_ps4_ios.sh)        the PS4 layer
 #
-# each an https:// URL or gh-release:OWNER/REPO@TAG/ASSET (with secret HUSK_PREBUILT_TOKEN for private ones). A release
+# each an https:// URL or gh-release:OWNER/REPO@TAG/ASSET (with secret HUSK_PREBUILT_TOKEN for private ones). When the first two
+# are not set, the "prebuilt" job makes them from the LineageOS image Husk's Android guest boots (public, on the upstream release
+# GuestImage.swift names), with scripts/build_prebuilt_from_image.sh: the same files build_java_runtime.sh and
+# build_android_system.sh take from a local Android tree, with no Mac and nothing to upload (variable HUSK_BUILD_FROM_IMAGE=false
+# turns that off; HUSK_GUEST_IMAGE_URL points it at another image). A release
 # refuses to go out without the Java runtime (allow_partial overrides); without the PS4 layer it goes out saying so,
 # since the app handles its absence (PS4Store.moduleURL). Every build's summary says which parts it has.
 #
@@ -107,8 +111,215 @@ env:
   CACHE_VERSION: v1
 
 jobs:
+  # ------------------------------------------------------------------ the Java runtime and android-system, from the guest image
+  prebuilt:
+    name: Java runtime + android-system
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    outputs:
+      java: ${{ steps.done.outputs.java }}
+      system: ${{ steps.done.outputs.system }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: What is needed
+        id: need
+        env:
+          GIVEN_JAVA: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL }}
+          GIVEN_SYS: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL }}
+          DISABLED: ${{ vars.HUSK_BUILD_FROM_IMAGE == 'false' }}
+        run: |
+          java=true; system=true
+          [ -n "${GIVEN_JAVA:-}" ] && java=false      # a runtime given by URL wins over one made here
+          [ -n "${GIVEN_SYS:-}" ] && system=false
+          [ "$DISABLED" = true ] && { java=false; system=false; }
+          echo "java=$java" >> "$GITHUB_OUTPUT"; echo "system=$system" >> "$GITHUB_OUTPUT"
+          echo "made here: java-runtime $java, android-system $system"
+
+      - name: The image Husk's Android guest boots
+        id: src
+        if: steps.need.outputs.java == 'true' || steps.need.outputs.system == 'true'
+        env:
+          OVERRIDE: ${{ vars.HUSK_GUEST_IMAGE_URL }}
+          R8: ${{ vars.HUSK_R8_VERSION || '8.5.35' }}
+        run: |
+          set -euo pipefail
+          # the URL GuestImage.swift downloads, read from it so the two cannot drift apart
+          g=src/app/Husk/GuestImage.swift
+          tag="$(sed -nE 's/.*static let dependenciesTag = "([^"]+)".*/\1/p' "$g" | head -1)"
+          ver="$(sed -nE 's/.*static let imageVersion = "([^"]+)".*/\1/p' "$g" | head -1)"
+          base="$(grep -oE 'https://github.com/[^"]+/releases/download/' "$g" | head -1)"
+          url="${OVERRIDE:-${base}${tag}/vda-${ver}.qcow2}"
+          if [ -z "${OVERRIDE:-}" ] && { [ -z "$tag" ] || [ -z "$ver" ] || [ -z "$base" ]; }; then
+            echo "::error::could not read the image URL from $g (set HUSK_GUEST_IMAGE_URL)"; exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "image: $url"
+          # cache keys: the unpacked image (by image and extractor), the runtime (by those and everything that goes into it)
+          ex="$(shasum -a 256 scripts/build_prebuilt_from_image.sh | cut -c1-16)"
+          rt="$( (find src/java-framework tools/compat -type f -print0 | sort -z | xargs -0 shasum -a 256; \
+                  shasum -a 256 scripts/build_java_runtime.sh scripts/copy_aosp_bundle.sh tools/strip_framework_res.py \
+                  src/translation-layer-next/husk-tl-dvm-gles20.c) | shasum -a 256 | cut -c1-16)"
+          img="$(printf '%s' "$url" | shasum -a 256 | cut -c1-16)"
+          echo "extract_key=image-extract-${CACHE_VERSION}-$img-$ex" >> "$GITHUB_OUTPUT"
+          echo "runtime_key=java-runtime-${CACHE_VERSION}-$img-$ex-$rt-r8-$R8" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Java runtime
+        id: rt
+        if: steps.need.outputs.java == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.src.outputs.runtime_key }}
+          path: build/java-runtime
+
+      - name: Restore the unpacked image
+        id: ex
+        if: steps.src.outputs.url != '' && (steps.rt.outputs.cache-hit != 'true' || steps.need.outputs.system == 'true')
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.src.outputs.extract_key }}
+          path: |
+            ${{ runner.temp }}/image-work/apex
+            ${{ runner.temp }}/image-work/sysroot
+            build/android-system
+
+      - name: Work to do
+        id: todo
+        if: steps.src.outputs.url != ''
+        env:
+          NEED_JAVA: ${{ steps.need.outputs.java }}
+          NEED_SYS: ${{ steps.need.outputs.system }}
+          RT_HIT: ${{ steps.rt.outputs.cache-hit }}
+          EX_HIT: ${{ steps.ex.outputs.cache-hit }}
+        run: |
+          java=false; sys=false; image=false
+          [ "$NEED_JAVA" = true ] && [ "$RT_HIT" != true ] && java=true
+          [ "$NEED_SYS" = true ] && [ "$EX_HIT" != true ] && sys=true
+          # the image itself: only when what is unpacked from it is not in the cache
+          { [ "$java" = true ] || [ "$sys" = true ]; } && [ "$EX_HIT" != true ] && image=true
+          echo "java=$java" >> "$GITHUB_OUTPUT"; echo "system=$sys" >> "$GITHUB_OUTPUT"; echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "build java-runtime: $java, android-system: $sys, fetch the image: $image"
+
+      - name: JDK
+        if: steps.todo.outputs.java == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: R8 (d8)
+        if: steps.todo.outputs.java == 'true'
+        env:
+          R8: ${{ vars.HUSK_R8_VERSION || '8.5.35' }}
+        run: |
+          set -euo pipefail
+          # build.sh needs R8 8.5 or later (build-tools 34's d8 crashes on these classes): Google's Maven has it; the
+          # runner's own Android SDK (newest build-tools, before the Tools step deletes it) is the fallback
+          if curl -fsSL --retry 5 --retry-all-errors -o "$RUNNER_TEMP/r8.jar" \
+               "https://dl.google.com/android/maven2/com/android/tools/r8/$R8/r8-$R8.jar"; then
+            echo "R8 $R8 from Google's Maven"
+          else
+            sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+            bt="$(ls -d "$sdk"/build-tools/*/ 2>/dev/null | sort -V | tail -1)"
+            [ -n "$bt" ] && [ -f "$bt/lib/d8.jar" ] || { echo "::error::no r8-$R8.jar on Google's Maven and no build-tools on the runner"; exit 1; }
+            case "$(basename "$bt")" in 3[0-4].*|2*) echo "::error::build-tools $(basename "$bt") is too old (need 35+); set HUSK_R8_VERSION"; exit 1;; esac
+            cp "$bt/lib/d8.jar" "$RUNNER_TEMP/r8.jar"
+            echo "::warning::r8-$R8.jar not fetched; using d8 from build-tools $(basename "$bt")"
+          fi
+          unzip -l "$RUNNER_TEMP/r8.jar" | grep -q 'com/android/tools/r8/D8.class' || { echo "::error::that jar has no D8"; exit 1; }
+          echo "HUSK_D8=$RUNNER_TEMP/r8.jar" >> "$GITHUB_ENV"
+
+      - name: Tools
+        if: steps.todo.outputs.java == 'true' || steps.todo.outputs.system == 'true'
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-utils e2fsprogs erofs-utils >/dev/null
+          # room for a 1 GB image, its raw form (sparse) and its system partition
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h / | tail -1
+
+      - name: Fetch the image
+        if: steps.todo.outputs.image == 'true'
+        env:
+          URL: ${{ steps.src.outputs.url }}
+        run: |
+          set -euo pipefail
+          curl -fSL --retry 5 --retry-delay 15 --retry-all-errors -o "$RUNNER_TEMP/vda.qcow2" "$URL"
+          qemu-img info "$RUNNER_TEMP/vda.qcow2" | head -4
+          echo "image sha256 $(shasum -a 256 "$RUNNER_TEMP/vda.qcow2" | cut -d' ' -f1)"
+
+      - name: Make them
+        if: steps.todo.outputs.java == 'true' || steps.todo.outputs.system == 'true'
+        env:
+          HUSK_IMAGE_WORK: ${{ runner.temp }}/image-work
+          WANT_JAVA: ${{ steps.todo.outputs.java }}
+          WANT_SYS: ${{ steps.todo.outputs.system }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HUSK_IMAGE_WORK"
+          export HUSK_JDK="${JAVA_HOME:-}"
+          parts=()
+          [ "$WANT_SYS" = true ] && parts+=(android-system)
+          [ "$WANT_JAVA" = true ] && parts+=(java-runtime)
+          ./scripts/build_prebuilt_from_image.sh "$RUNNER_TEMP/vda.qcow2" "${parts[@]}"
+          # what the cache keeps is apex/ and sysroot/; the image and its raw form go now
+          rm -f "$RUNNER_TEMP/vda.qcow2" "$HUSK_IMAGE_WORK/vda.raw" "$HUSK_IMAGE_WORK/system.img"
+          rm -rf "$HUSK_IMAGE_WORK/apexfiles"
+
+      - name: Save the unpacked image
+        if: steps.todo.outputs.image == 'true' && hashFiles('build/android-system/fonts/**') != ''
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.src.outputs.extract_key }}
+          path: |
+            ${{ runner.temp }}/image-work/apex
+            ${{ runner.temp }}/image-work/sysroot
+            build/android-system
+
+      - name: Save the Java runtime
+        if: steps.todo.outputs.java == 'true' && hashFiles('build/java-runtime/husk-framework.dex') != ''
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.src.outputs.runtime_key }}
+          path: build/java-runtime
+
+      - name: Check and pack them
+        id: done
+        if: steps.need.outputs.java == 'true' || steps.need.outputs.system == 'true'
+        env:
+          NEED_JAVA: ${{ steps.need.outputs.java }}
+          NEED_SYS: ${{ steps.need.outputs.system }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist; java=no; system=no
+          check() { rm -rf "$RUNNER_TEMP/check" && mkdir -p "$RUNNER_TEMP/check" && cp -R scripts "$RUNNER_TEMP/check/" \
+                    && (cd "$RUNNER_TEMP/check" && ./scripts/ci_prebuilt.sh "$1" "$GITHUB_WORKSPACE/dist/$1.tgz"); }
+          if [ "$NEED_JAVA" = true ]; then tar czf dist/java-runtime.tgz -C build java-runtime && check java-runtime && java=yes; fi
+          if [ "$NEED_SYS" = true ]; then tar czf dist/android-system.tgz -C build android-system && check android-system && system=yes; fi
+          echo "java=$java" >> "$GITHUB_OUTPUT"; echo "system=$system" >> "$GITHUB_OUTPUT"
+          ls -lh dist
+          { echo "### Made from the guest image"; echo; ls -lh dist | awk 'NR>1{print "- "$NF": "$5}'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Hand them to the build
+        if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/*.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
   build:
     name: Build Husk.ipa
+    needs: prebuilt
+    # a failed prebuilt job does not stop the IPA: it is then built without those parts, with the warning saying so
+    if: ${{ !cancelled() }}
     # Apple Silicon: scripts/build_gpu_ios.sh calls /opt/homebrew/bin/meson, which is where arm64 Homebrew lives.
     runs-on: macos-26
     # GitHub-hosted jobs stop at 6 hours; a cold native build fits with room to spare.
@@ -383,14 +594,22 @@ jobs:
         run: ./scripts/build_rppairing_ios.sh
 
       # ------------------------------------------------------------------ the parts built elsewhere
+      - name: The parts the prebuilt job made
+        if: needs.prebuilt.outputs.java == 'yes' || needs.prebuilt.outputs.system == 'yes'
+        uses: actions/download-artifact@v4
+        with:
+          name: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/prebuilt
+
       - name: Prebuilt parts
         id: parts
         env:
           GH_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN || github.token }}
           HUSK_PREBUILT_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN }}
-          JAVA_URL: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL }}
+          # given by URL, else made by the prebuilt job from the guest image
+          JAVA_URL: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL || (needs.prebuilt.outputs.java == 'yes' && format('{0}/prebuilt/java-runtime.tgz', runner.temp)) || '' }}
           JAVA_SHA: ${{ vars.HUSK_JAVA_RUNTIME_SHA256 }}
-          SYS_URL: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL }}
+          SYS_URL: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL || (needs.prebuilt.outputs.system == 'yes' && format('{0}/prebuilt/android-system.tgz', runner.temp)) || '' }}
           SYS_SHA: ${{ vars.HUSK_ANDROID_SYSTEM_SHA256 }}
           PS4_URL: ${{ secrets.HUSK_PS4_DYLIB_URL || vars.HUSK_PS4_DYLIB_URL }}
           PS4_SHA: ${{ vars.HUSK_PS4_DYLIB_SHA256 }}
@@ -550,7 +769,8 @@ jobs:
   release:
     name: Release ${{ needs.build.outputs.tag }}
     needs: build
-    if: needs.build.outputs.release == 'true'
+    # explicit: the default success() would also skip it when only the prebuilt job failed
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
