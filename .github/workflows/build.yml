@@ -221,8 +221,25 @@ jobs:
           # qemu: qemu-img, for the guest disk seeds the app target makes; gettext/autoconf/automake/libtool: libiconv,
           # gettext and libffi's configure
           brew install meson ninja pkg-config xcodegen qemu gettext autoconf automake libtool
-          # glib's build scripts import packaging
-          python3 -c 'import packaging' 2>/dev/null || python3 -m pip install --break-system-packages --user packaging
+          # Python modules the native builds import, in the interpreter meson finds them in (Homebrew's python3, which may
+          # not be the first python3 on PATH): glib's scripts need packaging, virglrenderer's gallium needs yaml (PyYAML).
+          # Checked here, so a missing one fails now rather than an hour into the build.
+          PY_MODULES="packaging yaml"
+          for py in /opt/homebrew/bin/python3 "$(command -v python3)"; do
+            [ -x "$py" ] || continue
+            for m in $PY_MODULES; do
+              "$py" -c "import $m" 2>/dev/null && continue
+              pkg="$m"; [ "$m" = yaml ] && pkg=pyyaml
+              "$py" -m pip install --quiet --break-system-packages "$pkg" \
+                || "$py" -m pip install --quiet --break-system-packages --user "$pkg"
+            done
+            for m in $PY_MODULES; do
+              "$py" -c "import $m" || { echo "::error::$py cannot import $m"; exit 1; }
+            done
+            echo "$py ($("$py" --version)): $PY_MODULES ok"
+          done
+          # meson's own interpreter too (python('python3') in a meson.build resolves through it)
+          head -1 "$(command -v meson)"
           rustup target add aarch64-apple-ios
           for t in meson ninja pkg-config xcodegen qemu-img cargo cmake git rsync; do
             printf '%-12s %s\n' "$t" "$($t --version 2>&1 | head -1)"
@@ -231,7 +248,9 @@ jobs:
 
       # ------------------------------------------------------------------ native: deps, ANGLE, virglrenderer, QEMU
       # One cache for the chain: QEMU is configured against ANGLE's headers and virglrenderer, so they stand or fall
-      # together. Keyed on everything that decides them and on the Xcode build; restored only on an exact match, so a
+      # together. A run that fails part-way saves what it finished as <key>-partial-<run>, and the next run with the same
+      # key carries on from there: build_ios.sh skips the stages it has stamps for, ANGLE and virglrenderer are skipped
+      # when their libraries are there (as in ci_build.sh). Only a complete chain is saved under the key itself. Keyed on everything that decides them and on the Xcode build; restored only on an exact match, so a
       # changed script never meets a stale build. It is saved before Husk's sources go into QEMU: those are copied in and
       # compiled incrementally on every run (scripts/integrate_husk.sh, build_ios.sh qemurebuild), as ci_build.sh does.
       - name: Native cache key
@@ -252,6 +271,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           key: ${{ steps.nkey.outputs.key }}
+          restore-keys: ${{ steps.nkey.outputs.key }}-partial-
           path: &native_paths |
             build/ios-arm64/sysroot
             build/ios-arm64/cross-ios.meson
@@ -269,18 +289,21 @@ jobs:
       - name: 'Dependencies: libffi glib pixman libucontext libslirp'
         if: steps.native.outputs.cache-hit != 'true'
         run: |
-          rm -rf build/stamps    # nothing restored means nothing built
+          ls build/stamps 2>/dev/null | sed 's/^/already built (partial cache): /' || true
           ./scripts/build_ios.sh libffi glib pixman libucontext libslirp
           # build_gpu_ios.sh asks for cross-ios-darwin.meson, which build_ios.sh writes as cross-darwin.meson
           cp build/ios-arm64/cross-darwin.meson build/ios-arm64/cross-ios-darwin.meson
 
       - name: ANGLE (EGL/GLES over Metal)
         if: steps.native.outputs.cache-hit != 'true'
-        run: ./scripts/build_angle_ios.sh
+        run: |
+          if [ -f build/ios-arm64/sysroot/lib/libANGLE-shared.dylib ]; then echo "already built (partial cache)"; exit 0; fi
+          ./scripts/build_angle_ios.sh
 
       - name: libepoxy + virglrenderer
         if: steps.native.outputs.cache-hit != 'true'
         run: |
+          if [ -f build/ios-arm64/sysroot/lib/libvirglrenderer.a ]; then echo "already built (partial cache)"; exit 0; fi
           PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/build/ios-arm64/sysroot/lib/pkgconfig:$GITHUB_WORKSPACE/build/ios-arm64/sysroot/share/pkgconfig" \
             ./scripts/build_gpu_ios.sh
 
@@ -289,10 +312,19 @@ jobs:
         run: ./scripts/build_ios.sh qemu
 
       - name: Save native build
+        id: native_save
         if: steps.native.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           key: ${{ steps.nkey.outputs.key }}
+          path: *native_paths
+
+      - name: Save the native build so far
+        # a failure in the chain: keep the stages that did finish (each stage stamps itself only when it succeeds)
+        if: failure() && steps.nkey.outputs.key != '' && steps.native.outputs.cache-hit != 'true' && steps.native_save.outcome != 'success'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.nkey.outputs.key }}-partial-${{ github.run_id }}-${{ github.run_attempt }}
           path: *native_paths
 
       - name: Husk's sources into QEMU, then rebuild it
