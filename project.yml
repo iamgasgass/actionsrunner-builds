@@ -1,0 +1,37 @@
+name: RespringSlide
+options:
+  bundleIdPrefix: com.iamgasgass
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "27.0"
+  projectFormat: xcode27_0
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_PREVIEWS: YES
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+targets:
+  RespringSlide:
+    type: application
+    platform: iOS
+    sources:
+      - path: RespringSlide
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.respringslide
+        PRODUCT_NAME: RespringSlide
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: RespringSlide
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    scheme:
+      testTargets: []

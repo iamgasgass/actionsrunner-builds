@@ -1,0 +1,73 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-unsigned-ipa:
+    name: Build RespringSlide (unsigned)
+    runs-on: xcode-27
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Show Xcode toolchain
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build for iOS device (without code signing)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project RespringSlide.xcodeproj \
+            -scheme RespringSlide \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            clean build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="build/Build/Products/Release-iphoneos/RespringSlide.app"
+          test -d "$APP_PATH"
+          plutil -lint "$APP_PATH/Info.plist"
+          rm -rf staging RespringSlide-unsigned.ipa
+          mkdir -p staging/Payload
+          ditto "$APP_PATH" staging/Payload/RespringSlide.app
+          (cd staging && /usr/bin/zip -qry ../RespringSlide-unsigned.ipa Payload)
+          ls -lh RespringSlide-unsigned.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RespringSlide-unsigned-ipa
+          path: RespringSlide-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach IPA to GitHub Release on version tags
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: RespringSlide-unsigned.ipa
+          generate_release_notes: true
