@@ -1,0 +1,13 @@
+# Xcode / XcodeGen
+*.xcodeproj
+*.xcworkspace
+Config/Info.plist
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+Payload/
+*.ipa
+
+# macOS
+.DS_Store
