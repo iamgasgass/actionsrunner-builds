@@ -241,8 +241,12 @@ static int prepare_one(const char *name, const uint8_t *data, size_t len, const 
     char dylib[160]; tl_aot_file_name(dylib, sizeof(dylib), tl_aot_hash(data, len), name);
     snprintf(path, sizeof(path), "%s/%s", cache_dir, dylib);
     snprintf(signer, sizeof(signer), "%s.signer", path);
+    /* the stamp names the certificate and the signature format: a dylib signed the old way (sha256WithRSAEncryption, which iOS
+     * refused) is signed again rather than loaded and refused */
+    char stamp[300] = "";
+    if (cert_tag) snprintf(stamp, sizeof(stamp), "%s|%s", cert_tag, HUSK_CODESIGN_FORMAT);
     struct stat st;
-    bool have = stat(path, &st) == 0, signed_now = have && read_text(signer, tag, sizeof(tag)) && cert_tag && !strcmp(tag, cert_tag);
+    bool have = stat(path, &st) == 0, signed_now = have && read_text(signer, tag, sizeof(tag)) && cert_tag && !strcmp(tag, stamp);
     char e2[200] = "";
     bool ok = true;
     if (!signed_now) {
@@ -252,7 +256,7 @@ static int prepare_one(const char *name, const uint8_t *data, size_t len, const 
         ok = tl_aot_make_dylib(name, data, len, path, TARGET_OS_IPHONE, NULL, e2, sizeof(e2));   /* for the platform this runs on */
         if (ok) {
             ok = husk_codesign_dylib(path, p12, p12_len, password, sign_ident, e2, sizeof(e2));
-            if (ok && cert_tag) write_text(signer, cert_tag);
+            if (ok && cert_tag) write_text(signer, stamp);
             if (ok) tl_log_line("aot: %s signed", name);
         }
     }

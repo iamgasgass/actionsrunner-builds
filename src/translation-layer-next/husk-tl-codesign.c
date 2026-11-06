@@ -461,6 +461,14 @@ static void ensure_wwdr_in_chain(void)
     chain_add(k_apple_wwdr_g3, sizeof(k_apple_wwdr_g3));
 }
 
+/* Whether the key signs for the certificate (checked on the first signature with an identity; reset when another opens). */
+static bool g_sig_checked, g_sig_matches;
+
+/* The developer certificate in the app's own signature (husk_codesign_chain_from_executable), to tell the .p12's apart from it */
+static uint8_t *g_app_leaf;
+static size_t g_app_leaf_len;
+static int g_app_leaf_logged;
+
 static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
                                   const uint8_t *leaf_cert_der, size_t leaf_cert_len,
                                   const cert_meta *meta,
@@ -573,6 +581,30 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
         return false;
     }
 
+    /* Checked against the developer certificate's public key: a .p12 whose key is not the certificate's makes signatures iOS
+     * refuses with nothing better than "code signature invalid", so say it here. */
+    if (!g_sig_checked) {
+        g_sig_checked = true;
+        CFDataRef leaf = CFDataCreate(kCFAllocatorDefault, leaf_cert_der, (CFIndex)leaf_cert_len);
+        SecCertificateRef lc = leaf ? SecCertificateCreateWithData(kCFAllocatorDefault, leaf) : NULL;
+        SecKeyRef pub = lc ? SecCertificateCopyKey(lc) : NULL;
+        CFDataRef dd = CFDataCreate(kCFAllocatorDefault, attrs_digest, sizeof(attrs_digest));
+        CFErrorRef verr = NULL;
+        g_sig_matches = pub && dd && SecKeyVerifySignature(pub, alg, dd, sig, &verr);
+        if (verr) CFRelease(verr);
+        if (dd) CFRelease(dd);
+        if (pub) CFRelease(pub);
+        if (lc) CFRelease(lc);
+        if (leaf) CFRelease(leaf);
+        tl_log_line(g_sig_matches ? "sign: the .p12's key signs for its certificate"
+                                  : "sign: the .p12's private key does not belong to its certificate: iOS will refuse every signature");
+    }
+    if (!g_sig_matches) {
+        CFRelease(sig);
+        buf_free(&attrs);
+        return false;
+    }
+
     const uint8_t *sig_bytes = CFDataGetBytePtr(sig);
     size_t sig_len = CFDataGetLength(sig);
 
@@ -599,11 +631,13 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
     buf_put(&sinfo, attrs.b, attrs.n);
     buf_free(&attrs);
 
-    /* signatureAlgorithm: sha256WithRSAEncryption (1.2.840.113549.1.1.11) or ecdsa-with-SHA256 */
+    /* signatureAlgorithm: rsaEncryption (1.2.840.113549.1.1.1), the one Apple's codesign, ldid and zsign write -- the digest
+     * algorithm above already says SHA-256; iOS's CoreTrust is far narrower than OpenSSL in what it takes here, and Husk's
+     * signatures with sha256WithRSAEncryption (1.1.11) were refused ("code signature invalid", errno 1) -- or ecdsa-with-SHA256 */
     if (meta->is_rsa) {
         static const uint8_t rsa_alg_null[] = {
             0x30, 0x0d,
-              0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b,
+              0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01,
               0x05, 0x00
         };
         buf_put(&sinfo, rsa_alg_null, sizeof(rsa_alg_null));
@@ -948,7 +982,26 @@ static const husk_identity *identity_cached(const uint8_t *p12, size_t len, cons
     identity_close(&g_ident);
     if (identity_open(p12, len, password, &g_ident, err, errlen) != P12_OK) return NULL;
     memcpy(g_ident_hash, h, 32);
+    g_sig_checked = false;          /* a new identity: its key is checked against its certificate again */
+    g_app_leaf_logged = 0;
     return &g_ident;
+}
+
+int husk_p12_matches_app(const uint8_t *p12, size_t p12_len, const char *password, const char *exe_path)
+{
+    pthread_mutex_lock(&g_ident_lock);
+    static bool read_exe;
+    if (!read_exe && exe_path && exe_path[0]) { read_exe = true; husk_codesign_chain_from_executable(exe_path); }
+    int r = -1;
+    husk_identity id;
+    char err[200];
+    if (g_app_leaf && identity_open(p12, p12_len, password, &id, err, sizeof(err)) == P12_OK) {
+        size_t n = (size_t)CFDataGetLength(id.cert_data);
+        r = n == g_app_leaf_len && !memcmp(CFDataGetBytePtr(id.cert_data), g_app_leaf, n);
+        identity_close(&id);
+    }
+    pthread_mutex_unlock(&g_ident_lock);
+    return r;
 }
 
 int husk_p12_check(const uint8_t *p12, size_t p12_len, const char *password,
@@ -1019,6 +1072,42 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
         ensure_wwdr_in_chain();
         tl_log_line("sign: identity CN='%s' team='%s' rsa=%d chain=%d",
                     meta.common_name, meta.team_id, (int)meta.is_rsa, g_nchain);
+        if (!g_app_leaf_logged) {
+            g_app_leaf_logged = 1;
+            const uint8_t *leaf = CFDataGetBytePtr(certData);
+            size_t leaf_len = (size_t)CFDataGetLength(certData);
+            /* iOS only trusts a developer certificate a provisioning profile on the device lists: the one the app was installed
+             * with. A .p12 of another certificate (an older one, or one from another store) signs libraries iOS refuses. */
+            if (!g_app_leaf)
+                tl_log_line("sign: Husk's own signature has no developer certificate to compare the .p12's with");
+            else if (g_app_leaf_len == leaf_len && !memcmp(g_app_leaf, leaf, leaf_len))
+                tl_log_line("sign: the .p12's certificate is the one Husk is installed with");
+            else {
+                cert_meta am;
+                bool parsed = parse_cert_der(g_app_leaf, g_app_leaf_len, &am);
+                tl_log_line("sign: WARNING: the .p12's certificate is not the one Husk is installed with (%s%s%s): iOS will refuse "
+                            "the libraries it signs. Import the .p12 of the certificate that signed Husk (re-export it from the "
+                            "store after its last refresh).",
+                            parsed ? "Husk's is '" : "", parsed ? am.common_name : "another", parsed ? "'" : "");
+            }
+            /* the issuer of the developer certificate has to be in the CMS for iOS to build the chain to Apple's root */
+            bool issuer_there = false;
+            for (int i = 0; i < g_nchain && !issuer_there; i++) {
+                cert_meta cm;
+                issuer_there = parse_cert_der(g_chain[i].der, g_chain[i].len, &cm) && cm.subject_len == meta.issuer_len
+                            && !memcmp(cm.subject_ptr, meta.issuer_ptr, meta.issuer_len);
+            }
+            for (CFIndex i = 0; chain && i < CFArrayGetCount(chain) && !issuer_there; i++) {
+                CFDataRef d = SecCertificateCopyData((SecCertificateRef)CFArrayGetValueAtIndex(chain, i));
+                cert_meta cm;
+                issuer_there = d && parse_cert_der(CFDataGetBytePtr(d), (size_t)CFDataGetLength(d), &cm)
+                            && cm.subject_len == meta.issuer_len && !memcmp(cm.subject_ptr, meta.issuer_ptr, meta.issuer_len);
+                if (d) CFRelease(d);
+            }
+            tl_log_line(issuer_there ? "sign: the certificate's issuer travels with every signature"
+                                     : "sign: WARNING: the certificate's issuer is neither in the .p12 nor in Husk's own signature: "
+                                       "iOS may not be able to trust the signature");
+        }
     }
     /* Read Mach-O dylib */
     FILE *f = fopen(path, "r+b");
@@ -1049,9 +1138,9 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
 
     struct mach_header_64 *mh = (struct mach_header_64 *)file_bytes;
     if (mh->magic != MH_MAGIC_64) {
+        if (err && errlen > 0) snprintf(err, errlen, "Not a 64-bit arm64 Mach-O (magic 0x%x)", mh->magic);
         fclose(f);
         free(file_bytes);
-        if (err && errlen > 0) snprintf(err, errlen, "Not a 64-bit arm64 Mach-O (magic 0x%x)", mh->magic);
         return false;
     }
 
@@ -1095,14 +1184,14 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
                 if ((seg->initprot & VM_PROT_WRITE) && seg->filesize) {
                     uint64_t lo = seg->fileoff, hi = seg->fileoff + seg->filesize;
                     if (lo < exec_limit && hi > exec_base) {
-                        fclose(f);
-                        free(file_bytes);
                         if (err && errlen > 0)
                             snprintf(err, errlen,
-                                     "writable %s [0x%llx,0x%llx) overlaps execSeg [0x%llx,0x%llx); AMFI rejects this as an invalid signature",
+                                     "writable %.16s [0x%llx,0x%llx) overlaps execSeg [0x%llx,0x%llx); AMFI rejects this as an invalid signature",
                                      seg->segname,
                                      (unsigned long long)lo, (unsigned long long)hi,
                                      (unsigned long long)exec_base, (unsigned long long)exec_limit);
+                        fclose(f);
+                        free(file_bytes);
                         return false;
                     }
                 }
@@ -1245,7 +1334,10 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
             fclose(f);
             free(file_bytes);
             buf_free(&req_buf);
-            if (err && errlen > 0) snprintf(err, errlen, "Failed to generate CMS signature probe");
+            if (err && errlen > 0)
+                snprintf(err, errlen, g_sig_checked && !g_sig_matches
+                         ? "the private key in this .p12 does not belong to its certificate (export the .p12 again)"
+                         : "Failed to generate CMS signature probe");
             return false;
         }
         cms_len = cms_probe.n;
@@ -1515,12 +1607,26 @@ int husk_codesign_chain_from_executable(const char *path)
             q = v; qe = v + n;
             for (int field = 0; q < qe && der_next(q, qe, &tag, &v, &n); field++, q = der_after(q, v, n)) {
                 if (tag != 0xa0 || field < 3) continue;                                 /* [0] certificates, after the first three */
+                const uint8_t *bag[16]; size_t bag_len[16]; int nbag = 0;
                 for (const uint8_t *c = v, *ce = v + n; c < ce; ) {
                     const uint8_t *cv; size_t cn;
                     if (!der_next(c, ce, &tag, &cv, &cn)) break;
                     size_t whole = (size_t)(der_after(c, cv, cn) - c);
+                    if (tag == 0x30 && nbag < 16) { bag[nbag] = c; bag_len[nbag] = whole; nbag++; }
                     if (tag == 0x30 && chain_add(c, whole)) found++;
                     c = der_after(c, cv, cn);
+                }
+                /* the developer certificate: one with a Team ID (Apple's intermediates have none) that issued none of the others */
+                for (int a = 0; a < nbag && !g_app_leaf; a++) {
+                    cert_meta ma;
+                    if (!parse_cert_der(bag[a], bag_len[a], &ma) || !ma.team_id[0] || cert_is_root(bag[a], bag_len[a])) continue;
+                    bool issuer = false;
+                    for (int b = 0; b < nbag && !issuer; b++) {
+                        cert_meta mb;
+                        issuer = b != a && parse_cert_der(bag[b], bag_len[b], &mb) && mb.issuer_len == ma.subject_len
+                              && !memcmp(mb.issuer_ptr, ma.subject_ptr, ma.subject_len);
+                    }
+                    if (!issuer && (g_app_leaf = malloc(bag_len[a]))) { memcpy(g_app_leaf, bag[a], bag_len[a]); g_app_leaf_len = bag_len[a]; }
                 }
                 break;
             }

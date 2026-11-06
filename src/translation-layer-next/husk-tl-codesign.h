@@ -83,6 +83,9 @@ int husk_p12_check(const uint8_t *p12, size_t p12_len, const char *password,
  *
  * Returns true on success, false on failure (with error in err).
  */
+/* Bumped whenever what husk_codesign_dylib writes changes in a way that matters to iOS: dylibs stamped with another are signed again. */
+#define HUSK_CODESIGN_FORMAT "cs2-rsaEncryption"
+
 bool husk_codesign_dylib(const char *path, const uint8_t *p12, size_t p12_len, const char *password,
                          const char *ident, char *err, size_t errlen);
 
@@ -92,6 +95,13 @@ bool husk_codesign_dylib(const char *path, const uint8_t *p12, size_t p12_len, c
  * certificate, so iOS can trust it when the .p12 holds the developer certificate alone. Returns how many were found.
  */
 int husk_codesign_chain_from_executable(const char *path);
+
+/*
+ * Whether the .p12's developer certificate is the one in the code signature of the executable at exe_path (the app itself, as its
+ * store installed it): iOS trusts only that one, so libraries signed with another are refused. 1 the same, 0 another, -1 not known
+ * (the app's signature names no developer certificate, or the .p12 does not open).
+ */
+int husk_p12_matches_app(const uint8_t *p12, size_t p12_len, const char *password, const char *exe_path);
 
 #ifdef __cplusplus
 }

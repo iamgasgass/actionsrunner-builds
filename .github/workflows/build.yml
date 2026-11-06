@@ -111,6 +111,26 @@ env:
   CACHE_VERSION: v1
 
 jobs:
+  # ------------------------------------------------------------------ the dylib signer Play without JIT relies on
+  signer-test:
+    name: Signer self-test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang lld libssl-dev >/dev/null
+      - name: Sign a Mach-O dylib and check it the way iOS does
+        # husk-tl-codesign.c over OpenSSL, under ASan: RSA and EC identities, with and without their chain; CodeDirectory,
+        # page hashes, CMS attributes and openssl cms -verify (tools/codesign-selftest.sh)
+        run: ./tools/codesign-selftest.sh
+
   # ------------------------------------------------------------------ the Java runtime and android-system, from the guest image
   prebuilt:
     name: Java runtime + android-system
@@ -768,9 +788,10 @@ jobs:
 
   release:
     name: Release ${{ needs.build.outputs.tag }}
-    needs: build
-    # explicit: the default success() would also skip it when only the prebuilt job failed
-    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.release == 'true' }}
+    needs: [build, signer-test]
+    # explicit: the default success() would also skip it when only the prebuilt job failed; a signer that writes signatures
+    # iOS would refuse is not released
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.signer-test.result == 'success' && needs.build.outputs.release == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

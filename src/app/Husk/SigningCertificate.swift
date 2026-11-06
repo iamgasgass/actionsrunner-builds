@@ -64,9 +64,17 @@ final class SigningCertificate: ObservableObject {
         }
         guard Self.store(data, opened.password) else { lastError = "The certificate could not be saved in the Keychain."; return false }
         info = opened.info
+        // Same team is not enough: iOS trusts only the certificate Husk itself was installed with (the store's profile lists it)
+        let sameCertificate = data.withUnsafeBytes { b in
+            husk_p12_matches_app(b.bindMemory(to: UInt8.self).baseAddress, b.count, opened.password, Bundle.main.executablePath)
+        }
+        HuskLog.log("sign", "certificate is the one Husk is installed with: \(sameCertificate == 1 ? "yes" : sameCertificate == 0 ? "no" : "unknown")")
         lastError = opened.info.expires < Date()
             ? "Imported, but this certificate expired on \(opened.info.expires.formatted(date: .abbreviated, time: .omitted)). "
               + "Refresh Husk in your store, then import its new certificate."
+            : sameCertificate == 0
+            ? "Imported, but this is not the certificate Husk was installed with, so iOS will refuse the libraries it signs. "
+              + "Export the .p12 again from the store that installed Husk (after its last refresh) and import that."
             : nil
         HuskLog.log("sign", "certificate imported: team \(opened.info.teamID), expires \(opened.info.expires)")
         return true

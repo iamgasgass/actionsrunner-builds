@@ -10,7 +10,7 @@ import SwiftUI
 struct AppDiagnosis: Identifiable, Equatable {
     enum Kind: String {
         case badAPK, unsupportedCPU, missingSplits, protected, needsGoogle, missingFeature, javaCrash, nativeCrash, closedItself,
-             missingFunction, noProgress, noJIT, outOfAddressSpace
+             missingFunction, noProgress, noJIT, outOfAddressSpace, signatureRefused
     }
     let id = UUID()
     let kind: Kind
@@ -35,6 +35,7 @@ struct AppDiagnosis: Identifiable, Equatable {
         case .noProgress: return "hourglass"
         case .noJIT: return "bolt.slash"
         case .outOfAddressSpace: return "memorychip"
+        case .signatureRefused: return "signature"
         }
     }
 
@@ -89,6 +90,27 @@ struct AppDiagnosis: Identifiable, Equatable {
                                 detail: "This iPhone only lets an app run translated code while a debugger enables JIT for it. Open Husk "
                                     + "through StikDebug, or tap Turn On JIT in Husk, then start the app again.",
                                 evidence: l)
+        }
+
+        // Play without JIT: iOS refused the signature on the libraries Husk converted, so Android's own (libjavacore and the rest)
+        // did not load, and everything after (java.lang.System failing to initialise, missing natives) follows from that
+        if let l = lines.first(where: { $0.contains("its dylib does not load") && $0.contains("code signature invalid") }) {
+            let why: String
+            if let w = lines.first(where: { $0.contains("the .p12's certificate is not the one Husk is installed with") }) {
+                let husk = w.range(of: "Husk's is '").flatMap { r in w[r.upperBound...].split(separator: "'").first.map(String.init) }
+                why = "The .p12 you imported holds a different certificate from the one Husk was installed with"
+                    + (husk.map { " (\($0))" } ?? "") + ", and iOS only trusts that one. Export the .p12 again from the app that "
+                    + "installed Husk (after its last refresh) and import it in Settings."
+            } else if lines.contains(where: { $0.contains("does not belong to its certificate") }) {
+                why = "The private key in the .p12 is not the key of its certificate. Export the .p12 again and import it in Settings."
+            } else {
+                why = "Check that the .p12 in Settings is the certificate Husk was installed with (export it again after the store "
+                    + "refreshes Husk), or turn on JIT, which needs no signing."
+            }
+            return AppDiagnosis(kind: .signatureRefused, title: String(localized: "iOS refused the converted libraries"),
+                                detail: "To play without JIT, Husk signs the app's libraries with your certificate, and iOS did not accept "
+                                    + "that signature, so Android's own libraries could not load. " + why,
+                                evidence: String(l.prefix(400)))
         }
 
         // iOS closed Husk for memory: the runtime's last readings ("N MiB left before jetsam") had fallen to almost nothing. Checked
