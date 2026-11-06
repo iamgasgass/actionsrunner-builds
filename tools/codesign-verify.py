@@ -68,39 +68,44 @@ def main():
         bm, bl = struct.unpack_from('>II', sb, off)
         slots[typ] = sb[off:off + bl]
         check(off + bl <= length, f'slot {typ:#x} (magic {bm:#x}) inside the SuperBlob')
-    cd = slots.get(0)
-    check(cd is not None and cd[:4] == b'\xfa\xde\x0c\x02', 'CodeDirectory in slot 0')
-    (cm, cl, ver, cflags, hashoff, identoff, nspecial, ncode, codelimit, hsize, htype, platform, pshift, _sp2,
-     scatter, teamoff, _sp3, cl64, esbase, eslimit, esflags) = struct.unpack_from('>IIIIIIIIIBBBBIIIIQQQQ', cd, 0)
-    print(f'      CD version {ver:#x} flags {cflags:#x} pages {ncode} page 2^{pshift} codeLimit {codelimit:#x} hash {htype}/{hsize}')
-    check(cl == len(cd), 'CD length')
-    check(htype == 2 and hsize == 32, 'SHA-256 hashes')
-    check(12 <= pshift <= 14, 'page size between 4 KiB and 16 KiB (XNU: PAGE_SHIFT_4K..PAGE_SHIFT)')
-    check(pshift == 12, '4 KiB pages, as codesign, ldid and zsign write them for certificate signatures')
-    check(codelimit == dataoff, 'codeLimit is the signature offset')
-    ps = 1 << pshift
-    check(ncode == (codelimit + ps - 1) // ps, 'nCodeSlots covers codeLimit')
-    check(hashoff >= nspecial * hsize and hashoff + ncode * hsize <= cl, 'hash slots inside the CD')
-    ident = cd[identoff:cd.index(b'\0', identoff)].decode()
-    team = cd[teamoff:cd.index(b'\0', teamoff)].decode() if teamoff else ''
-    print(f'      ident {ident!r} team {team!r} execSeg [{esbase:#x}, +{eslimit:#x}) flags {esflags:#x}')
-    exe = [s for s in segs if s[3] & 4]
-    if exe:
-        check(esbase == min(s[1] for s in exe) and esbase + eslimit == max(s[1] + s[2] for s in exe), 'execSeg is the executable segments')
-    for s in segs:
-        if s[3] & 2 and s[2] and exe:
-            check(not (s[1] < esbase + eslimit and s[1] + s[2] > esbase), f'writable {s[0]} outside execSeg')
-    pages_ok = all(cd[hashoff + i * 32:hashoff + i * 32 + 32] == hashlib.sha256(f[i * ps:min((i + 1) * ps, codelimit)]).digest()
-                   for i in range(ncode))
-    check(pages_ok, f'all {ncode} page hashes')
-    if 2 in slots and nspecial >= 2:
-        check(cd[hashoff - 64:hashoff - 32] == hashlib.sha256(slots[2]).digest(), 'requirements hash (slot -2)')
-    for k in range(1, nspecial + 1):
-        h = cd[hashoff - 32 * k:hashoff - 32 * (k - 1)]
-        if k == 2: continue
-        check(h == b'\0' * 32 or (k == 5 and 5 in slots), f'special slot -{k} empty (nothing it hashes is there)')
-    cdhash = hashlib.sha256(cd).digest()
-    print(f'      CDHash {cdhash.hex()}')
+    cds = [(t, slots[t]) for t in sorted(slots) if t == 0 or 0x1000 <= t < 0x1005]
+    check(bool(cds) and cds[0][0] == 0, 'CodeDirectory in slot 0')
+    hashers = {1: hashlib.sha1, 2: hashlib.sha256}
+    cdinfo = {}
+    for slot, cd in cds:
+        check(cd[:4] == b'\xfa\xde\x0c\x02', f'slot {slot:#x} is a CodeDirectory')
+        (cm, cl, ver, cflags, hashoff, identoff, nspecial, ncode, codelimit, hsize, htype, platform, pshift, _sp2,
+         scatter, teamoff, _sp3, cl64, esbase, eslimit, esflags) = struct.unpack_from('>IIIIIIIIIBBBBIIIIQQQQ', cd, 0)
+        H = hashers.get(htype)
+        print(f'      CD {slot:#x}: version {ver:#x} flags {cflags:#x} pages {ncode} page 2^{pshift} codeLimit {codelimit:#x} hash {htype}/{hsize}')
+        check(cl == len(cd), 'CD length')
+        check(H is not None and hsize == H().digest_size, 'SHA-1 or SHA-256 hashes of the right size')
+        if H is None: continue
+        check(12 <= pshift <= 14, 'page size between 4 KiB and 16 KiB (XNU: PAGE_SHIFT_4K..PAGE_SHIFT)')
+        check(pshift == 12, '4 KiB pages, as codesign, ldid and zsign write them for certificate signatures')
+        check(codelimit == dataoff, 'codeLimit is the signature offset')
+        ps = 1 << pshift
+        check(ncode == (codelimit + ps - 1) // ps, 'nCodeSlots covers codeLimit')
+        check(hashoff >= nspecial * hsize and hashoff + ncode * hsize <= cl, 'hash slots inside the CD')
+        ident = cd[identoff:cd.index(b'\0', identoff)].decode()
+        team = cd[teamoff:cd.index(b'\0', teamoff)].decode() if teamoff else ''
+        print(f'      ident {ident!r} team {team!r} execSeg [{esbase:#x}, +{eslimit:#x}) flags {esflags:#x}')
+        exe = [s_ for s_ in segs if s_[3] & 4]
+        if exe:
+            check(esbase == min(s_[1] for s_ in exe) and esbase + eslimit == max(s_[1] + s_[2] for s_ in exe), 'execSeg is the executable segments')
+        check(all(cd[hashoff + i * hsize:hashoff + (i + 1) * hsize] == H(f[i * ps:min((i + 1) * ps, codelimit)]).digest()
+                  for i in range(ncode)), f'all {ncode} page hashes')
+        if 2 in slots and nspecial >= 2:
+            check(cd[hashoff - 2 * hsize:hashoff - hsize] == H(slots[2]).digest(), 'requirements hash (slot -2)')
+        check(cd[hashoff - hsize:hashoff] == b'\0' * hsize, 'slot -1 empty (no Info.plist)')
+        cdinfo[slot] = (htype, H(cd).digest())
+    for s_ in segs:
+        if s_[3] & 2 and s_[2] and exe:
+            check(not (s_[1] < esbase + eslimit and s_[1] + s_[2] > esbase), f'writable {s_[0]} outside execSeg')
+    cd = slots[0]
+    best = max(cdinfo.values(), key=lambda x: x[0]) if cdinfo else (0, b'')
+    cdhash = best[1]
+    print(f'      CDHashes ' + ', '.join(f'{k:#x}:{v[1].hex()[:16]}' for k, v in cdinfo.items()))
     cms = slots.get(0x10000)
     if not cms or len(cms) <= 8:
         print('      ad-hoc (no CMS)'); return
@@ -133,19 +138,19 @@ def main():
         oid = OIDS.get(cms[ak[0][2]:ak[0][2] + ak[0][3]], '?'); seen.append(oid)
         val = list(children(cms, ak[1][2], ak[1][3]))
         if oid == 'messageDigest':
-            check(cms[val[0][2]:val[0][2] + val[0][3]] == cdhash, 'messageDigest is the CDHash')
+            check(cms[val[0][2]:val[0][2] + val[0][3]] == hashlib.sha256(cd).digest(), 'messageDigest is SHA-256 of the slot-0 CodeDirectory')
         elif oid == 'apple-cdhashes-plist':
             pl = plistlib.loads(cms[val[0][2]:val[0][2] + val[0][3]])
-            check(pl.get('cdhashes') == [cdhash[:20]], '100.9.1 plist holds the CDHash (20 bytes)')
+            check(pl.get('cdhashes') == [v[1][:20] for k, v in sorted(cdinfo.items())], '100.9.1 plist holds every CDHash (20 bytes, slot order)')
         elif oid == 'apple-cdhashes':
             seq = list(children(cms, val[0][2], val[0][3]))
             check(OIDS.get(cms[seq[0][2]:seq[0][2] + seq[0][3]]) == 'sha256' and cms[seq[1][2]:seq[1][2] + seq[1][3]] == cdhash,
-                  '100.9.2 holds sha256 and the CDHash')
+                  '100.9.2 holds sha256 and the SHA-256 CDHash')
     print('      attributes: ' + ', '.join(seen))
     for need in ('contentType', 'messageDigest', 'apple-cdhashes-plist'):
         check(need in seen, f'attribute {need}')
     with tempfile.TemporaryDirectory() as d:
-        open(os.path.join(d, 'cms.der'), 'wb').write(cms); open(os.path.join(d, 'cd.bin'), 'wb').write(cd)
+        open(os.path.join(d, 'cms.der'), 'wb').write(cms); open(os.path.join(d, 'cd.bin'), 'wb').write(slots[0])
         args = ['openssl', 'cms', '-verify', '-binary', '-inform', 'DER', '-in', os.path.join(d, 'cms.der'),
                 '-content', os.path.join(d, 'cd.bin'), '-out', os.devnull]
         args += ['-CAfile', ca, '-purpose', 'any'] if ca else ['-noverify']

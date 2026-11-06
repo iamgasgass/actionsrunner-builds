@@ -69,6 +69,10 @@ enum JITLess {
             chainLoaded = true
             HuskLog.log("sign", "certificate chain from Husk's own signature: \(husk_codesign_chain_from_executable(exe)) certificates")
         }
+        // in the run's log whether or not anything is signed this time, for the report
+        _ = cred.p12.withUnsafeBytes { b in
+            husk_p12_matches_app(b.bindMemory(to: UInt8.self).baseAddress, b.count, cred.password, Bundle.main.executablePath)
+        }
         // The signer revision and the running app's bundle ID are part of the tag: libraries signed by an older signer, or
         // under another install's identifier (SideStore appends the team, a TrollStore/enterprise install may not), are signed again.
         let ident = Bundle.main.bundleIdentifier ?? "com.husk.app"

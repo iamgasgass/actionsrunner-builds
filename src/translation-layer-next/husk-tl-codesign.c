@@ -469,12 +469,17 @@ static void describe_signature(const uint8_t *sig, size_t len, const char *whose
 /* Whether the key signs for the certificate (checked on the first signature with an identity; reset when another opens). */
 static bool g_sig_checked, g_sig_matches;
 
+/* Every certificate of the app's own signature, in its order (root included) */
+static struct { uint8_t *der; size_t len; } g_bag[8];
+static int g_nbag;
+
 /* The developer certificate in the app's own signature (husk_codesign_chain_from_executable), to tell the .p12's apart from it */
 static uint8_t *g_app_leaf;
 static size_t g_app_leaf_len;
 static int g_app_leaf_logged;
 
-static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
+/* md: SHA-256 of the slot-0 CodeDirectory (the CMS content); cdhash1, cdhash2: the SHA-1 and SHA-256 CDHashes */
+static bool build_cms_signed_data(const uint8_t *md, const uint8_t *cdhash1, const uint8_t *cdhash2,
                                   const uint8_t *leaf_cert_der, size_t leaf_cert_len,
                                   const cert_meta *meta,
                                   CFArrayRef extra_certs,
@@ -516,7 +521,7 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
     buf_put(&attrs, oid_md, sizeof(oid_md));
     buf_put_byte(&attrs, 0x31);
     der_put_length(&attrs, 34);
-    der_put_tlv(&attrs, 0x04, cdhash, 32);
+    der_put_tlv(&attrs, 0x04, md, 32);
 
     /* 4. Apple CDHash (OID 1.2.840.113635.100.9.2 -> SEQUENCE of { sha256, hash }) */
     static const uint8_t a3_hdr[] = {
@@ -528,10 +533,11 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
               0x04, 0x20
     };
     buf_put(&attrs, a3_hdr, sizeof(a3_hdr));
-    buf_put(&attrs, cdhash, 32);
+    buf_put(&attrs, cdhash2, 32);      /* the SHA-256 CodeDirectory's, the one iOS picks */
 
     /* 5. Apple CDHashes plist (OID 1.2.840.113635.100.9.1 -> base64 20-byte truncated CDHash) */
-    char *b64 = b64_encode(cdhash, 20);
+    /* both CodeDirectories, in slot order, each CDHash cut to 20 bytes */
+    char *b64 = b64_encode(cdhash1, 20), *b64b = b64_encode(cdhash2, 20);
     char plist[512];
     int plen = snprintf(plist, sizeof(plist),
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
@@ -543,10 +549,14 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
         "\t\t<data>\n"
         "\t\t%s\n"
         "\t\t</data>\n"
+        "\t\t<data>\n"
+        "\t\t%s\n"
+        "\t\t</data>\n"
         "\t</array>\n"
         "</dict>\n"
-        "</plist>\n", b64 ? b64 : "");
+        "</plist>\n", b64 ? b64 : "", b64b ? b64b : "");
     free(b64);
+    free(b64b);
 
     cs_buf a4_inner;
     buf_init(&a4_inner);
@@ -680,6 +690,18 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
     /* [0] IMPLICIT certificates — leaf first, then unique intermediates. Never a self-signed root. */
     size_t certs_start = sdata.n;
     int ncerts = 1;
+    bool bag_has_leaf = false;
+    for (int i = 0; i < g_nbag && !bag_has_leaf; i++)
+        bag_has_leaf = g_bag[i].len == leaf_cert_len && !memcmp(g_bag[i].der, leaf_cert_der, leaf_cert_len);
+    if (bag_has_leaf) {
+        /* the certificates exactly as the store put them in Husk's own signature (its leaf is this one), root included: the set
+         * iOS has accepted from this device's store */
+        ncerts = 0;
+        for (int i = 0; i < g_nbag; i++) { buf_put(&sdata, g_bag[i].der, g_bag[i].len); ncerts++; }
+        der_wrap(&sdata, 0xa0, certs_start);
+        tl_log_line("sign: CMS certificates %d (as in Husk's own signature)", ncerts);
+        goto certs_done;
+    }
     buf_put(&sdata, leaf_cert_der, leaf_cert_len);
     if (extra_certs) {
         CFIndex count = CFArrayGetCount(extra_certs);
@@ -706,6 +728,7 @@ static bool build_cms_signed_data(const uint8_t *cdhash, size_t cdhash_len,
         }
     der_wrap(&sdata, 0xa0, certs_start);
     tl_log_line("sign: CMS certificates %d (leaf + intermediates, no root)", ncerts);
+certs_done:
 
     /* Append signerInfos SET OF */
     buf_put(&sdata, sinfo.b, sinfo.n);
@@ -1006,6 +1029,9 @@ int husk_p12_matches_app(const uint8_t *p12, size_t p12_len, const char *passwor
         identity_close(&id);
     }
     pthread_mutex_unlock(&g_ident_lock);
+    tl_log_line(r == 1 ? "sign: the .p12's certificate is the one Husk is installed with"
+                : r == 0 ? "sign: WARNING: the .p12's certificate is not the one Husk is installed with: iOS will refuse the libraries it signs"
+                : "sign: whether the .p12's certificate is the one Husk is installed with is not known");
     return r;
 }
 
@@ -1317,24 +1343,29 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
         buf_put_u32_be(&req_buf, 12);
         buf_put_u32_be(&req_buf, 0);  /* count = 0 */
     }
-    uint8_t req_sha256[32];
+    /*
+     * Two CodeDirectories, as SideStore/AltStore's ldid, zsign and Apple's codesign write them for a certificate signature (and as
+     * the store signed Husk itself, which iOS accepts): SHA-1 in slot 0, SHA-256 in slot 0x1000. The CMS signs the slot-0 one
+     * (messageDigest is its SHA-256), and its 100.9.1/100.9.2 attributes name both CDHashes.
+     */
+    uint8_t req_sha1[20], req_sha256[32];
+    CC_SHA1(req_buf.b, (CC_LONG)req_buf.n, req_sha1);
     CC_SHA256(req_buf.b, (CC_LONG)req_buf.n, req_sha256);
 
-    /* Compute fixed lengths of CodeDirectory and SuperBlob to determine exact datasize */
     size_t n_pages = (dataoff + CS_PAGE_SIZE - 1) / CS_PAGE_SIZE;
-    size_t cd_header_len = 88;
     size_t ident_len = strlen(dylib_id) + 1;
     size_t team_len = (has_identity && meta.team_id[0]) ? strlen(meta.team_id) + 1 : 0;
-    size_t cd_pre_hashes = cd_header_len + ident_len + team_len;
+    size_t cd_pre_hashes = 88 + ident_len + team_len;
     size_t cd_pad = (4 - (cd_pre_hashes % 4)) % 4;
-    size_t cd_total_len = cd_pre_hashes + cd_pad + (2 + n_pages) * 32;
+    size_t cd1_len = cd_pre_hashes + cd_pad + (2 + n_pages) * 20;     /* SHA-1 */
+    size_t cd2_len = cd_pre_hashes + cd_pad + (2 + n_pages) * 32;     /* SHA-256 */
 
     size_t cms_len = 0;
     if (has_identity) {
         /* Probe CMS size to know exact final datasize */
-        uint8_t dummy_cdhash[32] = {0};
+        uint8_t z32[32] = {0}, z20[20] = {0};
         cs_buf cms_probe;
-        if (!build_cms_signed_data(dummy_cdhash, 32, CFDataGetBytePtr(certData),
+        if (!build_cms_signed_data(z32, z20, z32, CFDataGetBytePtr(certData),
                                   (size_t)CFDataGetLength(certData), &meta, chain, privKey, &cms_probe)) {
             fclose(f);
             free(file_bytes);
@@ -1349,19 +1380,13 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
         buf_free(&cms_probe);
     }
 
-    uint32_t slot_count = has_identity ? 3 : 2;
-    size_t sb_hdr_size = 12 + slot_count * 8;
-    uint32_t slot0_off = (uint32_t)sb_hdr_size;
-    uint32_t slot1_off = (slot0_off + (uint32_t)cd_total_len + 7) & ~7u;
-    uint32_t slot2_off = 0;
-    uint32_t sb_total_len = 0;
-
-    if (has_identity) {
-        slot2_off = (slot1_off + (uint32_t)req_buf.n + 7) & ~7u;
-        sb_total_len = slot2_off + 8 + (uint32_t)cms_len;
-    } else {
-        sb_total_len = slot1_off + (uint32_t)req_buf.n;
-    }
+    /* slots: CD (SHA-1), requirements, CD (SHA-256), CMS -- each blob 4-byte aligned, as ldid lays them out */
+    uint32_t slot_count = has_identity ? 4 : 3;
+    uint32_t off_cd1 = 12 + slot_count * 8;
+    uint32_t off_req = (off_cd1 + (uint32_t)cd1_len + 3) & ~3u;
+    uint32_t off_cd2 = (off_req + (uint32_t)req_buf.n + 3) & ~3u;
+    uint32_t off_cms = (off_cd2 + (uint32_t)cd2_len + 3) & ~3u;
+    uint32_t sb_total_len = has_identity ? off_cms + 8 + (uint32_t)cms_len : off_cd2 + (uint32_t)cd2_len;
 
     /*
      * CRITICAL: Update Mach-O header and __LINKEDIT in file_bytes BEFORE computing
@@ -1372,89 +1397,76 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
     seg_link->filesize = (dataoff + sb_total_len) - seg_link->fileoff;
     seg_link->vmsize = (seg_link->filesize + 16383) & ~16383ul;
 
-    /* Compute page hashes from final updated Mach-O file bytes */
-    uint8_t *page_hashes = (uint8_t *)malloc(n_pages * 32);
-    if (!page_hashes) {
+    cs_buf cd1, cd2;
+    for (int which = 0; which < 2; which++) {
+        bool sha1 = which == 0;
+        size_t hs = sha1 ? 20 : 32;
+        cs_buf *cd = sha1 ? &cd1 : &cd2;
+        buf_init(cd);
+        buf_put_u32_be(cd, CSMAGIC_CODEDIRECTORY);
+        size_t cd_len_pos = cd->n;
+        buf_put_u32_be(cd, 0); /* length placeholder */
+        buf_put_u32_be(cd, CS_SUPPORTSEXECSEG);
+        buf_put_u32_be(cd, has_identity ? 0 : CS_ADHOC);
+        size_t hash_off_pos = cd->n;
+        buf_put_u32_be(cd, 0); /* hashOffset placeholder */
+        size_t ident_off_pos = cd->n;
+        buf_put_u32_be(cd, 0); /* identOffset placeholder */
+        buf_put_u32_be(cd, 2); /* nSpecialSlots = 2 */
+        buf_put_u32_be(cd, (uint32_t)n_pages);
+        buf_put_u32_be(cd, (uint32_t)dataoff);
+        buf_put_byte(cd, (uint8_t)hs);
+        buf_put_byte(cd, sha1 ? 1 : CS_HASHTYPE_SHA256);
+        buf_put_byte(cd, 0); /* platform */
+        buf_put_byte(cd, CS_PAGE_SIZE_LOG2);
+        buf_put_u32_be(cd, 0); /* spare2 */
+        buf_put_u32_be(cd, 0); /* scatterOffset */
+        size_t team_off_pos = cd->n;
+        buf_put_u32_be(cd, 0); /* teamOffset placeholder */
+        buf_put_u32_be(cd, 0); /* spare3 */
+        buf_put_u64_be(cd, 0); /* codeLimit64 */
+        buf_put_u64_be(cd, has_exec ? exec_base : seg_text->fileoff);
+        buf_put_u64_be(cd, has_exec ? (exec_limit - exec_base) : seg_text->filesize);
+        buf_put_u64_be(cd, 0); /* execSegFlags */
+        uint32_t ident_off = (uint32_t)cd->n;
+        buf_put(cd, dylib_id, strlen(dylib_id) + 1);
+        uint32_t team_off = 0;
+        if (has_identity && meta.team_id[0]) {
+            team_off = (uint32_t)cd->n;
+            buf_put(cd, meta.team_id, strlen(meta.team_id) + 1);
+        }
+        while (cd->n % 4 != 0) buf_put_byte(cd, 0);
+        uint32_t hash_off = (uint32_t)(cd->n + 2 * hs);
+        buf_put(cd, sha1 ? req_sha1 : req_sha256, hs);   /* slot -2: requirements */
+        uint8_t zero_hash[32] = {0};
+        buf_put(cd, zero_hash, hs);                        /* slot -1: Info.plist (none) */
+        if (!buf_reserve(cd, n_pages * hs)) break;
+        for (size_t i = 0; i < n_pages; i++) {
+            size_t poff = i * CS_PAGE_SIZE;
+            size_t plen = (poff + CS_PAGE_SIZE <= dataoff) ? CS_PAGE_SIZE : (dataoff - poff);
+            uint8_t h[32];
+            if (sha1) CC_SHA1(file_bytes + poff, (CC_LONG)plen, h); else CC_SHA256(file_bytes + poff, (CC_LONG)plen, h);
+            buf_put(cd, h, hs);
+        }
+        buf_set_u32_be(cd, cd_len_pos, (uint32_t)cd->n);
+        buf_set_u32_be(cd, hash_off_pos, hash_off);
+        buf_set_u32_be(cd, ident_off_pos, ident_off);
+        if (team_off) buf_set_u32_be(cd, team_off_pos, team_off);
+    }
+    if (cd1.n != cd1_len || cd2.n != cd2_len) {
         fclose(f);
         free(file_bytes);
-        buf_free(&req_buf);
-        if (err && errlen > 0) snprintf(err, errlen, "Out of memory allocating page hashes");
+        buf_free(&cd1); buf_free(&cd2); buf_free(&req_buf);
+        if (err && errlen > 0) snprintf(err, errlen, "CodeDirectory layout mismatch (%zu/%zu vs %zu/%zu)", cd1.n, cd2.n, cd1_len, cd2_len);
         return false;
     }
 
-    for (size_t i = 0; i < n_pages; i++) {
-        size_t poff = i * CS_PAGE_SIZE;
-        size_t plen = (poff + CS_PAGE_SIZE <= dataoff) ? CS_PAGE_SIZE : (dataoff - poff);
-        CC_SHA256(file_bytes + poff, (CC_LONG)plen, page_hashes + i * 32);
-    }
+    /* the CDHashes, and what the CMS's messageDigest holds: SHA-256 of the slot-0 (SHA-1) CodeDirectory */
+    uint8_t cdhash1[20], cdhash2[32], md[32];
+    CC_SHA1(cd1.b, (CC_LONG)cd1.n, cdhash1);
+    CC_SHA256(cd2.b, (CC_LONG)cd2.n, cdhash2);
+    CC_SHA256(cd1.b, (CC_LONG)cd1.n, md);
 
-    /* Build CodeDirectory */
-    cs_buf cd;
-    buf_init(&cd);
-    buf_put_u32_be(&cd, CSMAGIC_CODEDIRECTORY);
-    size_t cd_len_pos = cd.n;
-    buf_put_u32_be(&cd, 0); /* length placeholder */
-    buf_put_u32_be(&cd, CS_SUPPORTSEXECSEG);
-    buf_put_u32_be(&cd, has_identity ? 0 : CS_ADHOC);
-
-    size_t hash_off_pos = cd.n;
-    buf_put_u32_be(&cd, 0); /* hashOffset placeholder */
-    size_t ident_off_pos = cd.n;
-    buf_put_u32_be(&cd, 0); /* identOffset placeholder */
-
-    buf_put_u32_be(&cd, 2); /* nSpecialSlots = 2 */
-    buf_put_u32_be(&cd, (uint32_t)n_pages);
-    buf_put_u32_be(&cd, (uint32_t)dataoff);
-    buf_put_byte(&cd, 32);
-    buf_put_byte(&cd, CS_HASHTYPE_SHA256);
-    buf_put_byte(&cd, 0); /* platform */
-    buf_put_byte(&cd, CS_PAGE_SIZE_LOG2);
-    buf_put_u32_be(&cd, 0); /* spare2 */
-
-    buf_put_u32_be(&cd, 0); /* scatterOffset */
-    size_t team_off_pos = cd.n;
-    buf_put_u32_be(&cd, 0); /* teamOffset placeholder */
-    buf_put_u32_be(&cd, 0); /* spare3 */
-    buf_put_u64_be(&cd, 0); /* codeLimit64 */
-    buf_put_u64_be(&cd, has_exec ? exec_base : seg_text->fileoff);
-    buf_put_u64_be(&cd, has_exec ? (exec_limit - exec_base) : seg_text->filesize);
-    buf_put_u64_be(&cd, 0); /* execSegFlags */
-
-    uint32_t ident_off = (uint32_t)cd.n;
-    buf_put(&cd, dylib_id, strlen(dylib_id) + 1);
-
-    uint32_t team_off = 0;
-    if (has_identity && meta.team_id[0]) {
-        team_off = (uint32_t)cd.n;
-        buf_put(&cd, meta.team_id, strlen(meta.team_id) + 1);
-    }
-
-    while (cd.n % 4 != 0) buf_put_byte(&cd, 0);
-
-    uint32_t hash_off = (uint32_t)cd.n + 2 * 32;
-    buf_put(&cd, req_sha256, 32); /* Slot -2 */
-    uint8_t zero_hash[32] = {0};
-    buf_put(&cd, zero_hash, 32);  /* Slot -1 */
-
-    buf_put(&cd, page_hashes, n_pages * 32);
-    free(page_hashes);
-
-    uint32_t be_cd_len = htonl((uint32_t)cd.n);
-    memcpy(cd.b + cd_len_pos, &be_cd_len, 4);
-    uint32_t be_hash_off = htonl(hash_off);
-    memcpy(cd.b + hash_off_pos, &be_hash_off, 4);
-    uint32_t be_ident_off = htonl(ident_off);
-    memcpy(cd.b + ident_off_pos, &be_ident_off, 4);
-    if (team_off) {
-        uint32_t be_team_off = htonl(team_off);
-        memcpy(cd.b + team_off_pos, &be_team_off, 4);
-    }
-
-    /* Compute CDHash (SHA-256 of the CodeDirectory) */
-    uint8_t cdhash[32];
-    CC_SHA256(cd.b, (CC_LONG)cd.n, cdhash);
-
-    /* Build real CMS SignedData if signing with identity */
     cs_buf cms;
     buf_init(&cms);
     if (has_identity) {
@@ -1463,7 +1475,7 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
         bool built = false;
         for (int attempt = 0; attempt < 32 && !built; attempt++) {
             buf_free(&cms);
-            built = build_cms_signed_data(cdhash, sizeof(cdhash), CFDataGetBytePtr(certData), (size_t)CFDataGetLength(certData),
+            built = build_cms_signed_data(md, cdhash1, cdhash2, CFDataGetBytePtr(certData), (size_t)CFDataGetLength(certData),
                                           &meta, chain, privKey, &cms) && cms.n == cms_len;
             if (!built && (meta.is_rsa || !cms.b)) break;
         }
@@ -1471,7 +1483,7 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
             size_t got = cms.n;
             fclose(f);
             free(file_bytes);
-            buf_free(&cd);
+            buf_free(&cd1); buf_free(&cd2);
             buf_free(&req_buf);
             buf_free(&cms);
             if (err && errlen > 0) snprintf(err, errlen, "Failed to generate CMS signature (len %zu vs probe %zu)", got, cms_len);
@@ -1479,37 +1491,30 @@ static bool codesign_dylib_locked(const char *path, const uint8_t *p12, size_t p
         }
     }
 
-    /* Build SuperBlob */
     cs_buf sb;
     buf_init(&sb);
     buf_put_u32_be(&sb, CSMAGIC_EMBEDDED_SIGNATURE);
     size_t sb_len_pos = sb.n;
     buf_put_u32_be(&sb, 0); /* length placeholder */
     buf_put_u32_be(&sb, slot_count);
-
-    buf_put_u32_be(&sb, CSSLOT_CODEDIRECTORY);
-    buf_put_u32_be(&sb, slot0_off);
-    buf_put_u32_be(&sb, CSSLOT_REQUIREMENTS);
-    buf_put_u32_be(&sb, slot1_off);
-    if (has_identity) {
-        buf_put_u32_be(&sb, CSSLOT_SIGNATURESLOT);
-        buf_put_u32_be(&sb, slot2_off);
-    }
-
-    /* Append CodeDirectory (Slot 0) */
-    buf_put(&sb, cd.b, cd.n);
-    while (sb.n < slot1_off) buf_put_byte(&sb, 0);
-
-    /* Append Requirements (Slot 1) */
+    buf_put_u32_be(&sb, CSSLOT_CODEDIRECTORY); buf_put_u32_be(&sb, off_cd1);
+    buf_put_u32_be(&sb, CSSLOT_REQUIREMENTS);  buf_put_u32_be(&sb, off_req);
+    buf_put_u32_be(&sb, 0x1000);               buf_put_u32_be(&sb, off_cd2);   /* CSSLOT_ALTERNATE_CODEDIRECTORIES */
+    if (has_identity) { buf_put_u32_be(&sb, CSSLOT_SIGNATURESLOT); buf_put_u32_be(&sb, off_cms); }
+    buf_put(&sb, cd1.b, cd1.n);
+    while (sb.n < off_req) buf_put_byte(&sb, 0);
     buf_put(&sb, req_buf.b, req_buf.n);
-
-    /* Append CMS BlobWrapper (Slot 2) */
+    while (sb.n < off_cd2) buf_put_byte(&sb, 0);
+    buf_put(&sb, cd2.b, cd2.n);
     if (has_identity) {
-        while (sb.n < slot2_off) buf_put_byte(&sb, 0);
+        while (sb.n < off_cms) buf_put_byte(&sb, 0);
         buf_put_u32_be(&sb, CSMAGIC_BLOBWRAPPER);
         buf_put_u32_be(&sb, (uint32_t)(8 + cms.n));
         buf_put(&sb, cms.b, cms.n);
     }
+    cs_buf cd;                     /* what the clean-up below frees */
+    buf_init(&cd);
+    buf_free(&cd1); buf_free(&cd2);
 
     uint32_t final_sb_len = (uint32_t)sb.n;
     uint32_t be_sb_len = htonl(final_sb_len);
@@ -1618,17 +1623,29 @@ static void describe_signature(const uint8_t *sig, size_t len, const char *whose
             /* ContentInfo { oid, [0] { SignedData { version, digestAlgs, encap, [0] certs, ..., signerInfos } } } */
             const uint8_t *p = sig + off + 8, *end = sig + off + blen, *v; size_t n; uint8_t tag;
             int ncerts = -1;
+            char names[300] = "";
             if (der_next(p, end, &tag, &v, &n) && tag == 0x30) {
                 const uint8_t *q = v, *qe = v + n;
                 if (der_next(q, qe, &tag, &v, &n)) q = der_after(q, v, n);              /* contentType */
                 if (q < qe && der_next(q, qe, &tag, &v, &n) && tag == 0xa0 && der_next(v, v + n, &tag, &v, &n) && tag == 0x30) {
                     const uint8_t *r = v, *re = v + n, *last = NULL, *lastv = NULL; size_t lastn = 0;
                     for (; r < re && der_next(r, re, &tag, &v, &n); r = der_after(r, v, n)) {
-                        if (tag == 0xa0) { ncerts = 0; for (const uint8_t *c = v, *ce = v + n; c < ce; ) { const uint8_t *cv; size_t cn; uint8_t t;
-                                if (!der_next(c, ce, &t, &cv, &cn)) break; ncerts++; c = der_after(c, cv, cn); } }
+                        if (tag == 0xa0) {
+                            ncerts = 0; names[0] = 0;
+                            for (const uint8_t *c = v, *ce = v + n; c < ce; ) {
+                                const uint8_t *cv; size_t cn; uint8_t t; cert_meta m;
+                                if (!der_next(c, ce, &t, &cv, &cn)) break;
+                                ncerts++;
+                                size_t whole = (size_t)(der_after(c, cv, cn) - c), nl = strlen(names);
+                                if (parse_cert_der(c, whole, &m))
+                                    snprintf(names + nl, sizeof(names) - nl, "%s'%.40s'%s", nl ? ", " : "", m.common_name,
+                                             cert_is_root(c, whole) ? " (root)" : "");
+                                c = der_after(c, cv, cn);
+                            }
+                        }
                         last = r; lastv = v; lastn = n;
                     }
-                    ADD("[CMS certs %d", ncerts);
+                    ADD("[CMS certs %d: %s;", ncerts, names);
                     /* signerInfos SET { SignerInfo SEQUENCE { version, sid, digestAlg, [0] attrs, sigAlg, sig } } */
                     if (last && last[0] == 0x31 && der_next(lastv, lastv + lastn, &tag, &v, &n) && tag == 0x30) {
                         const uint8_t *e = v, *ee = v + n; int field = 0;
@@ -1705,6 +1722,12 @@ int husk_codesign_chain_from_executable(const char *path)
                     if (!der_next(c, ce, &tag, &cv, &cn)) break;
                     size_t whole = (size_t)(der_after(c, cv, cn) - c);
                     if (tag == 0x30 && nbag < 16) { bag[nbag] = c; bag_len[nbag] = whole; nbag++; }
+                    if (tag == 0x30 && g_nbag < 8 && (g_bag[g_nbag].der = malloc(whole))) {
+                        bool dup = false;
+                        for (int k = 0; k < g_nbag && !dup; k++) dup = g_bag[k].len == whole && !memcmp(g_bag[k].der, c, whole);
+                        if (dup) free(g_bag[g_nbag].der);
+                        else { memcpy(g_bag[g_nbag].der, c, whole); g_bag[g_nbag].len = whole; g_nbag++; }
+                    }
                     if (tag == 0x30 && chain_add(c, whole)) found++;
                     c = der_after(c, cv, cn);
                 }
