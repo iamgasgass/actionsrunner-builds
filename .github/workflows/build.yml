@@ -1,0 +1,577 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Husk: build the unsigned IPA (and the TrollStore .tipa) from a clean checkout, and release them.
+#
+#   push to main, pull request    build, check and keep the IPA as a workflow artifact
+#   push of a tag like 3.5        build, check, and publish Husk.ipa / Husk.tipa on that tag's release
+#   Run workflow (manual)         either of the above; "release" publishes, with the version as the tag by default
+#
+# "Unsigned" as sideloaders mean it: no developer certificate, ad hoc signed with Husk.entitlements embedded
+# (scripts/package_ipa.sh), which SideStore / AltStore re-sign at install and TrollStore installs as it is. Asset names
+# stay Husk.ipa and Husk.tipa: altsource.json's downloadURL is releases/download/<tag>/Husk.ipa.
+#
+# The native parts (glib and the other QEMU dependencies, ANGLE, virglrenderer, QEMU, MoltenVK) are built here the way
+# scripts/ci_build.sh builds them, in its order, and cached: a cold build is a few hours, a warm one well under one.
+# Three parts cannot be built from this repository and come in prebuilt (scripts/ci_prebuilt.sh checks each), set as
+# repository variables or secrets:
+#
+#   HUSK_JAVA_RUNTIME_URL    + _SHA256   build/java-runtime     (scripts/build_java_runtime.sh)   Java apps need it
+#   HUSK_ANDROID_SYSTEM_URL  + _SHA256   build/android-system   (scripts/build_android_system.sh) Flutter apps' fonts, CAs
+#   HUSK_PS4_DYLIB_URL       + _SHA256   libhuskps4.dylib       (scripts/build_ps4_ios.sh)        the PS4 layer
+#
+# each an https:// URL or gh-release:OWNER/REPO@TAG/ASSET (with secret HUSK_PREBUILT_TOKEN for private ones). A release
+# refuses to go out without the Java runtime (allow_partial overrides); without the PS4 layer it goes out saying so,
+# since the app handles its absence (PS4Store.moduleURL). Every build's summary says which parts it has.
+#
+# Making them, on the Mac that has their inputs (after build_java_runtime.sh, build_android_system.sh, build_ps4_ios.sh):
+#
+#   tar czf java-runtime.tgz   -C build java-runtime
+#   tar czf android-system.tgz -C build android-system
+#   gh release create prebuilt-1 java-runtime.tgz android-system.tgz build/ios-arm64/lib/libhuskps4.dylib \
+#       --repo OWNER/Husk-prebuilt --notes "inputs for Husk CI"
+#   shasum -a 256 java-runtime.tgz android-system.tgz build/ios-arm64/lib/libhuskps4.dylib    # -> the *_SHA256 variables
+#
+# then HUSK_JAVA_RUNTIME_URL = gh-release:OWNER/Husk-prebuilt@prebuilt-1/java-runtime.tgz (and so on), and a fine-grained
+# token that can read that repository as secret HUSK_PREBUILT_TOKEN. A separate repository, not a release of this one:
+# tools/update-altsource.py lists this repository's releases as Husk versions.
+#
+# Other knobs: variable HUSK_XCODE (e.g. 27.0) pins Xcode; variable HUSK_CACHE_SALT, when changed, rebuilds every
+# cached native part.
+
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]+.[0-9]+*', 'v[0-9]+.[0-9]+*']
+    paths-ignore: &docs_only
+      - '**.md'
+      - 'docs/**'
+      - 'Screenshots/**'
+      - 'showcase/**'
+      - 'research/**'
+      - 'catalog/**'
+      - 'altsource.json'
+      - '.github/ISSUE_TEMPLATE/**'
+  pull_request:
+    paths-ignore: *docs_only
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a GitHub release with the IPA
+        type: boolean
+        default: false
+      tag:
+        description: Release tag (empty = CFBundleShortVersionString, e.g. 3.4)
+        type: string
+        default: ''
+      prerelease:
+        description: Mark the release as a pre-release
+        type: boolean
+        default: false
+      draft:
+        description: Create the release as a draft
+        type: boolean
+        default: false
+      ps4:
+        description: The PS4 layer (libhuskps4.dylib)
+        type: choice
+        options: [auto, require, skip]
+        default: auto
+      allow_partial:
+        description: Allow a release without the Java runtime
+        type: boolean
+        default: false
+      xcode:
+        description: Xcode version (empty = HUSK_XCODE or the newest stable 26+)
+        type: string
+        default: ''
+      rebuild_native:
+        description: Ignore the native caches (QEMU, ANGLE, MoltenVK) and build them again
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  # a newer push to a branch supersedes the build in progress; a release build is never cut short
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && !inputs.release }}
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  HOMEBREW_NO_ANALYTICS: '1'
+  # Bumping this throws away every native cache (the variable, without editing this file, does the same).
+  CACHE_VERSION: v1
+
+jobs:
+  build:
+    name: Build Husk.ipa
+    # Apple Silicon: scripts/build_gpu_ios.sh calls /opt/homebrew/bin/meson, which is where arm64 Homebrew lives.
+    runs-on: macos-26
+    # GitHub-hosted jobs stop at 6 hours; a cold native build fits with room to spare.
+    timeout-minutes: 350
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      release: ${{ steps.meta.outputs.release }}
+      commit: ${{ steps.meta.outputs.commit }}
+      xcode: ${{ steps.xcode.outputs.version }}
+      parts: ${{ steps.parts.outputs.summary }}
+    env:
+      HUSK_IPA_DD: ${{ github.workspace }}/build/derived
+      OUT_DIR: ${{ github.workspace }}/dist
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      # ------------------------------------------------------------------ what is being built
+      - name: Version, tag and kind of build
+        id: meta
+        env:
+          INPUT_RELEASE: ${{ inputs.release }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          plist=src/app/Husk/Info.plist
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+          build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")"
+          release=false; tag=""
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            release=true; tag="${GITHUB_REF#refs/tags/}"
+          elif [ "${INPUT_RELEASE:-false}" = true ]; then
+            release=true; tag="${INPUT_TAG:-}"; [ -n "$tag" ] || tag="$version"
+          fi
+          if [ "$release" = true ]; then
+            # A release named for one version carrying another is how the wrong build reaches people: refuse it.
+            [ "${tag#v}" = "$version" ] || {
+              echo "::error title=Version mismatch::tag '$tag' but Info.plist says CFBundleShortVersionString $version. Bump the version or use the matching tag."
+              exit 1; }
+          fi
+          commit="$(git rev-parse --short=10 HEAD)"
+          {
+            echo "version=$version"; echo "build=$build"; echo "tag=$tag"; echo "release=$release"; echo "commit=$commit"
+          } >> "$GITHUB_OUTPUT"
+          echo "Husk $version ($build), commit $commit, release: $release ${tag:+(tag $tag)}"
+
+      # ------------------------------------------------------------------ toolchain
+      - name: Select Xcode
+        id: xcode
+        env:
+          WANT: ${{ inputs.xcode || vars.HUSK_XCODE }}
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          if [ -n "${WANT:-}" ]; then
+            app="/Applications/Xcode_${WANT}.app"
+            [ -d "$app" ] || { echo "::error::Xcode $WANT is not on this runner (see the list above)"; exit 1; }
+          else
+            # the newest release (not a beta or release candidate) that is 26 or later: the app needs the iOS 26 SDK
+            # (BGContinuedProcessingTask) and builds with 27 too
+            app="$(ls -d /Applications/Xcode_[0-9]*.app | grep -viE 'beta|release_candidate|_rc' \
+                   | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+            [ -n "$app" ] || { echo "::error::no released Xcode on this runner"; exit 1; }
+          fi
+          sudo xcode-select -s "$app/Contents/Developer"
+          xcodebuild -version
+          ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
+          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Husk needs the iOS 26 SDK"; exit 1; }
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK $sdk at $(xcrun --sdk iphoneos --show-sdk-path)"
+          echo "version=$ver ($(xcodebuild -version | awk '/Build version/{print $3}'), iOS SDK $sdk)" >> "$GITHUB_OUTPUT"
+          echo "key=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_OUTPUT"
+
+      - name: Metal toolchain
+        # Since Xcode 26 the Metal compiler is a separate component; Shaders.metal and ANGLE's shaders need it.
+        run: |
+          set -euo pipefail
+          if ! xcrun -sdk iphoneos metal --version >/dev/null 2>&1; then
+            echo "downloading the Metal toolchain"
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun -sdk iphoneos metal --version
+
+      - name: Make room on the disk
+        # WebKit's ANGLE tree, QEMU's build and Xcode's DerivedData need tens of GB; images vary in what they leave free.
+        run: |
+          set -euo pipefail
+          free_gb() { df -g / | awk 'NR==2{print $4}'; }
+          echo "free: $(free_gb) GB"
+          if [ "$(free_gb)" -lt 60 ]; then
+            current="$(xcode-select -p | sed 's#/Contents/Developer##')"
+            for x in /Applications/Xcode_*.app; do
+              [ "$(cd "$x" && pwd -P)" = "$(cd "$current" && pwd -P)" ] && continue
+              [ -L "$x" ] && continue
+              sudo rm -rf "$x" &
+            done
+            sudo rm -rf "${ANDROID_HOME:-/nonexistent}" "$HOME/Library/Android" /usr/local/share/dotnet "$HOME/.dotnet" &
+            wait
+            echo "free now: $(free_gb) GB"
+          fi
+
+      - name: Host tools
+        run: |
+          set -euo pipefail
+          # meson/ninja/pkg-config: the cross builds; xcodegen: the project from project.yml (required, see "PS4 layer");
+          # qemu: qemu-img, for the guest disk seeds the app target makes; gettext/autoconf/automake/libtool: libiconv,
+          # gettext and libffi's configure
+          brew install meson ninja pkg-config xcodegen qemu gettext autoconf automake libtool
+          # glib's build scripts import packaging
+          python3 -c 'import packaging' 2>/dev/null || python3 -m pip install --break-system-packages --user packaging
+          rustup target add aarch64-apple-ios
+          for t in meson ninja pkg-config xcodegen qemu-img cargo cmake git rsync; do
+            printf '%-12s %s\n' "$t" "$($t --version 2>&1 | head -1)"
+          done
+          [ -x /opt/homebrew/bin/meson ] || { echo "::error::/opt/homebrew/bin/meson missing (scripts/build_gpu_ios.sh needs it)"; exit 1; }
+
+      # ------------------------------------------------------------------ native: deps, ANGLE, virglrenderer, QEMU
+      # One cache for the chain: QEMU is configured against ANGLE's headers and virglrenderer, so they stand or fall
+      # together. Keyed on everything that decides them and on the Xcode build; restored only on an exact match, so a
+      # changed script never meets a stale build. It is saved before Husk's sources go into QEMU: those are copied in and
+      # compiled incrementally on every run (scripts/integrate_husk.sh, build_ios.sh qemurebuild), as ci_build.sh does.
+      - name: Native cache key
+        id: nkey
+        run: |
+          set -euo pipefail
+          h="$(cat scripts/build_ios.sh scripts/sources.sh scripts/fetch_sources.sh scripts/build_angle_ios.sh \
+                  scripts/build_gpu_ios.sh patches/qemu-10.0.12-utm.patch patches/pixman-0.38.0.patch \
+                  patches/libslirp-v4.9.1.patch patches/husk-epoxy-ios-egl-path.patch | shasum -a 256 | cut -c1-20)"
+          # and the host tools the build tree remembers: QEMU's configure puts a Python venv linked to this python3 in it,
+          # and meson/ninja regenerate with the versions that made it, so a runner image with new ones must not reuse it
+          tools="$(printf '%s %s %s' "$(python3 -c 'import sys; print(sys.version.split()[0])')" "$(meson --version)" "$(ninja --version)" | shasum -a 256 | cut -c1-12)"
+          echo "key=native-$CACHE_VERSION-${{ vars.HUSK_CACHE_SALT }}-${{ steps.xcode.outputs.key }}-$tools-$h" >> "$GITHUB_OUTPUT"
+
+      - name: Restore native build
+        id: native
+        if: ${{ !inputs.rebuild_native }}
+        uses: actions/cache/restore@v4
+        with:
+          key: ${{ steps.nkey.outputs.key }}
+          path: &native_paths |
+            build/ios-arm64/sysroot
+            build/ios-arm64/cross-ios.meson
+            build/ios-arm64/cross-darwin.meson
+            build/ios-arm64/cross-ios-darwin.meson
+            build/ios-arm64/lib/libqemu-aarch64-softmmu.dylib
+            build/stamps
+            third_party/build/qemu-10.0.12-utm
+            third_party/build/.unpacked-*
+
+      - name: Fetch sources
+        if: steps.native.outputs.cache-hit != 'true'
+        run: ./scripts/fetch_sources.sh
+
+      - name: 'Dependencies: libffi glib pixman libucontext libslirp'
+        if: steps.native.outputs.cache-hit != 'true'
+        run: |
+          rm -rf build/stamps    # nothing restored means nothing built
+          ./scripts/build_ios.sh libffi glib pixman libucontext libslirp
+          # build_gpu_ios.sh asks for cross-ios-darwin.meson, which build_ios.sh writes as cross-darwin.meson
+          cp build/ios-arm64/cross-darwin.meson build/ios-arm64/cross-ios-darwin.meson
+
+      - name: ANGLE (EGL/GLES over Metal)
+        if: steps.native.outputs.cache-hit != 'true'
+        run: ./scripts/build_angle_ios.sh
+
+      - name: libepoxy + virglrenderer
+        if: steps.native.outputs.cache-hit != 'true'
+        run: |
+          PKG_CONFIG_LIBDIR="$GITHUB_WORKSPACE/build/ios-arm64/sysroot/lib/pkgconfig:$GITHUB_WORKSPACE/build/ios-arm64/sysroot/share/pkgconfig" \
+            ./scripts/build_gpu_ios.sh
+
+      - name: QEMU
+        if: steps.native.outputs.cache-hit != 'true'
+        run: ./scripts/build_ios.sh qemu
+
+      - name: Save native build
+        if: steps.native.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: ${{ steps.nkey.outputs.key }}
+          path: *native_paths
+
+      - name: Husk's sources into QEMU, then rebuild it
+        run: |
+          set -euo pipefail
+          ./scripts/integrate_husk.sh
+          ./scripts/build_ios.sh qemurebuild
+          lib=build/ios-arm64/lib/libqemu-aarch64-softmmu.dylib
+          otool -D "$lib" | tail -1
+          otool -l "$lib" | awk '/LC_BUILD_VERSION/{b=1} b&&/platform|minos|sdk/{print "  "$0} /cmdsize/&&b{b=0}' | head -3
+          nm -gU "$lib" | grep -q ' _qemu_init$' || { echo "::error::QEMU dylib does not export qemu_init"; exit 1; }
+
+      # ------------------------------------------------------------------ the guest, MoltenVK, pairing
+      - name: Guest cache
+        uses: actions/cache@v4
+        with:
+          key: guest-${{ env.CACHE_VERSION }}-${{ hashFiles('scripts/fetch_phase0_guest.sh') }}
+          path: guests/phase0
+
+      - name: Guest kernel + firmware
+        run: ./scripts/fetch_phase0_guest.sh
+
+      - name: MoltenVK cache
+        id: mvk
+        if: ${{ !inputs.rebuild_native }}
+        uses: actions/cache/restore@v4
+        with:
+          key: moltenvk-${{ env.CACHE_VERSION }}-${{ vars.HUSK_CACHE_SALT }}-${{ steps.xcode.outputs.key }}-${{ hashFiles('scripts/build_moltenvk_ios.sh', 'patches/husk-spirv-cross-*.patch') }}
+          path: build/ios-arm64/lib/MoltenVK.xcframework
+
+      - name: MoltenVK (Vulkan over Metal, for Unreal Engine games)
+        if: steps.mvk.outputs.cache-hit != 'true'
+        run: |
+          rm -rf build/ios-arm64/lib/MoltenVK.xcframework
+          ./scripts/build_moltenvk_ios.sh
+
+      - name: Save MoltenVK
+        if: steps.mvk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: moltenvk-${{ env.CACHE_VERSION }}-${{ vars.HUSK_CACHE_SALT }}-${{ steps.xcode.outputs.key }}-${{ hashFiles('scripts/build_moltenvk_ios.sh', 'patches/husk-spirv-cross-*.patch') }}
+          path: build/ios-arm64/lib/MoltenVK.xcframework
+
+      - name: Rust cache
+        uses: actions/cache@v4
+        with:
+          key: rust-${{ env.CACHE_VERSION }}-${{ steps.xcode.outputs.key }}-${{ hashFiles('src/rppairing-ios/Cargo.lock', 'src/rppairing-ios/Cargo.toml') }}
+          restore-keys: rust-${{ env.CACHE_VERSION }}-${{ steps.xcode.outputs.key }}-
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            src/rppairing-ios/target
+
+      - name: On-device pairing (Rust)
+        run: ./scripts/build_rppairing_ios.sh
+
+      # ------------------------------------------------------------------ the parts built elsewhere
+      - name: Prebuilt parts
+        id: parts
+        env:
+          GH_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN || github.token }}
+          HUSK_PREBUILT_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN }}
+          JAVA_URL: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL }}
+          JAVA_SHA: ${{ vars.HUSK_JAVA_RUNTIME_SHA256 }}
+          SYS_URL: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL }}
+          SYS_SHA: ${{ vars.HUSK_ANDROID_SYSTEM_SHA256 }}
+          PS4_URL: ${{ secrets.HUSK_PS4_DYLIB_URL || vars.HUSK_PS4_DYLIB_URL }}
+          PS4_SHA: ${{ vars.HUSK_PS4_DYLIB_SHA256 }}
+          PS4_MODE: ${{ inputs.ps4 || 'auto' }}
+          RELEASE: ${{ steps.meta.outputs.release }}
+          ALLOW_PARTIAL: ${{ inputs.allow_partial || vars.HUSK_ALLOW_PARTIAL_RELEASE || 'false' }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/ci_prebuilt.sh
+          java=no; sys=no; ps4=no
+          # A URL that is set but fails is an error everywhere: a broken artifact must not turn into a quietly lesser IPA.
+          if [ -n "${JAVA_URL:-}" ]; then scripts/ci_prebuilt.sh java-runtime "$JAVA_URL" "${JAVA_SHA:-}"; java=yes; fi
+          if [ -n "${SYS_URL:-}" ];  then scripts/ci_prebuilt.sh android-system "$SYS_URL" "${SYS_SHA:-}"; sys=yes; fi
+          if [ "$PS4_MODE" != skip ] && [ -n "${PS4_URL:-}" ]; then scripts/ci_prebuilt.sh ps4 "$PS4_URL" "${PS4_SHA:-}"; ps4=yes; fi
+
+          if [ "$java" = no ]; then
+            if [ "$RELEASE" = true ] && [ "$ALLOW_PARTIAL" != true ]; then
+              echo "::error title=No Java runtime::a release without build/java-runtime cannot start Java apps. Set HUSK_JAVA_RUNTIME_URL, or run with allow_partial."
+              exit 1
+            fi
+            echo "::warning title=No Java runtime::HUSK_JAVA_RUNTIME_URL is not set: this IPA cannot start Java apps (libGDX games and the like)."
+          fi
+          [ "$sys" = yes ] || echo "::warning title=No android-system::HUSK_ANDROID_SYSTEM_URL is not set: Flutter apps will have no system fonts or CA certificates."
+          if [ "$ps4" = no ]; then
+            [ "$PS4_MODE" = require ] && { echo "::error title=No PS4 layer::ps4=require, but HUSK_PS4_DYLIB_URL is not set"; exit 1; }
+            echo "::warning title=No PS4 layer::this IPA is built without libhuskps4.dylib; Husk will say PS4 games are not in this copy."
+          fi
+          {
+            echo "java=$java"; echo "system=$sys"; echo "ps4=$ps4"
+            echo "summary=Java runtime: $java · android-system: $sys · PS4 layer: $ps4"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Without the PS4 layer, take it out of the project
+        if: steps.parts.outputs.ps4 != 'yes'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("src/app/project.yml")
+          s = p.read_text()
+          block = re.compile(r"\n[ ]+- framework: \.\./\.\./build/ios-arm64/lib/libhuskps4\.dylib\n(?:[ ]+(?:embed|codeSign|link): \w+\n)+")
+          s2, n = block.subn("\n", s)
+          assert n == 1, f"expected one libhuskps4 entry in project.yml, found {n}"
+          p.write_text(s2)
+          print("project.yml: libhuskps4.dylib entry removed")
+          PY
+          echo "HUSK_WITHOUT_PS4=1" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------------ the app
+      - name: App + IPA
+        env:
+          HUSK_BUILD_COMMIT: ${{ steps.meta.outputs.commit }}
+          DD: ${{ env.HUSK_IPA_DD }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUT_DIR"
+          ./scripts/package_ipa.sh "$OUT_DIR/Husk.ipa"
+          ./scripts/package_ipa.sh --trollstore "$OUT_DIR/Husk.tipa"
+
+      - name: Check the packages
+        id: check
+        env:
+          WANT_VERSION: ${{ steps.meta.outputs.version }}
+          WANT_COMMIT: ${{ steps.meta.outputs.commit }}
+          HAS_JAVA: ${{ steps.parts.outputs.java }}
+          HAS_SYS: ${{ steps.parts.outputs.system }}
+          HAS_PS4: ${{ steps.parts.outputs.ps4 }}
+        run: |
+          set -euo pipefail
+          cd "$OUT_DIR"
+          bad=0
+          err() { echo "::error title=$1::$2"; bad=1; }
+          for pkg in Husk.ipa Husk.tipa; do
+            echo "== $pkg ($(du -h "$pkg" | cut -f1))"
+            unzip -tq "$pkg" >/dev/null || { err "$pkg" "the zip is damaged"; continue; }
+            rm -rf x && mkdir x && ditto -x -k "$pkg" x
+            app=x/Payload/Husk.app
+            [ -d "$app" ] || { err "$pkg" "no Payload/Husk.app"; continue; }
+            v="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
+            [ "$v" = "$WANT_VERSION" ] || err "$pkg" "version $v, expected $WANT_VERSION"
+            c="$(/usr/libexec/PlistBuddy -c 'Print :HuskBuildCommit' "$app/Info.plist" 2>/dev/null || true)"
+            [ "$c" = "$WANT_COMMIT" ] || err "$pkg" "stamped commit '$c', expected $WANT_COMMIT"
+            exe="$app/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+            file -b "$exe" | grep -q "arm64" || err "$pkg" "the executable is not arm64"
+            codesign --verify --deep "$app" 2>&1 || err "$pkg" "the ad hoc signature does not verify"
+            # what the parts were supposed to put in, and only that
+            [ "$HAS_JAVA" = yes ] && { [ -f "$app/java-runtime/husk-framework.dex" ] || err "$pkg" "Java runtime missing from the bundle"; }
+            [ "$HAS_SYS" = yes ] && { [ -d "$app/android-system/fonts" ] || err "$pkg" "android-system missing from the bundle"; }
+            if [ "$HAS_PS4" = yes ]; then [ -f "$app/Frameworks/libhuskps4.dylib" ] || err "$pkg" "libhuskps4.dylib missing from the bundle"
+            else [ ! -e "$app/Frameworks/libhuskps4.dylib" ] || err "$pkg" "a libhuskps4.dylib is in a build that has none"; fi
+            # every Mach-O in the bundle is for iOS on arm64 (a macOS or simulator slice installs and then fails to load)
+            while IFS= read -r -d '' f; do
+              file -b "$f" | grep -q 'Mach-O' || continue
+              p="$(otool -l "$f" | awk '/LC_BUILD_VERSION/{b=1} b&&/platform/{print $2; exit}')"
+              [ -z "$p" ] || [ "$p" = 2 ] || err "$pkg" "${f#$app/} is built for platform $p, not iOS"
+            done < <(find "$app" -type f \( -perm -u+x -o -name '*.dylib' \) -print0)
+            # no game libraries from local testing (package_ipa.sh: shipping them would distribute the game)
+            if find "$app" -path '*aot*' -name '*.dylib' | grep -q .; then err "$pkg" "converted game libraries in the bundle"; fi
+            ents="$(codesign -d --entitlements - "$app" 2>&1 || true)"
+            if [ "$pkg" = Husk.tipa ]; then
+              grep -q 'dynamic-codesigning' <<< "$ents" && err "$pkg" "TrollStore package carries dynamic-codesigning"
+            else
+              grep -q 'dynamic-codesigning' <<< "$ents" || err "$pkg" "sideload package lost dynamic-codesigning"
+            fi
+            echo "   version $v, commit $c, $(du -sh "$app" | cut -f1) unpacked"
+            rm -rf x
+          done
+          shasum -a 256 Husk.ipa Husk.tipa | tee SHA256SUMS.txt
+          [ $bad = 0 ]
+
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          XCODE: ${{ steps.xcode.outputs.version }}
+          PARTS: ${{ steps.parts.outputs.summary }}
+          NATIVE_HIT: ${{ steps.native.outputs.cache-hit }}
+          MVK_HIT: ${{ steps.mvk.outputs.cache-hit }}
+        run: |
+          {
+            echo "## Husk ${VERSION:-?} (${COMMIT:-?})"
+            echo
+            echo "| | |"; echo "|---|---|"
+            echo "| Xcode | ${XCODE:-?} |"
+            echo "| Parts | ${PARTS:-?} |"
+            echo "| Native cache | QEMU chain: ${NATIVE_HIT:-miss} · MoltenVK: ${MVK_HIT:-miss} |"
+            if [ -f "$OUT_DIR/SHA256SUMS.txt" ]; then
+              echo; echo '```'; cat "$OUT_DIR/SHA256SUMS.txt"; echo '```'
+              echo; ls -lh "$OUT_DIR"/Husk.* | awk '{print "- "$NF": "$5}' | sed "s#$OUT_DIR/##"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Husk-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.commit }}
+          path: |
+            dist/Husk.ipa
+            dist/Husk.tipa
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0     # an IPA is already a zip
+          retention-days: 30
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/logs
+            build/derived/build.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    name: Release ${{ needs.build.outputs.tag }}
+    needs: build
+    if: needs.build.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    environment:
+      name: release
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.build.outputs.tag }}
+    steps:
+      - name: Get the packages
+        uses: actions/download-artifact@v4
+        with:
+          name: Husk-${{ needs.build.outputs.version }}-${{ needs.build.outputs.commit }}
+          path: dist
+
+      - name: Check them again
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 -c SHA256SUMS.txt
+          ls -l
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+          XCODE: ${{ needs.build.outputs.xcode }}
+          PARTS: ${{ needs.build.outputs.parts }}
+          PRERELEASE: ${{ inputs.prerelease || false }}
+          DRAFT: ${{ inputs.draft || false }}
+        run: |
+          set -euo pipefail
+          {
+            echo "Husk $VERSION, built from \`$COMMIT\` with Xcode $XCODE."
+            echo
+            echo "- **Husk.ipa**: SideStore / AltStore (they sign it with your Apple ID at install)"
+            echo "- **Husk.tipa**: TrollStore"
+            echo
+            echo "Unsigned (ad hoc, no developer certificate). $PARTS."
+            echo
+            echo '```'; cat dist/SHA256SUMS.txt; echo '```'
+          } > notes.md
+          flags=()
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # the release exists (written by hand, or a re-run): keep its notes, replace the packages
+            echo "release $TAG exists; replacing its assets"
+            gh release upload "$TAG" dist/Husk.ipa dist/Husk.tipa dist/SHA256SUMS.txt --clobber
+          else
+            [ "$DRAFT" = true ] && flags+=(--draft)
+            gh release create "$TAG" dist/Husk.ipa dist/Husk.tipa dist/SHA256SUMS.txt \
+              --title "$VERSION" --notes-file notes.md --target "$GITHUB_SHA" ${flags[@]+"${flags[@]}"}
+          fi
+          gh release view "$TAG" --json url,assets --jq '.url, (.assets[] | "  \(.name)  \(.size) bytes")'
