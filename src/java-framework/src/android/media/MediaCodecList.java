@@ -2,7 +2,7 @@ package android.media;
 
 import java.util.ArrayList;
 
-/** The decoders Husk has (see MediaCodecInfo): H.264 and HEVC video, AAC and MP3 audio. No encoders. */
+/** The decoders Husk has (see MediaCodecInfo): H.264 and HEVC video; AAC, MP3, AC-3, E-AC-3 and MPEG Layer I/II audio. No encoders. */
 public final class MediaCodecList {
     public static final int REGULAR_CODECS = 0, ALL_CODECS = 1;
     private static MediaCodecInfo[] sInfos;
@@ -26,6 +26,18 @@ public final class MediaCodecList {
             l.add(new MediaCodecInfo("c2.husk.aac.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_AAC, 8,
                 new int[] { MediaCodecInfo.CodecProfileLevel.AACObjectLC, MediaCodecInfo.CodecProfileLevel.AACObjectHE, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS })));
             l.add(new MediaCodecInfo("c2.husk.mp3.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_MPEG, 2, new int[0])));
+            // TV and IPTV sound (DVB, ATSC, broadcast HLS): Dolby Digital / Digital Plus and MPEG-1 Layer I/II, where this iOS has the
+            // decoder (MediaCodecNative.supported asks). Multichannel streams come out mixed down to stereo.
+            if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_AUDIO_AC3))
+                l.add(new MediaCodecInfo("c2.husk.ac3.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_AC3, 6, new int[0])));
+            if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_AUDIO_EAC3))
+                l.add(new MediaCodecInfo("c2.husk.eac3.decoder", false,
+                    MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_EAC3, 16, new int[0]),
+                    MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_EAC3_JOC, 16, new int[0])));
+            if (husk.MediaCodecNative.supported("audio/mpeg-L2"))
+                l.add(new MediaCodecInfo("c2.husk.mp2.decoder", false,
+                    MediaCodecInfo.CodecCapabilities.audio("audio/mpeg-L2", 2, new int[0]),
+                    MediaCodecInfo.CodecCapabilities.audio("audio/mpeg-L1", 2, new int[0])));
             sInfos = l.toArray(new MediaCodecInfo[0]);
         }
         return sInfos;

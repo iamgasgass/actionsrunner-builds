@@ -66,7 +66,15 @@ public final class MediaCodec {
     private Callback mCallback; private Handler mCallbackHandler;
     private OnFrameRenderedListener mRendered; private Handler mRenderedHandler;
     private Bitmap mFrame;
-    private final Paint mPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+    /* A decoded frame is opaque and covers the whole surface (stretched to it, or cropped to fill it): drawn as a copy (SRC, CoreGraphics'
+       copy mode) rather than blended over what was there, and with no clearing first -- per frame, that was a fill and a blend of every
+       pixel of the surface that changed nothing on screen. */
+    private final Paint mPaint = newFramePaint();
+    private static Paint newFramePaint() {
+        Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
+        p.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC));
+        return p;
+    }
     private final long[] mInfo = new long[3];
 
     private MediaCodec(String name, String mime) throws IOException {
@@ -85,7 +93,7 @@ public final class MediaCodec {
     public static MediaCodec createDecoderByType(String type) throws IOException {
         if (type == null) throw new NullPointerException();
         for (MediaCodecInfo i : MediaCodecList.infos()) for (String t : i.getSupportedTypes()) if (t.equalsIgnoreCase(type)) return new MediaCodec(i.getName(), t);
-        throw new IOException("Failed to create a decoder for " + type + " (Husk decodes H.264, HEVC, AAC and MP3)");
+        throw new IOException("Failed to create a decoder for " + type + " (Husk decodes H.264, HEVC, AAC, MP3, AC-3, E-AC-3 and MPEG Layer I/II)");
     }
     public static MediaCodec createEncoderByType(String type) throws IOException { throw new IOException("Husk has no " + type + " encoder"); }
     public static Surface createPersistentInputSurface() { throw new IllegalArgumentException("Husk has no encoders"); }
@@ -300,9 +308,9 @@ public final class MediaCodec {
             if (mScaling == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) {
                 float sc = Math.max((float) cw / mOutW, (float) ch / mOutH);
                 int w = Math.round(mOutW * sc), h = Math.round(mOutH * sc);
-                dst.set((cw - w) / 2, (ch - h) / 2, (cw + w) / 2, (ch + h) / 2);
+                // a pixel over on each side: rounding must never leave an edge of the last frame showing
+                dst.set((cw - w) / 2 - 1, (ch - h) / 2 - 1, (cw + w) / 2 + 1, (ch + h) / 2 + 1);
             }
-            c.drawColor(0xFF000000);
             c.drawBitmap(mFrame, null, dst, mPaint);
         } finally { s.unlockCanvasAndPost(c); }
         OnFrameRenderedListener l = mRendered;

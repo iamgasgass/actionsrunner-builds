@@ -11,6 +11,9 @@ import android.view.animation.LayoutAnimationController;
 import java.util.ArrayList;
 
 public abstract class ViewGroup extends View implements ViewParent, ViewManager {
+    /** A descendant was invalidated (API 26). Husk redraws whole windows, so nothing has to be passed up; here so the classes that
+     *  override it and call super (Compose's container of embedded Android views) find it. */
+    public void onDescendantInvalidated(View child, View target) {}
     public static final int FOCUS_BEFORE_DESCENDANTS = 0x20000, FOCUS_AFTER_DESCENDANTS = 0x40000, FOCUS_BLOCK_DESCENDANTS = 0x60000;
     public static final int PERSISTENT_NO_CACHE = 0, PERSISTENT_ANIMATION_CACHE = 1, PERSISTENT_SCROLLING_CACHE = 2, PERSISTENT_ALL_CACHES = 3,
         LAYOUT_MODE_CLIP_BOUNDS = 0, LAYOUT_MODE_OPTICAL_BOUNDS = 1;

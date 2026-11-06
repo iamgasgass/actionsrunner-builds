@@ -9,7 +9,10 @@
  * presentation time and leave it in display order, as MediaCodec hands them out. The Java side draws a frame into a Bitmap
  * (renderFrame) and the Bitmap into the app's Surface.
  *
- * Audio: one compressed packet per queued buffer (as MediaCodec is fed), decoded to interleaved 16-bit PCM.
+ * Audio: one compressed packet per queued buffer (as MediaCodec is fed), decoded to interleaved 16-bit PCM. AAC, MP3, and -- for TV
+ * and IPTV streams, where they are the usual sound -- AC-3 and E-AC-3 (Dolby Digital / Plus, E-AC-3 JOC through its E-AC-3 core) and
+ * MPEG-1 Layer I/II (DVB's audio); each only where this iOS has the decoder (audio_available asks AudioToolbox). Husk's AudioTrack
+ * plays mono or stereo, so a 5.1 or 7.1 stream is mixed down to stereo here, by the channel layout the decoder reports.
  */
 #define _DARWIN_C_SOURCE
 #include <Accelerate/Accelerate.h>
@@ -37,7 +40,8 @@ static jvalue J(int64_t v) { jvalue r; r.j = v; return r; }
 static jvalue Z(bool v) { jvalue r; r.j = v; return r; }
 static jvalue L(void *p) { jvalue r; r.j = 0; r.l = p; return r; }
 
-enum { K_AVC = 1, K_HEVC, K_AAC, K_MP3 };
+enum { K_AVC = 1, K_HEVC, K_AAC, K_MP3, K_AC3, K_EAC3, K_MP2, K_MP1 };
+#define MAX_DEC_CH 16                               /* channels a decoder may hand out before the mixdown */
 enum { FLAG_EOS = 4 };
 #define REORDER 4                                   /* frames held to put decode order into display order */
 
@@ -63,7 +67,9 @@ typedef struct codec {
     AudioStreamBasicDescription in, out;
     const uint8_t *packet; UInt32 packet_len; AudioStreamPacketDescription desc;
     pcm *pcms, **pcm_tail;
-    int rate, channels;
+    int rate, channels;                             /* what the Java side is given (channels: 1 or 2) */
+    int in_channels;                                /* the stream's own, which the decoder hands out */
+    float gl[MAX_DEC_CH], gr[MAX_DEC_CH];           /* in_channels > 2: each decoded channel's share of left and right */
 } codec;
 
 static bool trace_on(void) { static int t = -1; if (t < 0) t = getenv("TL_MEDIA_TRACE") != NULL; return t; }
@@ -239,6 +245,106 @@ static size_t esds_from_asc(const uint8_t *asc, size_t n, uint8_t *out)
     return i;
 }
 
+static const char *audio_name(int kind)
+{
+    switch (kind) {
+    case K_AAC: return "AAC"; case K_MP3: return "MP3"; case K_AC3: return "AC-3"; case K_EAC3: return "E-AC-3";
+    case K_MP2: return "MPEG Layer II"; case K_MP1: return "MPEG Layer I"; default: return "audio";
+    }
+}
+
+/* The compressed format and samples per packet of each non-AAC kind (AAC's come from its AudioSpecificConfig). */
+static void audio_format(int kind, UInt32 *id, UInt32 *frames)
+{
+    switch (kind) {
+    case K_AC3:  *id = kAudioFormatAC3;         *frames = 1536; break;
+    case K_EAC3: *id = kAudioFormatEnhancedAC3; *frames = 1536; break;
+    case K_MP2:  *id = kAudioFormatMPEGLayer2;  *frames = 1152; break;
+    case K_MP1:  *id = kAudioFormatMPEGLayer1;  *frames = 384;  break;
+    case K_AAC:  *id = kAudioFormatMPEG4AAC;    *frames = 1024; break;
+    default:     *id = kAudioFormatMPEGLayer3;  *frames = 1152; break;
+    }
+}
+
+/* Whether this iOS decodes the kind: an AudioConverter to 16-bit PCM can be made for it. Asked once per kind. */
+static bool audio_available(int kind)
+{
+    static int known[K_MP1 + 1];                    /* 0 not asked, 1 yes, -1 no */
+    if (kind <= 0 || kind > K_MP1) return false;
+    if (known[kind]) return known[kind] > 0;
+    UInt32 id, frames; audio_format(kind, &id, &frames);
+    AudioStreamBasicDescription in = { .mSampleRate = 48000, .mFormatID = id, .mFramesPerPacket = frames, .mChannelsPerFrame = 2 };
+    AudioStreamBasicDescription out = { .mSampleRate = 48000, .mFormatID = kAudioFormatLinearPCM,
+        .mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked, .mBytesPerPacket = 4, .mFramesPerPacket = 1,
+        .mBytesPerFrame = 4, .mChannelsPerFrame = 2, .mBitsPerChannel = 16 };
+    AudioConverterRef conv = NULL;
+    OSStatus st = AudioConverterNew(&in, &out, &conv);
+    if (conv) AudioConverterDispose(conv);
+    known[kind] = st == noErr ? 1 : -1;
+    tl_log_line("media: %s decoder %s on this device", audio_name(kind), st == noErr ? "available" : "not available");
+    return st == noErr;
+}
+
+/* Left and right gains for each decoded channel, from the decoder's channel layout (or the usual order for its channel count when
+ * it gives none), normalised so a full-scale mix cannot clip. */
+static void downmix_gains(codec *c)
+{
+    int n = c->in_channels > MAX_DEC_CH ? MAX_DEC_CH : c->in_channels;
+    AudioChannelLabel label[MAX_DEC_CH];
+    for (int i = 0; i < n; i++) label[i] = kAudioChannelLabel_Unknown;
+    bool have = false;
+    UInt32 sz = 0; Boolean writable;
+    if (c->conv && AudioConverterGetPropertyInfo(c->conv, kAudioConverterOutputChannelLayout, &sz, &writable) == noErr && sz >= sizeof(AudioChannelLayout)) {
+        AudioChannelLayout *lay = malloc(sz);
+        if (lay && AudioConverterGetProperty(c->conv, kAudioConverterOutputChannelLayout, &sz, lay) == noErr) {
+            AudioChannelLayout *use = lay, *expanded = NULL;
+            if (lay->mChannelLayoutTag != kAudioChannelLayoutTag_UseChannelDescriptions) {
+                UInt32 esz = 0;
+                if (lay->mChannelLayoutTag == kAudioChannelLayoutTag_UseChannelBitmap
+                        ? AudioFormatGetPropertyInfo(kAudioFormatProperty_ChannelLayoutForBitmap, sizeof(UInt32), &lay->mChannelBitmap, &esz) == noErr
+                        : AudioFormatGetPropertyInfo(kAudioFormatProperty_ChannelLayoutForTag, sizeof(AudioChannelLayoutTag), &lay->mChannelLayoutTag, &esz) == noErr) {
+                    expanded = malloc(esz);
+                    OSStatus st = lay->mChannelLayoutTag == kAudioChannelLayoutTag_UseChannelBitmap
+                        ? AudioFormatGetProperty(kAudioFormatProperty_ChannelLayoutForBitmap, sizeof(UInt32), &lay->mChannelBitmap, &esz, expanded)
+                        : AudioFormatGetProperty(kAudioFormatProperty_ChannelLayoutForTag, sizeof(AudioChannelLayoutTag), &lay->mChannelLayoutTag, &esz, expanded);
+                    use = st == noErr ? expanded : NULL;
+                } else use = NULL;
+            }
+            if (use && (int)use->mNumberChannelDescriptions >= n) {
+                for (int i = 0; i < n; i++) label[i] = use->mChannelDescriptions[i].mChannelLabel;
+                have = true;
+            }
+            free(expanded);
+        }
+        free(lay);
+    }
+    if (!have) {
+        /* CoreAudio's order for 5.1 and 7.1 (L R C LFE Ls Rs [Rls Rrs]); anything else: the first two are left and right */
+        static const AudioChannelLabel order[8] = { kAudioChannelLabel_Left, kAudioChannelLabel_Right, kAudioChannelLabel_Center,
+            kAudioChannelLabel_LFEScreen, kAudioChannelLabel_LeftSurround, kAudioChannelLabel_RightSurround,
+            kAudioChannelLabel_RearSurroundLeft, kAudioChannelLabel_RearSurroundRight };
+        for (int i = 0; i < n; i++) label[i] = (n == 6 || n == 8) ? order[i] : i == 0 ? kAudioChannelLabel_Left : i == 1 ? kAudioChannelLabel_Right : kAudioChannelLabel_Unknown;
+    }
+    const float h = 0.70710678f;                    /* -3 dB: centre and surrounds, as ITU-R BS.775 mixes them */
+    float sl = 0, sr = 0;
+    for (int i = 0; i < n; i++) {
+        float l = 0, r = 0;
+        switch (label[i]) {
+        case kAudioChannelLabel_Left: case kAudioChannelLabel_LeftCenter: case kAudioChannelLabel_LeftWide: l = 1; break;
+        case kAudioChannelLabel_Right: case kAudioChannelLabel_RightCenter: case kAudioChannelLabel_RightWide: r = 1; break;
+        case kAudioChannelLabel_Center: case kAudioChannelLabel_Mono: l = r = h; break;
+        case kAudioChannelLabel_LFEScreen: case kAudioChannelLabel_LFE2: break;            /* phone speakers: no sub */
+        case kAudioChannelLabel_LeftSurround: case kAudioChannelLabel_LeftSurroundDirect: case kAudioChannelLabel_RearSurroundLeft: l = h; break;
+        case kAudioChannelLabel_RightSurround: case kAudioChannelLabel_RightSurroundDirect: case kAudioChannelLabel_RearSurroundRight: r = h; break;
+        case kAudioChannelLabel_CenterSurround: l = r = 0.5f; break;
+        default: l = r = 0.5f; break;
+        }
+        c->gl[i] = l; c->gr[i] = r; sl += l; sr += r;
+    }
+    float norm = sl > sr ? sl : sr;
+    if (norm > 1) for (int i = 0; i < n; i++) { c->gl[i] /= norm; c->gr[i] /= norm; }
+}
+
 static bool audio_open(codec *c, const uint8_t *asc, size_t asc_n, int rate, int channels)
 {
     memset(&c->in, 0, sizeof(c->in));
@@ -254,18 +360,24 @@ static bool audio_open(codec *c, const uint8_t *asc, size_t asc_n, int rate, int
             c->in.mChannelsPerFrame = channels > 0 ? (UInt32)channels : 2; c->in.mFramesPerPacket = 1024;
         }
     } else {
-        c->in.mFormatID = kAudioFormatMPEGLayer3; c->in.mSampleRate = rate > 0 ? rate : 44100;
-        c->in.mChannelsPerFrame = channels > 0 ? (UInt32)channels : 2; c->in.mFramesPerPacket = 1152;
+        UInt32 id, frames; audio_format(c->kind, &id, &frames);
+        c->in.mFormatID = id; c->in.mSampleRate = rate > 0 ? rate : (c->kind == K_AC3 || c->kind == K_EAC3 ? 48000 : 44100);
+        c->in.mChannelsPerFrame = channels > 0 ? (UInt32)channels : 2; c->in.mFramesPerPacket = frames;
     }
-    c->rate = (int)c->in.mSampleRate; c->channels = (int)c->in.mChannelsPerFrame;
+    if (c->in.mChannelsPerFrame > MAX_DEC_CH) c->in.mChannelsPerFrame = MAX_DEC_CH;
+    c->rate = (int)c->in.mSampleRate; c->in_channels = (int)c->in.mChannelsPerFrame;
+    /* decoded in the stream's own channels; more than two are mixed down after (audio_decode) */
+    UInt32 dch = c->in.mChannelsPerFrame;
     c->out = (AudioStreamBasicDescription){ .mSampleRate = c->in.mSampleRate, .mFormatID = kAudioFormatLinearPCM,
-        .mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked, .mBytesPerPacket = 2 * c->in.mChannelsPerFrame,
-        .mFramesPerPacket = 1, .mBytesPerFrame = 2 * c->in.mChannelsPerFrame, .mChannelsPerFrame = c->in.mChannelsPerFrame, .mBitsPerChannel = 16 };
+        .mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked, .mBytesPerPacket = 2 * dch,
+        .mFramesPerPacket = 1, .mBytesPerFrame = 2 * dch, .mChannelsPerFrame = dch, .mBitsPerChannel = 16 };
     if (c->conv) { AudioConverterDispose(c->conv); c->conv = NULL; }
     OSStatus st = AudioConverterNew(&c->in, &c->out, &c->conv);
-    if (st != noErr) { tl_log_line("media: no %s decoder (%d)", c->kind == K_AAC ? "AAC" : "MP3", (int)st); c->conv = NULL; return false; }
+    if (st != noErr) { tl_log_line("media: no %s decoder (%d)", audio_name(c->kind), (int)st); c->conv = NULL; return false; }
     if (esds_n) AudioConverterSetProperty(c->conv, kAudioConverterDecompressionMagicCookie, (UInt32)esds_n, esds);
-    tl_log_line("media: %s decoder, %d Hz, %d channels", c->kind == K_AAC ? "AAC" : "MP3", c->rate, c->channels);
+    c->channels = c->in_channels > 2 ? 2 : c->in_channels;
+    if (c->in_channels > 2) downmix_gains(c);
+    tl_log_line("media: %s decoder, %d Hz, %d channels%s", audio_name(c->kind), c->rate, c->in_channels, c->in_channels > 2 ? " (mixed down to stereo)" : "");
     return true;
 }
 
@@ -287,14 +399,26 @@ static void audio_decode(codec *c, const uint8_t *d, size_t n, int64_t pts)
     if (!c->conv && !audio_open(c, NULL, 0, 0, 0)) return;
     if (!n) return;
     c->packet = d; c->packet_len = (UInt32)n;
-    UInt32 frames = 4096, bytes = frames * c->out.mBytesPerFrame;
+    UInt32 frames = 6144, bytes = frames * c->out.mBytesPerFrame;    /* E-AC-3: up to 1536 frames a packet; MP3/AAC far fewer */
     uint8_t *buf = malloc(bytes);
     AudioBufferList bl = { 1, { { c->out.mChannelsPerFrame, bytes, buf } } };
     OSStatus st = AudioConverterFillComplexBuffer(c->conv, audio_feed, c, &frames, &bl, NULL);
     c->packet = NULL;
     if ((st != noErr && st != 1) || frames == 0) { free(buf); if (st != noErr && st != 1) { c->failed++; if (c->failed < 4) tl_log_line("media: audio packet not decoded (%d)", (int)st); } return; }
+    if (c->in_channels > 2) {
+        /* mixed down in place: each frame's stereo pair is written no further along than the frame it comes from */
+        int n = c->in_channels;
+        int16_t *s16 = (int16_t *)buf;
+        for (UInt32 f = 0; f < frames; f++) {
+            const int16_t *in = s16 + (size_t)f * n;
+            float l = 0, r = 0;
+            for (int ch = 0; ch < n; ch++) { l += in[ch] * c->gl[ch]; r += in[ch] * c->gr[ch]; }
+            s16[2 * f] = (int16_t)(l > 32767 ? 32767 : l < -32768 ? -32768 : l);
+            s16[2 * f + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
+        }
+    }
     pcm *p = calloc(1, sizeof(*p));
-    p->data = buf; p->len = (int)(frames * c->out.mBytesPerFrame); p->pts = pts;
+    p->data = buf; p->len = (int)(frames * 2 * (UInt32)c->channels); p->pts = pts;
     pthread_mutex_lock(&c->lock); *c->pcm_tail = p; c->pcm_tail = &p->next; c->decoded++; pthread_mutex_unlock(&c->lock);
 }
 
@@ -307,6 +431,10 @@ static int kind_of(const char *mime)
     if (!strcasecmp(mime, "video/hevc")) return K_HEVC;
     if (!strcasecmp(mime, "audio/mp4a-latm")) return K_AAC;
     if (!strcasecmp(mime, "audio/mpeg")) return K_MP3;
+    if (!strcasecmp(mime, "audio/ac3")) return K_AC3;
+    if (!strcasecmp(mime, "audio/eac3") || !strcasecmp(mime, "audio/eac3-joc")) return K_EAC3;    /* JOC: its E-AC-3 core */
+    if (!strcasecmp(mime, "audio/mpeg-L2")) return K_MP2;
+    if (!strcasecmp(mime, "audio/mpeg-L1")) return K_MP1;
     return 0;
 }
 #define C ((codec *)(uintptr_t)a[0].j)
@@ -315,7 +443,7 @@ NAT(M_supported)
 {
     (void)self;
     int k = kind_of(tl_jni_string(a[0].l));
-    bool ok = k == K_AVC || k == K_AAC || k == K_MP3;
+    bool ok = k == K_AVC || k == K_AAC || k == K_MP3 || (k >= K_AC3 && audio_available(k));
     if (k == K_HEVC) {
         if (__builtin_available(macOS 10.13, iOS 11.0, *)) ok = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC);
     }
@@ -360,7 +488,7 @@ NAT(M_decode)
     if (b && n > b->arr.len) n = b->arr.len;
     const uint8_t *d = b ? b->arr.data : NULL;
     if (c->kind == K_AVC || c->kind == K_HEVC) video_decode(c, d, n, a[3].j, a[4].i);
-    else if (a[4].i & 2) audio_open(c, d, n, c->rate, c->channels);           /* codec config: an AudioSpecificConfig */
+    else if (a[4].i & 2) audio_open(c, d, n, c->rate, c->in_channels ? c->in_channels : c->channels);   /* codec config: an AudioSpecificConfig */
     else audio_decode(c, d, n, a[3].j);
     *ret = I(0);
     return true;

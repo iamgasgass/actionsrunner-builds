@@ -298,7 +298,7 @@ final class TranslationLayerStore: ObservableObject {
         guard busy == nil, let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let dropped = ((try? FileManager.default.contentsOfDirectory(at: docs, includingPropertiesForKeys: nil,
                                                                       options: [.skipsHiddenFiles])) ?? [])
-            .filter { $0.pathExtension.lowercased() == "apk" || BundleUnpacker.extensions.contains($0.pathExtension.lowercased()) }
+            .filter { PackageSniffer.kindByName($0.lastPathComponent).map { $0 != .obb } ?? false }
         guard let first = dropped.first else { return }
         HuskLog.log("tl", "adopting \(dropped.count) APK(s) found in the Husk folder")
         add([first], move: true)
@@ -368,18 +368,19 @@ final class TranslationLayerStore: ObservableObject {
                 // Security-scoped: the picker's URL is only readable inside this pair.
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                // What it is, by name or else by content ("x.apk_13", "download"), so a bent name reaches the right branch.
+                let kind = PackageSniffer.kind(of: url) ?? .apk
                 // A bundle (.xapk, .apkm, .apks) is a zip of an app's APKs: take them out, and do not keep the bundle itself.
-                if BundleUnpacker.extensions.contains(url.pathExtension.lowercased()) {
+                if kind == .bundle {
                     let names = try BundleUnpacker.unpack(url, into: dir)
                     HuskLog.log("tl", "unpacked \(url.lastPathComponent): \(names.joined(separator: ", "))")
                     if move { try? fm.removeItem(at: url) }
                     continue
                 }
-                var name = url.lastPathComponent
                 // An expansion file (main.<version>.<package>.obb) goes to obb/ under its own name: the runtime finds it there
                 // when the game asks for Android/obb/<package>/<name>
-                let isOBB = name.lowercased().hasSuffix(".obb")
-                if !isOBB && !name.lowercased().hasSuffix(".apk") { name += ".apk" }
+                let isOBB = kind == .obb
+                let name = PackageSniffer.canonicalName(url.lastPathComponent, kind: kind)
                 if isOBB { try fm.createDirectory(at: dir.appendingPathComponent("obb"), withIntermediateDirectories: true) }
                 let dest = isOBB ? dir.appendingPathComponent("obb").appendingPathComponent(name) : dir.appendingPathComponent(name)
                 if move {

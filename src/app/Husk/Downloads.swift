@@ -132,7 +132,7 @@ final class Downloads: ObservableObject {
             return
         }
         let (name, size) = await Self.probe(url)
-        let kind: Job.Kind = name.lowercased().hasSuffix(".apk") ? .apk : .file
+        let kind: Job.Kind = PackageSniffer.kindByName(name) == .apk ? .apk : .file
         start(Job(title: name, source: url.absoluteString, kind: kind, files: [File(path: name, url: url.absoluteString, size: size)]))
     }
 
@@ -377,6 +377,12 @@ final class Downloads: ObservableObject {
                 retries[k] = nil
                 HuskLog.log("downloads", "\(f.path) done (\(jobs[j].filesDone)/\(jobs[j].files.count))")
                 if tag.kind == .apk { TranslationLayerStore.shared.add([dest], move: true) }
+                // a download whose name said nothing ("download", "file?id=…") that turns out to be an app: into the library
+                // too, copied, so the file stays in Shared Storage where it was saved
+                else if tag.kind == .file, jobs[j].files.count == 1, let k = PackageSniffer.sniff(dest), k != .obb {
+                    HuskLog.log("downloads", "\(f.path) is an Android app; adding it to the library")
+                    TranslationLayerStore.shared.add([dest], move: false)
+                }
             } catch {
                 jobs[j].files[i].error = error.localizedDescription
             }

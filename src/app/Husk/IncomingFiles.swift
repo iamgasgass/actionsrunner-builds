@@ -35,9 +35,14 @@ final class IncomingFiles: ObservableObject {
     @Published private(set) var preparing: String?
 
     /// A URL iOS opened Husk with. Anything that is not an APK or a bundle of them is left alone (husk:// links are not files).
+    /// What it is comes from PackageSniffer: by name, and by content when the name was bent on the way ("x.apk_13").
     func receive(_ url: URL) {
         if url.isFileURL, url.pathExtension.lowercased() == "pkg" { installPS4Packages([url]); return }
-        guard url.isFileURL, Self.extensions.contains(url.pathExtension.lowercased()) else { return }
+        guard url.isFileURL else { return }
+        guard PackageSniffer.kind(of: url) != nil else {
+            HuskLog.log("ui", "not a package, left alone: \(url.lastPathComponent)")
+            return
+        }
         take([url]) { copies in
             self.gathering += copies
             // The pieces of a split set arrive one after another: ask once they have all come.
@@ -60,9 +65,24 @@ final class IncomingFiles: ObservableObject {
         let packages = urls.filter { $0.pathExtension.lowercased() == "pkg" }
             + urls.filter { !Self.isPS4GameFolder($0) }.flatMap(Self.packages(in:))
         if !packages.isEmpty { installPS4Packages(packages) }
-        let wanted = urls.filter { Self.extensions.contains($0.pathExtension.lowercased()) }
+        let candidates = urls.filter { $0.pathExtension.lowercased() != "pkg" && !Self.isPS4GameFolder($0) }
+        let wanted = candidates.filter { PackageSniffer.kind(of: $0) != nil }
+        // Picked, but not an APK whatever its name: say so, rather than nothing happening at all.
+        let refused = candidates.filter { url in !wanted.contains(url) && !Self.isFolder(url) }
+        if !refused.isEmpty {
+            HuskLog.log("ui", "not packages: \(refused.map(\.lastPathComponent))")
+            AndroidHost.shared.say(refused.count == 1 ? "\(refused[0].lastPathComponent) isn't an app" : "\(refused.count) files aren't apps",
+                                   "Husk takes APKs, and .apks, .xapk or .apkm bundles. This file has no Android app inside.", good: false)
+        }
         guard !wanted.isEmpty else { return }
         take(wanted) { self.waiting += $0 }
+    }
+
+    nonisolated static func isFolder(_ url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        var dir: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &dir) && dir.boolValue
     }
 
     /// An extracted PS4 game: a folder with eboot.bin, or with sce_sys/param.sfo.
@@ -194,7 +214,9 @@ final class IncomingFiles: ObservableObject {
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 let dir = Self.folder.appendingPathComponent(UUID().uuidString, isDirectory: true)
-                let copy = dir.appendingPathComponent(url.lastPathComponent)
+                // under the package's own extension ("x.apk_13" is kept as "x.apk"): everything after this goes by it
+                let kind = PackageSniffer.kind(of: url) ?? .apk
+                let copy = dir.appendingPathComponent(PackageSniffer.canonicalName(url.lastPathComponent, kind: kind))
                 do {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     try FileManager.default.copyItem(at: url, to: copy)

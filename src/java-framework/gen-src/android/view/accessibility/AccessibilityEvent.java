@@ -97,6 +97,8 @@ public final class AccessibilityEvent extends android.view.accessibility.Accessi
     public void setAccessibilityDataSensitive(boolean p0) { huskProps.put("AccessibilityDataSensitive", Boolean.valueOf(p0)); }
     public void setAction(int p0) { huskProps.put("Action", Integer.valueOf(p0)); }
     public void setContentChangeTypes(int p0) { huskProps.put("ContentChangeTypes", Integer.valueOf(p0)); }
+    public int getTextChangeTypes() { return (huskProps.get("TextChangeTypes") instanceof Integer ? (Integer) huskProps.get("TextChangeTypes") : 0); }
+    public void setTextChangeTypes(int p0) { huskProps.put("TextChangeTypes", Integer.valueOf(p0)); }
     public void setEventTime(long p0) { huskProps.put("EventTime", Long.valueOf(p0)); }
     public void setEventType(int p0) { huskProps.put("EventType", Integer.valueOf(p0)); }
     public void setMovementGranularity(int p0) { huskProps.put("MovementGranularity", Integer.valueOf(p0)); }
