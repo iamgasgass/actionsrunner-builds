@@ -19,8 +19,10 @@ struct ProfileView: View {
             .background(Console.page.ignoresSafeArea())
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                if account.signedIn {
-                    ToolbarItem(placement: .primaryAction) {
+                // The condition inside the item, not around it: an `if` in a ToolbarContentBuilder (buildIf) needs iOS 16,
+                // and the app runs on 15.5. In the item's content it is a plain ViewBuilder `if`, there since iOS 13.
+                ToolbarItem(placement: .primaryAction) {
+                    if account.signedIn {
                         Menu {
                             Button { editing = true } label: { Label("Edit Profile", systemImage: "pencil") }
                             if let u = account.user {
