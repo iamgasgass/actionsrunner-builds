@@ -74,10 +74,20 @@ enum JITLess {
         _ = cred.p12.withUnsafeBytes { b in
             husk_p12_matches_app(b.bindMemory(to: UInt8.self).baseAddress, b.count, cred.password, Bundle.main.executablePath)
         }
-        // The signer revision and the running app's bundle ID are part of the tag: libraries signed by an older signer, or
-        // under another install's identifier (SideStore appends the team, a TrollStore/enterprise install may not), are signed again.
-        let ident = Bundle.main.bundleIdentifier ?? "com.husk.app"
-        let tag = cred.tag + "-s15-" + ident
+        // iOS's library validation compares the loaded library's signing identifier with the host it runs in. Under a container
+        // such as LiveContainer the host's identifier (what the store signed Husk's own executable with, e.g.
+        // com.kdt.livecontainer.TEAMID) is NOT Bundle.main.bundleIdentifier, so read it from Husk's own signature and sign every
+        // converted library with it; fall back to the bundle id when it cannot be read (SideStore/AltStore, where they match).
+        let bundleID = Bundle.main.bundleIdentifier ?? "com.husk.app"
+        var ident = bundleID
+        if let exe = Bundle.main.executablePath {
+            var buf = [CChar](repeating: 0, count: 128)
+            if husk_codesign_executable_identifier(exe, &buf, Int32(buf.count)) == 1, buf[0] != 0 {
+                ident = String(cString: buf)
+            }
+        }
+        if ident != bundleID { HuskLog.log("sign", "signing libraries with the host identifier '\(ident)' (bundle id is '\(bundleID)')") }
+        let tag = cred.tag + "-s16-" + ident
         let dir = cacheDirectory.path
         // Once a launch: which step of loading a signed library iOS refuses (the place, Husk's signature, the identifier, or the
         // converted libraries' layout), with a small library the store signed in the bundle; it all goes in the run's log.
@@ -85,7 +95,7 @@ enum JITLess {
             selfTested = true
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             _ = cred.p12.withUnsafeBytes { b in
-                husk_codesign_selftest(test, dir, b.bindMemory(to: UInt8.self).baseAddress, b.count, cred.password, ident)
+                husk_codesign_selftest(test, dir, b.bindMemory(to: UInt8.self).baseAddress, b.count, cred.password, bundleID)
             }
         }
         try await Task.detached(priority: .userInitiated) { [ident] in

@@ -97,6 +97,13 @@ bool husk_codesign_dylib(const char *path, const uint8_t *p12, size_t p12_len, c
 int husk_codesign_chain_from_executable(const char *path);
 
 /*
+ * The signing identifier in the code signature of the executable at `exe` (the app itself, as its store signed it). Under a
+ * container such as LiveContainer this is the host's identifier (e.g. com.kdt.livecontainer.TEAMID), which differs from
+ * Bundle.main.bundleIdentifier, and iOS's library validation wants the libraries Husk signs to carry it. 1 on success (out set).
+ */
+int husk_codesign_executable_identifier(const char *exe, char *out, int outlen);
+
+/*
  * Whether the .p12's developer certificate is the one in the code signature of the executable at exe_path (the app itself, as its
  * store installed it): iOS trusts only that one, so libraries signed with another are refused. 1 the same, 0 another, -1 not known
  * (the app's signature names no developer certificate, or the .p12 does not open).

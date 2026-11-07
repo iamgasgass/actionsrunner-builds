@@ -1812,6 +1812,27 @@ static uint8_t *read_embedded_sig(const char *path, uint32_t *out_len)
     return sig;
 }
 
+static const uint8_t *sb_slot(const uint8_t *sb, uint32_t len, uint32_t want, uint32_t *blob_len);
+
+/* The signing identifier in a Mach-O's slot-0 CodeDirectory (what AMFI compares under library validation inside a container). */
+int husk_codesign_executable_identifier(const char *exe, char *out, int outlen)
+{
+    if (out && outlen > 0) out[0] = 0;
+    uint32_t len = 0;
+    uint8_t *sig = read_embedded_sig(exe, &len);
+    int ok = 0;
+    if (sig) {
+        uint32_t cdl = 0;
+        const uint8_t *cd = sb_slot(sig, len, 0, &cdl);
+        if (cd && cdl >= 24 && rd_be32(cd) == 0xfade0c02u) {
+            uint32_t io = rd_be32(cd + 20);
+            if (io && io < cdl) { snprintf(out, (size_t)outlen, "%.*s", outlen - 1, (const char *)cd + io); ok = out[0] != 0; }
+        }
+    }
+    free(sig);
+    return ok;
+}
+
 /* slot type -> (blob start, length) within a SuperBlob */
 static const uint8_t *sb_slot(const uint8_t *sb, uint32_t len, uint32_t want, uint32_t *blob_len)
 {
@@ -1999,12 +2020,36 @@ int husk_codesign_selftest(const char *bundle_dylib, const char *work_dir, const
         unlink(path);
         result |= t << (2 + k);
     }
+
+    /* T4: sign with the very identifier the store put on this library (its own CD), i.e. the host's. If this is the one that
+     * loads, iOS (library validation inside the container) wants the host's identifier, not the library's own. */
+    char host_id[128] = "";
+    uint32_t sl = 0;
+    uint8_t *store_sig = read_embedded_sig(bundle_dylib, &sl);
+    if (store_sig) {
+        uint32_t cdl = 0;
+        const uint8_t *cd = sb_slot(store_sig, sl, 0, &cdl);
+        uint32_t io = cd && cdl >= 24 ? rd_be32(cd + 20) : 0;
+        if (cd && io && io < cdl) snprintf(host_id, sizeof(host_id), "%s", (const char *)cd + io);
+        free(store_sig);
+    }
+    int t4 = 0;
+    if (host_id[0]) {
+        snprintf(path, sizeof(path), "%s/signtest-%08x-host.dylib", work_dir, tag);
+        char err[300] = "";
+        if (!copy_file(bundle_dylib, path)) snprintf(why, sizeof(why), "copy failed: %s", strerror(errno));
+        else if (!husk_codesign_dylib(path, p12, p12_len, password, host_id, err, sizeof(err))) snprintf(why, sizeof(why), "signing failed: %s", err);
+        else t4 = try_load(path, why, sizeof(why));
+        tl_log_line("sign test T4 (signed by Husk with the host's identifier '%s'): %s", host_id, why);
+        unlink(path);
+    } else tl_log_line("sign test T4: could not read the host's identifier from the test library");
+    result |= t4 << 4;
     const char *verdict =
         !t0 ? "the store's own signature on the test library is not accepted either: this install cannot load libraries"
         : !t1 ? "iOS will not load a library from Husk's data folder at all, whatever its signature (the place, not the signature)"
-        : !(result & 4) ? "Husk's signature is refused even on an ordinary library: the signer still differs from the store's"
-        : !(result & 8) ? "Husk's signature works, but not with the app's identifier: the converted libraries must use their own"
-        : "Husk's signature works on an ordinary library: what iOS refuses is the layout of the converted libraries";
-    tl_log_line("sign test: %s (T0-T3 = %d%d%d%d)", verdict, t0, t1, (result >> 2) & 1, (result >> 3) & 1);
+        : (result & 4) ? "Husk's signature works on an ordinary library: what iOS refuses is the layout of the converted libraries"
+        : t4 ? "fixed by the identifier: iOS loads Husk's signature when it carries the host's identifier (now used for every library)"
+        : "Husk's signature is refused even with the host's identifier: the difference is elsewhere in the signature";
+    tl_log_line("sign test: %s (T0-T4 = %d%d%d%d%d)", verdict, t0, t1, (result >> 2) & 1, (result >> 3) & 1, t4);
     return result;
 }
