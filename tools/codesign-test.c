@@ -162,6 +162,11 @@ OSStatus SecIdentityCopyPrivateKey(SecIdentityRef i, SecKeyRef *k) { (void)i; *k
 /* ------------------------------------------------------------------ */
 int main(int argc, char **argv)
 {
+    if (argc >= 2 && !strcmp(argv[1], "--diff")) {   /* --diff <storeDylib> <huskDylib>: compare two signed copies */
+        extern void husk_codesign_diff_test(const char *, const char *);
+        husk_codesign_diff_test(argv[2], argv[3]);
+        return 0;
+    }
     if (argc < 4) { fprintf(stderr, "usage: %s <file.dylib> <file.p12> <password> [ident] [app-executable]\n", argv[0]); return 2; }
     FILE *f = fopen(argv[2], "rb");
     if (!f) { perror(argv[2]); return 2; }

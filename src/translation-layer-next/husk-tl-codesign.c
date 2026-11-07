@@ -1784,6 +1784,184 @@ static int try_load(const char *path, char *why, size_t whylen)
     return r == 42;
 }
 
+/* The embedded-signature SuperBlob of a thin arm64 Mach-O (its LC_CODE_SIGNATURE data), malloc'd; NULL if there is none. */
+static uint8_t *read_embedded_sig(const char *path, uint32_t *out_len)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    uint8_t hdr[32];
+    uint32_t dataoff = 0, datasize = 0;
+    uint8_t *sig = NULL;
+    if (fread(hdr, 1, sizeof(hdr), f) == sizeof(hdr) && *(uint32_t *)hdr == 0xfeedfacfu) {
+        uint32_t ncmds = *(uint32_t *)(hdr + 16), sizeofcmds = *(uint32_t *)(hdr + 20);
+        uint8_t *cmds = sizeofcmds < (1u << 20) ? malloc(sizeofcmds) : NULL;
+        if (cmds && fread(cmds, 1, sizeofcmds, f) == sizeofcmds)
+            for (uint32_t i = 0, at = 0; i < ncmds && at + 16 <= sizeofcmds; i++) {
+                uint32_t cmd = *(uint32_t *)(cmds + at), size = *(uint32_t *)(cmds + at + 4);
+                if (cmd == 0x1d) { dataoff = *(uint32_t *)(cmds + at + 8); datasize = *(uint32_t *)(cmds + at + 12); }
+                if (size < 8) break;
+                at += size;
+            }
+        free(cmds);
+    }
+    if (datasize >= 12 && datasize < (16u << 20) && (sig = malloc(datasize))
+        && fseek(f, dataoff, SEEK_SET) == 0 && fread(sig, 1, datasize, f) == datasize && rd_be32(sig) == 0xfade0cc0u) {
+        *out_len = datasize;
+    } else { free(sig); sig = NULL; }
+    fclose(f);
+    return sig;
+}
+
+/* slot type -> (blob start, length) within a SuperBlob */
+static const uint8_t *sb_slot(const uint8_t *sb, uint32_t len, uint32_t want, uint32_t *blob_len)
+{
+    uint32_t count = rd_be32(sb + 8);
+    for (uint32_t i = 0; i < count && 12 + 8 * (size_t)(i + 1) <= len; i++) {
+        uint32_t type = rd_be32(sb + 12 + 8 * i), off = rd_be32(sb + 16 + 8 * i);
+        if (type == want && (size_t)off + 8 <= len) { *blob_len = rd_be32(sb + off + 4); return sb + off; }
+    }
+    return NULL;
+}
+
+/* Compare one CodeDirectory field by field; the two sign the SAME bytes, so every field that differs is reported, the page
+ * hashes included (those must match for identical code). What the one-line summary leaves out shows up here. */
+static void diff_code_directory(const uint8_t *a, uint32_t alen, const uint8_t *b, uint32_t blen, const char *tag)
+{
+#define FEW \
+    F(8,  "version",       rd_be32) F(12, "flags",      rd_be32) F(16, "hashOffset",  rd_be32) \
+    F(20, "identOffset",   rd_be32) F(24, "nSpecial",   rd_be32) F(28, "nCode",       rd_be32) \
+    F(32, "codeLimit",     rd_be32) F(40, "spare2",     rd_be32) F(44, "scatterOff",  rd_be32) \
+    F(48, "teamOffset",    rd_be32) F(52, "spare3",     rd_be32)
+    char line[700]; size_t at = 0;
+#define ADD(...) do { if (at < sizeof(line)) at += (size_t)snprintf(line + at, sizeof(line) - at, __VA_ARGS__); } while (0)
+    if (alen < 44 || blen < 44) { tl_log_line("sign diff %s: a CodeDirectory is too short", tag); return; }
+#define F(off, name, rd) if (rd(a + off) != rd(b + off)) ADD(" %s store=%u husk=%u", name, (unsigned)rd(a + off), (unsigned)rd(b + off));
+    FEW
+#undef F
+    for (int off = 36; off < 40; off++) {                 /* hashSize, hashType, platform, pageSize: one byte each */
+        static const char *bn[] = { "hashSize", "hashType", "platform", "pageSize" };
+        if (a[off] != b[off]) ADD(" %s store=%u husk=%u", bn[off - 36], a[off], b[off]);
+    }
+    if (alen >= 88 && blen >= 88)
+        for (int off = 56; off < 88; off += 8) {           /* codeLimit64, execSegBase/Limit/Flags: u64 each */
+            static const char *qn[] = { "codeLimit64", "execSegBase", "execSegLimit", "execSegFlags" };
+            uint64_t qa = (uint64_t)rd_be32(a + off) << 32 | rd_be32(a + off + 4);
+            uint64_t qb = (uint64_t)rd_be32(b + off) << 32 | rd_be32(b + off + 4);
+            if (qa != qb) ADD(" %s store=%llx husk=%llx", qn[(off - 56) / 8], (unsigned long long)qa, (unsigned long long)qb);
+        }
+    /* identifier and team strings */
+    uint32_t ia = rd_be32(a + 20), ib = rd_be32(b + 20);
+    if (ia < alen && ib < blen && strcmp((const char *)a + ia, (const char *)b + ib))
+        ADD(" ident store='%.40s' husk='%.40s'", a + ia, b + ib);
+    /* special-slot hashes (requirements at -2, Info.plist at -1) and the code/page hashes: all must match for the same bytes */
+    uint32_t ha = rd_be32(a + 16), hb = rd_be32(b + 16), ns_a = rd_be32(a + 24), nc = rd_be32(a + 28);
+    uint32_t hs = a[36];
+    if (a[36] == b[36] && rd_be32(a + 28) == rd_be32(b + 28) && ns_a == rd_be32(b + 24)
+        && ha + nc * hs <= alen && hb + nc * hs <= blen && (size_t)ns_a * hs <= ha && (size_t)ns_a * hs <= hb) {
+        for (uint32_t k = 1; k <= ns_a; k++)
+            if (memcmp(a + ha - k * hs, b + hb - k * hs, hs)) ADD(" special[-%u]differs", k);
+        uint32_t first = nc, ndiff = 0;
+        for (uint32_t i = 0; i < nc; i++)
+            if (memcmp(a + ha + i * hs, b + hb + i * hs, hs)) { if (first == nc) first = i; ndiff++; }
+        if (ndiff) ADD(" pageHashes differ: %u of %u (first page %u)", ndiff, nc, first);
+    }
+    tl_log_line("sign diff %s:%s", tag, at ? line : " identical");
+#undef ADD
+#undef FEW
+}
+
+/* A code-requirement expression, decoded to a compact string (as `csreq -r-` prints it), for comparing two DRs. Bounded. */
+static uint32_t req_expr(const uint8_t *p, uint32_t len, uint32_t at, char *out, size_t *oat, size_t olen, int depth)
+{
+#define OUT(...) do { if (*oat < olen) *oat += (size_t)snprintf(out + *oat, olen - *oat, __VA_ARGS__); } while (0)
+    if (depth > 12 || at + 4 > len) { OUT("?"); return len; }
+    uint32_t op = rd_be32(p + at); at += 4;
+    switch (op) {
+        case 0: OUT("false"); break;
+        case 1: OUT("true"); break;
+        case 2: { if (at + 4 > len) break; uint32_t n = rd_be32(p + at); at += 4;
+                  if (at + n <= len) OUT("ident \"%.*s\"", (int)n, p + at); at += (n + 3) & ~3u; break; }
+        case 3: OUT("anchor apple"); break;
+        case 14: OUT("anchor apple generic"); break;          /* opAppleGenericAnchor in this encoding */
+        case 15: OUT("anchor apple generic"); break;
+        case 6: OUT("("); at = req_expr(p, len, at, out, oat, olen, depth + 1); OUT(" and ");
+                at = req_expr(p, len, at, out, oat, olen, depth + 1); OUT(")"); break;
+        case 7: OUT("("); at = req_expr(p, len, at, out, oat, olen, depth + 1); OUT(" or ");
+                at = req_expr(p, len, at, out, oat, olen, depth + 1); OUT(")"); break;
+        case 10: case 11: {                                    /* certField: slot, "field", match */
+            if (at + 4 > len) break; int slot = (int)rd_be32(p + at); at += 4;
+            uint32_t n = at + 4 <= len ? rd_be32(p + at) : 0; at += 4;
+            OUT("cert[%d][%.*s]", slot, (int)n, at + n <= len ? (const char *)p + at : ""); at += (n + 3) & ~3u;
+            if (at + 4 <= len) { uint32_t m = rd_be32(p + at); at += 4;
+                if (m == 0) OUT(" exists"); else if (m == 1) { uint32_t vn = at + 4 <= len ? rd_be32(p + at) : 0; at += 4;
+                    OUT("=\"%.*s\"", (int)vn, at + vn <= len ? (const char *)p + at : ""); at += (vn + 3) & ~3u; } }
+            break; }
+        case 12: {                                             /* certGeneric: slot, OID, match */
+            if (at + 4 > len) break; int slot = (int)rd_be32(p + at); at += 4;
+            uint32_t n = at + 4 <= len ? rd_be32(p + at) : 0; at += 4 + ((n + 3) & ~3u);
+            OUT("cert[%d][field.OID]", slot);
+            if (at + 4 <= len) { uint32_t m = rd_be32(p + at); at += 4; if (m == 0) OUT(" exists"); }
+            break; }
+        default: OUT("op%u", op); break;
+    }
+    return at;
+#undef OUT
+}
+
+static void decode_requirements(const uint8_t *rq, uint32_t len, char *out, size_t olen)
+{
+    size_t oat = 0; out[0] = 0;
+    if (len < 12 || rd_be32(rq) != 0xfade0c01u) { snprintf(out, olen, "(not a requirement set, %u bytes)", len); return; }
+    uint32_t count = rd_be32(rq + 8);
+    for (uint32_t i = 0; i < count && 12 + 8 * (size_t)(i + 1) <= len; i++) {
+        uint32_t type = rd_be32(rq + 12 + 8 * i), off = rd_be32(rq + 16 + 8 * i);
+        if ((size_t)off + 12 > len || rd_be32(rq + off) != 0xfade0c00u) continue;
+        if (oat < olen) oat += (size_t)snprintf(out + oat, olen - oat, "%s[type %u] ", oat ? " " : "", type);
+        req_expr(rq, len, off + 12, out, &oat, olen, 0);     /* skip magic,length,kind */
+    }
+    if (!oat) snprintf(out, olen, "(empty, %u bytes)", len);
+}
+
+/* Set the store's signature (on the bundle dylib) beside Husk's (on the same bytes): the one difference iOS reacts to. */
+static void diff_signatures_of(const char *store_path, const char *husk_path)
+{
+    uint32_t sa = 0, sb = 0;
+    uint8_t *A = read_embedded_sig(store_path, &sa), *B = read_embedded_sig(husk_path, &sb);
+    if (!A || !B) { tl_log_line("sign diff: could not read both signatures (store %s, husk %s)", A ? "ok" : "missing", B ? "ok" : "missing"); free(A); free(B); return; }
+    /* slot sets */
+    char la[120] = "", lb[120] = ""; size_t pa = 0, pb = 0;
+    for (uint32_t i = 0; i < rd_be32(A + 8) && 12 + 8 * (size_t)(i + 1) <= sa; i++)
+        pa += (size_t)snprintf(la + pa, sizeof(la) - pa, " %x", rd_be32(A + 12 + 8 * i));
+    for (uint32_t i = 0; i < rd_be32(B + 8) && 12 + 8 * (size_t)(i + 1) <= sb; i++)
+        pb += (size_t)snprintf(lb + pb, sizeof(lb) - pb, " %x", rd_be32(B + 12 + 8 * i));
+    if (strcmp(la, lb)) tl_log_line("sign diff: slots store [%s ] husk [%s ]", la, lb);
+    for (uint32_t slot = 0; slot <= 0x1000; slot += (slot ? 0x1000 : 0x1000)) {   /* 0 then 0x1000 */
+        uint32_t al = 0, bl = 0;
+        const uint8_t *ca = sb_slot(A, sa, slot, &al), *cb = sb_slot(B, sb, slot, &bl);
+        if (ca && cb && rd_be32(ca) == 0xfade0c02u && rd_be32(cb) == 0xfade0c02u) {
+            char t[16]; snprintf(t, sizeof(t), "CD %#x", slot);
+            diff_code_directory(ca, al, cb, bl, t);
+        } else if (!!ca != !!cb)
+            tl_log_line("sign diff: CD %#x only in %s", slot, ca ? "store" : "husk");
+        if (slot == 0x1000) break;
+    }
+    /* requirements (slot 2): expected to differ (identifier), report lengths; CMS (0x10000): algorithms and cert bag */
+    uint32_t ra = 0, rb = 0;
+    const uint8_t *rqa = sb_slot(A, sa, 2, &ra), *rqb = sb_slot(B, sb, 2, &rb);
+    if (rqa && rqb && (ra != rb || memcmp(rqa, rqb, ra))) {
+        char da[200], db[200];
+        decode_requirements(rqa, ra, da, sizeof(da));
+        decode_requirements(rqb, rb, db, sizeof(db));
+        tl_log_line("sign diff: requirements differ -- store: %s", da);
+        tl_log_line("sign diff: requirements differ -- husk:  %s", db);
+    }
+    describe_signature(A, sa, "the store's, on the test library");
+    describe_signature(B, sb, "Husk's, on the same test library");
+    free(A); free(B);
+}
+
+void husk_codesign_diff_test(const char *store_path, const char *husk_path) { diff_signatures_of(store_path, husk_path); }
+
 int husk_codesign_selftest(const char *bundle_dylib, const char *work_dir, const uint8_t *p12, size_t p12_len,
                            const char *password, const char *app_ident)
 {
@@ -1816,6 +1994,8 @@ int husk_codesign_selftest(const char *bundle_dylib, const char *work_dir, const
         else if (!husk_codesign_dylib(path, p12, p12_len, password, ident, err, sizeof(err))) snprintf(why, sizeof(why), "signing failed: %s", err);
         else t = try_load(path, why, sizeof(why));
         tl_log_line("sign test T%d (signed by Husk, identifier '%s'): %s", 2 + k, ident, why);
+        /* the store signed this same dylib in the bundle: set the two signatures side by side, field by field */
+        if (k == 0 && err[0] == '\0') diff_signatures_of(bundle_dylib, path);
         unlink(path);
         result |= t << (2 + k);
     }
