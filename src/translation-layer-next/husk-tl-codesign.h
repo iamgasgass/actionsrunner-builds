@@ -101,6 +101,14 @@ int husk_codesign_chain_from_executable(const char *path);
  * store installed it): iOS trusts only that one, so libraries signed with another are refused. 1 the same, 0 another, -1 not known
  * (the app's signature names no developer certificate, or the .p12 does not open).
  */
+/*
+ * Play without JIT, checked on the device: loads Frameworks/HuskSignTest.dylib (signed by the store) where it is (T0), copied into
+ * work_dir as it is (T1), and copied and signed by Husk with its own identifier (T2) and with app_ident (T3), and says in the log
+ * which step iOS refuses. Returns the bits of the tests that loaded (1 << n), or -1 when the build has no test library.
+ */
+int husk_codesign_selftest(const char *bundle_dylib, const char *work_dir, const uint8_t *p12, size_t p12_len,
+                           const char *password, const char *app_ident);
+
 int husk_p12_matches_app(const uint8_t *p12, size_t p12_len, const char *password, const char *exe_path);
 
 #ifdef __cplusplus

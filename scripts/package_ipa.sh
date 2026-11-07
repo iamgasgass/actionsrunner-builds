@@ -144,7 +144,15 @@ fi
 # success on a bundle that cannot launch.
 # HUSK_WITHOUT_PS4=1: a build made without the PS4 layer (it comes from repositories outside this one, scripts/build_ps4_ios.sh).
 # The app says so where PS4 games would be (PS4Store.moduleURL is nil), so only that layer is missing, not the app.
-REQUIRED_LIBS=(libqemu-aarch64-softmmu.dylib libANGLE-shared.dylib)
+# HuskSignTest.dylib: a tiny library for Play without JIT's self-test (husk_codesign_selftest). It is in the bundle so the
+# store signs it with everything else; Husk then loads it from the bundle, copied, and re-signed by itself, to tell which step
+# iOS refuses when the converted libraries do not load.
+TEST_SRC="$(mktemp -d)/t.c"
+printf 'int husk_sign_test(void) { return 42; }\n' > "$TEST_SRC"
+xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=15.0 -dynamiclib -O2 \
+    -install_name @rpath/HuskSignTest.dylib -o "$APP/Frameworks/HuskSignTest.dylib" "$TEST_SRC"
+rm -f "$TEST_SRC"
+REQUIRED_LIBS=(libqemu-aarch64-softmmu.dylib libANGLE-shared.dylib HuskSignTest.dylib)
 if [ "${HUSK_WITHOUT_PS4:-0}" = 1 ]; then
     echo "  skip     libhuskps4.dylib             (HUSK_WITHOUT_PS4=1: no PS4 layer in this build)"
 else

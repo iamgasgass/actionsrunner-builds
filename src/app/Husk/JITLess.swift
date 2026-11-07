@@ -59,6 +59,7 @@ enum JITLess {
     }
 
     private static var chainLoaded = false
+    private static var selfTested = false
 
     static func prepare(apks: [String], progress: @escaping @Sendable (String) -> Void) async throws {
         guard enabled, let cred = SigningCertificate.credentials() else { return }
@@ -78,6 +79,15 @@ enum JITLess {
         let ident = Bundle.main.bundleIdentifier ?? "com.husk.app"
         let tag = cred.tag + "-s15-" + ident
         let dir = cacheDirectory.path
+        // Once a launch: which step of loading a signed library iOS refuses (the place, Husk's signature, the identifier, or the
+        // converted libraries' layout), with a small library the store signed in the bundle; it all goes in the run's log.
+        if !selfTested, let test = Bundle.main.privateFrameworksPath.map({ $0 + "/HuskSignTest.dylib" }) {
+            selfTested = true
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            _ = cred.p12.withUnsafeBytes { b in
+                husk_codesign_selftest(test, dir, b.bindMemory(to: UInt8.self).baseAddress, b.count, cred.password, ident)
+            }
+        }
         try await Task.detached(priority: .userInitiated) { [ident] in
             final class Box { let report: (String) -> Void; init(_ r: @escaping (String) -> Void) { report = r } }
             let box = Box(progress)

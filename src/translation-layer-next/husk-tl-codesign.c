@@ -59,6 +59,8 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <arpa/inet.h>
+#include <dlfcn.h>
+#include <errno.h>
 #include <TargetConditionals.h>
 
 #include <mach-o/loader.h>
@@ -1751,4 +1753,78 @@ int husk_codesign_chain_from_executable(const char *path)
     fclose(f);
     ensure_wwdr_in_chain();
     return found;
+}
+
+/* ------------------------------------------------------------ the on-device self-test */
+
+static bool copy_file(const char *from, const char *to)
+{
+    FILE *a = fopen(from, "rb"), *b = a ? fopen(to, "wb") : NULL;
+    bool ok = a && b;
+    char buf[65536]; size_t n;
+    while (ok && (n = fread(buf, 1, sizeof(buf), a)) > 0) ok = fwrite(buf, 1, n, b) == n;
+    if (a) fclose(a);
+    if (b && fclose(b) != 0) ok = false;
+    return ok;
+}
+
+/* dlopen, then the test function: 1 loaded and answered 42, 0 refused (why says how) */
+static int try_load(const char *path, char *why, size_t whylen)
+{
+    void *h = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    if (!h) {
+        const char *e = dlerror();
+        const char *cut = e ? strstr(e, "(code signature") : NULL;
+        snprintf(why, whylen, "%.160s", cut ? cut : e ? e : "?");
+        return 0;
+    }
+    int (*fn)(void) = (int (*)(void))dlsym(h, "husk_sign_test");
+    int r = fn ? fn() : -1;
+    snprintf(why, whylen, r == 42 ? "loaded" : "loaded, but its function did not answer");
+    return r == 42;
+}
+
+int husk_codesign_selftest(const char *bundle_dylib, const char *work_dir, const uint8_t *p12, size_t p12_len,
+                           const char *password, const char *app_ident)
+{
+    struct stat st;
+    if (!bundle_dylib || stat(bundle_dylib, &st) != 0) {
+        tl_log_line("sign test: no HuskSignTest.dylib in this build, skipped");
+        return -1;
+    }
+    char why[200], path[1200];
+    int result = 0;
+    /* new names each launch: iOS remembers what it decided about a file */
+    unsigned tag = (unsigned)time(NULL) ^ ((unsigned)getpid() << 8);
+
+    int t0 = try_load(bundle_dylib, why, sizeof(why));
+    tl_log_line("sign test T0 (in the app bundle, the store's signature): %s", why);
+    result |= t0 << 0;
+
+    snprintf(path, sizeof(path), "%s/signtest-%08x-store.dylib", work_dir, tag);
+    int t1 = copy_file(bundle_dylib, path) ? try_load(path, why, sizeof(why)) : (snprintf(why, sizeof(why), "copy failed: %s", strerror(errno)), 0);
+    tl_log_line("sign test T1 (copied beside the converted libraries, the store's signature untouched): %s", why);
+    unlink(path);
+    result |= t1 << 1;
+
+    for (int k = 0; k < 2; k++) {
+        const char *ident = k == 0 ? "HuskSignTest" : (app_ident && app_ident[0] ? app_ident : "com.husk.app");
+        snprintf(path, sizeof(path), "%s/signtest-%08x-husk%d.dylib", work_dir, tag, k);
+        char err[300] = "";
+        int t = 0;
+        if (!copy_file(bundle_dylib, path)) snprintf(why, sizeof(why), "copy failed: %s", strerror(errno));
+        else if (!husk_codesign_dylib(path, p12, p12_len, password, ident, err, sizeof(err))) snprintf(why, sizeof(why), "signing failed: %s", err);
+        else t = try_load(path, why, sizeof(why));
+        tl_log_line("sign test T%d (signed by Husk, identifier '%s'): %s", 2 + k, ident, why);
+        unlink(path);
+        result |= t << (2 + k);
+    }
+    const char *verdict =
+        !t0 ? "the store's own signature on the test library is not accepted either: this install cannot load libraries"
+        : !t1 ? "iOS will not load a library from Husk's data folder at all, whatever its signature (the place, not the signature)"
+        : !(result & 4) ? "Husk's signature is refused even on an ordinary library: the signer still differs from the store's"
+        : !(result & 8) ? "Husk's signature works, but not with the app's identifier: the converted libraries must use their own"
+        : "Husk's signature works on an ordinary library: what iOS refuses is the layout of the converted libraries";
+    tl_log_line("sign test: %s (T0-T3 = %d%d%d%d)", verdict, t0, t1, (result >> 2) & 1, (result >> 3) & 1);
+    return result;
 }
