@@ -57,6 +57,44 @@ public final class MediaCodec {
     private static final ArrayDeque<ByteBuffer> sOutputBufferPool = new ArrayDeque<>();
     private static final ArrayDeque<byte[]> sDecodeScratchPool = new ArrayDeque<>();
     private static final ArrayDeque<Out> sOutPool = new ArrayDeque<>();
+    private static int sInputBufferPoolBytes, sOutputBufferPoolBytes, sDecodeScratchPoolBytes;
+    private static final int MAX_INPUT_POOL_BYTES = 64 << 20;
+    private static final int MAX_OUTPUT_POOL_BYTES = 16 << 20;
+    private static final int MAX_SCRATCH_POOL_BYTES = 32 << 20;
+    /* Media3's input-buffer path calls ByteBuffer.limit(sampleSize). On this runtime
+       allocateDirect() can surface a DirectByteBuffer whose reported capacity is only one
+       4 KiB page even when the requested allocation is multi-megabyte. Husk copies queued
+       input into a byte[] before native decode, so codec input buffers do not need to be
+       direct. Use heap ByteBuffers here and verify their capacity before exposing them. */
+    private static ByteBuffer takeInputBuffer(int capacity) {
+        synchronized (sBufferPoolLock) {
+            ByteBuffer best = null;
+            for (java.util.Iterator<ByteBuffer> it = sInputBufferPool.iterator(); it.hasNext();) {
+                ByteBuffer candidate = it.next();
+                if (!candidate.isDirect() && candidate.capacity() >= capacity && (best == null || candidate.capacity() < best.capacity())) best = candidate;
+            }
+            if (best != null) { sInputBufferPool.remove(best); sInputBufferPoolBytes -= best.capacity(); best.clear(); }
+            return best;
+        }
+    }
+    private static void putInputBuffer(ByteBuffer buffer) {
+        if (buffer == null || buffer.isDirect()) return;
+        buffer.clear();
+        int bytes = buffer.capacity();
+        synchronized (sBufferPoolLock) {
+            if (bytes <= (16 << 20) && sInputBufferPool.size() < 32 && sInputBufferPoolBytes + bytes <= MAX_INPUT_POOL_BYTES) {
+                sInputBufferPool.addLast(buffer); sInputBufferPoolBytes += bytes;
+            }
+        }
+    }
+    private static ByteBuffer newInputBuffer(int capacity) {
+        ByteBuffer buffer = ByteBuffer.allocate(capacity).order(ByteOrder.nativeOrder());
+        if (buffer.isDirect() || buffer.capacity() < capacity) {
+            throw new IllegalStateException("Husk codec input allocation failed: requested " + capacity
+                + ", actual " + buffer.capacity() + ", direct=" + buffer.isDirect());
+        }
+        return buffer;
+    }
     private static ByteBuffer takeBuffer(ArrayDeque<ByteBuffer> pool, int capacity) {
         synchronized (sBufferPoolLock) {
             ByteBuffer best = null;
@@ -64,14 +102,23 @@ public final class MediaCodec {
                 ByteBuffer candidate = it.next();
                 if (candidate.capacity() >= capacity && (best == null || candidate.capacity() < best.capacity())) best = candidate;
             }
-            if (best != null) { pool.remove(best); best.clear(); }
+            if (best != null) {
+                pool.remove(best);
+                if (pool == sOutputBufferPool) sOutputBufferPoolBytes -= best.capacity();
+                best.clear();
+            }
             return best;
         }
     }
     private static void putBuffer(ArrayDeque<ByteBuffer> pool, ByteBuffer buffer) {
         if (buffer == null) return;
         buffer.clear();
-        synchronized (sBufferPoolLock) { if (pool.size() < 64) pool.addLast(buffer); }
+        synchronized (sBufferPoolLock) {
+            if (pool == sOutputBufferPool && buffer.capacity() <= (1 << 20)
+                    && pool.size() < 64 && sOutputBufferPoolBytes + buffer.capacity() <= MAX_OUTPUT_POOL_BYTES) {
+                pool.addLast(buffer); sOutputBufferPoolBytes += buffer.capacity();
+            }
+        }
     }
     private static byte[] takeScratch(int capacity) {
         synchronized (sBufferPoolLock) {
@@ -80,12 +127,18 @@ public final class MediaCodec {
                 byte[] candidate = it.next();
                 if (candidate.length >= capacity && (best == null || candidate.length < best.length)) best = candidate;
             }
-            if (best != null) sDecodeScratchPool.remove(best);
+            if (best != null) { sDecodeScratchPool.remove(best); sDecodeScratchPoolBytes -= best.length; }
             return best;
         }
     }
     private static void putScratch(byte[] scratch) {
-        if (scratch != null) synchronized (sBufferPoolLock) { if (sDecodeScratchPool.size() < 16) sDecodeScratchPool.addLast(scratch); }
+        if (scratch == null) return;
+        synchronized (sBufferPoolLock) {
+            if (scratch.length <= (8 << 20) && sDecodeScratchPool.size() < 16
+                    && sDecodeScratchPoolBytes + scratch.length <= MAX_SCRATCH_POOL_BYTES) {
+                sDecodeScratchPool.addLast(scratch); sDecodeScratchPoolBytes += scratch.length;
+            }
+        }
     }
     private static final class Out { int index = -1; long pts; int flags, size; long frame; ByteBuffer data; }
     private static final int CB_INPUT = 1, CB_FORMAT = 2, CB_OUTPUT = 3, CB_RENDERED = 4;
@@ -134,7 +187,8 @@ public final class MediaCodec {
     private final ArrayDeque<Out> mQueue = new ArrayDeque<>();
     private Out[] mSlots = new Out[16];
     private boolean mFormatPending, mStartPending;
-    private int mOutW, mOutH, mRate, mChannels;
+    private int mOutW, mOutH, mRate, mChannels, mInputCapacity;
+    private boolean mLoggedInputBuffer;
     private Callback mCallback; private Handler mCallbackHandler;
     private OnFrameRenderedListener mRendered; private Handler mRenderedHandler;
     private Bitmap mFrame;
@@ -210,15 +264,22 @@ public final class MediaCodec {
                 requested = 32L << 20;
             }
             int max = (int) requested;
+            mInputCapacity = max;
             if (mInputs == null) mInputs = new ByteBuffer[INPUTS];
             for (int i = 0; i < INPUTS; i++) {
-                if (mInputs[i] == null || mInputs[i].capacity() < max) {
-                    putBuffer(sInputBufferPool, mInputs[i]);
-                    ByteBuffer b = takeBuffer(sInputBufferPool, max);
-                    mInputs[i] = (b != null ? b : ByteBuffer.allocateDirect(max)).order(ByteOrder.nativeOrder());
+                if (mInputs[i] == null || mInputs[i].isDirect() || mInputs[i].capacity() < max) {
+                    putInputBuffer(mInputs[i]);
+                    ByteBuffer b = takeInputBuffer(max);
+                    mInputs[i] = b != null ? b : newInputBuffer(max);
+                }
+                if (mInputs[i].capacity() < max || mInputs[i].isDirect()) {
+                    throw new IllegalStateException("Husk codec input buffer is undersized: requested " + max
+                        + ", actual " + mInputs[i].capacity() + ", direct=" + mInputs[i].isDirect());
                 }
                 mInputs[i].clear();
             }
+            android.util.Log.i("MediaCodec", "Husk input buffers ready: " + mName + ", requested=" + max
+                + ", actual=" + mInputs[0].capacity() + ", direct=" + mInputs[0].isDirect());
             if (mVideo) {
                 int s = husk.MediaCodecNative.size(mNative);
                 mOutW = s > 0 ? s >>> 16 : w; mOutH = s > 0 ? s & 0xffff : h;
@@ -279,12 +340,42 @@ public final class MediaCodec {
             return mFreeInputs.poll();
         }
     }
-    public ByteBuffer getInputBuffer(int i) { if (mInputs == null || i < 0 || i >= mInputs.length) return null; ByteBuffer b = mInputs[i]; b.clear(); return b; }
-    public ByteBuffer[] getInputBuffers() { if (mInputs != null) for (ByteBuffer b : mInputs) b.clear(); return mInputs; }
+    public ByteBuffer getInputBuffer(int i) {
+        if (mInputs == null || i < 0 || i >= mInputs.length) return null;
+        ByteBuffer b = mInputs[i];
+        if (b == null || b.isDirect() || b.capacity() < mInputCapacity) {
+            synchronized (mLock) {
+                b = mInputs[i];
+                if (b == null || b.isDirect() || b.capacity() < mInputCapacity) {
+                    putInputBuffer(b);
+                    b = newInputBuffer(mInputCapacity);
+                    mInputs[i] = b;
+                }
+            }
+        }
+        b.clear();
+        if (!mLoggedInputBuffer) {
+            mLoggedInputBuffer = true;
+            android.util.Log.i("MediaCodec", "Husk getInputBuffer[" + i + "]: capacity=" + b.capacity()
+                + ", requested=" + mInputCapacity + ", direct=" + b.isDirect());
+        }
+        return b;
+    }
+    public ByteBuffer[] getInputBuffers() {
+        if (mInputs != null) for (int i = 0; i < mInputs.length; i++) {
+            ByteBuffer b = getInputBuffer(i);
+            if (b != null) b.clear();
+        }
+        return mInputs;
+    }
     public android.media.Image getInputImage(int i) { return null; }
     public void queueInputBuffer(int index, int offset, int size, long ptsUs, int flags) {
         if (index < 0 || index >= INPUTS) throw new IllegalArgumentException("bad input index " + index);
         synchronized (mLock) { requireRunning(); }
+        if (offset < 0 || size < 0 || (long) offset + (long) size > mInputs[index].capacity()) {
+            throw new IllegalArgumentException("Husk codec input range exceeds buffer: offset=" + offset
+                + ", size=" + size + ", capacity=" + mInputs[index].capacity());
+        }
         synchronized (mDecodeLock) {
             if (mDecodeInputScratch == null || mDecodeInputScratch.length < size) {
                 putScratch(mDecodeInputScratch);
@@ -532,8 +623,8 @@ public final class MediaCodec {
             if (n != 0) husk.MediaCodecNative.destroy(n);
             putScratch(mDecodeInputScratch); mDecodeInputScratch = null;
         }
-        ByteBuffer[] inputs = mInputs; mInputs = null;
-        if (inputs != null) for (ByteBuffer b : inputs) putBuffer(sInputBufferPool, b);
+        ByteBuffer[] inputs = mInputs; mInputs = null; mInputCapacity = 0; mLoggedInputBuffer = false;
+        if (inputs != null) for (ByteBuffer b : inputs) putInputBuffer(b);
         if (mFrame != null) { try { mFrame.recycle(); } catch (RuntimeException ignored) {} mFrame = null; }
         mSurface = null; mInputFormat = null; mOutputFormat = null;
         mCallback = null; mCallbackHandler = null; mRendered = null; mRenderedHandler = null;

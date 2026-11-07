@@ -94,6 +94,7 @@ public class AudioTrack implements AudioRouting {
     private int frameBytes() { return mChannels * AudioFormat.bytesPerSample(mEncoding); }
     private static final boolean TRACE = System.getenv("TL_MEDIA_TRACE") != null;
     private long mTraceAt; private long mWritten;
+    private int mTimestampQueryCount;
     public int getPlaybackHeadPosition() {
         int p = mId >= 0 ? (int) (husk.Audio.trackPosition(mId) - mBase) : 0;
         if (TRACE && System.currentTimeMillis() - mTraceAt > 1000) { mTraceAt = System.currentTimeMillis(); android.util.Log.d("AudioTrack", "track " + mId + " (" + mRate + " Hz, encoding " + mEncoding + ", " + (mPlayState == PLAYSTATE_PLAYING ? "playing" : "paused") + ") at frame " + p + ", " + mWritten + " bytes written, pending " + (mId >= 0 ? husk.Audio.trackPending(mId) : -1)); }
@@ -104,7 +105,14 @@ public class AudioTrack implements AudioRouting {
        pair makes Media3 treat that estimate as an authoritative AudioTrack timestamp and
        can cause timestamp-discontinuity playback errors. Let AudioTrackPositionTracker use
        getPlaybackHeadPosition() instead. */
-    public boolean getTimestamp(AudioTimestamp ts) { return false; }
+    public boolean getTimestamp(AudioTimestamp ts) {
+        /* Keep one low-volume diagnostic so a runtime log can prove whether Media3 is
+           querying Husk's AudioTrack implementation. A continuing timestamp-discontinuity
+           error without this line is coming from another AudioTrack implementation/path. */
+        if (mTimestampQueryCount++ == 0) android.util.Log.i("AudioTrack",
+            "Husk AudioTrack.getTimestamp disabled for software mixer track " + mId);
+        return false;
+    }
     public int setLoopPoints(int start, int end, int loopCount) { mLoopCount = loopCount; return SUCCESS; }
     public int reloadStaticData() { return SUCCESS; }
     public int setStereoVolume(float l, float r) { mL = l; mR = r; applyVolume(); return SUCCESS; }
