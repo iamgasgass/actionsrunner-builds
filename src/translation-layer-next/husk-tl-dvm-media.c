@@ -44,7 +44,7 @@ static jvalue L(void *p) { jvalue r; r.j = 0; r.l = p; return r; }
 
 enum { K_AVC = 1, K_HEVC, K_AAC, K_MP3, K_AC3, K_EAC3, K_MP2, K_MP1 };
 #define MAX_DEC_CH 16                               /* channels a decoder may hand out before the mixdown */
-enum { FLAG_EOS = 4 };
+enum { FLAG_KEY_FRAME = 1, FLAG_EOS = 4 };
 #define REORDER 4                                   /* frames held to put decode order into display order */
 
 typedef struct frame { CVPixelBufferRef pb; int64_t pts; struct frame *next; } frame;
@@ -60,6 +60,8 @@ typedef struct codec {
     /* video */
     blob vps, sps, pps;
     bool params_changed;
+    bool waiting_for_random_access;
+    unsigned waiting_log_count, non_vcl_log_count;
     CMVideoFormatDescriptionRef fmt;
     VTDecompressionSessionRef vt;
     frame *sorted; int nsorted;                     /* decoded, by presentation time */
@@ -155,6 +157,8 @@ static void session_drop(codec *c)
         CFRelease(c->vt);
         c->vt = NULL;
     }
+    c->waiting_for_random_access = true;
+    c->waiting_log_count = 0;
     pthread_mutex_lock(&c->lock);
     c->video_inflight = 0;
     pthread_cond_broadcast(&c->frame_cond);
@@ -188,10 +192,17 @@ static bool session_make(codec *c)
     CGSize dims = CMVideoFormatDescriptionGetPresentationDimensions(c->fmt, true, false);
     c->width = (int)dims.width;
     c->height = (int)dims.height;
-    if (c->vt && VTDecompressionSessionCanAcceptFormatDescription(c->vt, c->fmt))
+    if (c->vt && VTDecompressionSessionCanAcceptFormatDescription(c->vt, c->fmt)) {
+        if (c->trace) tl_log_line("media: reusing active %s decoder for updated parameter sets",
+                                  c->kind == K_AVC ? "H.264" : "HEVC");
         return true;
+    }
 
-    session_drop(c);
+    if (c->vt) {
+        tl_log_line("media: active %s decoder cannot accept updated format; recreating session",
+                    c->kind == K_AVC ? "H.264" : "HEVC");
+        session_drop(c);
+    }
     int pixel_format = kCVPixelFormatType_32BGRA;
     CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
     if (!number) {
@@ -253,7 +264,11 @@ static size_t find_start_code(const uint8_t *d, size_t n, size_t from, size_t *c
     return SIZE_MAX;
 }
 
-typedef struct { codec *c; uint8_t *out; size_t len, cap; unsigned nals; unsigned first_type; size_t largest_nal; bool allocation_failed; } nal_walk;
+typedef struct {
+    codec *c; uint8_t *out; size_t len, cap;
+    unsigned nals, vcl_nals, first_type; size_t largest_nal;
+    bool random_access, allocation_failed;
+} nal_walk;
 
 static void take_nal(void *arg, const uint8_t *nal, size_t n)
 {
@@ -264,10 +279,14 @@ static void take_nal(void *arg, const uint8_t *nal, size_t n)
     w->nals++;
     if (n > w->largest_nal) w->largest_nal = n;
     if (c->kind == K_AVC) {
+        if (t >= 1 && t <= 5) w->vcl_nals++;
+        if (t == 5) w->random_access = true;
         if (t == 7) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
         if (t == 8) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
         if (t == 9) return;                                         /* access unit delimiter */
     } else {
+        if (t <= 31) w->vcl_nals++;
+        if (t >= 16 && t <= 21) w->random_access = true;
         if (t == 32) { blob_set(&c->vps, nal, n, &c->params_changed); return; }
         if (t == 33) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
         if (t == 34) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
@@ -420,14 +439,42 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
     }
     if (c->params_changed) {
         c->params_changed = false;
+        /* Drain delayed pictures, but do not invalidate the decoder pre-emptively.
+           session_make() first asks VideoToolbox whether the live session can accept
+           the updated format description; dropping it here would discard reference
+           frames even when the format change is compatible. */
         if (c->vt) video_drain(c);
-        /* A changed SPS/PPS describes a new coded sequence. Never submit frames to the
-           previous VideoToolbox session if the replacement format is incomplete. */
-        session_drop(c);
         if (!session_make(c) && (c->failed < 4 || c->trace))
             tl_log_line("media: waiting for valid %s VPS/SPS/PPS", c->kind == K_AVC ? "H.264" : "HEVC");
     }
-    if (w.len && c->vt) {
+
+    bool submit = w.len && c->vt && c->fmt;
+    /* MediaCodec may deliver AUD/SEI-only buffers. They carry no coded picture and
+       must not be passed to VideoToolbox as one-picture CMSampleBuffers. */
+    if (submit && w.vcl_nals == 0) {
+        submit = false;
+        if (c->trace || c->non_vcl_log_count++ < 3)
+            tl_log_line("media: ignoring non-picture %s sample (first-type=%u, %zu bytes)",
+                        c->kind == K_AVC ? "H.264" : "HEVC", w.first_type, w.len);
+    }
+    /* A newly-created VideoToolbox session has no reference-picture history. Wait
+       for an IDR/IRAP (or MediaCodec's explicit sync-frame flag) before feeding it
+       inter-predicted pictures; this also recovers cleanly after an incompatible
+       SPS/PPS change. */
+    if (submit && c->waiting_for_random_access) {
+        if (w.random_access || (flags & FLAG_KEY_FRAME)) {
+            c->waiting_for_random_access = false;
+            c->waiting_log_count = 0;
+            tl_log_line("media: %s random-access frame received (NAL=%u, flags=0x%x)",
+                        c->kind == K_AVC ? "H.264" : "HEVC", w.first_type, flags);
+        } else {
+            submit = false;
+            if (c->trace || c->waiting_log_count++ < 4)
+                tl_log_line("media: waiting for %s random-access frame; dropping NAL type %u (flags=0x%x)",
+                            c->kind == K_AVC ? "H.264" : "HEVC", w.first_type, flags);
+        }
+    }
+    if (submit) {
         if (c->trace || c->decoded + c->failed < 3)
             tl_log_line("media: submitting %s access unit: %zu bytes, %u NALs, largest=%zu, first-type=%u, pts=%lld us",
                         c->kind == K_AVC ? "H.264" : "HEVC", w.len, w.nals, w.largest_nal,
@@ -694,6 +741,7 @@ NAT(M_create)
     if (!k) { *ret = J(0); return true; }
     codec *c = calloc(1, sizeof(*c));
     c->kind = k; c->trace = trace_on();
+    c->waiting_for_random_access = (k == K_AVC || k == K_HEVC);
     pthread_mutex_init(&c->lock, NULL);
     pthread_cond_init(&c->frame_cond, NULL);
     c->ready_tail = &c->ready; c->pcm_tail = &c->pcms;
