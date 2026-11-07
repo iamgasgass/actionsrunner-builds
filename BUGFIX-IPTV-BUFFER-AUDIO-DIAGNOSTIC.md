@@ -1,13 +1,25 @@
-# IPTV follow-up: codec input-buffer capacity and audio timestamp diagnostics
+# IPTV follow-up: input-buffer tracing and resilient NAL parsing
 
-The 2026-11-07 Husk log confirms that increasing `KEY_MAX_INPUT_SIZE` alone did not fix the media path: Media3 still attempted `ByteBuffer.limit(3,087,360)` on a buffer whose reported capacity was 4,096 bytes. This follow-up changes the custom `MediaCodec` input buffers to heap `ByteBuffer`s. Husk copies queued input into a Java byte array before native decode, so the direct-buffer requirement of Android's platform codec implementation is not needed here. The runtime now checks actual capacity before exposing a buffer and reports the requested and actual sizes.
+This follow-up is based on `Husk-main-iptv-buffer-audio-diagnostic-fixed.zip` and preserves its previous memory, codec-buffer, and audio-timestamp changes.
 
-The direct-buffer allocator is bypassed specifically for codec input because the exception is thrown by `MappedByteBuffer.limit`; this avoids depending on the runtime's direct-buffer capacity implementation for large compressed access units. Output PCM buffers remain separately pooled.
+## What changed
 
-Input, output, and compressed-scratch pools are now bounded by total retained bytes in addition to item counts. This is a mitigation for channel changes/player recreation, not proof that the earlier `Ran out of memory` condition has been eliminated. The prior-run log shows memory pressure reached roughly 3 MiB available before jetsam; that is a separate failure from the 4 KiB buffer exception.
+- `MediaCodec` now reports each codec instance's full input-slot capacity map, the concrete Java buffer class and capacity returned for each slot, and the first queued sample size per slot. It revalidates the slot at access and before queueing, and includes codec identity in diagnostics. This distinguishes a stale/secondary 4 KiB buffer from an error raised by a different Media3 buffer path. The original log's 3.35 MB `MediaCodec` slots were correctly allocated, but the separate `newLimit > capacity (3087360 > 4096)` exception remained; this change adds evidence to isolate that remaining path rather than pretending it is already fixed.
+- The H.264/H.265 NAL reader now validates NAL headers, accepts Annex-B and 1-, 2-, 3-, or 4-byte length-prefixed access units, and parses AVCDecoderConfigurationRecord (`avcC`) and HEVCDecoderConfigurationRecord (`hvcC`) codec configuration data. Allocation and size checks prevent malformed packet lengths from overflowing the output assembly buffer.
+- When SPS/PPS/VPS changes, Husk drains and drops the old VideoToolbox session before creating a replacement. A partially parsed access unit is discarded rather than submitting only its prefix.
+- Decoder diagnostics report the first bytes of unrecognized access units, access-unit NAL counts and sizes, and VideoToolbox bad-data callbacks as such. `-8969` is VideoToolbox `codecBadDataErr`; it means VideoToolbox rejected the compressed sample, not that the Java input buffer was too small.
 
-`AudioTrack.getTimestamp()` already returns `false`, because Husk cannot produce a hardware presentation timestamp. This patch adds a one-time diagnostic when Media3 actually queries that method. If timestamp discontinuities continue but the diagnostic never appears, the active audio path is not using this Husk implementation. If it does appear, the new log will help establish whether the error is produced despite the disabled timestamp path.
+## What the latest log says
+
+- The 1920x1072 and 1920x1080 H.264 input buffers were both raised to the expected multi-megabyte capacities in Husk's custom `MediaCodec` implementation.
+- The remaining `3,087,360 > 4,096` error is not yet proven to be the same object returned by that `MediaCodec`; the new per-slot and per-codec logs are intended to identify the source.
+- The old audio timestamp-discontinuity lines appear in the previous-run section. In the new run, Husk logs that the software-mixer `AudioTrack.getTimestamp()` path is disabled and no new timestamp discontinuity is shown after that point.
+- `MediaSessionImpl` now initializes. The `MediaSessionCompat` media-button receiver message and `MediaMetricsService unavailable` are non-fatal platform warnings.
+- `Socket reset`, `Socket closed`, and `SocketTimeoutException` are transport failures/cancellations. They cannot be fixed reliably from the runtime alone without the IPTV endpoint's HTTP status, headers, and response body.
+- `MPEG Layer II decoder not available` is a capability notice. The stream shown in this log uses AAC, not MP2.
 
 ## Validation limits
 
-Java source compilation is checked separately. No full iOS build, runtime execution, or live IPTV test is available here. The HTTP timeout/socket-close messages still require server/response diagnostics; this patch does not claim to fix them.
+- All Java framework sources compiled with Java 8 language/API compatibility using JDK 21 (`javac --release 8`).
+- The NAL parser passed standalone C smoke tests for Annex-B, 1-, 2-, 3-, and 4-byte length prefixes, `avcC`, and `hvcC`.
+- The full iOS app was not built here, and no real IPTV server stream was available for an end-to-end test. Apple VideoToolbox `-8969` can still occur for genuinely malformed, truncated, unsupported, or out-of-sequence H.264 access units. The latest patch improves parsing and logging; it does not claim to make every IPTV stream valid.

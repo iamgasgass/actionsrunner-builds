@@ -84,8 +84,12 @@ static bool trace_on(void) { static int t = -1; if (t < 0) t = getenv("TL_MEDIA_
 
 static void blob_set(blob *b, const uint8_t *d, size_t n, bool *changed)
 {
+    if (!b || !d || n == 0) return;
     if (b->n == n && b->d && !memcmp(b->d, d, n)) return;
-    free(b->d); b->d = malloc(n); memcpy(b->d, d, n); b->n = n;
+    uint8_t *copy = malloc(n);
+    if (!copy) return;
+    memcpy(copy, d, n);
+    free(b->d); b->d = copy; b->n = n;
     *changed = true;
 }
 
@@ -99,116 +103,41 @@ static void release_sorted(codec *c, int keep)
     }
 }
 
-static void vt_out(void *ref, void *src, OSStatus st, VTDecodeInfoFlags fl, CVImageBufferRef img, CMTime pts, CMTime dur)
+/* Accept elementary-stream NALs only. In particular, do not feed an AVCC/hvcC
+   configuration record to VideoToolbox as though it were a video access unit. */
+static bool nal_header_valid(const codec *c, const uint8_t *nal, size_t n)
 {
-    (void)src; (void)fl; (void)dur;
-    codec *c = ref;
-    if (st != noErr || !img) {
-        pthread_mutex_lock(&c->lock);
-        if (c->video_inflight > 0) c->video_inflight--;
-        c->failed++;
-        int failed = (int)c->failed;
-        pthread_cond_broadcast(&c->frame_cond);
-        pthread_mutex_unlock(&c->lock);
-        if (c->trace || failed < 4) tl_log_line("media: frame not decoded (%d)", (int)st);
-        return;
-    }
-    frame *f = calloc(1, sizeof(*f));
-    if (!f) {
-        pthread_mutex_lock(&c->lock);
-        if (c->video_inflight > 0) c->video_inflight--;
-        c->failed++;
-        pthread_cond_broadcast(&c->frame_cond);
-        pthread_mutex_unlock(&c->lock);
-        return;
-    }
-    f->pb = CVPixelBufferRetain(img);
-    f->pts = CMTIME_IS_VALID(pts) ? CMTimeConvertScale(pts, 1000000, kCMTimeRoundingMethod_Default).value : 0;
-    pthread_mutex_lock(&c->lock);
-    if (c->video_inflight > 0) c->video_inflight--;
-    frame **p = &c->sorted;
-    while (*p && (*p)->pts <= f->pts) p = &(*p)->next;
-    f->next = *p; *p = f; c->nsorted++;
-    release_sorted(c, REORDER);
-    c->decoded++;
-    pthread_cond_broadcast(&c->frame_cond);
-    pthread_mutex_unlock(&c->lock);
+    if (!nal || n < (c->kind == K_HEVC ? 2u : 1u) || (nal[0] & 0x80)) return false;
+    if (c->kind == K_HEVC) return (nal[1] & 0x07) != 0;
+    int type = nal[0] & 0x1f;
+    return type > 0 && type < 24;
 }
 
-static void session_drop(codec *c)
+/* Return the next 3- or 4-byte Annex-B delimiter. */
+static size_t find_start_code(const uint8_t *d, size_t n, size_t from, size_t *code_len)
 {
-    if (c->vt) { VTDecompressionSessionWaitForAsynchronousFrames(c->vt); VTDecompressionSessionInvalidate(c->vt); CFRelease(c->vt); c->vt = NULL; }
-    pthread_mutex_lock(&c->lock);
-    c->video_inflight = 0;
-    pthread_cond_broadcast(&c->frame_cond);
-    pthread_mutex_unlock(&c->lock);
-}
-
-static bool session_make(codec *c)
-{
-    if (c->fmt) { CFRelease(c->fmt); c->fmt = NULL; }
-    OSStatus st;
-    if (c->kind == K_AVC) {
-        if (!c->sps.n || !c->pps.n) return false;
-        const uint8_t *ps[2] = { c->sps.d, c->pps.d }; size_t sz[2] = { c->sps.n, c->pps.n };
-        st = CMVideoFormatDescriptionCreateFromH264ParameterSets(NULL, 2, ps, sz, 4, &c->fmt);
-    } else {
-        if (!c->vps.n || !c->sps.n || !c->pps.n) return false;
-        const uint8_t *ps[3] = { c->vps.d, c->sps.d, c->pps.d }; size_t sz[3] = { c->vps.n, c->sps.n, c->pps.n };
-        st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(NULL, 3, ps, sz, 4, NULL, &c->fmt);
-    }
-    if (st != noErr) { tl_log_line("media: the stream's parameter sets were refused (%d)", (int)st); c->fmt = NULL; return false; }
-    CGSize dims = CMVideoFormatDescriptionGetPresentationDimensions(c->fmt, true, false);
-    c->width = (int)dims.width; c->height = (int)dims.height;
-    if (c->vt && VTDecompressionSessionCanAcceptFormatDescription(c->vt, c->fmt)) return true;
-    session_drop(c);
-    int fmt = kCVPixelFormatType_32BGRA;
-    CFNumberRef n = CFNumberCreate(NULL, kCFNumberIntType, &fmt);
-    const void *k[] = { kCVPixelBufferPixelFormatTypeKey }, *v[] = { n };
-    CFDictionaryRef dest = CFDictionaryCreate(NULL, k, v, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    VTDecompressionOutputCallbackRecord cb = { vt_out, c };
-    st = VTDecompressionSessionCreate(NULL, c->fmt, NULL, dest, &cb, &c->vt);
-    CFRelease(dest); CFRelease(n);
-    if (st != noErr) { tl_log_line("media: no decoder session (%d)", (int)st); c->vt = NULL; return false; }
-    tl_log_line("media: %s decoder for %dx%d", c->kind == K_AVC ? "H.264" : "HEVC", c->width, c->height);
-    return true;
-}
-
-static int nal_type(const codec *c, const uint8_t *n) { return c->kind == K_AVC ? (n[0] & 0x1f) : ((n[0] >> 1) & 0x3f); }
-
-/* Annex-B (start codes) or already length-prefixed units: each NAL unit to fn */
-static void each_nal(const uint8_t *d, size_t n, void (*fn)(void *, const uint8_t *, size_t), void *arg)
-{
-    bool annexb = n >= 3 && d[0] == 0 && d[1] == 0 && (d[2] == 1 || (n >= 4 && d[2] == 0 && d[3] == 1));
-    if (!annexb) {
-        size_t i = 0;
-        while (i + 4 <= n) {
-            uint32_t len = (uint32_t)d[i] << 24 | (uint32_t)d[i + 1] << 16 | (uint32_t)d[i + 2] << 8 | d[i + 3];
-            i += 4;
-            if (len == 0 || len > n - i) break;
-            fn(arg, d + i, len); i += len;
-        }
-        return;
-    }
-    size_t i = 0, start = (size_t)-1;
-    while (i + 3 <= n) {
+    if (!d || !code_len || n < 3) return SIZE_MAX;
+    for (size_t i = from; i + 3 <= n; i++) {
         if (d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 1) {
-            if (start != (size_t)-1) {
-                size_t end = i; while (end > start && d[end - 1] == 0) end--;     /* the zero before a 4-byte start code */
-                if (end > start) fn(arg, d + start, end - start);
-            }
-            i += 3; start = i;
-        } else i++;
+            *code_len = 3; return i;
+        }
+        if (i + 4 <= n && d[i] == 0 && d[i + 1] == 0 && d[i + 2] == 0 && d[i + 3] == 1) {
+            *code_len = 4; return i;
+        }
     }
-    if (start != (size_t)-1 && start < n) fn(arg, d + start, n - start);
+    return SIZE_MAX;
 }
 
-typedef struct { codec *c; uint8_t *out; size_t len, cap; } nal_walk;
+typedef struct { codec *c; uint8_t *out; size_t len, cap; unsigned nals; unsigned first_type; size_t largest_nal; bool allocation_failed; } nal_walk;
+
 static void take_nal(void *arg, const uint8_t *nal, size_t n)
 {
     nal_walk *w = arg; codec *c = w->c;
-    if (n == 0) return;
+    if (!nal_header_valid(c, nal, n)) return;
     int t = nal_type(c, nal);
+    if (!w->nals) w->first_type = (unsigned)t;
+    w->nals++;
+    if (n > w->largest_nal) w->largest_nal = n;
     if (c->kind == K_AVC) {
         if (t == 7) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
         if (t == 8) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
@@ -219,9 +148,126 @@ static void take_nal(void *arg, const uint8_t *nal, size_t n)
         if (t == 34) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
         if (t == 35) return;
     }
-    if (w->len + n + 4 > w->cap) { w->cap = (w->len + n + 4) * 2; w->out = realloc(w->out, w->cap); }
+    if (n > UINT32_MAX || w->len > SIZE_MAX - n - 4) { w->allocation_failed = true; return; }
+    size_t needed = w->len + n + 4;
+    if (needed > w->cap) {
+        size_t cap = w->cap ? w->cap : 4096;
+        while (cap < needed && cap <= SIZE_MAX / 2) cap *= 2;
+        if (cap < needed) cap = needed;
+        uint8_t *grown = realloc(w->out, cap);
+        if (!grown) { w->allocation_failed = true; return; }
+        w->out = grown; w->cap = cap;
+    }
     w->out[w->len++] = (uint8_t)(n >> 24); w->out[w->len++] = (uint8_t)(n >> 16); w->out[w->len++] = (uint8_t)(n >> 8); w->out[w->len++] = (uint8_t)n;
     memcpy(w->out + w->len, nal, n); w->len += n;
+}
+
+/* Validate a length-prefixed access unit without mutating codec state. MP4/AVCC
+   streams can use 1-, 2-, 3- or 4-byte NAL lengths; HLS/TS normally uses Annex-B. */
+static bool length_prefixed_valid(const codec *c, const uint8_t *d, size_t n, unsigned length_bytes)
+{
+    size_t pos = 0; unsigned count = 0;
+    if (!d || !n || length_bytes < 1 || length_bytes > 4) return false;
+    while (pos < n) {
+        if (n - pos < length_bytes) return false;
+        uint32_t len = 0;
+        for (unsigned j = 0; j < length_bytes; j++) len = (len << 8) | d[pos++];
+        if (!len || (size_t)len > n - pos || !nal_header_valid(c, d + pos, len)) return false;
+        pos += len; count++;
+    }
+    return count > 0 && pos == n;
+}
+
+static bool each_nal(const codec *c, const uint8_t *d, size_t n,
+                     void (*fn)(void *, const uint8_t *, size_t), void *arg)
+{
+    if (!d || !n) return false;
+    size_t code_len = 0;
+    size_t first = find_start_code(d, n, 0, &code_len);
+    if (first != SIZE_MAX) {
+        size_t cursor = first;
+        unsigned count = 0;
+        while (cursor != SIZE_MAX) {
+            size_t this_len = 0;
+            size_t at = find_start_code(d, n, cursor, &this_len);
+            if (at == SIZE_MAX) break;
+            size_t begin = at + this_len, next_len = 0;
+            size_t next = find_start_code(d, n, begin, &next_len);
+            size_t end = next == SIZE_MAX ? n : next;
+            while (end > begin && d[end - 1] == 0) end--; /* Annex-B trailing_zero_8bits */
+            if (end > begin && nal_header_valid(c, d + begin, end - begin)) {
+                fn(arg, d + begin, end - begin); count++;
+            } else if (end > begin) {
+                return false;
+            }
+            cursor = next;
+        }
+        return count > 0;
+    }
+    static const unsigned candidates[] = { 4, 2, 3, 1 };
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        unsigned lb = candidates[i];
+        if (!length_prefixed_valid(c, d, n, lb)) continue;
+        size_t pos = 0;
+        while (pos < n) {
+            uint32_t len = 0;
+            for (unsigned j = 0; j < lb; j++) len = (len << 8) | d[pos++];
+            fn(arg, d + pos, len); pos += len;
+        }
+        return true;
+    }
+    return false;
+}
+
+/* AVCDecoderConfigurationRecord (avcC) stores the SPS/PPS behind 16-bit lengths,
+   not Annex-B start codes. Parse it explicitly instead of silently losing CSD. */
+static bool parse_avcc(codec *c, const uint8_t *d, size_t n, void (*fn)(void *, const uint8_t *, size_t), void *arg)
+{
+    if (!d || n < 7 || d[0] != 1) return false;
+    size_t pos = 5; unsigned sps_count = d[pos++] & 0x1f, pps_count = 0, count = 0;
+    for (unsigned i = 0; i < sps_count; i++) {
+        if (n - pos < 2) return false;
+        size_t len = ((size_t)d[pos] << 8) | d[pos + 1]; pos += 2;
+        if (!len || len > n - pos || !nal_header_valid(c, d + pos, len) || (d[pos] & 0x1f) != 7) return false;
+        fn(arg, d + pos, len); pos += len; count++;
+    }
+    if (pos >= n) return false;
+    pps_count = d[pos++];
+    for (unsigned i = 0; i < pps_count; i++) {
+        if (n - pos < 2) return false;
+        size_t len = ((size_t)d[pos] << 8) | d[pos + 1]; pos += 2;
+        if (!len || len > n - pos || !nal_header_valid(c, d + pos, len) || (d[pos] & 0x1f) != 8) return false;
+        fn(arg, d + pos, len); pos += len; count++;
+    }
+    return count > 0;
+}
+
+/* HEVCDecoderConfigurationRecord (hvcC): arrays contain VPS/SPS/PPS NALs. */
+static bool parse_hvcc(codec *c, const uint8_t *d, size_t n, void (*fn)(void *, const uint8_t *, size_t), void *arg)
+{
+    if (!d || n < 23 || d[0] != 1) return false;
+    size_t pos = 23; unsigned arrays = d[22], count = 0;
+    for (unsigned a = 0; a < arrays; a++) {
+        if (n - pos < 3) return false;
+        pos++; /* array_completeness/reserved/NAL_unit_type */
+        unsigned units = ((unsigned)d[pos] << 8) | d[pos + 1]; pos += 2;
+        for (unsigned u = 0; u < units; u++) {
+            if (n - pos < 2) return false;
+            size_t len = ((size_t)d[pos] << 8) | d[pos + 1]; pos += 2;
+            if (!len || len > n - pos || !nal_header_valid(c, d + pos, len)) return false;
+            fn(arg, d + pos, len); pos += len; count++;
+        }
+    }
+    return count > 0;
+}
+
+static bool parse_codec_config(codec *c, const uint8_t *d, size_t n,
+                               void (*fn)(void *, const uint8_t *, size_t), void *arg)
+{
+    if (!d || !n) return false;
+    if (c->kind == K_AVC && n >= 7 && d[0] == 1) return parse_avcc(c, d, n, fn, arg);
+    if (c->kind == K_HEVC && n >= 23 && d[0] == 1) return parse_hvcc(c, d, n, fn, arg);
+    return each_nal(c, d, n, fn, arg);
 }
 
 static void video_drain(codec *c)
@@ -232,14 +278,35 @@ static void video_drain(codec *c)
 
 static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int flags)
 {
-    nal_walk w = { c, NULL, 0, 0 };
-    each_nal(d, n, take_nal, &w);
+    nal_walk w = { .c = c };
+    bool parsed = each_nal(c, d, n, take_nal, &w);
+    if (!parsed) {
+        if (c->failed < 4 || c->trace) {
+            char head[64] = {0}; size_t shown = n < 16 ? n : 16, at = 0;
+            for (size_t i = 0; d && i < shown && at + 3 < sizeof(head); i++)
+                at += (size_t)snprintf(head + at, sizeof(head) - at, "%02X%s", d[i], i + 1 < shown ? " " : "");
+            tl_log_line("media: ignored unrecognized %s access unit (%zu bytes; prefix %s)", c->kind == K_AVC ? "H.264" : "HEVC", n, head);
+        }
+        free(w.out); w.out = NULL; w.len = 0;
+    }
+    if (w.allocation_failed) {
+        if (c->failed < 4 || c->trace) tl_log_line("media: access-unit NAL allocation failed (%zu bytes)", n);
+        free(w.out); return;
+    }
     if (c->params_changed) {
         c->params_changed = false;
-        if ((c->vt || c->fmt) && c->vt) video_drain(c);
-        session_make(c);
+        if (c->vt) video_drain(c);
+        /* A changed SPS/PPS describes a new coded sequence. Never submit frames to the
+           previous VideoToolbox session if the replacement format is incomplete. */
+        session_drop(c);
+        if (!session_make(c) && (c->failed < 4 || c->trace))
+            tl_log_line("media: waiting for valid %s VPS/SPS/PPS", c->kind == K_AVC ? "H.264" : "HEVC");
     }
     if (w.len && c->vt) {
+        if (c->trace || c->decoded + c->failed < 3)
+            tl_log_line("media: submitting %s access unit: %zu bytes, %u NALs, largest=%zu, first-type=%u, pts=%lld us",
+                        c->kind == K_AVC ? "H.264" : "HEVC", w.len, w.nals, w.largest_nal,
+                        w.first_type, (long long)pts);
         /* VideoToolbox is asynchronous. Do not let the app submit an unlimited number of access units
            while its decode callbacks are still pending. */
         pthread_mutex_lock(&c->lock);
@@ -265,7 +332,7 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
             int failed = (int)c->failed;
             pthread_cond_broadcast(&c->frame_cond);
             pthread_mutex_unlock(&c->lock);
-            if (failed < 4 || c->trace) tl_log_line("media: decode refused (%d)", (int)st);
+            if (failed < 4 || c->trace) tl_log_line("media: VideoToolbox refused access unit (%d)", (int)st);
             if (st == kVTInvalidSessionErr) { session_drop(c); session_make(c); }
         }
         if (sb) CFRelease(sb);
@@ -516,7 +583,12 @@ NAT(M_configure)
     jobj *csd[3] = { a[5].l, a[6].l, a[7].l };
     if (c->kind == K_AVC || c->kind == K_HEVC) {
         c->width = a[1].i; c->height = a[2].i;
-        for (int i = 0; i < 3; i++) if (csd[i]) { nal_walk w = { c, NULL, 0, 0 }; each_nal(csd[i]->arr.data, csd[i]->arr.len, take_nal, &w); free(w.out); }
+        for (int i = 0; i < 3; i++) if (csd[i] && csd[i]->arr.len) {
+            nal_walk w = { .c = c };
+            if (!parse_codec_config(c, csd[i]->arr.data, csd[i]->arr.len, take_nal, &w))
+                tl_log_line("media: unrecognized %s codec config csd-%d (%u bytes)", c->kind == K_AVC ? "AVC" : "HEVC", i, csd[i]->arr.len);
+            free(w.out);
+        }
         if (c->params_changed) { c->params_changed = false; session_make(c); }
         *ret = Z(true);
     } else {

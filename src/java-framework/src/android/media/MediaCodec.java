@@ -188,7 +188,8 @@ public final class MediaCodec {
     private Out[] mSlots = new Out[16];
     private boolean mFormatPending, mStartPending;
     private int mOutW, mOutH, mRate, mChannels, mInputCapacity;
-    private boolean mLoggedInputBuffer;
+    private final boolean[] mLoggedInputBuffers = new boolean[INPUTS];
+    private final boolean[] mLoggedQueuedInput = new boolean[INPUTS];
     private Callback mCallback; private Handler mCallbackHandler;
     private OnFrameRenderedListener mRendered; private Handler mRenderedHandler;
     private Bitmap mFrame;
@@ -265,6 +266,8 @@ public final class MediaCodec {
             }
             int max = (int) requested;
             mInputCapacity = max;
+            java.util.Arrays.fill(mLoggedInputBuffers, false);
+            java.util.Arrays.fill(mLoggedQueuedInput, false);
             if (mInputs == null) mInputs = new ByteBuffer[INPUTS];
             for (int i = 0; i < INPUTS; i++) {
                 if (mInputs[i] == null || mInputs[i].isDirect() || mInputs[i].capacity() < max) {
@@ -278,8 +281,9 @@ public final class MediaCodec {
                 }
                 mInputs[i].clear();
             }
-            android.util.Log.i("MediaCodec", "Husk input buffers ready: " + mName + ", requested=" + max
-                + ", actual=" + mInputs[0].capacity() + ", direct=" + mInputs[0].isDirect());
+            android.util.Log.i("MediaCodec", "Husk input buffers ready: codec=" + System.identityHashCode(this)
+                + ", name=" + mName + ", requested=" + max + ", slots=" + mInputs.length
+                + ", capacities=" + inputCapacities());
             if (mVideo) {
                 int s = husk.MediaCodecNative.size(mNative);
                 mOutW = s > 0 ? s >>> 16 : w; mOutH = s > 0 ? s & 0xffff : h;
@@ -340,24 +344,38 @@ public final class MediaCodec {
             return mFreeInputs.poll();
         }
     }
+    private String inputCapacities() {
+        StringBuilder out = new StringBuilder();
+        if (mInputs != null) for (int i = 0; i < mInputs.length; i++) {
+            if (i != 0) out.append(',');
+            ByteBuffer b = mInputs[i];
+            out.append(i).append(':').append(b == null ? 0 : b.capacity());
+        }
+        return out.toString();
+    }
     public ByteBuffer getInputBuffer(int i) {
         if (mInputs == null || i < 0 || i >= mInputs.length) return null;
-        ByteBuffer b = mInputs[i];
-        if (b == null || b.isDirect() || b.capacity() < mInputCapacity) {
-            synchronized (mLock) {
-                b = mInputs[i];
-                if (b == null || b.isDirect() || b.capacity() < mInputCapacity) {
-                    putInputBuffer(b);
-                    b = newInputBuffer(mInputCapacity);
-                    mInputs[i] = b;
-                }
+        ByteBuffer b;
+        synchronized (mLock) {
+            b = mInputs[i];
+            if (b == null || b.isDirect() || b.capacity() < mInputCapacity) {
+                putInputBuffer(b);
+                b = newInputBuffer(mInputCapacity);
+                mInputs[i] = b;
             }
-        }
-        b.clear();
-        if (!mLoggedInputBuffer) {
-            mLoggedInputBuffer = true;
-            android.util.Log.i("MediaCodec", "Husk getInputBuffer[" + i + "]: capacity=" + b.capacity()
-                + ", requested=" + mInputCapacity + ", direct=" + b.isDirect());
+            if (b.capacity() < mInputCapacity || b.isDirect()) {
+                throw new IllegalStateException("Husk getInputBuffer returned an invalid slot: codec="
+                    + System.identityHashCode(this) + ", index=" + i + ", requested=" + mInputCapacity
+                    + ", actual=" + (b == null ? 0 : b.capacity()) + ", direct=" + (b != null && b.isDirect()));
+            }
+            b.clear();
+            if (!mLoggedInputBuffers[i]) {
+                mLoggedInputBuffers[i] = true;
+                android.util.Log.i("MediaCodec", "Husk getInputBuffer: codec=" + System.identityHashCode(this)
+                    + ", name=" + mName + ", index=" + i + ", class=" + b.getClass().getName()
+                    + ", capacity=" + b.capacity() + ", limit=" + b.limit()
+                    + ", requested=" + mInputCapacity + ", direct=" + b.isDirect());
+            }
         }
         return b;
     }
@@ -372,9 +390,17 @@ public final class MediaCodec {
     public void queueInputBuffer(int index, int offset, int size, long ptsUs, int flags) {
         if (index < 0 || index >= INPUTS) throw new IllegalArgumentException("bad input index " + index);
         synchronized (mLock) { requireRunning(); }
-        if (offset < 0 || size < 0 || (long) offset + (long) size > mInputs[index].capacity()) {
-            throw new IllegalArgumentException("Husk codec input range exceeds buffer: offset=" + offset
-                + ", size=" + size + ", capacity=" + mInputs[index].capacity());
+        ByteBuffer input = getInputBuffer(index);
+        if (input == null || offset < 0 || size < 0 || (long) offset + (long) size > input.capacity()) {
+            throw new IllegalArgumentException("Husk codec input range exceeds buffer: codec="
+                + System.identityHashCode(this) + ", index=" + index + ", offset=" + offset
+                + ", size=" + size + ", capacity=" + (input == null ? 0 : input.capacity()));
+        }
+        if (!mLoggedQueuedInput[index]) {
+            mLoggedQueuedInput[index] = true;
+            android.util.Log.i("MediaCodec", "Husk queueInputBuffer: codec=" + System.identityHashCode(this)
+                + ", name=" + mName + ", index=" + index + ", size=" + size
+                + ", capacity=" + input.capacity() + ", offset=" + offset);
         }
         synchronized (mDecodeLock) {
             if (mDecodeInputScratch == null || mDecodeInputScratch.length < size) {
@@ -623,7 +649,8 @@ public final class MediaCodec {
             if (n != 0) husk.MediaCodecNative.destroy(n);
             putScratch(mDecodeInputScratch); mDecodeInputScratch = null;
         }
-        ByteBuffer[] inputs = mInputs; mInputs = null; mInputCapacity = 0; mLoggedInputBuffer = false;
+        ByteBuffer[] inputs = mInputs; mInputs = null; mInputCapacity = 0;
+        java.util.Arrays.fill(mLoggedInputBuffers, false); java.util.Arrays.fill(mLoggedQueuedInput, false);
         if (inputs != null) for (ByteBuffer b : inputs) putInputBuffer(b);
         if (mFrame != null) { try { mFrame.recycle(); } catch (RuntimeException ignored) {} mFrame = null; }
         mSurface = null; mInputFormat = null; mOutputFormat = null;
