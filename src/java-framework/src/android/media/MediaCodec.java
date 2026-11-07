@@ -464,7 +464,13 @@ public final class MediaCodec {
                 if (f == 0) { recycleOut(o); return collected; }
                 o.frame = f; o.pts = mInfo[0];
                 int w = (int) mInfo[1], h = (int) mInfo[2];
-                o.size = Math.max(1, w * h * 3 / 2);
+                /* VideoToolbox frames are kept as native CVPixelBuffers and rendered to the
+                   configured Surface. There is no CPU-readable YUV output ByteBuffer here.
+                   Advertising w*h*3/2 makes Media3 set a multi-MiB limit on a page-sized
+                   placeholder/mapped buffer (newLimit > capacity). Keep BufferInfo.size zero;
+                   frame dimensions remain in mInfo and the output format, and rendering still
+                   uses o.frame in releaseOutputBuffer(). */
+                o.size = 0;
                 if (w != mOutW || h != mOutH || mFormatPendingFirst) { mOutW = w; mOutH = h; mOutputFormat = videoFormat(w, h); changed = true; }
             } else {
                 byte[] p = husk.MediaCodecNative.nextPcm(mNative, mInfo);
