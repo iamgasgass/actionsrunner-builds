@@ -285,24 +285,8 @@ public final class ViewRoot implements ViewParent {
                     area.set(sInsets[0], sInsets[1], sw - sInsets[2], sh - Math.max(sInsets[3], sImeBottom));
                 Gravity.apply(g, w, h, area, mLp.x, mLp.y, out);
             }
-            int oldX = mX, oldY = mY, oldW = mW, oldH = mH;
             mX = out.left; mY = out.top; mW = w; mH = h;
             mView.layout(0, 0, w, h);
-            // Diagnostic: capture the actual Android window bounds and its view tree.
-            // This distinguishes a too-small WindowManager root from clipping inside Compose.
-            if (mFirst || oldX != mX || oldY != mY || oldW != mW || oldH != mH) {
-                android.util.Log.d("HuskWindow", "root=" + mView.getClass().getName()
-                    + " type=" + mLp.type + " flags=0x" + Integer.toHexString(mLp.flags)
-                    + " gravity=0x" + Integer.toHexString(mLp.gravity)
-                    + " lp=" + lw + "x" + lh
-                    + " screen=" + sw + "x" + sh
-                    + " insets=" + sInsets[0] + "," + sInsets[1] + "," + sInsets[2] + "," + sInsets[3]
-                    + " ime=" + sImeBottom
-                    + " measureSpec=" + View.MeasureSpec.getMode(ws) + "/" + View.MeasureSpec.getSize(ws)
-                    + "," + View.MeasureSpec.getMode(hs) + "/" + View.MeasureSpec.getSize(hs)
-                    + " measured=" + w + "x" + h + " frame=" + mX + "," + mY + "," + mW + "x" + mH);
-                dump(mView, 0);
-            }
         } finally { mInLayout = false; }
         mObserver.dispatchOnGlobalLayout();
         if (sDump == null) sDump = System.getenv("TL_VIEW_DUMP") != null;

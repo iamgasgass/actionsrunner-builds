@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.View;
@@ -27,6 +28,7 @@ public class LinearLayout extends ViewGroup {
         public LayoutParams(MarginLayoutParams p) { super(p); }
         public LayoutParams(LayoutParams p) { super(p); weight = p.weight; gravity = p.gravity; }
     }
+    private final boolean mAllowInconsistentMeasurement;
     private boolean mBaselineAligned = true, mUseLargestChild;
     private int mBaselineAlignedChildIndex = -1, mBaselineChildTop, mOrientation, mGravity = Gravity.START | Gravity.TOP, mTotalLength;
     private float mWeightSum = -1;
@@ -39,6 +41,13 @@ public class LinearLayout extends ViewGroup {
     public LinearLayout(Context c, AttributeSet a, int defStyleAttr) { this(c, a, defStyleAttr, 0); }
     public LinearLayout(Context c, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(c, attrs, defStyleAttr, defStyleRes);
+        // Match AOSP's weight-measurement compatibility rule. Before Android N,
+        // zero-sized weighted children could retain their intrinsic measurement
+        // when the parent used AT_MOST. Modern apps use the allocated weight share
+        // instead; this avoids doubling the content height in WRAP_CONTENT dialogs.
+        android.content.pm.ApplicationInfo appInfo = c != null ? c.getApplicationInfo() : null;
+        mAllowInconsistentMeasurement = appInfo != null
+            && appInfo.targetSdkVersion <= Build.VERSION_CODES.M;
         if (attrs == null && defStyleAttr == 0 && defStyleRes == 0) return;
         TypedArray a = c.obtainStyledAttributes(attrs, husk.S.LinearLayout, defStyleAttr, defStyleRes);
         int o = a.getInt(husk.S.LinearLayout_orientation, -1);
@@ -194,7 +203,7 @@ public class LinearLayout extends ViewGroup {
                     remainingWeightSum -= childWeight;
                     int childHeight;
                     if (mUseLargestChild && hm != MeasureSpec.EXACTLY) childHeight = largestChildHeight;
-                    else if (lp.height == 0 && hm == MeasureSpec.EXACTLY) childHeight = share;
+                    else if (lp.height == 0 && (!mAllowInconsistentMeasurement || hm == MeasureSpec.EXACTLY)) childHeight = share;
                     else childHeight = child.getMeasuredHeight() + share;
                     int chs = MeasureSpec.makeMeasureSpec(Math.max(0, childHeight), MeasureSpec.EXACTLY);
                     int cws = getChildMeasureSpec(ws, getPaddingLeft() + getPaddingRight() + lp.leftMargin + lp.rightMargin, lp.width);
@@ -331,7 +340,7 @@ public class LinearLayout extends ViewGroup {
                     remainingWeightSum -= childWeight;
                     int childWidth;
                     if (mUseLargestChild && wm != MeasureSpec.EXACTLY) childWidth = largestChildWidth;
-                    else if (lp.width == 0 && wm == MeasureSpec.EXACTLY) childWidth = share;
+                    else if (lp.width == 0 && (!mAllowInconsistentMeasurement || wm == MeasureSpec.EXACTLY)) childWidth = share;
                     else childWidth = child.getMeasuredWidth() + share;
                     int cws = MeasureSpec.makeMeasureSpec(Math.max(0, childWidth), MeasureSpec.EXACTLY);
                     int chs = getChildMeasureSpec(hs, getPaddingTop() + getPaddingBottom() + lp.topMargin + lp.bottomMargin, lp.height);
