@@ -437,6 +437,7 @@ public abstract class Context {
     public android.content.AttributionSource getAttributionSource() { return null; }
     public android.view.autofill.AutofillManager.AutofillClient getAutofillClient() { return (android.view.autofill.AutofillManager.AutofillClient) huskFill.get("AutofillClient"); }
     public android.view.contentcapture.ContentCaptureManager.ContentCaptureClient getContentCaptureClient() { return null; }
+    public android.content.AutofillOptions getAutofillOptions() { return (android.content.AutofillOptions) huskFill.get("AutofillOptions"); }
     public android.content.ContentCaptureOptions getContentCaptureOptions() { return (android.content.ContentCaptureOptions) huskFill.get("ContentCaptureOptions"); }
     public java.io.File getCrateDir(java.lang.String p0) { return null; }
     public int getDeviceId() { return 0; }
@@ -506,6 +507,7 @@ public abstract class Context {
     public void sendStickyOrderedBroadcast(android.content.Intent p0, android.content.BroadcastReceiver p1, android.os.Handler p2, int p3, java.lang.String p4, android.os.Bundle p5) {}
     public void sendStickyOrderedBroadcastAsUser(android.content.Intent p0, android.os.UserHandle p1, android.content.BroadcastReceiver p2, android.os.Handler p3, int p4, java.lang.String p5, android.os.Bundle p6) {}
     public void setAutofillClient(android.view.autofill.AutofillManager.AutofillClient p0) { huskFill.put("AutofillClient", p0); }
+    public void setAutofillOptions(android.content.AutofillOptions p0) { huskFill.put("AutofillOptions", p0); }
     public void setContentCaptureOptions(android.content.ContentCaptureOptions p0) { huskFill.put("ContentCaptureOptions", p0); }
     public void setWallpaper(android.graphics.Bitmap p0) { huskFill.put("Wallpaper", p0); }
     public void setWallpaper(java.io.InputStream p0) { huskFill.put("Wallpaper", p0); }

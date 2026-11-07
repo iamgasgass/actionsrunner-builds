@@ -93,6 +93,7 @@ public class ContextWrapper extends Context {
     public int getAssociatedDisplayId() { return b().getAssociatedDisplayId(); }
     public android.content.AttributionSource getAttributionSource() { return b().getAttributionSource(); }
     public android.view.autofill.AutofillManager.AutofillClient getAutofillClient() { return b().getAutofillClient(); }
+    public android.content.AutofillOptions getAutofillOptions() { return b().getAutofillOptions(); }
     public android.content.ContentCaptureOptions getContentCaptureOptions() { return b().getContentCaptureOptions(); }
     public java.io.File getCrateDir(java.lang.String p0) { return b().getCrateDir(p0); }
     public int getDeviceId() { return b().getDeviceId(); }
@@ -154,6 +155,7 @@ public class ContextWrapper extends Context {
     public void sendStickyOrderedBroadcast(android.content.Intent p0, android.content.BroadcastReceiver p1, android.os.Handler p2, int p3, java.lang.String p4, android.os.Bundle p5) { b().sendStickyOrderedBroadcast(p0, p1, p2, p3, p4, p5); }
     public void sendStickyOrderedBroadcastAsUser(android.content.Intent p0, android.os.UserHandle p1, android.content.BroadcastReceiver p2, android.os.Handler p3, int p4, java.lang.String p5, android.os.Bundle p6) { b().sendStickyOrderedBroadcastAsUser(p0, p1, p2, p3, p4, p5, p6); }
     public void setAutofillClient(android.view.autofill.AutofillManager.AutofillClient p0) { b().setAutofillClient(p0); }
+    public void setAutofillOptions(android.content.AutofillOptions p0) { b().setAutofillOptions(p0); }
     public void setContentCaptureOptions(android.content.ContentCaptureOptions p0) { b().setContentCaptureOptions(p0); }
     public void setWallpaper(android.graphics.Bitmap p0) { b().setWallpaper(p0); }
     public void setWallpaper(java.io.InputStream p0) { b().setWallpaper(p0); }
