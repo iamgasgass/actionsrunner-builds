@@ -99,7 +99,12 @@ public class AudioTrack implements AudioRouting {
         if (TRACE && System.currentTimeMillis() - mTraceAt > 1000) { mTraceAt = System.currentTimeMillis(); android.util.Log.d("AudioTrack", "track " + mId + " (" + mRate + " Hz, encoding " + mEncoding + ", " + (mPlayState == PLAYSTATE_PLAYING ? "playing" : "paused") + ") at frame " + p + ", " + mWritten + " bytes written, pending " + (mId >= 0 ? husk.Audio.trackPending(mId) : -1)); }
         return p;
     }
-    public boolean getTimestamp(AudioTimestamp ts) { if (mId < 0) return false; ts.framePosition = getPlaybackHeadPosition(); ts.nanoTime = System.nanoTime(); return true; }
+    /* Husk's software mixer exposes a playback-head estimate, not a hardware timestamp
+       synchronized to the speaker clock. Returning a synthetic (framePosition, nanoTime)
+       pair makes Media3 treat that estimate as an authoritative AudioTrack timestamp and
+       can cause timestamp-discontinuity playback errors. Let AudioTrackPositionTracker use
+       getPlaybackHeadPosition() instead. */
+    public boolean getTimestamp(AudioTimestamp ts) { return false; }
     public int setLoopPoints(int start, int end, int loopCount) { mLoopCount = loopCount; return SUCCESS; }
     public int reloadStaticData() { return SUCCESS; }
     public int setStereoVolume(float l, float r) { mL = l; mR = r; applyVolume(); return SUCCESS; }

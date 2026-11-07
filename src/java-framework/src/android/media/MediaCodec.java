@@ -188,8 +188,28 @@ public final class MediaCodec {
             int rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE, 0), ch = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT, 0);
             if (!husk.MediaCodecNative.configure(mNative, w, h, rate, ch, bytes(f.getByteBuffer("csd-0")), bytes(f.getByteBuffer("csd-1")), bytes(f.getByteBuffer("csd-2"))))
                 throw new CodecException(0x80001000, "the codec refused the format " + format);
-            int max = f.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
-            if (max <= 0) max = mVideo ? Math.max(1 << 20, w * h * 3 / 2) : 1 << 16;
+            /* KEY_MAX_INPUT_SIZE is only a hint and some IPTV formats advertise 4096 bytes even
+               though a single H.264/HEVC access unit can be several MiB. Media3 writes into the
+               codec input buffer directly, so an undersized direct buffer fails before decode
+               with ByteBuffer.limit(newLimit > capacity). Size video buffers from the configured
+               dimensions as well, using long arithmetic to avoid integer overflow. */
+            long declaredMax = Math.max(0L, (long) f.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0));
+            long minimum = 1L << 16;
+            if (mVideo) {
+                long pixels = (long) Math.max(1, w) * (long) Math.max(1, h);
+                minimum = Math.max(1L << 20, pixels + pixels / 2L);
+                minimum = Math.min((32L << 20), minimum + (256L << 10));
+            }
+            long requested = Math.max(declaredMax, minimum);
+            if (mVideo && declaredMax > 0 && declaredMax < minimum) {
+                android.util.Log.w("MediaCodec", "Increasing undersized video KEY_MAX_INPUT_SIZE " + declaredMax
+                    + " to " + minimum + " bytes for " + w + "x" + h);
+            }
+            if (requested > (32L << 20)) {
+                android.util.Log.w("MediaCodec", "Capping decoder input buffer at 32 MiB (requested " + requested + " bytes)");
+                requested = 32L << 20;
+            }
+            int max = (int) requested;
             if (mInputs == null) mInputs = new ByteBuffer[INPUTS];
             for (int i = 0; i < INPUTS; i++) {
                 if (mInputs[i] == null || mInputs[i].capacity() < max) {

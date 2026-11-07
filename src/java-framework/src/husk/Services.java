@@ -88,6 +88,7 @@ public final class Services {
     public static Object system(String name, Context c) {
         switch (name) {
         case Context.AUDIO_SERVICE: return new android.media.AudioManager();
+        case Context.MEDIA_SESSION_SERVICE: return new android.media.session.MediaSessionManager(c);
         case Context.VIBRATOR_SERVICE: return new android.os.Vibrator();
         case Context.VIBRATOR_MANAGER_SERVICE: return new android.os.VibratorManager();
         case Context.CLIPBOARD_SERVICE: return new ClipboardManager();
