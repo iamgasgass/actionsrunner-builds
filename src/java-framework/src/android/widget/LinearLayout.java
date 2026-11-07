@@ -36,7 +36,7 @@ public class LinearLayout extends ViewGroup {
     private Drawable mDivider;
     private int mDividerWidth, mDividerHeight, mShowDividers, mDividerPadding;
 
-    public LinearLayout(Context c) { super(c); }
+    public LinearLayout(Context c) { this(c, null, 0, 0); }
     public LinearLayout(Context c, AttributeSet a) { this(c, a, 0); }
     public LinearLayout(Context c, AttributeSet a, int defStyleAttr) { this(c, a, defStyleAttr, 0); }
     public LinearLayout(Context c, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
