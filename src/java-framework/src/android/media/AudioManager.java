@@ -375,6 +375,34 @@ public class AudioManager {
         @Override public boolean isAvailable() { return false; }
         @Override public boolean isEnabled() { return false; }
         @Override public boolean canBeSpatialized(AudioAttributes attributes, AudioFormat format) { return false; }
+
+        // The platform Spatializer implementation registers listeners through
+        // AudioManager.getService(). Husk does not provide the IAudioService binder.
+        // Media3 registers this listener while creating its audio capabilities, even
+        // when spatialization is unavailable, so keep registration local and inert.
+        @Override public void addOnSpatializerStateChangedListener(
+                java.util.concurrent.Executor executor,
+                android.media.Spatializer.OnSpatializerStateChangedListener listener) {}
+        @Override public void removeOnSpatializerStateChangedListener(
+                android.media.Spatializer.OnSpatializerStateChangedListener listener) {}
+        @Override public void addOnHeadTrackerAvailableListener(
+                java.util.concurrent.Executor executor,
+                android.media.Spatializer.OnHeadTrackerAvailableListener listener) {}
+        @Override public void removeOnHeadTrackerAvailableListener(
+                android.media.Spatializer.OnHeadTrackerAvailableListener listener) {}
+        @Override public void addOnHeadTrackingModeChangedListener(
+                java.util.concurrent.Executor executor,
+                android.media.Spatializer.OnHeadTrackingModeChangedListener listener) {}
+        @Override public void removeOnHeadTrackingModeChangedListener(
+                android.media.Spatializer.OnHeadTrackingModeChangedListener listener) {}
+        @Override public void setOnSpatializerOutputChangedListener(
+                java.util.concurrent.Executor executor,
+                android.media.Spatializer.OnSpatializerOutputChangedListener listener) {}
+        @Override public void clearOnSpatializerOutputChangedListener() {}
+        @Override public void setOnHeadToSoundstagePoseUpdatedListener(
+                java.util.concurrent.Executor executor,
+                android.media.Spatializer.OnHeadToSoundstagePoseUpdatedListener listener) {}
+        @Override public void clearOnHeadToSoundstagePoseUpdatedListener() {}
     }
     public android.media.Spatializer getSpatializer() {
         if (mSpatializer == null) mSpatializer = new HuskSpatializer(this);
