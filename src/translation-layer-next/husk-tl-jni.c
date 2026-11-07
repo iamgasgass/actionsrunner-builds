@@ -582,6 +582,22 @@ static jvalue invoke(jobj *self, tl_jmeth *m, bool nonvirtual, const jvalue *arg
         if (m->retk == 'L' && r.l && ((jobj *)r.l)->kind != TL_K_CLASS) tl_jni_ref(r.l);
         return r;
     }
+    /* DeviceConfig has no backing service in Husk's in-process system_server slice.
+     * Its read methods must still honour their caller-supplied defaults: the
+     * platform AutofillManager constructor reads these flags, and returning
+     * JNI's zero value for getString() makes AutofillFeatureFlags split null. */
+    if (m->cls && m->cls->name && !strcmp(m->cls->name, "android/provider/DeviceConfig") && args) {
+        if (!strcmp(m->name, "getString") &&
+            !strcmp(m->sig, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")) {
+            jvalue r = args[2];
+            if (r.l && ((jobj *)r.l)->kind != TL_K_CLASS) tl_jni_ref(r.l);
+            return r;
+        }
+        if (!strcmp(m->name, "getBoolean") &&
+            !strcmp(m->sig, "(Ljava/lang/String;Ljava/lang/String;Z)Z")) {
+            return args[2];
+        }
+    }
     /* Ad SDKs (IronSource / LevelPlay) probe a large Java surface; a missing getInstance is an uncaught C# NRE. */
     if (m->cls && m->cls->name && !strncmp(m->cls->name, "com/ironsource/", 15)) {
         if (!m->warned) {
