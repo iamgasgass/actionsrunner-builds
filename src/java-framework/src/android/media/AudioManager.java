@@ -364,8 +364,22 @@ public class AudioManager {
     public int getRouting(int p0) { return 0; }
     public float getRs2Value() { return (huskFill.get("Rs2Value") instanceof Float ? (Float) huskFill.get("Rs2Value") : 0f); }
     private android.media.Spatializer mSpatializer;
-    /** Android 12+ always has one; here it is never available or enabled */
-    public android.media.Spatializer getSpatializer() { if (mSpatializer == null) mSpatializer = new android.media.Spatializer(this); return mSpatializer; }
+    /**
+     * Husk has no platform audio-spatializer service. Return a real Spatializer handle, as the
+     * Android API requires, but report spatialization as unsupported so Media3 and other clients
+     * do not call through to AudioManager's unavailable IAudioService binder.
+     */
+    private static final class HuskSpatializer extends android.media.Spatializer {
+        HuskSpatializer(AudioManager manager) { super(manager); }
+        @Override public int getImmersiveAudioLevel() { return SPATIALIZER_IMMERSIVE_LEVEL_NONE; }
+        @Override public boolean isAvailable() { return false; }
+        @Override public boolean isEnabled() { return false; }
+        @Override public boolean canBeSpatialized(AudioAttributes attributes, AudioFormat format) { return false; }
+    }
+    public android.media.Spatializer getSpatializer() {
+        if (mSpatializer == null) mSpatializer = new HuskSpatializer(this);
+        return mSpatializer;
+    }
     public int getStreamMinVolumeInt(int p0) { return 0; }
     public int getStreamTypeAlias(int p0) { return 0; }
     public java.util.Set getSupportedDeviceTypes(int p0) { return new java.util.HashSet(); }
