@@ -583,9 +583,7 @@ static jvalue invoke(jobj *self, tl_jmeth *m, bool nonvirtual, const jvalue *arg
         return r;
     }
     /* DeviceConfig has no backing service in Husk's in-process system_server slice.
-     * Its read methods must still honour their caller-supplied defaults: the
-     * platform AutofillManager constructor reads these flags, and returning
-     * JNI's zero value for getString() makes AutofillFeatureFlags split null. */
+     * Honour the supplied defaults so AutofillManager's feature-flag reads do not split null. */
     if (m->cls && m->cls->name && !strcmp(m->cls->name, "android/provider/DeviceConfig") && args) {
         if (!strcmp(m->name, "getString") &&
             !strcmp(m->sig, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;")) {

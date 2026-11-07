@@ -265,27 +265,7 @@ public final class ViewRoot implements ViewParent {
         try {
             int ws, hs;
             int lw = mLp.width, lh = mLp.height;
-            // Use the same usable display area for measuring and positioning non-activity
-            // windows. Android's ViewRootImpl measures WRAP_CONTENT windows against the
-            // display bounds inset by system bars; previously Husk applied those insets
-            // only when positioning the window, while allowing its content to measure
-            // against the full screen. Compose dialogs (and other native dialogs) can
-            // consequently lay out beyond the window's actual visible bounds and get
-            // clipped by drawAll().
-            boolean insetArea = mLp.type >= 1000 ||
-                (mLp.flags & WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS) == 0 &&
-                mLp.type != WindowManager.LayoutParams.TYPE_BASE_APPLICATION;
-            Rect area = new Rect(0, 0, sw, sh);
-            if (insetArea)
-                area.set(sInsets[0], sInsets[1], sw - sInsets[2], sh - Math.max(sInsets[3], sImeBottom));
-
             int maxW = sw, maxH = sh;
-            // ViewRootImpl uses the inset window bounds whenever either dimension is
-            // WRAP_CONTENT, including the other MATCH_PARENT dimension.
-            if (insetArea && (lw == ViewGroup.LayoutParams.WRAP_CONTENT || lh == ViewGroup.LayoutParams.WRAP_CONTENT)) {
-                maxW = Math.max(0, area.width());
-                maxH = Math.max(0, area.height());
-            }
             if (lw == ViewGroup.LayoutParams.MATCH_PARENT) ws = View.MeasureSpec.makeMeasureSpec(maxW, View.MeasureSpec.EXACTLY);
             else if (lw == ViewGroup.LayoutParams.WRAP_CONTENT) ws = View.MeasureSpec.makeMeasureSpec(maxW, View.MeasureSpec.AT_MOST);
             else ws = View.MeasureSpec.makeMeasureSpec(lw, View.MeasureSpec.EXACTLY);
@@ -300,10 +280,29 @@ public final class ViewRoot implements ViewParent {
             if (g == 0 && (lw != ViewGroup.LayoutParams.MATCH_PARENT || lh != ViewGroup.LayoutParams.MATCH_PARENT)) g = Gravity.TOP | Gravity.LEFT;
             if (g == 0) out.set(0, 0, w, h);
             else {
+                Rect area = new Rect(0, 0, sw, sh);
+                if (mLp.type >= 1000 || (mLp.flags & WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS) == 0 && mLp.type != WindowManager.LayoutParams.TYPE_BASE_APPLICATION)
+                    area.set(sInsets[0], sInsets[1], sw - sInsets[2], sh - Math.max(sInsets[3], sImeBottom));
                 Gravity.apply(g, w, h, area, mLp.x, mLp.y, out);
             }
+            int oldX = mX, oldY = mY, oldW = mW, oldH = mH;
             mX = out.left; mY = out.top; mW = w; mH = h;
             mView.layout(0, 0, w, h);
+            // Diagnostic: capture the actual Android window bounds and its view tree.
+            // This distinguishes a too-small WindowManager root from clipping inside Compose.
+            if (mFirst || oldX != mX || oldY != mY || oldW != mW || oldH != mH) {
+                android.util.Log.d("HuskWindow", "root=" + mView.getClass().getName()
+                    + " type=" + mLp.type + " flags=0x" + Integer.toHexString(mLp.flags)
+                    + " gravity=0x" + Integer.toHexString(mLp.gravity)
+                    + " lp=" + lw + "x" + lh
+                    + " screen=" + sw + "x" + sh
+                    + " insets=" + sInsets[0] + "," + sInsets[1] + "," + sInsets[2] + "," + sInsets[3]
+                    + " ime=" + sImeBottom
+                    + " measureSpec=" + View.MeasureSpec.getMode(ws) + "/" + View.MeasureSpec.getSize(ws)
+                    + "," + View.MeasureSpec.getMode(hs) + "/" + View.MeasureSpec.getSize(hs)
+                    + " measured=" + w + "x" + h + " frame=" + mX + "," + mY + "," + mW + "x" + mH);
+                dump(mView, 0);
+            }
         } finally { mInLayout = false; }
         mObserver.dispatchOnGlobalLayout();
         if (sDump == null) sDump = System.getenv("TL_VIEW_DUMP") != null;
