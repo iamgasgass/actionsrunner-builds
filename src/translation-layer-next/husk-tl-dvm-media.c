@@ -103,6 +103,131 @@ static void release_sorted(codec *c, int keep)
     }
 }
 
+/* VideoToolbox calls this when an asynchronous decode completes. Every
+   accepted frame (including failures) releases one in-flight slot. */
+static void vt_out(void *ref, void *src, OSStatus st, VTDecodeInfoFlags fl,
+                   CVImageBufferRef img, CMTime pts, CMTime dur)
+{
+    (void)src; (void)fl; (void)dur;
+    codec *c = ref;
+    if (st != noErr || !img) {
+        pthread_mutex_lock(&c->lock);
+        if (c->video_inflight > 0) c->video_inflight--;
+        c->failed++;
+        int failed = (int)c->failed;
+        pthread_cond_broadcast(&c->frame_cond);
+        pthread_mutex_unlock(&c->lock);
+        if (c->trace || failed < 4)
+            tl_log_line("media: frame not decoded (%d)", (int)st);
+        return;
+    }
+
+    frame *f = calloc(1, sizeof(*f));
+    if (!f) {
+        pthread_mutex_lock(&c->lock);
+        if (c->video_inflight > 0) c->video_inflight--;
+        c->failed++;
+        pthread_cond_broadcast(&c->frame_cond);
+        pthread_mutex_unlock(&c->lock);
+        return;
+    }
+    f->pb = CVPixelBufferRetain(img);
+    f->pts = CMTIME_IS_VALID(pts)
+        ? CMTimeConvertScale(pts, 1000000, kCMTimeRoundingMethod_Default).value
+        : 0;
+
+    pthread_mutex_lock(&c->lock);
+    if (c->video_inflight > 0) c->video_inflight--;
+    frame **p = &c->sorted;
+    while (*p && (*p)->pts <= f->pts) p = &(*p)->next;
+    f->next = *p; *p = f; c->nsorted++;
+    release_sorted(c, REORDER);
+    c->decoded++;
+    pthread_cond_broadcast(&c->frame_cond);
+    pthread_mutex_unlock(&c->lock);
+}
+
+static void session_drop(codec *c)
+{
+    if (c->vt) {
+        VTDecompressionSessionWaitForAsynchronousFrames(c->vt);
+        VTDecompressionSessionInvalidate(c->vt);
+        CFRelease(c->vt);
+        c->vt = NULL;
+    }
+    pthread_mutex_lock(&c->lock);
+    c->video_inflight = 0;
+    pthread_cond_broadcast(&c->frame_cond);
+    pthread_mutex_unlock(&c->lock);
+}
+
+static bool session_make(codec *c)
+{
+    if (c->fmt) { CFRelease(c->fmt); c->fmt = NULL; }
+
+    OSStatus st;
+    if (c->kind == K_AVC) {
+        if (!c->sps.n || !c->pps.n) return false;
+        const uint8_t *ps[2] = { c->sps.d, c->pps.d };
+        size_t sz[2] = { c->sps.n, c->pps.n };
+        st = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+            NULL, 2, ps, sz, 4, &c->fmt);
+    } else {
+        if (!c->vps.n || !c->sps.n || !c->pps.n) return false;
+        const uint8_t *ps[3] = { c->vps.d, c->sps.d, c->pps.d };
+        size_t sz[3] = { c->vps.n, c->sps.n, c->pps.n };
+        st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+            NULL, 3, ps, sz, 4, NULL, &c->fmt);
+    }
+    if (st != noErr || !c->fmt) {
+        tl_log_line("media: the stream's parameter sets were refused (%d)", (int)st);
+        c->fmt = NULL;
+        return false;
+    }
+
+    CGSize dims = CMVideoFormatDescriptionGetPresentationDimensions(c->fmt, true, false);
+    c->width = (int)dims.width;
+    c->height = (int)dims.height;
+    if (c->vt && VTDecompressionSessionCanAcceptFormatDescription(c->vt, c->fmt))
+        return true;
+
+    session_drop(c);
+    int pixel_format = kCVPixelFormatType_32BGRA;
+    CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
+    if (!number) {
+        tl_log_line("media: could not allocate the VideoToolbox pixel-format value");
+        return false;
+    }
+    const void *keys[] = { kCVPixelBufferPixelFormatTypeKey };
+    const void *values[] = { number };
+    CFDictionaryRef destination = CFDictionaryCreate(
+        NULL, keys, values, 1,
+        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFRelease(number);
+    if (!destination) {
+        tl_log_line("media: could not create the VideoToolbox destination attributes");
+        return false;
+    }
+
+    VTDecompressionOutputCallbackRecord callback = { vt_out, c };
+    st = VTDecompressionSessionCreate(
+        NULL, c->fmt, NULL, destination, &callback, &c->vt);
+    CFRelease(destination);
+    if (st != noErr || !c->vt) {
+        tl_log_line("media: no decoder session (%d)", (int)st);
+        c->vt = NULL;
+        return false;
+    }
+    tl_log_line("media: %s decoder for %dx%d",
+                c->kind == K_AVC ? "H.264" : "HEVC", c->width, c->height);
+    return true;
+}
+
+static int nal_type(const codec *c, const uint8_t *nal)
+{
+    return c->kind == K_AVC ? (nal[0] & 0x1f) : ((nal[0] >> 1) & 0x3f);
+}
+
 /* Accept elementary-stream NALs only. In particular, do not feed an AVCC/hvcC
    configuration record to VideoToolbox as though it were a video access unit. */
 static bool nal_header_valid(const codec *c, const uint8_t *nal, size_t n)
