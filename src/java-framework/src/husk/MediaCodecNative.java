@@ -7,6 +7,8 @@ public final class MediaCodecNative {
     public static native long create(String mime);
     public static native boolean configure(long h, int width, int height, int rate, int channels, byte[] csd0, byte[] csd1, byte[] csd2);
     public static native int decode(long h, byte[] data, int len, long ptsUs, int flags);
+    /** Wait briefly for an asynchronous VideoToolbox frame callback before requesting more compressed input. */
+    public static native boolean waitForFrame(long h, int timeoutMs);
     /** The next decoded frame in display order, 0 when none; info = { ptsUs, width, height }. */
     public static native long nextFrame(long h, long[] info);
     /** The next decoded 16-bit PCM, null when none; info = { ptsUs, sampleRate, channels }. */

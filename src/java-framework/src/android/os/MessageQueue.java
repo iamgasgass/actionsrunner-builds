@@ -9,7 +9,7 @@ public final class MessageQueue {
     public void removeIdleHandler(IdleHandler h) {}
 
     synchronized boolean enqueue(Message m, long when) {
-        if (quitting) return false;
+        if (quitting) { m.next = null; m.recycle(); return false; }
         m.when = when;
         if (head == null || when < head.when) { m.next = head; head = m; }
         else { Message p = head; while (p.next != null && p.next.when <= when) p = p.next; m.next = p.next; p.next = m; }
@@ -19,10 +19,12 @@ public final class MessageQueue {
     synchronized void remove(Handler h, Runnable r, int what, boolean byWhat, Object token) {
         Message prev = null, p = head;
         while (p != null) {
+            Message next = p.next;
             boolean hit = p.target == h && (byWhat ? p.what == what && (token == null || p.obj == token) : (r == null || p.callback == r) && (token == null || p.obj == token));
             if (byWhat == false && r == null && token == null) hit = p.target == h;
-            if (hit) { if (prev == null) head = p.next; else prev.next = p.next; p = p.next; }
-            else { prev = p; p = p.next; }
+            if (hit) { if (prev == null) head = next; else prev.next = next; p.next = null; p.recycle(); }
+            else prev = p;
+            p = next;
         }
     }
     synchronized boolean has(Handler h, int what) { for (Message p = head; p != null; p = p.next) if (p.target == h && p.what == what) return true; return false; }
@@ -33,7 +35,12 @@ public final class MessageQueue {
     }
     synchronized boolean hasCallback(Handler h, Runnable r) { for (Message p = head; p != null; p = p.next) if (p.target == h && p.callback == r && r != null) return true; return false; }
     synchronized boolean hasAny(Handler h) { for (Message p = head; p != null; p = p.next) if (p.target == h) return true; return false; }
-    synchronized void quit() { quitting = true; notifyAll(); }
+    synchronized void quit() {
+        quitting = true;
+        Message p = head; head = null;
+        while (p != null) { Message next = p.next; p.next = null; p.recycle(); p = next; }
+        notifyAll();
+    }
 
     private boolean mNativeLooper;
     Message next(boolean main) {

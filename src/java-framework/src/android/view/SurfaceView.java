@@ -19,6 +19,7 @@ public class SurfaceView extends View {
     private boolean mCreated, mLocked, mZOnTop, mFixed, mHasFrame;
     private int mFixedW, mFixedH, mFormat = PixelFormat.OPAQUE, mSurfaceW, mSurfaceH;
     private final Paint mClear = new Paint(), mBlit = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Rect mDrawRect = new Rect();
     private final SurfaceHolder mHolder = new SurfaceHolder() {
         public void addCallback(Callback c) { synchronized (mCallbacks) { if (!mCallbacks.contains(c)) mCallbacks.add(c); } }
         public void removeCallback(Callback c) { synchronized (mCallbacks) { mCallbacks.remove(c); } }
@@ -93,7 +94,15 @@ public class SurfaceView extends View {
         if (!mCreated) return;
         for (SurfaceHolder.Callback c : callbacks()) c.surfaceDestroyed(mHolder);
         if (mGL) { mGL = false; husk.EGLNative.hide(); }
-        synchronized (mLock) { mCreated = false; mHasFrame = false; mLock.notifyAll(); }
+        synchronized (mLock) {
+            mCreated = false; mHasFrame = false;
+            if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
+            Bitmap front = mFront, back = mBack;
+            mFront = null; mBack = null; mLocked = false;
+            if (front != null) { try { front.recycle(); } catch (RuntimeException ignored) {} }
+            if (back != null && back != front) { try { back.recycle(); } catch (RuntimeException ignored) {} }
+            mLock.notifyAll();
+        }
     }
     /** Software drawing: a canvas on the back buffer (kept from the last frame, as Android's is). */
     private Canvas lock(Rect dirty) {
@@ -103,7 +112,12 @@ public class SurfaceView extends View {
             int w = mSurfaceW, h = mSurfaceH;
             if (w <= 0 || h <= 0) return null;
             if (mBack == null || mBack.getWidth() != w || mBack.getHeight() != h) {
-                if (mBackCanvas != null) mBackCanvas.huskRelease();
+                if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
+                if (mBack != null) { try { mBack.recycle(); } catch (RuntimeException ignored) {} mBack = null; }
+                if (mFront != null && (mFront.getWidth() != w || mFront.getHeight() != h)) {
+                    try { mFront.recycle(); } catch (RuntimeException ignored) {}
+                    mFront = null; mHasFrame = false;
+                }
                 mBack = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                 mBackCanvas = new Canvas(mBack);
                 if (mFront != null) mBackCanvas.drawBitmap(mFront, 0, 0, null);
@@ -123,8 +137,17 @@ public class SurfaceView extends View {
             // swap: the posted buffer becomes the front, the next lock draws on a copy of it
             Bitmap f = mFront;
             mFront = mBack;
-            if (f != null && f.getWidth() == mFront.getWidth() && f.getHeight() == mFront.getHeight()) { mBackCanvas.huskRelease(); mBack = f; mBackCanvas = new Canvas(mBack); mBackCanvas.drawBitmap(mFront, 0, 0, null); }
-            else { mBack = null; if (mBackCanvas != null) mBackCanvas.huskRelease(); mBackCanvas = null; }
+            if (f != null && f.getWidth() == mFront.getWidth() && f.getHeight() == mFront.getHeight()) {
+                mBack = f;
+                if (mBackCanvas == null) mBackCanvas = new Canvas(mBack); else mBackCanvas.setBitmap(mBack);
+                mBackCanvas.drawBitmap(mFront, 0, 0, null);
+            }
+            else {
+                mBack = null;
+                if (f != null) { try { f.recycle(); } catch (RuntimeException ignored) {} }
+                if (mBackCanvas != null) mBackCanvas.huskRelease();
+                mBackCanvas = null;
+            }
             mHasFrame = true;
             mLocked = false;
             mLock.notifyAll();
@@ -138,7 +161,7 @@ public class SurfaceView extends View {
         synchronized (mLock) {
             if (mHasFrame && mFront != null && !mGL) {
                 if (mFront.getWidth() == getWidth() && mFront.getHeight() == getHeight()) c.drawBitmap(mFront, 0, 0, mBlit);
-                else c.drawBitmap(mFront, null, new Rect(0, 0, getWidth(), getHeight()), mBlit);
+                else { mDrawRect.set(0, 0, getWidth(), getHeight()); c.drawBitmap(mFront, null, mDrawRect, mBlit); }
                 return;
             }
         }

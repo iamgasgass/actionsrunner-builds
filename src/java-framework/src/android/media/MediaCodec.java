@@ -48,13 +48,85 @@ public final class MediaCodec {
     public static final java.lang.String PARAMETER_KEY_VIDEO_BITRATE = "video-bitrate";
     public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT = 1;
     public static final int VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING = 2;
-    private static final int INPUTS = 8, ST_UNINITIALIZED = 0, ST_CONFIGURED = 1, ST_RUNNING = 2, ST_RELEASED = 3;
+    private static final int INPUTS = 8, MAX_QUEUED_OUTPUTS = 8, VIDEO_WAIT_MS = 24;
+    private static final int ST_UNINITIALIZED = 0, ST_CONFIGURED = 1, ST_RUNNING = 2, ST_RELEASED = 3;
+    /* Reuse native/direct buffers across channel changes. The translation-layer VM does not currently collect Java objects,
+       so allocating a new direct buffer for every packet or every decoder instance turns normal IPTV playback into unbounded growth. */
+    private static final Object sBufferPoolLock = new Object();
+    private static final ArrayDeque<ByteBuffer> sInputBufferPool = new ArrayDeque<>();
+    private static final ArrayDeque<ByteBuffer> sOutputBufferPool = new ArrayDeque<>();
+    private static final ArrayDeque<byte[]> sDecodeScratchPool = new ArrayDeque<>();
+    private static final ArrayDeque<Out> sOutPool = new ArrayDeque<>();
+    private static ByteBuffer takeBuffer(ArrayDeque<ByteBuffer> pool, int capacity) {
+        synchronized (sBufferPoolLock) {
+            ByteBuffer best = null;
+            for (java.util.Iterator<ByteBuffer> it = pool.iterator(); it.hasNext();) {
+                ByteBuffer candidate = it.next();
+                if (candidate.capacity() >= capacity && (best == null || candidate.capacity() < best.capacity())) best = candidate;
+            }
+            if (best != null) { pool.remove(best); best.clear(); }
+            return best;
+        }
+    }
+    private static void putBuffer(ArrayDeque<ByteBuffer> pool, ByteBuffer buffer) {
+        if (buffer == null) return;
+        buffer.clear();
+        synchronized (sBufferPoolLock) { if (pool.size() < 64) pool.addLast(buffer); }
+    }
+    private static byte[] takeScratch(int capacity) {
+        synchronized (sBufferPoolLock) {
+            byte[] best = null;
+            for (java.util.Iterator<byte[]> it = sDecodeScratchPool.iterator(); it.hasNext();) {
+                byte[] candidate = it.next();
+                if (candidate.length >= capacity && (best == null || candidate.length < best.length)) best = candidate;
+            }
+            if (best != null) sDecodeScratchPool.remove(best);
+            return best;
+        }
+    }
+    private static void putScratch(byte[] scratch) {
+        if (scratch != null) synchronized (sBufferPoolLock) { if (sDecodeScratchPool.size() < 16) sDecodeScratchPool.addLast(scratch); }
+    }
     private static final class Out { int index = -1; long pts; int flags, size; long frame; ByteBuffer data; }
+    private static final int CB_INPUT = 1, CB_FORMAT = 2, CB_OUTPUT = 3, CB_RENDERED = 4;
+    private static final ArrayDeque<CodecCallbackTask> sCallbackTasks = new ArrayDeque<>();
+    private static final class CodecCallbackTask implements Runnable {
+        MediaCodec codec; int generation, type, index, size, flags; long pts, renderTime; MediaFormat format;
+        final BufferInfo info = new BufferInfo();
+        public void run() {
+            MediaCodec c = codec;
+            try {
+                if (c == null) return;
+                Callback callback;
+                OnFrameRenderedListener rendered;
+                synchronized (c.mLock) {
+                    if (generation != c.mGeneration || c.mState != ST_RUNNING) return;
+                    callback = c.mCallback; rendered = c.mRendered;
+                }
+                if (type == CB_INPUT) { if (callback != null) callback.onInputBufferAvailable(c, index); }
+                else if (type == CB_FORMAT) { if (callback != null) callback.onOutputFormatChanged(c, format); }
+                else if (type == CB_OUTPUT) {
+                    if (callback != null) { info.set(0, size, pts, flags); callback.onOutputBufferAvailable(c, index, info); }
+                } else if (type == CB_RENDERED && rendered != null) rendered.onFrameRendered(c, pts, renderTime);
+            } finally { recycle(); }
+        }
+        void recycle() {
+            codec = null; format = null; generation = type = index = size = flags = 0; pts = renderTime = 0;
+            synchronized (sCallbackTasks) { if (sCallbackTasks.size() < 96) sCallbackTasks.addLast(this); }
+        }
+    }
+    private static CodecCallbackTask takeCallbackTask() {
+        synchronized (sCallbackTasks) { CodecCallbackTask task = sCallbackTasks.pollFirst(); return task != null ? task : new CodecCallbackTask(); }
+    }
     private final String mName, mMime;
     private final boolean mVideo;
     private long mNative;
     private int mState = ST_UNINITIALIZED, mGeneration, mScaling = VIDEO_SCALING_MODE_SCALE_TO_FIT;
     private final Object mLock = new Object();
+    private final Object mDecodeLock = new Object();
+    private final ArrayDeque<Integer> mPendingInputCallbacks = new ArrayDeque<>();
+    private int mOutstandingOutputs;
+    private byte[] mDecodeInputScratch;
     private Surface mSurface;
     private MediaFormat mInputFormat, mOutputFormat;
     private ByteBuffer[] mInputs;
@@ -70,6 +142,7 @@ public final class MediaCodec {
        copy mode) rather than blended over what was there, and with no clearing first -- per frame, that was a fill and a blend of every
        pixel of the surface that changed nothing on screen. */
     private final Paint mPaint = newFramePaint();
+    private final Rect mDst = new Rect();
     private static Paint newFramePaint() {
         Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
         p.setXfermode(new android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC));
@@ -117,8 +190,15 @@ public final class MediaCodec {
                 throw new CodecException(0x80001000, "the codec refused the format " + format);
             int max = f.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
             if (max <= 0) max = mVideo ? Math.max(1 << 20, w * h * 3 / 2) : 1 << 16;
-            mInputs = new ByteBuffer[INPUTS];
-            for (int i = 0; i < INPUTS; i++) mInputs[i] = ByteBuffer.allocateDirect(max).order(ByteOrder.nativeOrder());
+            if (mInputs == null) mInputs = new ByteBuffer[INPUTS];
+            for (int i = 0; i < INPUTS; i++) {
+                if (mInputs[i] == null || mInputs[i].capacity() < max) {
+                    putBuffer(sInputBufferPool, mInputs[i]);
+                    ByteBuffer b = takeBuffer(sInputBufferPool, max);
+                    mInputs[i] = (b != null ? b : ByteBuffer.allocateDirect(max)).order(ByteOrder.nativeOrder());
+                }
+                mInputs[i].clear();
+            }
             if (mVideo) {
                 int s = husk.MediaCodecNative.size(mNative);
                 mOutW = s > 0 ? s >>> 16 : w; mOutH = s > 0 ? s & 0xffff : h;
@@ -144,16 +224,22 @@ public final class MediaCodec {
         return f;
     }
     public void start() {
-        int gen; Integer[] inputs;
+        Integer[] inputs;
+        int gen;
         synchronized (mLock) {
             if (mState == ST_UNINITIALIZED || mState == ST_RELEASED) throw new IllegalStateException("start in state " + mState);
             boolean fresh = mState == ST_CONFIGURED;
+            if (!fresh && !mStartPending) return;
             mState = ST_RUNNING;
-            if (fresh) { mFreeInputs.clear(); for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i); }
-            else if (!mStartPending) return;
             mStartPending = false;
-            if (mCallback == null) return;
-            gen = mGeneration; inputs = mFreeInputs.toArray(new Integer[0]);
+            mPendingInputCallbacks.clear();
+            if (mCallback == null) {
+                mFreeInputs.clear(); for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i);
+                inputs = mFreeInputs.toArray(new Integer[0]);
+            } else {
+                inputs = new Integer[INPUTS]; for (int i = 0; i < INPUTS; i++) inputs[i] = i;
+            }
+            gen = mGeneration;
         }
         for (Integer i : inputs) postInput(gen, i);
     }
@@ -179,12 +265,23 @@ public final class MediaCodec {
     public void queueInputBuffer(int index, int offset, int size, long ptsUs, int flags) {
         if (index < 0 || index >= INPUTS) throw new IllegalArgumentException("bad input index " + index);
         synchronized (mLock) { requireRunning(); }
-        byte[] data = new byte[Math.max(0, size)];
-        if (size > 0) { ByteBuffer d = mInputs[index].duplicate(); d.clear(); d.position(offset); d.get(data, 0, size); }
-        decode(data, size, ptsUs, flags);
-        int gen;
-        synchronized (mLock) { mFreeInputs.add(index); mLock.notifyAll(); gen = mGeneration; }
-        if (mCallback != null) postInput(gen, index);
+        synchronized (mDecodeLock) {
+            if (mDecodeInputScratch == null || mDecodeInputScratch.length < size) {
+                putScratch(mDecodeInputScratch);
+                byte[] recycled = takeScratch(size);
+                mDecodeInputScratch = recycled != null ? recycled : new byte[Math.max(size, 64 * 1024)];
+            }
+            if (size > 0) { ByteBuffer d = mInputs[index]; d.clear(); d.position(offset); d.get(mDecodeInputScratch, 0, size); }
+            decode(mDecodeInputScratch, size, ptsUs, flags);
+        }
+        int gen; boolean post = false;
+        synchronized (mLock) {
+            if (mCallback == null) { mFreeInputs.add(index); mLock.notifyAll(); }
+            else if (mOutstandingOutputs < MAX_QUEUED_OUTPUTS) post = true;
+            else mPendingInputCallbacks.add(index);
+            gen = mGeneration;
+        }
+        if (post) postInput(gen, index);
     }
     public void queueSecureInputBuffer(int index, int offset, CryptoInfo info, long ptsUs, int flags) {
         if (info != null && info.mode != CRYPTO_MODE_UNENCRYPTED) throw new CryptoException(CryptoException.ERROR_UNSUPPORTED_OPERATION, "Husk cannot decrypt protected media");
@@ -196,31 +293,54 @@ public final class MediaCodec {
         for (Object o : infos) { BufferInfo b = (BufferInfo) o; queueInputBuffer(index, b.offset, b.size, b.presentationTimeUs, b.flags); }
     }
     public void queueSecureInputBuffers(int index, ArrayDeque infos, ArrayDeque cryptos) { throw new CryptoException(CryptoException.ERROR_UNSUPPORTED_OPERATION, "Husk cannot decrypt protected media"); }
+    private Out takeOut() {
+        synchronized (sBufferPoolLock) {
+            Out o = sOutPool.pollFirst();
+            if (o == null) o = new Out();
+            o.index = -1; o.pts = 0; o.flags = o.size = 0; o.frame = 0; o.data = null;
+            return o;
+        }
+    }
+    private void recycleOut(Out o) {
+        if (o == null) return;
+        o.index = -1; o.pts = 0; o.flags = o.size = 0; o.frame = 0; o.data = null;
+        synchronized (sBufferPoolLock) { if (sOutPool.size() < 128) sOutPool.addLast(o); }
+    }
     private void decode(byte[] data, int size, long pts, int flags) {
         husk.MediaCodecNative.decode(mNative, data, size, pts, flags);
-        collect();
-        if ((flags & BUFFER_FLAG_END_OF_STREAM) != 0) { Out e = new Out(); e.pts = pts; e.flags = BUFFER_FLAG_END_OF_STREAM; emit(e, false); }
+        int collected = collect();
+        /* VideoToolbox delivers frames asynchronously. Give it a short chance to finish before returning
+           another input buffer to ExoPlayer; otherwise compressed packets can outrun frame callbacks. */
+        if (mVideo && collected == 0) {
+            husk.MediaCodecNative.waitForFrame(mNative, VIDEO_WAIT_MS);
+            collect();
+        }
+        if ((flags & BUFFER_FLAG_END_OF_STREAM) != 0) { Out e = takeOut(); e.pts = pts; e.flags = BUFFER_FLAG_END_OF_STREAM; emit(e, false); }
     }
-    private void collect() {
+    private int collect() {
+        int collected = 0;
         for (;;) {
-            Out o = new Out();
+            Out o = takeOut();
             boolean changed = false;
             if (mVideo) {
                 long f = husk.MediaCodecNative.nextFrame(mNative, mInfo);
-                if (f == 0) return;
+                if (f == 0) { recycleOut(o); return collected; }
                 o.frame = f; o.pts = mInfo[0];
                 int w = (int) mInfo[1], h = (int) mInfo[2];
                 o.size = Math.max(1, w * h * 3 / 2);
                 if (w != mOutW || h != mOutH || mFormatPendingFirst) { mOutW = w; mOutH = h; mOutputFormat = videoFormat(w, h); changed = true; }
             } else {
                 byte[] p = husk.MediaCodecNative.nextPcm(mNative, mInfo);
-                if (p == null) return;
-                o.data = ByteBuffer.allocateDirect(p.length).order(ByteOrder.nativeOrder()); o.data.put(p); o.data.flip();
+                if (p == null) { recycleOut(o); return collected; }
+                o.data = takeBuffer(sOutputBufferPool, p.length);
+                if (o.data == null) o.data = ByteBuffer.allocateDirect(p.length).order(ByteOrder.nativeOrder());
+                o.data.clear(); o.data.put(p, 0, p.length); o.data.flip();
                 o.size = p.length; o.pts = mInfo[0];
                 if ((int) mInfo[1] != mRate || (int) mInfo[2] != mChannels || mFormatPendingFirst) { mRate = (int) mInfo[1]; mChannels = (int) mInfo[2]; mOutputFormat = audioFormat(mRate, mChannels); changed = true; }
             }
             mFormatPendingFirst = false;
             emit(o, changed);
+            collected++;
         }
     }
     /* Android reports the output format once before the first output */
@@ -230,20 +350,22 @@ public final class MediaCodec {
         synchronized (mLock) {
             int i = 0; while (i < mSlots.length && mSlots[i] != null) i++;
             if (i == mSlots.length) mSlots = java.util.Arrays.copyOf(mSlots, mSlots.length * 2);
-            o.index = i; mSlots[i] = o;
+            o.index = i; mSlots[i] = o; mOutstandingOutputs++;
             if (formatChanged && mCallback == null) mFormatPending = true;
             if (mCallback == null) { mQueue.add(o); mLock.notifyAll(); return; }
             gen = mGeneration; fmt = mOutputFormat;
         }
-        final MediaFormat f = fmt; final Out out = o; final int g = gen;
-        if (formatChanged) postCallback(g, () -> mCallback.onOutputFormatChanged(this, f));
-        postCallback(g, () -> { BufferInfo bi = new BufferInfo(); bi.set(0, out.size, out.pts, out.flags); mCallback.onOutputBufferAvailable(this, out.index, bi); });
+        if (formatChanged) postCodecCallback(gen, CB_FORMAT, -1, 0, 0, 0, fmt, null);
+        postCodecCallback(gen, CB_OUTPUT, o.index, o.size, o.flags, o.pts, null, null);
     }
-    private void postInput(int gen, int index) { postCallback(gen, () -> mCallback.onInputBufferAvailable(this, index)); }
-    private void postCallback(int gen, Runnable r) {
-        Handler h = mCallbackHandler;
+    private void postInput(int gen, int index) { postCodecCallback(gen, CB_INPUT, index, 0, 0, 0, null, null); }
+    private void postCodecCallback(int gen, int type, int index, int size, int flags, long pts, MediaFormat format, Handler handler) {
+        Handler h = handler != null ? handler : mCallbackHandler;
         if (h == null) return;
-        h.post(() -> { synchronized (mLock) { if (gen != mGeneration || mState != ST_RUNNING || mCallback == null) return; } r.run(); });
+        CodecCallbackTask task = takeCallbackTask();
+        task.codec = this; task.generation = gen; task.type = type; task.index = index;
+        task.size = size; task.flags = flags; task.pts = pts; task.format = format;
+        if (!h.post(task)) task.recycle();
     }
     public int dequeueOutputBuffer(BufferInfo info, long timeoutUs) {
         synchronized (mLock) {
@@ -266,7 +388,9 @@ public final class MediaCodec {
     public ByteBuffer getOutputBuffer(int i) {
         Out o = slot(i);
         if (o == null || o.data == null) return null;
-        ByteBuffer b = o.data.duplicate().order(ByteOrder.nativeOrder()); b.position(0); b.limit(o.size); return b;
+        ByteBuffer b = o.data;
+        b.position(0); b.limit(o.size);
+        return b;
     }
     public ByteBuffer[] getOutputBuffers() {
         synchronized (mLock) { ByteBuffer[] r = new ByteBuffer[mSlots.length]; for (int i = 0; i < r.length; i++) r[i] = mSlots[i] != null && mSlots[i].data != null ? mSlots[i].data : ByteBuffer.allocateDirect(0); return r; }
@@ -278,17 +402,24 @@ public final class MediaCodec {
     public void releaseOutputBuffer(int index, boolean render) { release(index, render, 0); }
     public void releaseOutputBuffer(int index, long renderTimestampNs) { release(index, true, renderTimestampNs); }
     private void release(int index, boolean render, long whenNs) {
-        Out o;
+        Out o; Integer pendingInput = null; int gen;
         synchronized (mLock) {
             if (mState != ST_RUNNING) throw new IllegalStateException("releaseOutputBuffer when not executing");
             if (index < 0 || index >= mSlots.length || mSlots[index] == null) throw new IllegalStateException("output buffer " + index + " is not dequeued");
             o = mSlots[index]; mSlots[index] = null;
+            if (mOutstandingOutputs > 0) mOutstandingOutputs--;
+            if (mCallback != null && !mPendingInputCallbacks.isEmpty() && mOutstandingOutputs < MAX_QUEUED_OUTPUTS) pendingInput = mPendingInputCallbacks.poll();
+            gen = mGeneration;
         }
-        if (o.frame == 0) return;
-        if (TRACE && !render) mSkipped++;
-        long t0 = TRACE ? System.nanoTime() : 0;
-        try { if (render) draw(o); } finally { husk.MediaCodecNative.freeFrame(o.frame); }
-        if (TRACE && render) mDrawNs += System.nanoTime() - t0;
+        if (o.data != null) { putBuffer(sOutputBufferPool, o.data); o.data = null; }
+        if (o.frame != 0) {
+            if (TRACE && !render) mSkipped++;
+            long t0 = TRACE ? System.nanoTime() : 0;
+            try { if (render) draw(o); } finally { husk.MediaCodecNative.freeFrame(o.frame); o.frame = 0; }
+            if (TRACE && render) mDrawNs += System.nanoTime() - t0;
+        }
+        recycleOut(o);
+        if (pendingInput != null) postInput(gen, pendingInput);
     }
     private static final boolean TRACE = System.getenv("TL_MEDIA_TRACE") != null;
     private int mDrawn, mSkipped;
@@ -297,14 +428,19 @@ public final class MediaCodec {
         Surface s = mSurface;
         if (TRACE && mDrawn++ % 30 == 0) android.util.Log.d("MediaCodec", mName + ": frame " + mDrawn + " at " + o.pts + " (" + mSkipped + " skipped, " + (mDrawn > 1 ? mDrawNs / 1000000 / (mDrawn - 1) : 0) + " ms a draw) " + mOutW + "x" + mOutH + " to " + (s != null ? s.huskView : null));
         if (s == null || !s.isValid() || mOutW <= 0 || mOutH <= 0) return;
-        if (mFrame == null || mFrame.getWidth() != mOutW || mFrame.getHeight() != mOutH) mFrame = Bitmap.createBitmap(mOutW, mOutH, Bitmap.Config.ARGB_8888);
+        if (mFrame != null && (mFrame.getWidth() != mOutW || mFrame.getHeight() != mOutH)) {
+            try { mFrame.recycle(); } catch (RuntimeException ignored) {}
+            mFrame = null;
+        }
+        if (mFrame == null) mFrame = Bitmap.createBitmap(mOutW, mOutH, Bitmap.Config.ARGB_8888);
         if (!husk.MediaCodecNative.renderFrame(o.frame, mFrame)) return;
         Canvas c;
         try { c = s.lockCanvas(null); } catch (RuntimeException e) { return; }
         if (c == null) return;
         try {
             int cw = c.getWidth(), ch = c.getHeight();
-            Rect dst = new Rect(0, 0, cw, ch);
+            Rect dst = mDst;
+            dst.set(0, 0, cw, ch);
             if (mScaling == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) {
                 float sc = Math.max((float) cw / mOutW, (float) ch / mOutH);
                 int w = Math.round(mOutW * sc), h = Math.round(mOutH * sc);
@@ -313,39 +449,52 @@ public final class MediaCodec {
             }
             c.drawBitmap(mFrame, null, dst, mPaint);
         } finally { s.unlockCanvasAndPost(c); }
-        OnFrameRenderedListener l = mRendered;
-        if (l != null) {
-            final long pts = o.pts, now = System.nanoTime();
+        if (mRendered != null) {
             Handler h = mRenderedHandler;
-            if (h != null) h.post(() -> l.onFrameRendered(this, pts, now)); else l.onFrameRendered(this, pts, now);
+            if (h == null) mRendered.onFrameRendered(this, o.pts, System.nanoTime());
+            else {
+                CodecCallbackTask task = takeCallbackTask();
+                task.codec = this; task.generation = mGeneration; task.type = CB_RENDERED;
+                task.pts = o.pts; task.renderTime = System.nanoTime();
+                if (!h.post(task)) task.recycle();
+            }
         }
     }
     private void dropOutputs() {
         java.util.ArrayList<Out> drop = new java.util.ArrayList<>();
         synchronized (mLock) {
             for (int i = 0; i < mSlots.length; i++) if (mSlots[i] != null) { drop.add(mSlots[i]); mSlots[i] = null; }
-            mQueue.clear();
+            mQueue.clear(); mOutstandingOutputs = 0; mPendingInputCallbacks.clear();
         }
-        for (Out o : drop) if (o.frame != 0) husk.MediaCodecNative.freeFrame(o.frame);
+        for (Out o : drop) {
+            if (o.frame != 0) { husk.MediaCodecNative.freeFrame(o.frame); o.frame = 0; }
+            if (o.data != null) { putBuffer(sOutputBufferPool, o.data); o.data = null; }
+            recycleOut(o);
+        }
     }
     public void flush() {
         synchronized (mLock) {
             if (mState != ST_RUNNING) throw new IllegalStateException("flush when not executing");
-            mGeneration++;
+            mGeneration++; mPendingInputCallbacks.clear();
         }
-        husk.MediaCodecNative.flush(mNative);
+        synchronized (mDecodeLock) { husk.MediaCodecNative.flush(mNative); }
         dropOutputs();
         synchronized (mLock) {
-            mFreeInputs.clear(); for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i);
+            mFreeInputs.clear(); if (mCallback == null) for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i);
             if (mCallback != null) mStartPending = true;
             mLock.notifyAll();
         }
     }
     public void stop() {
-        synchronized (mLock) { if (mState == ST_RELEASED) throw new IllegalStateException(); mGeneration++; }
-        if (mNative != 0) husk.MediaCodecNative.flush(mNative);
+        synchronized (mLock) { if (mState == ST_RELEASED) throw new IllegalStateException(); mGeneration++; mPendingInputCallbacks.clear(); }
+        synchronized (mDecodeLock) { if (mNative != 0) husk.MediaCodecNative.flush(mNative); }
         dropOutputs();
-        synchronized (mLock) { if (mState == ST_RUNNING) mState = ST_CONFIGURED; mStartPending = false; mLock.notifyAll(); }
+        synchronized (mLock) {
+            if (mState == ST_RUNNING) mState = ST_CONFIGURED;
+            mStartPending = false;
+            mFreeInputs.clear(); if (mCallback == null) for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i);
+            mLock.notifyAll();
+        }
     }
     public void reset() {
         stop();
@@ -356,11 +505,19 @@ public final class MediaCodec {
         }
     }
     public void release() {
-        synchronized (mLock) { if (mState == ST_RELEASED) return; mGeneration++; mState = ST_RELEASED; mLock.notifyAll(); }
-        dropOutputs();
-        long n; synchronized (mLock) { n = mNative; mNative = 0; }
-        if (n != 0) husk.MediaCodecNative.destroy(n);
-        mFrame = null;
+        synchronized (mLock) { if (mState == ST_RELEASED) return; mGeneration++; mState = ST_RELEASED; mPendingInputCallbacks.clear(); mLock.notifyAll(); }
+        synchronized (mDecodeLock) {
+            dropOutputs();
+            long n; synchronized (mLock) { n = mNative; mNative = 0; }
+            if (n != 0) husk.MediaCodecNative.destroy(n);
+            putScratch(mDecodeInputScratch); mDecodeInputScratch = null;
+        }
+        ByteBuffer[] inputs = mInputs; mInputs = null;
+        if (inputs != null) for (ByteBuffer b : inputs) putBuffer(sInputBufferPool, b);
+        if (mFrame != null) { try { mFrame.recycle(); } catch (RuntimeException ignored) {} mFrame = null; }
+        mSurface = null; mInputFormat = null; mOutputFormat = null;
+        mCallback = null; mCallbackHandler = null; mRendered = null; mRenderedHandler = null;
+        synchronized (mLock) { mFreeInputs.clear(); mQueue.clear(); }
     }
     protected void finalize() { release(); }
     public void setCallback(Callback cb, Handler h) {

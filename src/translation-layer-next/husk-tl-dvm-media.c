@@ -4,10 +4,10 @@
  * MP3 through AudioToolbox -- the same frameworks on iOS and macOS.
  *
  * Video: MediaCodec takes Annex-B access units (start codes, parameter sets in band or as csd-0/csd-1); VideoToolbox takes
- * length-prefixed NAL units under a format description built from the parameter sets. Each queued access unit is converted and
- * decoded synchronously; decoded frames (32BGRA pixel buffers) come out in decode order, so they wait in a small buffer sorted by
- * presentation time and leave it in display order, as MediaCodec hands them out. The Java side draws a frame into a Bitmap
- * (renderFrame) and the Bitmap into the app's Surface.
+ * length-prefixed NAL units under a format description built from the parameter sets. Each queued access unit is submitted to
+ * VideoToolbox asynchronously. A bounded in-flight counter and a short Java-side wait prevent compressed packets from outrunning
+ * frame callbacks; decoded frames (32BGRA pixel buffers) are sorted by presentation time and handed to MediaCodec in display order.
+ * The Java side draws each frame into a Bitmap and the app's Surface.
  *
  * Audio: one compressed packet per queued buffer (as MediaCodec is fed), decoded to interleaved 16-bit PCM. AAC, MP3, and -- for TV
  * and IPTV streams, where they are the usual sound -- AC-3 and E-AC-3 (Dolby Digital / Plus, E-AC-3 JOC through its E-AC-3 core) and
@@ -23,6 +23,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <time.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +54,8 @@ typedef struct { uint8_t *d; size_t n; } blob;
 typedef struct codec {
     int kind;
     pthread_mutex_t lock;
+    pthread_cond_t frame_cond;
+    int video_inflight;
     bool trace;
     /* video */
     blob vps, sps, pps;
@@ -67,6 +71,8 @@ typedef struct codec {
     AudioStreamBasicDescription in, out;
     const uint8_t *packet; UInt32 packet_len; AudioStreamPacketDescription desc;
     pcm *pcms, **pcm_tail;
+    jobj *pcm_array;                                 /* one reusable Java byte[] scratch for nextPcm */
+    uint32_t pcm_array_capacity;
     int rate, channels;                             /* what the Java side is given (channels: 1 or 2) */
     int in_channels;                                /* the stream's own, which the decoder hands out */
     float gl[MAX_DEC_CH], gr[MAX_DEC_CH];           /* in_channels > 2: each decoded channel's share of left and right */
@@ -97,22 +103,45 @@ static void vt_out(void *ref, void *src, OSStatus st, VTDecodeInfoFlags fl, CVIm
 {
     (void)src; (void)fl; (void)dur;
     codec *c = ref;
-    if (st != noErr || !img) { c->failed++; if (c->trace || c->failed < 4) tl_log_line("media: frame not decoded (%d)", (int)st); return; }
+    if (st != noErr || !img) {
+        pthread_mutex_lock(&c->lock);
+        if (c->video_inflight > 0) c->video_inflight--;
+        c->failed++;
+        int failed = (int)c->failed;
+        pthread_cond_broadcast(&c->frame_cond);
+        pthread_mutex_unlock(&c->lock);
+        if (c->trace || failed < 4) tl_log_line("media: frame not decoded (%d)", (int)st);
+        return;
+    }
     frame *f = calloc(1, sizeof(*f));
+    if (!f) {
+        pthread_mutex_lock(&c->lock);
+        if (c->video_inflight > 0) c->video_inflight--;
+        c->failed++;
+        pthread_cond_broadcast(&c->frame_cond);
+        pthread_mutex_unlock(&c->lock);
+        return;
+    }
     f->pb = CVPixelBufferRetain(img);
     f->pts = CMTIME_IS_VALID(pts) ? CMTimeConvertScale(pts, 1000000, kCMTimeRoundingMethod_Default).value : 0;
     pthread_mutex_lock(&c->lock);
+    if (c->video_inflight > 0) c->video_inflight--;
     frame **p = &c->sorted;
     while (*p && (*p)->pts <= f->pts) p = &(*p)->next;
     f->next = *p; *p = f; c->nsorted++;
     release_sorted(c, REORDER);
     c->decoded++;
+    pthread_cond_broadcast(&c->frame_cond);
     pthread_mutex_unlock(&c->lock);
 }
 
 static void session_drop(codec *c)
 {
     if (c->vt) { VTDecompressionSessionWaitForAsynchronousFrames(c->vt); VTDecompressionSessionInvalidate(c->vt); CFRelease(c->vt); c->vt = NULL; }
+    pthread_mutex_lock(&c->lock);
+    c->video_inflight = 0;
+    pthread_cond_broadcast(&c->frame_cond);
+    pthread_mutex_unlock(&c->lock);
 }
 
 static bool session_make(codec *c)
@@ -211,16 +240,32 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
         session_make(c);
     }
     if (w.len && c->vt) {
+        /* VideoToolbox is asynchronous. Do not let the app submit an unlimited number of access units
+           while its decode callbacks are still pending. */
+        pthread_mutex_lock(&c->lock);
+        while (c->video_inflight >= 4) pthread_cond_wait(&c->frame_cond, &c->lock);
+        c->video_inflight++;
+        pthread_mutex_unlock(&c->lock);
         CMBlockBufferRef bb = NULL; CMSampleBufferRef sb = NULL;
         OSStatus st = CMBlockBufferCreateWithMemoryBlock(NULL, NULL, w.len, NULL, NULL, 0, w.len, kCMBlockBufferAssureMemoryNowFlag, &bb);
         if (st == noErr) st = CMBlockBufferReplaceDataBytes(w.out, bb, 0, w.len);
         CMSampleTimingInfo tm = { kCMTimeInvalid, CMTimeMake(pts, 1000000), kCMTimeInvalid };
         size_t ss = w.len;
         if (st == noErr) st = CMSampleBufferCreateReady(NULL, bb, c->fmt, 1, 1, &tm, 1, &ss, &sb);
+        bool submitted = false;
         if (st == noErr) {
             VTDecodeInfoFlags info = 0;
             st = VTDecompressionSessionDecodeFrame(c->vt, sb, 0, NULL, &info);
-            if (st != noErr) { c->failed++; if (c->failed < 4 || c->trace) tl_log_line("media: decode refused (%d)", (int)st); }
+            submitted = st == noErr;
+        }
+        if (!submitted) {
+            pthread_mutex_lock(&c->lock);
+            if (c->video_inflight > 0) c->video_inflight--;
+            c->failed++;
+            int failed = (int)c->failed;
+            pthread_cond_broadcast(&c->frame_cond);
+            pthread_mutex_unlock(&c->lock);
+            if (failed < 4 || c->trace) tl_log_line("media: decode refused (%d)", (int)st);
             if (st == kVTInvalidSessionErr) { session_drop(c); session_make(c); }
         }
         if (sb) CFRelease(sb);
@@ -458,6 +503,7 @@ NAT(M_create)
     codec *c = calloc(1, sizeof(*c));
     c->kind = k; c->trace = trace_on();
     pthread_mutex_init(&c->lock, NULL);
+    pthread_cond_init(&c->frame_cond, NULL);
     c->ready_tail = &c->ready; c->pcm_tail = &c->pcms;
     *ret = J((int64_t)(uintptr_t)c);
     return true;
@@ -493,6 +539,34 @@ NAT(M_decode)
     *ret = I(0);
     return true;
 }
+/* waitForFrame(h, timeoutMs): wait briefly for VideoToolbox callbacks before MediaCodec asks ExoPlayer for more input. */
+NAT(M_waitForFrame)
+{
+    (void)self;
+    codec *c = C;
+    int timeout = a[1].i;
+    bool ready = false;
+    if (timeout > 0) {
+        struct timespec until;
+        clock_gettime(CLOCK_REALTIME, &until);
+        until.tv_sec += timeout / 1000;
+        until.tv_nsec += (long)(timeout % 1000) * 1000000L;
+        if (until.tv_nsec >= 1000000000L) { until.tv_sec++; until.tv_nsec -= 1000000000L; }
+        pthread_mutex_lock(&c->lock);
+        while (!c->ready && c->video_inflight > 0) {
+            int rc = pthread_cond_timedwait(&c->frame_cond, &c->lock, &until);
+            if (rc == ETIMEDOUT) break;
+        }
+        ready = c->ready != NULL || c->video_inflight == 0;
+        pthread_mutex_unlock(&c->lock);
+    } else {
+        pthread_mutex_lock(&c->lock);
+        ready = c->ready != NULL || c->video_inflight == 0;
+        pthread_mutex_unlock(&c->lock);
+    }
+    *ret = Z(ready);
+    return true;
+}
 /* nextFrame(h, info) -> a frame handle (0: none yet); info = { ptsUs, width, height } */
 NAT(M_nextFrame)
 {
@@ -525,8 +599,22 @@ NAT(M_nextPcm)
     if (!p) { *ret = L(NULL); return true; }
     int64_t *info = a[1].l ? (int64_t *)((jobj *)a[1].l)->arr.data : NULL;
     if (info) { info[0] = p->pts; info[1] = c->rate; info[2] = c->channels; }
-    jobj *arr = tl_jni_new_prim_array('B', (uint32_t)p->len);
-    arr->refs = 1u << 30;
+    /* MediaCodec copies this array into its output buffer before asking for the next PCM packet. Reuse one array per
+       decoder instead of allocating (and, in the current DVM, permanently retaining) a new Java byte[] for every AAC/AC-3 packet. */
+    jobj *arr = c->pcm_array;
+    if (!arr) {
+        arr = tl_jni_new_prim_array('B', (uint32_t)p->len);
+        if (!arr) { free(p->data); free(p); *ret = L(NULL); return true; }
+        arr->refs = 1u << 30;
+        c->pcm_array = arr;
+        c->pcm_array_capacity = (uint32_t)p->len;
+    } else if (c->pcm_array_capacity < (uint32_t)p->len) {
+        uint8_t *data = realloc(arr->arr.data, (size_t)p->len);
+        if (!data) { free(p->data); free(p); *ret = L(NULL); return true; }
+        arr->arr.data = data;
+        c->pcm_array_capacity = (uint32_t)p->len;
+    }
+    arr->arr.len = (uint32_t)p->len;
     memcpy(arr->arr.data, p->data, (size_t)p->len);
     free(p->data); free(p);
     *ret = L(arr);
@@ -588,6 +676,7 @@ NAT(M_destroy)
     if (c->conv) AudioConverterDispose(c->conv);
     free(c->vps.d); free(c->sps.d); free(c->pps.d);
     if (c->trace) tl_log_line("media: codec closed after %ld outputs, %ld failures", c->decoded, c->failed);
+    pthread_cond_destroy(&c->frame_cond);
     pthread_mutex_destroy(&c->lock);
     free(c);
     return true;
@@ -599,6 +688,7 @@ static const struct { const char *name, *sig; dvm_native_fn fn; } k_media[] = {
     { "create", "(Ljava/lang/String;)J", M_create },
     { "configure", "(JIIII[B[B[B)Z", M_configure },
     { "decode", "(J[BIJI)I", M_decode },
+    { "waitForFrame", "(JI)Z", M_waitForFrame },
     { "nextFrame", "(J[J)J", M_nextFrame },
     { "nextPcm", "(J[J)[B", M_nextPcm },
     { "renderFrame", "(JLandroid/graphics/Bitmap;)Z", M_renderFrame },
