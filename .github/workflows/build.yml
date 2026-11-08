@@ -328,21 +328,27 @@ jobs:
           ls -lh dist
           { echo "### Made from the guest image"; echo; ls -lh dist | awk 'NR>1{print "- "$NF": "$5}'; } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Free artifact storage
-        if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: ./scripts/ci_prune_artifacts.sh
-
+      # Through the Actions cache, not an artifact: artifacts share a storage quota GitHub recounts only every 6-12 hours, and a
+      # full quota stopped every build ("Artifact storage quota has been hit"). The cache has its own 10 GB, evicts the oldest
+      # entries by itself, and the build job deletes this entry once it has the files.
       - name: Hand them to the build
         if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
-        uses: actions/upload-artifact@v4
+        run: mkdir -p handover && mv dist/*.tgz handover/ && ls -lh handover
+
+      - name: Delete older hand-overs and artifacts
+        if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/ci_prune_handover.sh && ./scripts/ci_prune_artifacts.sh
+
+      - name: Save the hand-over
+        if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
+        uses: actions/cache/save@v4
         with:
-          name: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: dist/*.tgz
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 1         # only the build job of this run reads it, and deletes it once it has
+          key: husk-handover-${{ github.run_id }}
+          path: handover
+          enableCrossOsArchive: true
 
   build:
     name: Build Husk.ipa
@@ -628,20 +634,18 @@ jobs:
       # ------------------------------------------------------------------ the parts built elsewhere
       - name: The parts the prebuilt job made
         if: needs.prebuilt.outputs.java == 'yes' || needs.prebuilt.outputs.system == 'yes'
-        uses: actions/download-artifact@v4
+        uses: actions/cache/restore@v4
         with:
-          name: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/prebuilt
+          key: husk-handover-${{ github.run_id }}
+          path: handover
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
 
-      - name: Delete the hand-over artifact
-        if: needs.prebuilt.outputs.java == 'yes' || needs.prebuilt.outputs.system == 'yes'
-        continue-on-error: true
+      - name: Delete older hand-overs
+        continue-on-error: true    # this run's stays, so re-running only this job still finds it
         env:
           GH_TOKEN: ${{ github.token }}
-          NAME: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq ".artifacts[] | select(.name == \"$NAME\") | .id")"
-          [ -n "$id" ] && gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" && echo "deleted $NAME (its storage is free again)"
+        run: ./scripts/ci_prune_handover.sh
 
       - name: Prebuilt parts
         id: parts
@@ -649,9 +653,9 @@ jobs:
           GH_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN || github.token }}
           HUSK_PREBUILT_TOKEN: ${{ secrets.HUSK_PREBUILT_TOKEN }}
           # given by URL, else made by the prebuilt job from the guest image
-          JAVA_URL: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL || (needs.prebuilt.outputs.java == 'yes' && format('{0}/prebuilt/java-runtime.tgz', runner.temp)) || '' }}
+          JAVA_URL: ${{ secrets.HUSK_JAVA_RUNTIME_URL || vars.HUSK_JAVA_RUNTIME_URL || (needs.prebuilt.outputs.java == 'yes' && format('{0}/handover/java-runtime.tgz', github.workspace)) || '' }}
           JAVA_SHA: ${{ vars.HUSK_JAVA_RUNTIME_SHA256 }}
-          SYS_URL: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL || (needs.prebuilt.outputs.system == 'yes' && format('{0}/prebuilt/android-system.tgz', runner.temp)) || '' }}
+          SYS_URL: ${{ secrets.HUSK_ANDROID_SYSTEM_URL || vars.HUSK_ANDROID_SYSTEM_URL || (needs.prebuilt.outputs.system == 'yes' && format('{0}/handover/android-system.tgz', github.workspace)) || '' }}
           SYS_SHA: ${{ vars.HUSK_ANDROID_SYSTEM_SHA256 }}
           PS4_URL: ${{ secrets.HUSK_PS4_DYLIB_URL || vars.HUSK_PS4_DYLIB_URL }}
           PS4_SHA: ${{ vars.HUSK_PS4_DYLIB_SHA256 }}
@@ -786,11 +790,23 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Free artifact storage
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/ci_prune_artifacts.sh
 
+      - name: Hand the packages to the release
+        uses: actions/cache/save@v4
+        with:
+          key: husk-packages-${{ github.run_id }}
+          enableCrossOsArchive: true
+          path: |
+            dist/Husk.ipa
+            dist/Husk.tipa
+            dist/SHA256SUMS.txt
+
       - name: Upload packages
+        continue-on-error: true    # for downloading from the run page; the release takes them from the cache, so a full artifact quota stops nothing
         uses: actions/upload-artifact@v4
         with:
           name: Husk-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.commit }}
@@ -829,10 +845,15 @@ jobs:
       url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.build.outputs.tag }}
     steps:
       - name: Get the packages
-        uses: actions/download-artifact@v4
+        uses: actions/cache/restore@v4
         with:
-          name: Husk-${{ needs.build.outputs.version }}-${{ needs.build.outputs.commit }}
-          path: dist
+          key: husk-packages-${{ github.run_id }}
+          enableCrossOsArchive: true
+          path: |
+            dist/Husk.ipa
+            dist/Husk.tipa
+            dist/SHA256SUMS.txt
+          fail-on-cache-miss: true
 
       - name: Check them again
         run: |
