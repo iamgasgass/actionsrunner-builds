@@ -62,6 +62,10 @@ typedef struct codec {
     bool params_changed;
     bool waiting_for_random_access;
     unsigned waiting_log_count, non_vcl_log_count;
+    /* Audio PTS continuity diagnostics (no timestamp rewriting). */
+    bool audio_pts_valid;
+    int64_t audio_next_pts;
+    unsigned audio_timing_log_count;
     CMVideoFormatDescriptionRef fmt;
     VTDecompressionSessionRef vt;
     frame *sorted; int nsorted;                     /* decoded, by presentation time */
@@ -83,6 +87,13 @@ typedef struct codec {
 static bool trace_on(void) { static int t = -1; if (t < 0) t = getenv("TL_MEDIA_TRACE") != NULL; return t; }
 
 /* ---- video ---- */
+
+static uint32_t blob_hash(const blob *b)
+{
+    uint32_t h = 2166136261u;
+    if (b && b->d) for (size_t i = 0; i < b->n; i++) h = (h ^ b->d[i]) * 16777619u;
+    return h;
+}
 
 static void blob_set(blob *b, const uint8_t *d, size_t n, bool *changed)
 {
@@ -199,8 +210,13 @@ static bool session_make(codec *c)
     }
 
     if (c->vt) {
-        tl_log_line("media: active %s decoder cannot accept updated format; recreating session",
-                    c->kind == K_AVC ? "H.264" : "HEVC");
+        if (c->kind == K_AVC) {
+            tl_log_line("media: active H.264 decoder cannot accept updated format; recreating session (SPS=%zu/%08x PPS=%zu/%08x)",
+                        c->sps.n, blob_hash(&c->sps), c->pps.n, blob_hash(&c->pps));
+        } else {
+            tl_log_line("media: active HEVC decoder cannot accept updated format; recreating session (VPS=%zu/%08x SPS=%zu/%08x PPS=%zu/%08x)",
+                        c->vps.n, blob_hash(&c->vps), c->sps.n, blob_hash(&c->sps), c->pps.n, blob_hash(&c->pps));
+        }
         session_drop(c);
     }
     int pixel_format = kCVPixelFormatType_32BGRA;
@@ -266,7 +282,8 @@ static size_t find_start_code(const uint8_t *d, size_t n, size_t from, size_t *c
 
 typedef struct {
     codec *c; uint8_t *out; size_t len, cap;
-    unsigned nals, vcl_nals, first_type; size_t largest_nal;
+    unsigned nals, vcl_nals, first_type, first_vcl_type, random_access_type;
+    size_t largest_nal;
     bool random_access, allocation_failed;
 } nal_walk;
 
@@ -279,14 +296,20 @@ static void take_nal(void *arg, const uint8_t *nal, size_t n)
     w->nals++;
     if (n > w->largest_nal) w->largest_nal = n;
     if (c->kind == K_AVC) {
-        if (t >= 1 && t <= 5) w->vcl_nals++;
-        if (t == 5) w->random_access = true;
+        if (t >= 1 && t <= 5) {
+            if (w->vcl_nals == 0) w->first_vcl_type = t;
+            w->vcl_nals++;
+        }
+        if (t == 5) { w->random_access = true; w->random_access_type = t; }
         if (t == 7) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
         if (t == 8) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
         if (t == 9) return;                                         /* access unit delimiter */
     } else {
-        if (t <= 31) w->vcl_nals++;
-        if (t >= 16 && t <= 21) w->random_access = true;
+        if (t <= 31) {
+            if (w->vcl_nals == 0) w->first_vcl_type = t;
+            w->vcl_nals++;
+        }
+        if (t >= 16 && t <= 21) { w->random_access = true; w->random_access_type = t; }
         if (t == 32) { blob_set(&c->vps, nal, n, &c->params_changed); return; }
         if (t == 33) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
         if (t == 34) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
@@ -465,8 +488,11 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
         if (w.random_access || (flags & FLAG_KEY_FRAME)) {
             c->waiting_for_random_access = false;
             c->waiting_log_count = 0;
-            tl_log_line("media: %s random-access frame received (NAL=%u, flags=0x%x)",
-                        c->kind == K_AVC ? "H.264" : "HEVC", w.first_type, flags);
+            tl_log_line("media: %s random-access frame received (%s=%u, first-vcl=%u, first-nal=%u, flags=0x%x)",
+                        c->kind == K_AVC ? "H.264" : "HEVC",
+                        w.random_access_type ? "random-access-NAL" : "MediaCodec-sync-flag",
+                        w.random_access_type ? w.random_access_type : FLAG_KEY_FRAME,
+                        w.first_vcl_type, w.first_type, flags);
         } else {
             submit = false;
             if (c->trace || c->waiting_log_count++ < 4)
@@ -656,6 +682,8 @@ static bool audio_open(codec *c, const uint8_t *asc, size_t asc_n, int rate, int
         .mFormatFlags = kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked, .mBytesPerPacket = 2 * dch,
         .mFramesPerPacket = 1, .mBytesPerFrame = 2 * dch, .mChannelsPerFrame = dch, .mBitsPerChannel = 16 };
     if (c->conv) { AudioConverterDispose(c->conv); c->conv = NULL; }
+    c->audio_pts_valid = false;
+    c->audio_timing_log_count = 0;
     OSStatus st = AudioConverterNew(&c->in, &c->out, &c->conv);
     if (st != noErr) { tl_log_line("media: no %s decoder (%d)", audio_name(c->kind), (int)st); c->conv = NULL; return false; }
     if (esds_n) AudioConverterSetProperty(c->conv, kAudioConverterDecompressionMagicCookie, (UInt32)esds_n, esds);
@@ -701,7 +729,24 @@ static void audio_decode(codec *c, const uint8_t *d, size_t n, int64_t pts)
             s16[2 * f + 1] = (int16_t)(r > 32767 ? 32767 : r < -32768 ? -32768 : r);
         }
     }
+    int64_t duration_us = c->rate > 0
+        ? ((int64_t)frames * 1000000LL + c->rate / 2) / c->rate : 0;
+    int64_t expected_pts = c->audio_next_pts;
+    int64_t delta_us = c->audio_pts_valid ? pts - expected_pts : 0;
+    if (c->trace || c->audio_timing_log_count < 8 ||
+            (c->audio_pts_valid && (delta_us > 50000 || delta_us < -50000))) {
+        tl_log_line("media: %s PCM timing: input-pts=%lld us expected=%lld us delta=%lld us frames=%u rate=%d duration=%lld us packet=%zu bytes",
+                    audio_name(c->kind), (long long)pts,
+                    (long long)(c->audio_pts_valid ? expected_pts : pts),
+                    (long long)delta_us, frames, c->rate,
+                    (long long)duration_us, n);
+    }
+    c->audio_timing_log_count++;
+    c->audio_next_pts = pts + duration_us;
+    c->audio_pts_valid = true;
+
     pcm *p = calloc(1, sizeof(*p));
+    if (!p) { free(buf); return; }
     p->data = buf; p->len = (int)(frames * 2 * (UInt32)c->channels); p->pts = pts;
     pthread_mutex_lock(&c->lock); *c->pcm_tail = p; c->pcm_tail = &p->next; c->decoded++; pthread_mutex_unlock(&c->lock);
 }
@@ -907,6 +952,8 @@ NAT(M_flush)
     codec *c = C;
     if (c->vt) { VTDecompressionSessionFinishDelayedFrames(c->vt); VTDecompressionSessionWaitForAsynchronousFrames(c->vt); }
     if (c->conv) AudioConverterReset(c->conv);
+    c->audio_pts_valid = false;
+    c->audio_timing_log_count = 0;
     drop_outputs(c);
     return true;
 }

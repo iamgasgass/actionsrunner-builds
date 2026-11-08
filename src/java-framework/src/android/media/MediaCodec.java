@@ -400,7 +400,8 @@ public final class MediaCodec {
             mLoggedQueuedInput[index] = true;
             android.util.Log.i("MediaCodec", "Husk queueInputBuffer: codec=" + System.identityHashCode(this)
                 + ", name=" + mName + ", index=" + index + ", size=" + size
-                + ", capacity=" + input.capacity() + ", offset=" + offset);
+                + ", capacity=" + input.capacity() + ", offset=" + offset
+                + ", ptsUs=" + ptsUs + ", flags=0x" + Integer.toHexString(flags));
         }
         synchronized (mDecodeLock) {
             if (mDecodeInputScratch == null || mDecodeInputScratch.length < size) {
