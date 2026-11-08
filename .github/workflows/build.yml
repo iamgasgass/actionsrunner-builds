@@ -2,7 +2,8 @@
 #
 # Husk: build the unsigned IPA (and the TrollStore .tipa) from a clean checkout, and release them.
 #
-#   push to main, pull request    build, check and keep the IPA as a workflow artifact
+#   push to main                  build, check, and put Husk.ipa on the rolling "nightly" pre-release (no artifact storage)
+#   pull request                  build, check and keep the IPA as a workflow artifact
 #   push of a tag like 3.5        build, check, and publish Husk.ipa / Husk.tipa on that tag's release
 #   Run workflow (manual)         either of the above; "release" publishes, with the version as the tag by default
 #
@@ -805,8 +806,12 @@ jobs:
             dist/Husk.tipa
             dist/SHA256SUMS.txt
 
+      # Builds that are not releases are published on the rolling "nightly" pre-release (the nightly job below), which uses no
+      # artifact storage. A workflow artifact is made only for pull requests (which cannot publish) or when the repository
+      # variable HUSK_UPLOAD_ARTIFACTS is true; a full artifact quota never fails the build.
       - name: Upload packages
-        continue-on-error: true    # for downloading from the run page; the release takes them from the cache, so a full artifact quota stops nothing
+        if: github.event_name == 'pull_request' || vars.HUSK_UPLOAD_ARTIFACTS == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Husk-${{ steps.meta.outputs.version }}-${{ steps.meta.outputs.commit }}
@@ -819,7 +824,7 @@ jobs:
           retention-days: 14       # releases keep them for good; this is for runs that make none
 
       - name: Upload logs
-        if: always()
+        if: always() && (failure() || vars.HUSK_UPLOAD_ARTIFACTS == 'true')   # kept only when they are needed: a failed build
         continue-on-error: true    # logs must never be why a build fails (a full artifact quota)
         uses: actions/upload-artifact@v4
         with:
@@ -829,6 +834,50 @@ jobs:
             build/derived/build.log
           if-no-files-found: ignore
           retention-days: 5
+
+  nightly:
+    name: Nightly pre-release
+    needs: build
+    # a build that is not a release, from a push or a manual run (pull requests cannot write releases)
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.release != 'true' && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: husk-nightly
+      cancel-in-progress: false
+    steps:
+      - name: Get the packages
+        uses: actions/cache/restore@v4
+        with:
+          key: husk-packages-${{ github.run_id }}
+          enableCrossOsArchive: true
+          path: |
+            dist/Husk.ipa
+            dist/Husk.tipa
+            dist/SHA256SUMS.txt
+          fail-on-cache-miss: true
+
+      - name: Publish on the nightly pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          COMMIT: ${{ needs.build.outputs.commit }}
+        run: |
+          set -euo pipefail
+          cd dist && sha256sum -c SHA256SUMS.txt && cd ..
+          notes="Automatic build of ${GITHUB_REF_NAME} at ${COMMIT} (Husk ${VERSION}), run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. Not a release: replaced by every new build."
+          if gh release view nightly -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload nightly dist/Husk.ipa dist/Husk.tipa dist/SHA256SUMS.txt --clobber -R "$GITHUB_REPOSITORY"
+            gh release edit nightly --prerelease --latest=false --target "$GITHUB_SHA" --title "Nightly ${VERSION} (${COMMIT})" --notes "$notes" -R "$GITHUB_REPOSITORY"
+          else
+            gh release create nightly dist/Husk.ipa dist/Husk.tipa dist/SHA256SUMS.txt --prerelease --latest=false \
+              --target "$GITHUB_SHA" --title "Nightly ${VERSION} (${COMMIT})" --notes "$notes" -R "$GITHUB_REPOSITORY"
+          fi
+          # the tag follows the build (gh release edit --target only moves an unpublished tag)
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/nightly" -f sha="$GITHUB_SHA" -F force=true >/dev/null || true
+          echo "### Husk.ipa: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/tag/nightly" >> "$GITHUB_STEP_SUMMARY"
 
   release:
     name: Release ${{ needs.build.outputs.tag }}
