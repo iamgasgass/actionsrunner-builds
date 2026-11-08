@@ -135,6 +135,9 @@ jobs:
   prebuilt:
     name: Java runtime + android-system
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: write              # scripts/ci_prune_artifacts.sh deletes old artifacts before the hand-over upload
     timeout-minutes: 90
     outputs:
       java: ${{ steps.done.outputs.java }}
@@ -325,6 +328,12 @@ jobs:
           ls -lh dist
           { echo "### Made from the guest image"; echo; ls -lh dist | awk 'NR>1{print "- "$NF": "$5}'; } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Free artifact storage
+        if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/ci_prune_artifacts.sh
+
       - name: Hand them to the build
         if: steps.done.outputs.java == 'yes' || steps.done.outputs.system == 'yes'
         uses: actions/upload-artifact@v4
@@ -333,11 +342,14 @@ jobs:
           path: dist/*.tgz
           if-no-files-found: error
           compression-level: 0
-          retention-days: 3
+          retention-days: 1         # only the build job of this run reads it, and deletes it once it has
 
   build:
     name: Build Husk.ipa
     needs: prebuilt
+    permissions:
+      contents: read
+      actions: write              # deletes the hand-over artifact and old ones before uploading the IPA
     # a failed prebuilt job does not stop the IPA: it is then built without those parts, with the warning saying so
     if: ${{ !cancelled() }}
     # Apple Silicon: scripts/build_gpu_ios.sh calls /opt/homebrew/bin/meson, which is where arm64 Homebrew lives.
@@ -621,6 +633,16 @@ jobs:
           name: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/prebuilt
 
+      - name: Delete the hand-over artifact
+        if: needs.prebuilt.outputs.java == 'yes' || needs.prebuilt.outputs.system == 'yes'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: husk-prebuilt-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          id="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq ".artifacts[] | select(.name == \"$NAME\") | .id")"
+          [ -n "$id" ] && gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id" && echo "deleted $NAME (its storage is free again)"
+
       - name: Prebuilt parts
         id: parts
         env:
@@ -763,6 +785,11 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Free artifact storage
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/ci_prune_artifacts.sh
+
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
@@ -773,10 +800,11 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
           compression-level: 0     # an IPA is already a zip
-          retention-days: 30
+          retention-days: 14       # releases keep them for good; this is for runs that make none
 
       - name: Upload logs
         if: always()
+        continue-on-error: true    # logs must never be why a build fails (a full artifact quota)
         uses: actions/upload-artifact@v4
         with:
           name: build-logs-${{ github.run_id }}-${{ github.run_attempt }}
@@ -784,7 +812,7 @@ jobs:
             build/logs
             build/derived/build.log
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 5
 
   release:
     name: Release ${{ needs.build.outputs.tag }}
