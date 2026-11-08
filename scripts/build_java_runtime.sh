@@ -20,14 +20,17 @@ copy com.android.conscrypt/javalib/conscrypt.jar
 for l in libjavacrypto libcrypto libssl; do copy com.android.conscrypt/lib64/$l.so; done
 # the C++ unwinder those libraries (libc++, libbase, BoringSSL) import from libc on a phone: built from the NDK beside libc++ so
 # the JIT-less pass converts it with the rest and the Dalvik runtime loads it first (husk-tl-dvm.c)
-if [ -n "${ANDROID_NDK:-}" ]; then
-    ART_SUPPORT="$(mktemp -d)"
-    "$R/scripts/build_art_support.sh" "$ART_SUPPORT"
+# Optional: a runtime without it still works (the loader logs that C++ exceptions there are not caught), so a missing or
+# unusable NDK is a warning, never a failed build.
+ART_SUPPORT="$(mktemp -d)"
+if [ -n "${ANDROID_NDK:-}" ] && bash "$R/scripts/build_art_support.sh" "$ART_SUPPORT" && [ -f "$ART_SUPPORT/libunwind.so" ]; then
     cp "$ART_SUPPORT/libunwind.so" "$OUT/com.android.art/lib64/libunwind.so"
-    rm -rf "$ART_SUPPORT"
+    echo "==> libunwind.so added to the runtime"
 else
-    echo "warning: ANDROID_NDK is not set: no libunwind.so, so C++ exceptions in libc++/libssl will not be caught" >&2
+    if [ -n "${ANDROID_NDK:-}" ]; then why="the NDK at $ANDROID_NDK could not build it"; else why="ANDROID_NDK is not set"; fi
+    echo "warning: no libunwind.so ($why): C++ exceptions in libc++/libssl will not be caught" >&2
 fi
+rm -rf "$ART_SUPPORT"
 "$R/src/java-framework/build.sh" "$OUT/husk-framework.dex"
 # Apache HttpClient (org.apache.http.legacy), the platform's own, from /system/framework of the same image
 cp "${HTTP_LEGACY:-/Volumes/GTAV/husk2/modules/jars/org.apache.http.legacy.jar}" "$OUT/org.apache.http.legacy.jar"

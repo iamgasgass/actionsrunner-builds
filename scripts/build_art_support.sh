@@ -9,7 +9,13 @@ set -euo pipefail
 HUSK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:?usage: build_art_support.sh <out-dir>}"
 NDK="${ANDROID_NDK:?set ANDROID_NDK to an NDK r27 or later}"
-TC="$(echo "$NDK"/toolchains/llvm/prebuilt/*)"
+# the host toolchain (linux-x86_64, darwin-x86_64): the first that exists
+TC=""
+for d in "$NDK"/toolchains/llvm/prebuilt/*; do [ -x "$d/bin/clang" ] && { TC="$d"; break; }; done
+[ -n "$TC" ] || { echo "build_art_support.sh: no LLVM toolchain under $NDK/toolchains/llvm/prebuilt" >&2; exit 1; }
+for tool in clang llvm-nm llvm-objcopy; do
+    [ -x "$TC/bin/$tool" ] || { echo "build_art_support.sh: $TC/bin/$tool is missing" >&2; exit 1; }
+done
 CC="$TC/bin/clang --target=aarch64-linux-android30"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -17,8 +23,10 @@ mkdir -p "$OUT"
 
 # libunwind: the NDK builds it with hidden symbols, for static linking. Rename each _Unwind_ function and export the real
 # name as a single branch to it, so nothing about the unwinder changes and no frame is added.
-UNW="$(echo "$TC"/lib/clang/*/lib/linux/aarch64/libunwind.a)"
-"$TC/bin/llvm-nm" --defined-only "$UNW" 2>/dev/null | awk '$2=="T" && $3 ~ /^_Unwind_/ {print $3}' | sort -u > "$WORK/syms"
+UNW=""
+for f in "$TC"/lib/clang/*/lib/linux/aarch64/libunwind.a "$TC"/lib64/clang/*/lib/linux/aarch64/libunwind.a; do [ -f "$f" ] && { UNW="$f"; break; }; done
+[ -n "$UNW" ] || { echo "build_art_support.sh: no aarch64 libunwind.a in $TC" >&2; exit 1; }
+"$TC/bin/llvm-nm" --defined-only "$UNW" | awk '$2=="T" && $3 ~ /^_Unwind_/ {print $3}' | sort -u > "$WORK/syms"
 awk '{print $1" __husk"$1}' "$WORK/syms" > "$WORK/redef"
 "$TC/bin/llvm-objcopy" --redefine-syms="$WORK/redef" "$UNW" "$WORK/unwind.a"
 {
