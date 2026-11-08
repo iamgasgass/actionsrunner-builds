@@ -60,10 +60,15 @@ typedef struct codec {
     int video_inflight;
     bool trace;
     /* video */
-    blob vps, sps, pps;
-    bool params_changed;
+    /* Parameter sets by id, as a decoder keeps them: a stream may carry several PPS (and SPS) at once and switch between them
+       picture by picture. Holding only the last one made each new PPS look like a format change, so the session was recreated
+       -- and every picture dropped while it waited for the next IDR -- over and over (IPTV: black video). */
+    blob vps[16], sps[32], pps[256];
+    int16_t pps_sps[256];                           /* the SPS a PPS refers to (H.264); -1 when unknown */
+    bool params_changed, seq_changed;               /* seq: an SPS or VPS, not only a PPS */
     bool waiting_for_random_access;
-    unsigned waiting_log_count, non_vcl_log_count;
+    unsigned waiting_log_count, non_vcl_log_count, waiting_dropped;
+    bool recovery_seen;                             /* a recovery-point SEI came (perhaps in a buffer of its own) while waiting */
     /* Audio PTS continuity diagnostics (no timestamp rewriting). */
     bool audio_pts_valid;
     int64_t audio_next_pts;
@@ -90,13 +95,6 @@ static bool trace_on(void) { static int t = -1; if (t < 0) t = getenv("TL_MEDIA_
 
 /* ---- video ---- */
 
-static uint32_t blob_hash(const blob *b)
-{
-    uint32_t h = 2166136261u;
-    if (b && b->d) for (size_t i = 0; i < b->n; i++) h = (h ^ b->d[i]) * 16777619u;
-    return h;
-}
-
 static void blob_set(blob *b, const uint8_t *d, size_t n, bool *changed)
 {
     if (!b || !d || n == 0) return;
@@ -106,6 +104,102 @@ static void blob_set(blob *b, const uint8_t *d, size_t n, bool *changed)
     memcpy(copy, d, n);
     free(b->d); b->d = copy; b->n = n;
     *changed = true;
+}
+
+/* ---- parameter-set ids: the first fields of the RBSP, read past emulation-prevention bytes ---- */
+typedef struct { uint8_t b[64]; size_t n, bit; } rbsp;
+static void rbsp_init(rbsp *r, const uint8_t *nal, size_t n, size_t skip)
+{
+    r->n = 0; r->bit = 0;
+    int zeros = 0;
+    for (size_t i = skip; i < n && r->n < sizeof(r->b); i++) {
+        if (zeros >= 2 && nal[i] == 3) { zeros = 0; continue; }
+        zeros = nal[i] == 0 ? zeros + 1 : 0;
+        r->b[r->n++] = nal[i];
+    }
+}
+static bool rbsp_bits(rbsp *r, unsigned k, uint32_t *v)
+{
+    uint32_t x = 0;
+    for (unsigned i = 0; i < k; i++) {
+        if (r->bit >= r->n * 8) return false;
+        x = x << 1 | ((r->b[r->bit >> 3] >> (7 - (r->bit & 7))) & 1);
+        r->bit++;
+    }
+    *v = x;
+    return true;
+}
+static bool rbsp_ue(rbsp *r, uint32_t *v)
+{
+    unsigned lz = 0; uint32_t bit;
+    for (;;) { if (!rbsp_bits(r, 1, &bit)) return false; if (bit) break; if (++lz > 31) return false; }
+    uint32_t rest = 0;
+    if (lz && !rbsp_bits(r, lz, &rest)) return false;
+    *v = ((1u << lz) - 1) + rest;
+    return true;
+}
+/* H.264 SPS: profile, constraint flags and level, then seq_parameter_set_id */
+static int avc_sps_id(const uint8_t *nal, size_t n)
+{
+    rbsp r; rbsp_init(&r, nal, n, 1); uint32_t skip, id;
+    if (!rbsp_bits(&r, 24, &skip) || !rbsp_ue(&r, &id) || id > 31) return -1;
+    return (int)id;
+}
+/* H.264 PPS: pic_parameter_set_id, then the SPS it uses */
+static int avc_pps_id(const uint8_t *nal, size_t n, int *sps_id)
+{
+    rbsp r; rbsp_init(&r, nal, n, 1); uint32_t id, sid;
+    if (!rbsp_ue(&r, &id) || id > 255) return -1;
+    *sps_id = rbsp_ue(&r, &sid) && sid <= 31 ? (int)sid : -1;
+    return (int)id;
+}
+static int hevc_vps_id(const uint8_t *nal, size_t n) { return n > 2 ? nal[2] >> 4 : -1; }
+/* HEVC SPS: vps id, sub-layer count, profile_tier_level, then sps_seq_parameter_set_id */
+static int hevc_sps_id(const uint8_t *nal, size_t n)
+{
+    rbsp r; rbsp_init(&r, nal, n, 2); uint32_t v, msl, id;
+    if (!rbsp_bits(&r, 4, &v) || !rbsp_bits(&r, 3, &msl) || !rbsp_bits(&r, 1, &v)) return -1;
+    if (!rbsp_bits(&r, 32, &v) || !rbsp_bits(&r, 32, &v) || !rbsp_bits(&r, 32, &v)) return -1;   /* general profile/tier/level: 96 bits */
+    uint32_t prof[8] = {0}, lev[8] = {0};
+    for (uint32_t i = 0; i < msl; i++) { if (!rbsp_bits(&r, 1, &prof[i]) || !rbsp_bits(&r, 1, &lev[i])) return -1; }
+    if (msl > 0) for (uint32_t i = msl; i < 8; i++) if (!rbsp_bits(&r, 2, &v)) return -1;
+    for (uint32_t i = 0; i < msl; i++) {
+        if (prof[i] && (!rbsp_bits(&r, 32, &v) || !rbsp_bits(&r, 32, &v) || !rbsp_bits(&r, 24, &v))) return -1;   /* 88 bits */
+        if (lev[i] && !rbsp_bits(&r, 8, &v)) return -1;
+    }
+    if (!rbsp_ue(&r, &id) || id > 15) return -1;
+    return (int)id;
+}
+static int hevc_pps_id(const uint8_t *nal, size_t n)
+{
+    rbsp r; rbsp_init(&r, nal, n, 2); uint32_t id;
+    return rbsp_ue(&r, &id) && id < 64 ? (int)id : -1;
+}
+/* An H.264 slice that starts a picture coded without reference to others (I or SI): a place a stream without IDRs can be joined. */
+static bool avc_intra_slice(const uint8_t *nal, size_t n)
+{
+    rbsp r; rbsp_init(&r, nal, n, 1); uint32_t first_mb, type;
+    if (!rbsp_ue(&r, &first_mb) || !rbsp_ue(&r, &type)) return false;
+    return first_mb == 0 && (type % 5 == 2 || type % 5 == 4);
+}
+/* An SEI message list holding a recovery point (payload type 6): the encoder says decoding may start here. */
+static bool sei_recovery_point(const uint8_t *nal, size_t n, size_t header)
+{
+    size_t i = header;
+    while (i + 2 <= n) {
+        uint32_t type = 0, size = 0;
+        while (i < n && nal[i] == 0xFF) { type += 255; i++; }
+        if (i >= n) return false;
+        type += nal[i++];
+        while (i < n && nal[i] == 0xFF) { size += 255; i++; }
+        if (i >= n) return false;
+        size += nal[i++];
+        if (type == 6) return true;
+        if (i + size >= n) return false;                    /* the last message (the rest is rbsp_trailing_bits) */
+        i += size;
+        if (nal[i] == 0x80 && i + 1 == n) return false;
+    }
+    return false;
 }
 
 static void ready_push(codec *c, frame *f) { f->next = NULL; *c->ready_tail = f; c->ready_tail = &f->next; }
@@ -183,6 +277,8 @@ static void session_drop(codec *c)
     }
     c->waiting_for_random_access = true;
     c->waiting_log_count = 0;
+    c->waiting_dropped = 0;
+    c->recovery_seen = false;
     pthread_mutex_lock(&c->lock);
     c->video_inflight = 0;
     pthread_cond_broadcast(&c->frame_cond);
@@ -194,18 +290,23 @@ static bool session_make(codec *c)
     if (c->fmt) { CFRelease(c->fmt); c->fmt = NULL; }
 
     OSStatus st;
+    /* every known set, SPS (and VPS) first: a picture may use any PPS the stream has sent */
+    enum { MAXSETS = 16 + 32 + 256 };
+    const uint8_t *ps[MAXSETS]; size_t sz[MAXSETS]; size_t np = 0, nv = 0, ns = 0, npp = 0;
+    if (c->kind == K_HEVC) for (int i = 0; i < 16; i++) if (c->vps[i].n) { ps[np] = c->vps[i].d; sz[np++] = c->vps[i].n; nv++; }
+    for (int i = 0; i < 32; i++) if (c->sps[i].n) { ps[np] = c->sps[i].d; sz[np++] = c->sps[i].n; ns++; }
+    for (int i = 0; i < 256; i++) {
+        if (!c->pps[i].n) continue;
+        /* a PPS naming an SPS this stream has not sent would make the whole description invalid */
+        if (c->kind == K_AVC && c->pps_sps[i] >= 0 && !c->sps[c->pps_sps[i]].n) continue;
+        ps[np] = c->pps[i].d; sz[np++] = c->pps[i].n; npp++;
+    }
     if (c->kind == K_AVC) {
-        if (!c->sps.n || !c->pps.n) return false;
-        const uint8_t *ps[2] = { c->sps.d, c->pps.d };
-        size_t sz[2] = { c->sps.n, c->pps.n };
-        st = CMVideoFormatDescriptionCreateFromH264ParameterSets(
-            NULL, 2, ps, sz, 4, &c->fmt);
+        if (!ns || !npp) return false;
+        st = CMVideoFormatDescriptionCreateFromH264ParameterSets(NULL, np, ps, sz, 4, &c->fmt);
     } else {
-        if (!c->vps.n || !c->sps.n || !c->pps.n) return false;
-        const uint8_t *ps[3] = { c->vps.d, c->sps.d, c->pps.d };
-        size_t sz[3] = { c->vps.n, c->sps.n, c->pps.n };
-        st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(
-            NULL, 3, ps, sz, 4, NULL, &c->fmt);
+        if (!nv || !ns || !npp) return false;
+        st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(NULL, np, ps, sz, 4, NULL, &c->fmt);
     }
     if (st != noErr || !c->fmt) {
         tl_log_line("media: the stream's parameter sets were refused (%d)", (int)st);
@@ -223,13 +324,8 @@ static bool session_make(codec *c)
     }
 
     if (c->vt) {
-        if (c->kind == K_AVC) {
-            tl_log_line("media: active H.264 decoder cannot accept updated format; recreating session (SPS=%zu/%08x PPS=%zu/%08x)",
-                        c->sps.n, blob_hash(&c->sps), c->pps.n, blob_hash(&c->pps));
-        } else {
-            tl_log_line("media: active HEVC decoder cannot accept updated format; recreating session (VPS=%zu/%08x SPS=%zu/%08x PPS=%zu/%08x)",
-                        c->vps.n, blob_hash(&c->vps), c->sps.n, blob_hash(&c->sps), c->pps.n, blob_hash(&c->pps));
-        }
+        tl_log_line("media: active %s decoder cannot accept the updated parameter sets (%zu VPS, %zu SPS, %zu PPS); recreating session",
+                    c->kind == K_AVC ? "H.264" : "HEVC", nv, ns, npp);
         session_drop(c);
     }
     int pixel_format = kCVPixelFormatType_32BGRA;
@@ -298,6 +394,7 @@ typedef struct {
     unsigned nals, vcl_nals, first_type, first_vcl_type, random_access_type;
     size_t largest_nal;
     bool random_access, allocation_failed;
+    bool intra_slice;                               /* an I picture: where a stream without IDR/IRAP pictures can be joined */
 } nal_walk;
 
 static void take_nal(void *arg, const uint8_t *nal, size_t n)
@@ -314,8 +411,16 @@ static void take_nal(void *arg, const uint8_t *nal, size_t n)
             w->vcl_nals++;
         }
         if (t == 5) { w->random_access = true; w->random_access_type = t; }
-        if (t == 7) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
-        if (t == 8) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
+        if (t == 1 && c->waiting_for_random_access && avc_intra_slice(nal, n)) w->intra_slice = true;
+        if (t == 6 && c->waiting_for_random_access && sei_recovery_point(nal, n, 1)) c->recovery_seen = true;
+        if (t == 7) { int id = avc_sps_id(nal, n); bool ch = false; blob_set(&c->sps[id < 0 ? 0 : id], nal, n, &ch); if (ch) c->params_changed = c->seq_changed = true; return; }
+        if (t == 8) {
+            int sid = -1, id = avc_pps_id(nal, n, &sid);
+            if (id < 0) id = 0;
+            c->pps_sps[id] = (int16_t)sid;
+            blob_set(&c->pps[id], nal, n, &c->params_changed);
+            return;
+        }
         if (t == 9) return;                                         /* access unit delimiter */
     } else {
         if (t <= 31) {
@@ -323,9 +428,10 @@ static void take_nal(void *arg, const uint8_t *nal, size_t n)
             w->vcl_nals++;
         }
         if (t >= 16 && t <= 21) { w->random_access = true; w->random_access_type = t; }
-        if (t == 32) { blob_set(&c->vps, nal, n, &c->params_changed); return; }
-        if (t == 33) { blob_set(&c->sps, nal, n, &c->params_changed); return; }
-        if (t == 34) { blob_set(&c->pps, nal, n, &c->params_changed); return; }
+        if (t == 39 && c->waiting_for_random_access && sei_recovery_point(nal, n, 2)) c->recovery_seen = true;
+        if (t == 32) { int id = hevc_vps_id(nal, n); bool ch = false; blob_set(&c->vps[id < 0 ? 0 : id], nal, n, &ch); if (ch) c->params_changed = c->seq_changed = true; return; }
+        if (t == 33) { int id = hevc_sps_id(nal, n); bool ch = false; blob_set(&c->sps[id < 0 ? 0 : id], nal, n, &ch); if (ch) c->params_changed = c->seq_changed = true; return; }
+        if (t == 34) { int id = hevc_pps_id(nal, n); blob_set(&c->pps[id < 0 ? 0 : id], nal, n, &c->params_changed); return; }
         if (t == 35) return;
     }
     if (n > UINT32_MAX || w->len > SIZE_MAX - n - 4) { w->allocation_failed = true; return; }
@@ -475,13 +581,19 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
     }
     if (c->params_changed) {
         c->params_changed = false;
+        /* Only a picture parameter set changed (the sequence is the same): a new session loses its reference pictures, but
+           the stream goes on decoding -- VideoToolbox conceals until the next intra picture -- rather than being dropped
+           until an IDR that some streams send rarely or never. */
+        bool pps_only = !c->seq_changed && c->vt && !c->waiting_for_random_access;
+        c->seq_changed = false;
         /* Drain delayed pictures, but do not invalidate the decoder pre-emptively.
            session_make() first asks VideoToolbox whether the live session can accept
            the updated format description; dropping it here would discard reference
            frames even when the format change is compatible. */
         if (c->vt) video_drain(c);
-        if (!session_make(c) && (c->failed < 4 || c->trace))
-            tl_log_line("media: waiting for valid %s VPS/SPS/PPS", c->kind == K_AVC ? "H.264" : "HEVC");
+        if (!session_make(c)) {
+            if (c->failed < 4 || c->trace) tl_log_line("media: waiting for valid %s VPS/SPS/PPS", c->kind == K_AVC ? "H.264" : "HEVC");
+        } else if (pps_only) c->waiting_for_random_access = false;
     }
 
     bool submit = w.len && c->vt && c->fmt;
@@ -498,15 +610,22 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
        inter-predicted pictures; this also recovers cleanly after an incompatible
        SPS/PPS change. */
     if (submit && c->waiting_for_random_access) {
-        if (w.random_access || (flags & FLAG_KEY_FRAME)) {
+        /* An IDR/IRAP or MediaCodec's sync flag; else, for streams that never send one (intra refresh, open GOPs: common in
+           IPTV), an intra picture or a recovery-point SEI; and as a last resort after ~4 s of pictures, any picture --
+           VideoToolbox conceals the few broken frames that follow, where waiting on would leave the screen black for good. */
+        bool join = w.random_access || (flags & FLAG_KEY_FRAME) || w.intra_slice || c->recovery_seen || c->waiting_dropped >= 120;
+        if (join) {
             c->waiting_for_random_access = false;
             c->waiting_log_count = 0;
-            tl_log_line("media: %s random-access frame received (%s=%u, first-vcl=%u, first-nal=%u, flags=0x%x)",
+            tl_log_line("media: %s decoding starts (%s, first-vcl=%u, first-nal=%u, flags=0x%x, after %u dropped)",
                         c->kind == K_AVC ? "H.264" : "HEVC",
-                        w.random_access_type ? "random-access-NAL" : "MediaCodec-sync-flag",
-                        w.random_access_type ? w.random_access_type : FLAG_KEY_FRAME,
-                        w.first_vcl_type, w.first_type, flags);
+                        w.random_access ? "random-access NAL" : (flags & FLAG_KEY_FRAME) ? "sync flag" : w.intra_slice ? "intra slice"
+                            : c->recovery_seen ? "recovery-point SEI" : "no random-access picture in the stream",
+                        w.first_vcl_type, w.first_type, flags, c->waiting_dropped);
+            c->waiting_dropped = 0;
+            c->recovery_seen = false;
         } else {
+            c->waiting_dropped++;
             submit = false;
             if (c->trace || c->waiting_log_count++ < 4)
                 tl_log_line("media: waiting for %s random-access frame; dropping NAL type %u (flags=0x%x)",
@@ -800,6 +919,7 @@ NAT(M_create)
     codec *c = calloc(1, sizeof(*c));
     c->kind = k; c->trace = trace_on();
     c->waiting_for_random_access = (k == K_AVC || k == K_HEVC);
+    for (int i = 0; i < 256; i++) c->pps_sps[i] = -1;
     pthread_mutex_init(&c->lock, NULL);
     pthread_cond_init(&c->frame_cond, NULL);
     c->ready_tail = &c->ready; c->pcm_tail = &c->pcms;
@@ -1060,7 +1180,9 @@ NAT(M_destroy)
     drop_outputs(c);
     if (c->fmt) CFRelease(c->fmt);
     if (c->conv) AudioConverterDispose(c->conv);
-    free(c->vps.d); free(c->sps.d); free(c->pps.d);
+    for (int i = 0; i < 16; i++) free(c->vps[i].d);
+    for (int i = 0; i < 32; i++) free(c->sps[i].d);
+    for (int i = 0; i < 256; i++) free(c->pps[i].d);
     if (c->trace) tl_log_line("media: codec closed after %ld outputs, %ld failures", c->decoded, c->failed);
     pthread_cond_destroy(&c->frame_cond);
     pthread_mutex_destroy(&c->lock);

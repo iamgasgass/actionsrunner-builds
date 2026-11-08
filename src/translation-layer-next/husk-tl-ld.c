@@ -577,6 +577,16 @@ static void *lookup_for(tl_lib *L, const char *name, bool *weak_hit)
         s = lib_find(L->deps[i], name);
         if (s && (s->st_info & 0xf) != STT_GNU_IFUNC_) return sym_value(L->deps[i], s);
     }
+    /* The C++ unwinder. On a phone bionic's libc carries it, so the platform's libc++ and BoringSSL import _Unwind_* without
+     * naming a library that defines them; here it is libunwind.so (scripts/build_art_support.sh), loaded ahead of them by the
+     * Java runtime. Without this every throw or cleanup in those libraries reached an unresolved-import stub. */
+    if (name[0] == '_' && !strncmp(name, "_Unwind_", 8)) {
+        tl_lib *u = find_loaded("libunwind.so");
+        if (u && u != L && !u->arm32) {
+            s = lib_find(u, name);
+            if (s && (s->st_info & 0xf) != STT_GNU_IFUNC_) return sym_value(u, s);
+        }
+    }
     return tl_bionic_find(name);
 }
 

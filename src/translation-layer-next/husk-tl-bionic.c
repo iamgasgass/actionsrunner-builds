@@ -75,9 +75,16 @@ static const int k_sig_to_darwin[65] = {
     [30] = SIGINFO /* SIGPWR: Boehm's stop-the-world signal */, [31] = SIGSYS,
 };
 
+/* Darwin has no real-time signals. libcore's AsynchronousCloseMonitor wakes a thread blocked in read()/accept()/connect() on a
+ * descriptor another thread closes by sending it __SIGRTMIN + 2 (34) with an empty handler; with no Darwin signal for it the
+ * sigaction failed ("setting blocked thread signal handler failed") and such threads stayed blocked until a timeout -- a
+ * cancelled HTTP load (ExoPlayer changing channel) hung for the whole read timeout. SIGEMT is free on Darwin and carries it. */
+#define TL_SIG_BLOCKED_THREAD 34
+
 int tl_signal_to_darwin(int s)
 {
     if (s < 0 || s > 64) return -1;
+    if (s == TL_SIG_BLOCKED_THREAD) return SIGEMT;
     if (s >= 32) return -1;
     if (s == 0) return 0;
     return k_sig_to_darwin[s] ? k_sig_to_darwin[s] : -1;
@@ -85,6 +92,7 @@ int tl_signal_to_darwin(int s)
 
 int tl_signal_from_darwin(int d)
 {
+    if (d == SIGEMT) return TL_SIG_BLOCKED_THREAD;
     for (int i = 1; i < 32; i++) if (k_sig_to_darwin[i] == d) return i;
     return d;
 }

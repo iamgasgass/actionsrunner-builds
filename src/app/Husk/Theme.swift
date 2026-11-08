@@ -13,12 +13,12 @@ import UIKit
 /// The one thing that is not the system's is the chrome over the guest's picture (`huskPanel`,
 /// `GuestControl`), which is drawn flat and always dark: it floats over a picture of another phone.
 enum Theme {
-    /// Whether dark means pure black (Appearance.dark) rather than the deep navy of Appearance.intermediate.
+    /// Whether dark means pure black (Dark, and System at night) rather than the deep navy of Intermediate.
     ///
     /// Read by the dynamic colours below and by `Console`'s palette every time they resolve, so it is a plain static the
     /// providers can reach from any trait collection; `apply` keeps it in step with the setting and makes every window
     /// resolve its colours again when it changes.
-    nonisolated(unsafe) static var trueBlack: Bool = Appearance.current == .dark
+    nonisolated(unsafe) static var trueBlack: Bool = Appearance.current.isTrueBlack
 
     /// A colour that is `normal` everywhere except in the true-black appearance, where it is `black`.
     static func blackAware(_ normal: UIColor, black: UIColor) -> UIColor {
@@ -49,8 +49,8 @@ enum Theme {
     /// What a floating thing casts.
     static let shadow = Color.black.opacity(0.25)
 
-    /// The appearance the app is drawn in. System is the default: it follows the phone, light by day and
-    /// Intermediate by night. Light, Intermediate and Dark pin one.
+    /// The appearance the app is drawn in. System is the default: it follows the phone, Light by day and
+    /// Dark (true black) by night. Light, Intermediate and Dark pin one.
     ///
     /// Intermediate is Husk's deep-navy dark look; Dark is a true black one (black pages, near-black cards), which
     /// also lets OLED screens switch their pixels off.
@@ -78,8 +78,8 @@ enum Theme {
             }
         }
 
-        /// Pure black rather than navy.
-        var isTrueBlack: Bool { self == .dark }
+        /// Pure black rather than navy whenever the app is dark: Dark always, System at night. Only Intermediate is navy.
+        var isTrueBlack: Bool { self == .dark || self == .system }
 
         static var current: Appearance {
             Appearance(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system
@@ -194,7 +194,7 @@ struct AppearancePicker: View {
         case .system:
             ZStack {
                 mock(Self.light)
-                mock(Self.navy).mask(GeometryReader { g in
+                mock(Self.black).mask(GeometryReader { g in
                     Path { p in p.move(to: CGPoint(x: g.size.width, y: 0)); p.addLine(to: CGPoint(x: g.size.width, y: g.size.height)); p.addLine(to: CGPoint(x: 0, y: g.size.height)); p.closeSubpath() }
                 })
             }

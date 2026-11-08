@@ -240,8 +240,11 @@ enum JITBootstrap {
             return false
         }
         let attached = (flags & CS_DEBUGGED) != 0
-        HuskLog.log("jit", String(format: "csops status = 0x%08x, CS_DEBUGGED = %@",
-                                  flags, attached ? "set" : "clear"))
+        if flags != lastLoggedCSFlags {         /* logged when it changes: the JIT screens poll this */
+            lastLoggedCSFlags = flags
+            HuskLog.log("jit", String(format: "csops status = 0x%08x, CS_DEBUGGED = %@",
+                                      flags, attached ? "set" : "clear"))
+        }
         return attached
     }
 
@@ -259,9 +262,18 @@ enum JITBootstrap {
         return rc == 0 ? flags : nil
     }
 
+    /// Asked of iOS at most every 30 seconds. Under a host app (LiveContainer) whose Info.plist does not list the scheme, iOS
+    /// refuses the query and logs a line each time; the JIT screens poll this several times a second, which filled the log.
     static var isStikDebugInstalled: Bool {
-        URL(string: "stikjit://").map(UIApplication.shared.canOpenURL) ?? false
+        let now = Date()
+        if let last = stikCheckedAt, now.timeIntervalSince(last) < 30 { return stikInstalled }
+        stikInstalled = URL(string: "stikjit://").map(UIApplication.shared.canOpenURL) ?? false
+        stikCheckedAt = now
+        return stikInstalled
     }
+    nonisolated(unsafe) private static var stikInstalled = false
+    nonisolated(unsafe) private static var stikCheckedAt: Date?
+    nonisolated(unsafe) private static var lastLoggedCSFlags: UInt32?
 
     /// Whether TrollStore is on this device. It answers enable-jit on the `apple-magnifier` scheme, but that scheme is also the
     /// Magnifier app's, on every iPhone, so whether it opens says nothing. A Husk TrollStore installed knows from its marker file;

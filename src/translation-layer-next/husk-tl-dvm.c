@@ -2554,6 +2554,14 @@ bool tl_dvm_load_library(const char *name_or_path)
 bool tl_dvm_load_natives(const char *libdir)
 {
     tl_ld_add_search_dir(libdir);
+    /* The C++ unwinder libc++, libbase and BoringSSL import from libc on a phone: loaded first so their _Unwind_* resolve
+     * (the loader looks for them in libunwind.so). A runtime built without it still runs; exceptions in those libraries do not. */
+    static bool unwind_tried;
+    if (!unwind_tried) {
+        unwind_tried = true;
+        if (!tl_ld_find_lib("libunwind.so") && !tl_ld_load("libunwind.so"))
+            tl_log_line("dvm: no libunwind.so in the runtime (scripts/build_art_support.sh): C++ exceptions in libc++/libssl are not caught");
+    }
     bool ok = tl_jni_load_library("libjavacore.so");
     ok = tl_jni_load_library("libopenjdk.so") && ok;
     /* core-icu4j's natives (charset converters, ICU's Java side), which ART loads with the runtime */

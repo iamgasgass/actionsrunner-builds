@@ -145,7 +145,6 @@ public final class MediaCodec {
     private static final ArrayDeque<CodecCallbackTask> sCallbackTasks = new ArrayDeque<>();
     private static final class CodecCallbackTask implements Runnable {
         MediaCodec codec; int generation, type, index, size, flags; long pts, renderTime; MediaFormat format;
-        final BufferInfo info = new BufferInfo();
         public void run() {
             MediaCodec c = codec;
             try {
@@ -159,7 +158,11 @@ public final class MediaCodec {
                 if (type == CB_INPUT) { if (callback != null) callback.onInputBufferAvailable(c, index); }
                 else if (type == CB_FORMAT) { if (callback != null) callback.onOutputFormatChanged(c, format); }
                 else if (type == CB_OUTPUT) {
-                    if (callback != null) { info.set(0, size, pts, flags); callback.onOutputBufferAvailable(c, index, info); }
+                    /* a BufferInfo of its own for every callback, as Android's framework gives: Media3's asynchronous adapter keeps
+                       the object it is handed until the buffer is dequeued, so a shared one was overwritten by later outputs -- audio
+                       buffers then carried the next buffers' timestamps and sizes ("Unexpected audio track timestamp discontinuity"
+                       every few seconds, the AudioTrack reset each time) and video frames the wrong presentation times */
+                    if (callback != null) { BufferInfo bi = new BufferInfo(); bi.set(0, size, pts, flags); callback.onOutputBufferAvailable(c, index, bi); }
                 } else if (type == CB_RENDERED && rendered != null) rendered.onFrameRendered(c, pts, renderTime);
             } finally { recycle(); }
         }

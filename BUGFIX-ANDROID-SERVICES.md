@@ -41,7 +41,7 @@ e gli asset non sono stati compilati qui (nessun Xcode su Linux): vanno verifica
 
 - **Settings › Appearance** ha ora quattro scelte, con anteprime: System, Light, **Intermediate** (il vecchio tema scuro
   blu notte, identico) e **Dark** (nero reale: pagine `#000000`, card quasi nere — anche risparmio energetico su OLED).
-- System segue il telefono: Light di giorno, Intermediate di notte.
+- System segue il telefono: Light di giorno, Dark (nero reale) di notte.
 - Il passaggio tra Intermediate e Dark (stesso stile UIKit) ridisegna tutte le finestre con una dissolvenza.
 - File: `Theme.swift` (`Theme.Appearance`, `trueBlack`, `blackAware`, `AppearancePicker`), `ConsoleUI.swift` (palette),
   `SettingsTab.swift`, `OnboardingView.swift`.
@@ -52,3 +52,17 @@ e gli asset non sono stati compilati qui (nessun Xcode su Linux): vanno verifica
 Nuovo glifo dall'artwork fornito, nei colori dell'icona originale (sfumatura viola→blu, vetro, ombre) e in tutte le
 varianti: default, dark, tinted, clear light, clear dark, tinted light (`Assets.xcassets/*.appiconset` e le anteprime
 `Resources/icon-*.png`). Gli strumenti per rigenerarla sono in `tools/icon/`.
+
+## Correzioni dai log del 08/11 (GassPlayer, iPhone15,2, iOS 27.0.1, JIT-less)
+
+| Sintomo nel log | Causa | Correzione |
+|---|---|---|
+| `Audio sink error … Unexpected audio track timestamp discontinuity` ogni pochi secondi, AudioTrack resettato (audio a scatti) | `MediaCodec.Callback.onOutputBufferAvailable` riceveva **sempre lo stesso** `BufferInfo`, riciclato. L'adattatore asincrono di Media3 conserva l'oggetto finché il buffer viene prelevato, quindi i buffer audio in coda prendevano timestamp e dimensioni dei successivi (il decoder AAC era corretto: `delta=0` nel log) | Un `BufferInfo` nuovo per ogni callback, come fa Android (`android/media/MediaCodec.java`). Corregge anche i timestamp dei frame video |
+| `active H.264 decoder cannot accept updated format; recreating session (… PPS=4 / 95 / 5)` in loop, poi solo `waiting for H.264 random-access frame`: **video nero** | Il decoder teneva un solo SPS/PPS: lo stream manda 3 PPS e ogni nuovo PPS sembrava un cambio di formato → sessione ricreata e tutti i frame scartati in attesa di un IDR, all'infinito | SPS/PPS/VPS tenuti **per id** (come un decoder vero) e passati tutti a VideoToolbox; un cambio di solo PPS non scarta più i frame; per stream senza IDR (intra refresh, GOP aperti, comuni in IPTV) si parte da una slice I, da un SEI recovery point o, in ultima istanza, dopo ~4 s (`husk-tl-dvm-media.c`, test: `tests/translation-layer/run_media_params.sh`) |
+| `E/AsynchronousCloseMonitor: setting blocked thread signal handler failed`, poi `SocketTimeoutException: Read timed out` | Il segnale con cui libcore sveglia un thread bloccato su un socket chiuso (`__SIGRTMIN+2` = 34) non aveva equivalente su Darwin: una lettura HTTP annullata (cambio canale) restava bloccata fino al timeout | Il segnale 34 è portato su `SIGEMT`, libero su Darwin (`husk-tl-bionic.c`, `husk-tl-bionic-io.c`) |
+| `ld: libc++.so / libssl.so: unresolved import _Unwind_*` | Su un telefono l'unwinder C++ sta in libc; nel runtime di Husk non c'era: ogni eccezione C++ in libc++/BoringSSL finiva su uno stub | Il loader risolve `_Unwind_*` da `libunwind.so`, che il runtime Dalvik carica per primo; `scripts/build_java_runtime.sh` ora la costruisce dall'NDK (con `ANDROID_NDK`) e la mette nel runtime, così la modalità JIT-less la converte con le altre |
+| `canOpenURL: failed for URL: "stikjit://"` e `csops status` ripetuti decine di volte | Sotto LiveContainer iOS rifiuta la query (lo schema va dichiarato nell'Info.plist dell'app host, non di Husk) e le schermate JIT la ripetono più volte al secondo | Risultato in cache per 30 s; `csops` registrato solo quando cambia (`JITBootstrap.swift`) |
+
+Non è un bug di Husk: `None of the available extractors … NoDeclaredBrand` (vedi `BUGFIX-MEDIA3-AUTO-SOURCE.md`) e i messaggi SELinux/init nel `guest-serial.log`, che è il normale avvio della macchina Android emulata.
+
+**Aspetto:** System ora usa Light di giorno e **Dark (nero reale)** di notte; Intermediate resta disponibile come scelta esplicita.

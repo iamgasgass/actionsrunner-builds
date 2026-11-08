@@ -988,7 +988,7 @@ struct AppearanceSettings: View {
             } header: {
                 Text("Theme")
             } footer: {
-                Text("System follows the phone: Light by day, Intermediate by night. Intermediate is "
+                Text("System follows the phone: Light by day, Dark by night. Intermediate is "
                    + "Husk's deep navy; Dark is true black, which also saves power on OLED screens. "
                    + "The guest's own screen stays dark either way — it is a picture of another phone. "
                    + "Holiday decorations appear from December to early January.")
