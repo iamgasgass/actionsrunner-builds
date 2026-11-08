@@ -27,6 +27,7 @@ public class TextureView extends View {
     private final Paint mPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
     private Bitmap mShown;
     private Surface mCanvasSurface;
+    private int mHuskComposedFrames;
     public TextureView(android.content.Context c) { super(c); }
     public TextureView(android.content.Context c, android.util.AttributeSet a) { super(c, a); }
     public TextureView(android.content.Context c, android.util.AttributeSet a, int s) { super(c, a, s); }
@@ -96,6 +97,12 @@ public class TextureView extends View {
             Paint p = mLayerPaint != null ? mLayerPaint : mPaint;
             c.drawBitmap(f, null, new Rect(0, 0, getWidth(), getHeight()), p);
             c.restoreToCount(save);
+            int composed = ++mHuskComposedFrames;
+            if (composed <= 5 || composed % 120 == 0) {
+                android.util.Log.i("TextureView", "Husk TextureView composited video frame=" + composed
+                    + ", view=" + getWidth() + "x" + getHeight() + ", bitmap=" + f.getWidth() + "x" + f.getHeight()
+                    + ", attached=" + isAttachedToWindow() + ", available=" + isAvailable());
+            }
         }
     }
     public Bitmap getBitmap() { return getWidth() > 0 && getHeight() > 0 ? getBitmap(getWidth(), getHeight()) : null; }

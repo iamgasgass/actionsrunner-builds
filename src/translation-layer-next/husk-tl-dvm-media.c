@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +36,7 @@ void tl_log_line(const char *fmt, ...);
 typedef struct { uint32_t width, height, stride; int32_t format; uint32_t flags; } tl_abitmap_info;
 int tl_AndroidBitmap_getInfo(void *env, void *bitmap, tl_abitmap_info *info);
 int tl_AndroidBitmap_lockPixels(void *env, void *bitmap, void **addr);
+int tl_AndroidBitmap_unlockPixels(void *env, void *bitmap);
 
 #define NAT(fn) static bool fn(jobj *self, const jvalue *a, jvalue *ret)
 static jvalue I(int32_t v) { jvalue r; r.j = (uint32_t)v; return r; }
@@ -156,8 +158,19 @@ static void vt_out(void *ref, void *src, OSStatus st, VTDecodeInfoFlags fl,
     f->next = *p; *p = f; c->nsorted++;
     release_sorted(c, REORDER);
     c->decoded++;
+    long decoded_count = c->decoded;
+    int64_t frame_pts = f->pts;
+    size_t frame_w = (size_t)CVPixelBufferGetWidth(img), frame_h = (size_t)CVPixelBufferGetHeight(img);
+    OSType frame_format = CVPixelBufferGetPixelFormatType(img);
+    int sorted_count = c->nsorted, ready_count = 0;
+    for (frame *q = c->ready; q; q = q->next) ready_count++;
     pthread_cond_broadcast(&c->frame_cond);
     pthread_mutex_unlock(&c->lock);
+    if (c->trace || decoded_count <= 5) {
+        tl_log_line("media: VideoToolbox callback frame #%ld pts=%lld size=%zux%zu pixel-format=0x%08x sorted=%d ready=%d",
+                    decoded_count, (long long)frame_pts, frame_w, frame_h, (unsigned)frame_format,
+                    sorted_count, ready_count);
+    }
 }
 
 static void session_drop(codec *c)
@@ -857,6 +870,31 @@ NAT(M_waitForFrame)
     *ret = Z(ready);
     return true;
 }
+/* Return the integer clean-aperture rectangle shared by nextFrame() and renderFrame().
+   Bad/missing aperture metadata falls back to the full coded frame instead of
+   producing mismatched Bitmap dimensions or an out-of-bounds pointer. */
+static bool pixel_buffer_render_rect(CVPixelBufferRef pb, size_t *x0, size_t *y0, size_t *w, size_t *h)
+{
+    if (!pb || !x0 || !y0 || !w || !h) return false;
+    size_t sw = CVPixelBufferGetWidth(pb), sh = CVPixelBufferGetHeight(pb);
+    *x0 = *y0 = 0; *w = sw; *h = sh;
+    if (!sw || !sh) return false;
+    CGRect r = CVImageBufferGetCleanRect(pb);
+    if (CGRectIsNull(r) || CGRectIsInfinite(r) || !isfinite(r.origin.x) || !isfinite(r.origin.y)
+            || !isfinite(r.size.width) || !isfinite(r.size.height)
+            || r.size.width <= 0 || r.size.height <= 0 || r.origin.x >= (double)sw || r.origin.y >= (double)sh)
+        return false;
+    double ox = r.origin.x < 0 ? 0 : r.origin.x;
+    double oy = r.origin.y < 0 ? 0 : r.origin.y;
+    size_t ix = (size_t)ox, iy = (size_t)oy;
+    size_t iw = (size_t)r.size.width, ih = (size_t)r.size.height;
+    if (iw > sw - ix) iw = sw - ix;
+    if (ih > sh - iy) ih = sh - iy;
+    if (!iw || !ih) return false;
+    *x0 = ix; *y0 = iy; *w = iw; *h = ih;
+    return true;
+}
+
 /* nextFrame(h, info) -> a frame handle (0: none yet); info = { ptsUs, width, height } */
 NAT(M_nextFrame)
 {
@@ -869,10 +907,9 @@ NAT(M_nextFrame)
     if (!f) { *ret = J(0); return true; }
     int64_t *info = a[1].l ? (int64_t *)((jobj *)a[1].l)->arr.data : NULL;
     if (info) {
-        CGRect r = CVImageBufferGetCleanRect(f->pb);
-        int w = (int)r.size.width, h = (int)r.size.height;
-        if (w <= 0 || h <= 0) { w = (int)CVPixelBufferGetWidth(f->pb); h = (int)CVPixelBufferGetHeight(f->pb); }
-        info[0] = f->pts; info[1] = w; info[2] = h;
+        size_t x0, y0, w, h;
+        pixel_buffer_render_rect(f->pb, &x0, &y0, &w, &h);
+        info[0] = f->pts; info[1] = (int64_t)w; info[2] = (int64_t)h;
     }
     *ret = J((int64_t)(uintptr_t)f);
     return true;
@@ -910,28 +947,85 @@ NAT(M_nextPcm)
     *ret = L(arr);
     return true;
 }
-/* renderFrame(frame, bitmap): the frame's picture into a Bitmap of its size (RGBA) */
+/* renderFrame(frame, bitmap): copy VideoToolbox output to the runtime's RGBA_8888 Bitmap. */
 NAT(M_renderFrame)
 {
     (void)self;
+    static int render_calls, render_failures;
     frame *f = (frame *)(uintptr_t)a[0].j;
-    tl_abitmap_info bi; void *px = NULL;
-    if (!f || !a[1].l || tl_AndroidBitmap_getInfo(NULL, a[1].l, &bi) || tl_AndroidBitmap_lockPixels(NULL, a[1].l, &px) || !px) { *ret = Z(false); return true; }
-    CVPixelBufferLockBaseAddress(f->pb, kCVPixelBufferLock_ReadOnly);
-    uint8_t *base = CVPixelBufferGetBaseAddress(f->pb);
-    size_t stride = CVPixelBufferGetBytesPerRow(f->pb);
-    CGRect r = CVImageBufferGetCleanRect(f->pb);
-    size_t x0 = (size_t)r.origin.x, y0 = (size_t)r.origin.y;
-    size_t w = bi.width, h = bi.height;
-    if (w > CVPixelBufferGetWidth(f->pb) - x0) w = CVPixelBufferGetWidth(f->pb) - x0;
-    if (h > CVPixelBufferGetHeight(f->pb) - y0) h = CVPixelBufferGetHeight(f->pb) - y0;
-    bool ok = false;
-    if (base) {
-        vImage_Buffer s = { base + y0 * stride + x0 * 4, h, w, stride }, d = { px, h, w, bi.stride };
-        const uint8_t map[4] = { 2, 1, 0, 3 };                     /* BGRA -> RGBA */
-        ok = vImagePermuteChannels_ARGB8888(&s, &d, map, kvImageNoFlags) == kvImageNoError;
+    void *px = NULL;
+    tl_abitmap_info bi = {0};
+    bool bitmap_locked = false, pixel_locked = false, ok = false;
+    const char *stage = "validate frame/bitmap";
+    CVReturn lock_status = kCVReturnError, unlock_status = kCVReturnSuccess;
+    int bitmap_unlock_status = 0;
+    OSType pixel_format = 0;
+    size_t src_w = 0, src_h = 0, stride = 0, x0 = 0, y0 = 0, w = 0, h = 0;
+    uint8_t *base = NULL;
+    vImage_Error vstatus = kvImageNoError;
+
+    int call_no = __atomic_add_fetch(&render_calls, 1, __ATOMIC_RELAXED);
+    if (!f || !f->pb || !a[1].l) {
+        goto done;
     }
-    CVPixelBufferUnlockBaseAddress(f->pb, kCVPixelBufferLock_ReadOnly);
+    if (tl_AndroidBitmap_getInfo(NULL, a[1].l, &bi) != 0 || bi.format != 1 /* ANDROID_BITMAP_FORMAT_RGBA_8888 */
+            || bi.width == 0 || bi.height == 0 || bi.stride < (size_t)bi.width * 4u) {
+        goto done;
+    }
+    stage = "lock Android Bitmap pixels";
+    if (tl_AndroidBitmap_lockPixels(NULL, a[1].l, &px) != 0 || !px) {
+        goto done;
+    }
+    bitmap_locked = true;
+
+    stage = "lock CVPixelBuffer base address";
+    lock_status = CVPixelBufferLockBaseAddress(f->pb, kCVPixelBufferLock_ReadOnly);
+    if (lock_status != kCVReturnSuccess) goto done;
+    pixel_locked = true;
+    stage = "inspect CVPixelBuffer layout";
+    pixel_format = CVPixelBufferGetPixelFormatType(f->pb);
+    src_w = CVPixelBufferGetWidth(f->pb);
+    src_h = CVPixelBufferGetHeight(f->pb);
+    stride = CVPixelBufferGetBytesPerRow(f->pb);
+    base = CVPixelBufferGetBaseAddress(f->pb);
+
+    /* VideoToolbox was configured for 32BGRA. Refuse to reinterpret another
+       format as four-byte BGRA: planar 4:2:0 buffers can legitimately have a
+       NULL base address and would otherwise produce a silent black frame. */
+    if (pixel_format != kCVPixelFormatType_32BGRA || !base || src_w == 0 || src_h == 0
+            || stride < src_w * 4u) goto done;
+
+    stage = "validate clean aperture and dimensions";
+    pixel_buffer_render_rect(f->pb, &x0, &y0, &w, &h);
+    if (w != bi.width || h != bi.height || w == 0 || h == 0 || stride < (x0 + w) * 4u) goto done;
+
+    stage = "convert BGRA pixels to Android RGBA Bitmap";
+    vImage_Buffer src = { base + y0 * stride + x0 * 4u, h, w, stride };
+    vImage_Buffer dst = { px, h, w, bi.stride };
+    const uint8_t bgra_to_rgba[4] = { 2, 1, 0, 3 };
+    vstatus = vImagePermuteChannels_ARGB8888(&src, &dst, bgra_to_rgba, kvImageNoFlags);
+    ok = vstatus == kvImageNoError;
+
+done:
+    if (pixel_locked) unlock_status = CVPixelBufferUnlockBaseAddress(f->pb, kCVPixelBufferLock_ReadOnly);
+    if (bitmap_locked) bitmap_unlock_status = tl_AndroidBitmap_unlockPixels(NULL, a[1].l);
+    if (unlock_status != kCVReturnSuccess || bitmap_unlock_status != 0) ok = false;
+    if (!ok) {
+        int fail_no = __atomic_add_fetch(&render_failures, 1, __ATOMIC_RELAXED);
+        if (fail_no <= 12 || trace_on()) {
+            char fourcc[5] = { (char)(pixel_format >> 24), (char)(pixel_format >> 16),
+                               (char)(pixel_format >> 8), (char)pixel_format, 0 };
+            for (int i = 0; i < 4; i++) if (fourcc[i] < 32 || fourcc[i] > 126) fourcc[i] = '.';
+            tl_log_line("media: renderFrame failed #%d call=%d stage=%s cvLock=%d cvUnlock=%d bitmapUnlock=%d bitmap=%ux%u stride=%u bitmap-format=%d pixel-format=%s/0x%08x source=%zux%zu stride=%zu planes=%zu base=%s vImage=%ld",
+                        fail_no, call_no, stage, (int)lock_status, (int)unlock_status, bitmap_unlock_status,
+                        bi.width, bi.height, bi.stride, bi.format, fourcc, (unsigned)pixel_format, src_w, src_h, stride,
+                        f && f->pb ? CVPixelBufferGetPlaneCount(f->pb) : 0,
+                        base ? "yes" : "null", (long)vstatus);
+        }
+    } else if (call_no <= 3 || trace_on()) {
+        tl_log_line("media: renderFrame ok #%d pts=%lld size=%zux%zu pixel-format=BGRA",
+                    call_no, (long long)f->pts, w, h);
+    }
     *ret = Z(ok);
     return true;
 }

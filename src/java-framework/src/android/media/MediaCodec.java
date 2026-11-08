@@ -193,6 +193,7 @@ public final class MediaCodec {
     private Callback mCallback; private Handler mCallbackHandler;
     private OnFrameRenderedListener mRendered; private Handler mRenderedHandler;
     private Bitmap mFrame;
+    private int mCollectedFrames, mReleasedVideoFrames, mSuccessfulDraws, mDrawFailures;
     /* A decoded frame is opaque and covers the whole surface (stretched to it, or cropped to fill it): drawn as a copy (SRC, CoreGraphics'
        copy mode) rather than blended over what was there, and with no clearing first -- per frame, that was a fill and a blend of every
        pixel of the surface that changed nothing on screen. */
@@ -233,12 +234,52 @@ public final class MediaCodec {
         ByteBuffer d = b.duplicate(); d.position(0); d.limit(b.limit());
         byte[] r = new byte[d.remaining()]; d.get(r); return r;
     }
+    private static String surfaceDescription(Surface s) {
+        if (s == null) return "null";
+        StringBuilder b = new StringBuilder();
+        try {
+            b.append(s.getClass().getSimpleName()).append('@').append(System.identityHashCode(s))
+                .append(" valid=").append(s.isValid());
+            android.view.View v = s.huskView;
+            android.graphics.SurfaceTexture t = s.huskTexture;
+            if (v == null && t != null) v = t.huskView;
+            if (v != null) {
+                b.append(" view=").append(v.getClass().getSimpleName())
+                    .append('@').append(System.identityHashCode(v))
+                    .append(' ').append(v.getWidth()).append('x').append(v.getHeight())
+                    .append(" attached=").append(v.isAttachedToWindow());
+                if (v instanceof android.view.TextureView)
+                    b.append(" textureAvailable=").append(((android.view.TextureView) v).isAvailable());
+                if (v instanceof android.view.SurfaceView)
+                    b.append(" surfaceFrame=").append(((android.view.SurfaceView) v).getHolder().getSurfaceFrame());
+            }
+            if (t != null) {
+                int[] size = t.huskSize();
+                b.append(" texture=").append(System.identityHashCode(t)).append(" buffer=")
+                    .append(size[0]).append('x').append(size[1]).append(" released=").append(t.isReleased());
+            }
+        } catch (RuntimeException e) {
+            b.append(" inspectError=").append(e.getClass().getSimpleName()).append(':').append(e.getMessage());
+        }
+        return b.toString();
+    }
+    private void drawFailure(String reason, Out o, Surface s) {
+        int n = ++mDrawFailures;
+        if (n <= 12 || n % 120 == 0) {
+            android.util.Log.e("MediaCodec", "Husk video frame NOT rendered: codec=" + mName
+                + ", failure=" + n + ", reason=" + reason + ", ptsUs=" + (o != null ? o.pts : -1)
+                + ", frame=" + (o != null ? o.frame : 0) + ", output=" + mOutW + "x" + mOutH
+                + ", surface=" + surfaceDescription(s));
+        }
+    }
     public void configure(MediaFormat format, Surface surface, MediaCrypto crypto, int flags) {
         synchronized (mLock) {
             if (mState != ST_UNINITIALIZED) throw new IllegalStateException("configure in state " + mState);
             if ((flags & CONFIGURE_FLAG_ENCODE) != 0) throw new IllegalStateException("Husk has no encoders");
             MediaFormat f = format != null ? new MediaFormat(format) : new MediaFormat();
             mInputFormat = f; mSurface = surface;
+            mCollectedFrames = mReleasedVideoFrames = mSuccessfulDraws = mDrawFailures = 0;
+            mDrawn = mSkipped = 0; mDrawNs = 0;
             int w = f.getInteger(MediaFormat.KEY_WIDTH, 0), h = f.getInteger(MediaFormat.KEY_HEIGHT, 0);
             int rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE, 0), ch = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT, 0);
             if (!husk.MediaCodecNative.configure(mNative, w, h, rate, ch, bytes(f.getByteBuffer("csd-0")), bytes(f.getByteBuffer("csd-1")), bytes(f.getByteBuffer("csd-2"))))
@@ -293,6 +334,9 @@ public final class MediaCodec {
                 mOutputFormat = audioFormat(mRate, mChannels);
             }
             mState = ST_CONFIGURED;
+            android.util.Log.i("MediaCodec", "Husk configured: codec=" + mName + ", mime=" + mMime
+                + ", input=" + w + "x" + h + ", output=" + mOutW + "x" + mOutH
+                + ", surface=" + surfaceDescription(mSurface));
         }
     }
     public void configure(MediaFormat format, Surface surface, int flags, MediaDescrambler d) { configure(format, surface, (MediaCrypto) null, flags); }
@@ -473,6 +517,11 @@ public final class MediaCodec {
                    uses o.frame in releaseOutputBuffer(). */
                 o.size = 0;
                 if (w != mOutW || h != mOutH || mFormatPendingFirst) { mOutW = w; mOutH = h; mOutputFormat = videoFormat(w, h); changed = true; }
+                int frameNo = ++mCollectedFrames;
+                if (frameNo <= 5 || frameNo % 120 == 0) {
+                    android.util.Log.i("MediaCodec", "Husk decoded video frame=" + frameNo + ", codec=" + mName
+                        + ", ptsUs=" + o.pts + ", size=" + w + "x" + h + ", formatChanged=" + changed);
+                }
             } else {
                 byte[] p = husk.MediaCodecNative.nextPcm(mNative, mInfo);
                 if (p == null) { recycleOut(o); return collected; }
@@ -557,10 +606,16 @@ public final class MediaCodec {
         }
         if (o.data != null) { putBuffer(sOutputBufferPool, o.data); o.data = null; }
         if (o.frame != 0) {
+            int released = ++mReleasedVideoFrames;
+            if (released <= 5 || (TRACE && released % 120 == 0)) {
+                android.util.Log.i("MediaCodec", "Husk releaseOutputBuffer: count=" + released + ", codec=" + mName
+                    + ", index=" + index + ", render=" + render + ", ptsUs=" + o.pts
+                    + ", surface=" + surfaceDescription(mSurface));
+            }
             if (TRACE && !render) mSkipped++;
             long t0 = TRACE ? System.nanoTime() : 0;
             try { if (render) draw(o); } finally { husk.MediaCodecNative.freeFrame(o.frame); o.frame = 0; }
-            if (TRACE && render) mDrawNs += System.nanoTime() - t0;
+            if (TRACE && render) { mDrawNs += System.nanoTime() - t0; mDrawn++; }
         }
         recycleOut(o);
         if (pendingInput != null) postInput(gen, pendingInput);
@@ -570,39 +625,82 @@ public final class MediaCodec {
     private long mDrawNs;
     private void draw(Out o) {
         Surface s = mSurface;
-        if (TRACE && mDrawn++ % 30 == 0) android.util.Log.d("MediaCodec", mName + ": frame " + mDrawn + " at " + o.pts + " (" + mSkipped + " skipped, " + (mDrawn > 1 ? mDrawNs / 1000000 / (mDrawn - 1) : 0) + " ms a draw) " + mOutW + "x" + mOutH + " to " + (s != null ? s.huskView : null));
-        if (s == null || !s.isValid() || mOutW <= 0 || mOutH <= 0) return;
-        if (mFrame != null && (mFrame.getWidth() != mOutW || mFrame.getHeight() != mOutH)) {
+        if (s == null) { drawFailure("output Surface is null", o, s); return; }
+        boolean valid;
+        try { valid = s.isValid(); }
+        catch (RuntimeException e) { drawFailure("Surface.isValid threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s); return; }
+        if (!valid) { drawFailure("output Surface is invalid/released", o, s); return; }
+        final int outW = mOutW, outH = mOutH;
+        if (outW <= 0 || outH <= 0) { drawFailure("decoder output dimensions are not positive", o, s); return; }
+        if (mFrame != null && (mFrame.isRecycled() || mFrame.getWidth() != outW || mFrame.getHeight() != outH)) {
             try { mFrame.recycle(); } catch (RuntimeException ignored) {}
             mFrame = null;
         }
-        if (mFrame == null) mFrame = Bitmap.createBitmap(mOutW, mOutH, Bitmap.Config.ARGB_8888);
-        if (!husk.MediaCodecNative.renderFrame(o.frame, mFrame)) return;
+        try {
+            if (mFrame == null) mFrame = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888);
+        } catch (RuntimeException e) {
+            drawFailure("could not allocate output Bitmap: " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
+            return;
+        }
+        boolean copied;
+        try { copied = husk.MediaCodecNative.renderFrame(o.frame, mFrame); }
+        catch (RuntimeException e) {
+            drawFailure("native renderFrame threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
+            return;
+        }
+        if (!copied) { drawFailure("native renderFrame returned false (CVPixelBuffer -> Bitmap)", o, s); return; }
         Canvas c;
-        try { c = s.lockCanvas(null); } catch (RuntimeException e) { return; }
-        if (c == null) return;
+        try { c = s.lockCanvas(null); }
+        catch (RuntimeException e) {
+            drawFailure("Surface.lockCanvas threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
+            return;
+        }
+        if (c == null) { drawFailure("Surface.lockCanvas returned null (not available or no producer)", o, s); return; }
+        boolean posted = false;
         try {
             int cw = c.getWidth(), ch = c.getHeight();
-            Rect dst = mDst;
-            dst.set(0, 0, cw, ch);
-            if (mScaling == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) {
-                float sc = Math.max((float) cw / mOutW, (float) ch / mOutH);
-                int w = Math.round(mOutW * sc), h = Math.round(mOutH * sc);
-                // a pixel over on each side: rounding must never leave an edge of the last frame showing
-                dst.set((cw - w) / 2 - 1, (ch - h) / 2 - 1, (cw + w) / 2 + 1, (ch + h) / 2 + 1);
+            if (cw <= 0 || ch <= 0) {
+                drawFailure("Canvas has invalid dimensions " + cw + "x" + ch, o, s);
+            } else {
+                Rect dst = mDst;
+                dst.set(0, 0, cw, ch);
+                if (mScaling == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) {
+                    float sc = Math.max((float) cw / outW, (float) ch / outH);
+                    int w = Math.round(outW * sc), h = Math.round(outH * sc);
+                    // a pixel over on each side: rounding must never leave an edge of the last frame showing
+                    dst.set((cw - w) / 2 - 1, (ch - h) / 2 - 1, (cw + w) / 2 + 1, (ch + h) / 2 + 1);
+                }
+                c.drawBitmap(mFrame, null, dst, mPaint);
+                posted = true;
             }
-            c.drawBitmap(mFrame, null, dst, mPaint);
-        } finally { s.unlockCanvasAndPost(c); }
+        } catch (RuntimeException e) {
+            drawFailure("Canvas.drawBitmap threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
+        } finally {
+            try { s.unlockCanvasAndPost(c); }
+            catch (RuntimeException e) { posted = false; drawFailure("Surface.unlockCanvasAndPost threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s); }
+        }
+        if (!posted) return;
+        int shown = ++mSuccessfulDraws;
+        if (shown <= 5 || shown % 120 == 0) {
+            android.util.Log.i("MediaCodec", "Husk video frame PRESENTED: count=" + shown + ", codec=" + mName
+                + ", ptsUs=" + o.pts + ", bitmap=" + outW + "x" + outH + ", surface=" + surfaceDescription(s));
+        }
         if (mRendered != null) {
-            Handler h = mRenderedHandler;
-            if (h == null) mRendered.onFrameRendered(this, o.pts, System.nanoTime());
-            else {
-                CodecCallbackTask task = takeCallbackTask();
-                task.codec = this; task.generation = mGeneration; task.type = CB_RENDERED;
-                task.pts = o.pts; task.renderTime = System.nanoTime();
-                if (!h.post(task)) task.recycle();
+            try {
+                Handler h = mRenderedHandler;
+                if (h == null) mRendered.onFrameRendered(this, o.pts, System.nanoTime());
+                else {
+                    CodecCallbackTask task = takeCallbackTask();
+                    task.codec = this; task.generation = mGeneration; task.type = CB_RENDERED;
+                    task.pts = o.pts; task.renderTime = System.nanoTime();
+                    if (!h.post(task)) task.recycle();
+                }
+            } catch (RuntimeException e) {
+                android.util.Log.w("MediaCodec", "Husk frame-rendered listener failed: " + e.getClass().getSimpleName() + ": " + e.getMessage());
             }
         }
+        if (TRACE && shown % 30 == 0) android.util.Log.d("MediaCodec", mName + ": presented=" + shown
+            + ", skipped=" + mSkipped + ", avgDrawMs=" + (mDrawn > 0 ? mDrawNs / 1000000 / mDrawn : 0));
     }
     private void dropOutputs() {
         java.util.ArrayList<Out> drop = new java.util.ArrayList<>();
@@ -675,8 +773,16 @@ public final class MediaCodec {
     public void setCallback(Callback cb) { setCallback(cb, null); }
     public void setOnFrameRenderedListener(OnFrameRenderedListener l, Handler h) { mRendered = l; mRenderedHandler = h; }
     public void setOnFirstTunnelFrameReadyListener(Handler h, OnFirstTunnelFrameReadyListener l) {}
-    public void setOutputSurface(Surface s) { if (!mVideo) throw new IllegalStateException("not a video codec"); mSurface = s; }
-    public void detachOutputSurface() { mSurface = null; }
+    public void setOutputSurface(Surface s) {
+        if (!mVideo) throw new IllegalStateException("not a video codec");
+        Surface old = mSurface; mSurface = s;
+        android.util.Log.i("MediaCodec", "Husk setOutputSurface: codec=" + mName + ", old="
+            + surfaceDescription(old) + ", new=" + surfaceDescription(s));
+    }
+    public void detachOutputSurface() {
+        android.util.Log.i("MediaCodec", "Husk detachOutputSurface: codec=" + mName + ", old=" + surfaceDescription(mSurface));
+        mSurface = null;
+    }
     public void setVideoScalingMode(int mode) { mScaling = mode; }
     public void setParameters(android.os.Bundle b) {}
     public void setAudioPresentation(AudioPresentation p) {}

@@ -17,6 +17,7 @@ public class SurfaceView extends View {
     private Bitmap mFront, mBack;
     private Canvas mBackCanvas;
     private boolean mCreated, mLocked, mZOnTop, mFixed, mHasFrame;
+    private int mHuskComposedFrames, mHuskSoftwareSuppressed;
     private int mFixedW, mFixedH, mFormat = PixelFormat.OPAQUE, mSurfaceW, mSurfaceH;
     private final Paint mClear = new Paint(), mBlit = new Paint(Paint.FILTER_BITMAP_FLAG);
     private final Rect mDrawRect = new Rect();
@@ -162,7 +163,19 @@ public class SurfaceView extends View {
             if (mHasFrame && mFront != null && !mGL) {
                 if (mFront.getWidth() == getWidth() && mFront.getHeight() == getHeight()) c.drawBitmap(mFront, 0, 0, mBlit);
                 else { mDrawRect.set(0, 0, getWidth(), getHeight()); c.drawBitmap(mFront, null, mDrawRect, mBlit); }
+                int composed = ++mHuskComposedFrames;
+                if (composed <= 5 || composed % 120 == 0) {
+                    android.util.Log.i("SurfaceView", "Husk SurfaceView composited video frame=" + composed
+                        + ", view=" + getWidth() + "x" + getHeight() + ", bitmap=" + mFront.getWidth() + "x" + mFront.getHeight()
+                        + ", attached=" + isAttachedToWindow() + ", surface=" + mCreated);
+                }
                 return;
+            }
+            if (mHasFrame && mFront != null && mGL) {
+                int suppressed = ++mHuskSoftwareSuppressed;
+                if (suppressed <= 5 || suppressed % 120 == 0)
+                    android.util.Log.w("SurfaceView", "Husk software video frame not composited because SurfaceView is in GL mode; frame=" + suppressed
+                        + ", view=" + getWidth() + "x" + getHeight() + ", bitmap=" + mFront.getWidth() + "x" + mFront.getHeight());
             }
         }
         // a GL surface (or none drawn yet): let what is under the window show through
