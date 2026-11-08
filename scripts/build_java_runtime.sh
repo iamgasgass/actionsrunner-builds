@@ -22,6 +22,8 @@ for l in libjavacrypto libcrypto libssl; do copy com.android.conscrypt/lib64/$l.
 # the JIT-less pass converts it with the rest and the Dalvik runtime loads it first (husk-tl-dvm.c)
 # Optional: a runtime without it still works (the loader logs that C++ exceptions there are not caught), so a missing or
 # unusable NDK is a warning, never a failed build.
+# GitHub's runners carry an NDK and name it ANDROID_NDK_LATEST_HOME / ANDROID_NDK_HOME
+export ANDROID_NDK="${ANDROID_NDK:-${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}}"
 ART_SUPPORT="$(mktemp -d)"
 if [ -n "${ANDROID_NDK:-}" ] && bash "$R/scripts/build_art_support.sh" "$ART_SUPPORT" && [ -f "$ART_SUPPORT/libunwind.so" ]; then
     cp "$ART_SUPPORT/libunwind.so" "$OUT/com.android.art/lib64/libunwind.so"

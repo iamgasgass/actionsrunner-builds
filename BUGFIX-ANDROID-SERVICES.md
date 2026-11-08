@@ -66,3 +66,12 @@ varianti: default, dark, tinted, clear light, clear dark, tinted light (`Assets.
 Non è un bug di Husk: `None of the available extractors … NoDeclaredBrand` (vedi `BUGFIX-MEDIA3-AUTO-SOURCE.md`) e i messaggi SELinux/init nel `guest-serial.log`, che è il normale avvio della macchina Android emulata.
 
 **Aspetto:** System ora usa Light di giorno e **Dark (nero reale)** di notte; Intermediate resta disponibile come scelta esplicita.
+
+## Correzioni dal test delle 22:19 (video capovolto)
+
+Nel log l'audio non ha più discontinuità e il video parte su tutti i canali, compreso quello con più PPS (`decoding starts (intra slice…)`).
+
+| Sintomo | Causa | Correzione |
+|---|---|---|
+| Nel video registrato, su "Rai 1 SD" (TextureView) un fotogramma sì e uno no è **capovolto** | Ogni bitmap ha un solo `CGContext` e un `Canvas` è un livello di stato sopra di esso, con il ribaltamento dell'asse y. Il doppio buffer di `SurfaceTexture` creava un nuovo `Canvas` sul buffer a ogni scambio senza liberare il precedente: sul secondo canvas il ribaltamento era applicato due volte, quindi disegnava capovolto. Il finalizer del canvas vecchio poi toglieva lo stato a quello nuovo, da un altro thread | Lato nativo (`husk-tl-dvm-graphics.c`): il canvas più recente possiede il contesto, il precedente viene "srotolato" e non lo tocca più (anche se il GC lo libera dopo); un canvas che sopravvive al proprio bitmap non usa più un contesto già liberato. Questo vale per tutte le app che fanno `new Canvas(bitmap)` a ogni disegno. Lato Java (`SurfaceTexture`): ogni buffer tiene lo stesso canvas per tutta la vita |
+| `no libunwind.so in the runtime` | La CI non aveva `ANDROID_NDK` | `build_java_runtime.sh` usa anche `ANDROID_NDK_LATEST_HOME` / `ANDROID_NDK_HOME` dei runner GitHub; la chiave di cache del runtime include gli script che lo costruiscono, così viene rifatto |

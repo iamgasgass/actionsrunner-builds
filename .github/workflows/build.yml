@@ -182,7 +182,7 @@ jobs:
           # cache keys: the unpacked image (by image and extractor), the runtime (by those and everything that goes into it)
           ex="$(shasum -a 256 scripts/build_prebuilt_from_image.sh | cut -c1-16)"
           rt="$( (find src/java-framework tools/compat -type f -print0 | sort -z | xargs -0 shasum -a 256; \
-                  shasum -a 256 scripts/build_java_runtime.sh scripts/copy_aosp_bundle.sh tools/strip_framework_res.py \
+                  shasum -a 256 scripts/build_java_runtime.sh scripts/build_art_support.sh src/art-support/libartpalette-system.c scripts/copy_aosp_bundle.sh tools/strip_framework_res.py \
                   src/translation-layer-next/husk-tl-dvm-gles20.c) | shasum -a 256 | cut -c1-16)"
           img="$(printf '%s' "$url" | shasum -a 256 | cut -c1-16)"
           echo "extract_key=image-extract-${CACHE_VERSION}-$img-$ex" >> "$GITHUB_OUTPUT"

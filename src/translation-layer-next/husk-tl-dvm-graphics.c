@@ -51,7 +51,17 @@ typedef struct gbitmap {
     size_t stride;
     uint8_t *px;
     CGContextRef ctx;               /* drawn into by a Canvas; also how its pixels become a CGImage */
+    struct gcanvas *owner;          /* the Canvas whose state the context holds now (see cv_new) */
 } gbitmap;
+
+typedef struct gcanvas {
+    gbitmap *bm;
+    CGContextRef c;
+    CGAffineTransform base;         /* the flip: Android's identity */
+    int depth;                      /* Android's save count - 1 */
+    uint64_t layer_bits[4];         /* which save levels are layers (end a transparency layer on restore) */
+    bool orphan;                    /* another Canvas was made on the bitmap since: this one no longer owns the context's state */
+} gcanvas;
 
 static CGColorSpaceRef rgb(void)
 {
@@ -105,6 +115,8 @@ int32_t tl_AndroidBitmap_getDataSpace(void *env, void *bitmap) { (void)env; (voi
 static void bm_free(gbitmap *b)
 {
     if (!b) return;
+    /* a canvas outliving its bitmap (recycle() before the canvas is collected) must not restore state on a released context */
+    if (b->owner) { b->owner->orphan = true; b->owner->bm = NULL; b->owner = NULL; }
     CGContextRelease(b->ctx);
     free(b->px);
     free(b);
@@ -384,18 +396,31 @@ static void shader_fill(CGContextRef c, const gshader *s, float alpha)
 
 /* ================================================================== canvases */
 
-typedef struct gcanvas {
-    gbitmap *bm;
-    CGContextRef c;
-    CGAffineTransform base;         /* the flip: Android's identity */
-    int depth;                      /* Android's save count - 1 */
-    uint64_t layer_bits[4];         /* which save levels are layers (end a transparency layer on restore) */
-} gcanvas;
 
+/* Undo everything a canvas pushed on its bitmap's context, down to the state the context had before the canvas was made. */
+static void cv_unwind(gcanvas *v)
+{
+    while (v->depth > 0) {
+        if (v->depth <= 256 && (v->layer_bits[(v->depth - 1) >> 6] & (1ull << ((v->depth - 1) & 63)))) CGContextEndTransparencyLayer(v->c);
+        CGContextRestoreGState(v->c);
+        v->depth--;
+    }
+    CGContextRestoreGState(v->c);
+}
+
+/*
+ * One CGContext per bitmap, so a canvas is a level of state on it. Android code routinely makes a new Canvas on a bitmap while an
+ * older one is still alive (`new Canvas(bmp)` per draw, left to the GC; SurfaceTexture's double buffer). Pushing a second level
+ * on top of the first applied the y-flip twice -- that canvas drew upside down -- and the old canvas's finalizer later popped
+ * the new one's state from another thread. Video on a TextureView came out upside down every other frame. Now the newest canvas
+ * owns the context: making one first unwinds the previous owner, which becomes an orphan and never touches the stack again.
+ */
 static gcanvas *cv_new(gbitmap *b)
 {
     gcanvas *v = calloc(1, sizeof(*v));
     v->bm = b; v->c = b->ctx;
+    if (b->owner && !b->owner->orphan) { cv_unwind(b->owner); b->owner->orphan = true; b->owner->depth = 0; }
+    b->owner = v;
     CGContextSaveGState(v->c);              /* the canvas's own level, undone when it is freed */
     CGContextTranslateCTM(v->c, 0, b->h);
     CGContextScaleCTM(v->c, 1, -1);
@@ -406,12 +431,10 @@ static gcanvas *cv_new(gbitmap *b)
 static void cv_free(gcanvas *v)
 {
     if (!v) return;
-    while (v->depth > 0) {
-        if (v->layer_bits[(v->depth - 1) >> 6] & (1ull << ((v->depth - 1) & 63))) CGContextEndTransparencyLayer(v->c);
-        CGContextRestoreGState(v->c);
-        v->depth--;
+    if (!v->orphan) {
+        cv_unwind(v);
+        if (v->bm && v->bm->owner == v) v->bm->owner = NULL;
     }
-    CGContextRestoreGState(v->c);
     free(v);
 }
 static CGBlendMode blend_of(int mode);

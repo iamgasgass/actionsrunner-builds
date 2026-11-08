@@ -13,7 +13,7 @@ public class SurfaceTexture {
     private final Object mLock = new Object();
     private int mW, mH;
     private Bitmap mFront, mBack;
-    private Canvas mBackCanvas;
+    private Canvas mBackCanvas, mFrontCanvas;   /* one canvas per buffer for its whole life: a second live one on a bitmap drew upside down */
     private boolean mLocked, mReleased;
     private long mTimestamp;
     private OnFrameAvailableListener mListener;
@@ -41,7 +41,7 @@ public class SurfaceTexture {
                 if (mBackCanvas != null) mBackCanvas.huskRelease();
                 mBack = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                 mBackCanvas = new Canvas(mBack);
-            }
+            } else if (mBackCanvas == null) mBackCanvas = new Canvas(mBack);
             mLocked = true;
             mBackCanvas.save();
             if (dirty != null) mBackCanvas.clipRect(dirty);
@@ -52,9 +52,13 @@ public class SurfaceTexture {
         synchronized (mLock) {
             if (!mLocked) return;
             mBackCanvas.restore();
+            /* the buffers swap with their canvases, so each bitmap keeps the one canvas made for it */
             Bitmap f = mFront; mFront = mBack; mBack = f;
-            if (mBack != null && (mBack.getWidth() != mFront.getWidth() || mBack.getHeight() != mFront.getHeight())) mBack = null;
-            mBackCanvas = mBack != null ? new Canvas(mBack) : null;
+            Canvas fc = mFrontCanvas; mFrontCanvas = mBackCanvas; mBackCanvas = fc;
+            if (mBack != null && (mBack.getWidth() != mFront.getWidth() || mBack.getHeight() != mFront.getHeight())) {
+                if (mBackCanvas != null) mBackCanvas.huskRelease();
+                mBack = null; mBackCanvas = null;
+            }
             mLocked = false; mTimestamp = System.nanoTime();
             mLock.notifyAll();
         }
@@ -89,6 +93,15 @@ public class SurfaceTexture {
     public long getTimestamp() { return mTimestamp; }
     public int getDataSpace() { return 0; }
     public boolean isSingleBuffered() { return false; }
-    public void release() { synchronized (mLock) { mReleased = true; mLock.notifyAll(); } }
+    public void release() {
+        synchronized (mLock) {
+            mReleased = true;
+            if (!mLocked) {
+                if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
+                if (mFrontCanvas != null) { mFrontCanvas.huskRelease(); mFrontCanvas = null; }
+            }
+            mLock.notifyAll();
+        }
+    }
     public boolean isReleased() { return mReleased; }
 }
