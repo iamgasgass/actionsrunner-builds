@@ -35,9 +35,20 @@ static uint32_t hash_str(const char *s) { uint32_t h = 2166136261u; while (*s) {
 
 /* --------------------------------------------------------------- objects */
 
+/* Allocation census. The Dalvik runtime has no collector yet, so everything made stays: counting what is made, by class, is how a
+ * log shows which code a steady loss of memory (and the jetsam kill at the end of it) comes from. */
+static _Atomic uint64_t g_census_count, g_census_bytes;
+static void census(tl_jclass *cls, size_t bytes)
+{
+    atomic_fetch_add_explicit(&g_census_count, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&g_census_bytes, bytes, memory_order_relaxed);
+    if (cls) { __atomic_add_fetch(&cls->census_count, 1, __ATOMIC_RELAXED); __atomic_add_fetch(&cls->census_bytes, bytes, __ATOMIC_RELAXED); }
+}
+
 static jobj *obj_alloc(uint8_t kind, tl_jclass *cls)
 {
     jobj *o = calloc(1, sizeof(*o));
+    census(cls, sizeof(*o));
     o->refs = 1;
     o->kind = kind;
     o->cls = cls;
@@ -153,7 +164,7 @@ jobj *tl_jni_new_object(tl_jclass *cls)
     jobj *o = obj_alloc(TL_K_OBJECT, cls);
     if (tl_dvm && cls && cls->dvm) {
         uint32_t n = tl_dvm->instance_slots(cls);
-        if (n) { o->fields = calloc(n, sizeof(jvalue)); o->nfields = n; }
+        if (n) { o->fields = calloc(n, sizeof(jvalue)); o->nfields = n; census(NULL, n * sizeof(jvalue)); if (cls) __atomic_add_fetch(&cls->census_bytes, n * sizeof(jvalue), __ATOMIC_RELAXED); }
     }
     return o;
 }
@@ -179,6 +190,7 @@ jobj *tl_jni_new_prim_array(char etype, uint32_t len)
     jobj *o = obj_alloc(TL_K_PRIM_ARRAY, tl_jni_class(cn));
     o->arr.esz = esz_of(etype); o->arr.etype = etype; o->arr.len = len;
     o->arr.data = calloc(len ? len : 1, o->arr.esz);
+    { size_t by = (size_t)(len ? len : 1) * o->arr.esz; census(NULL, by); if (o->cls) __atomic_add_fetch(&o->cls->census_bytes, by, __ATOMIC_RELAXED); }
     return o;
 }
 
@@ -189,6 +201,7 @@ jobj *tl_jni_new_obj_array(tl_jclass *elem, uint32_t len)
     jobj *o = obj_alloc(TL_K_OBJ_ARRAY, tl_jni_class(cn));
     o->oarr.len = len;
     o->oarr.v = calloc(len ? len : 1, sizeof(jobj *));
+    { size_t by = (size_t)(len ? len : 1) * sizeof(jobj *); census(NULL, by); if (o->cls) __atomic_add_fetch(&o->cls->census_bytes, by, __ATOMIC_RELAXED); }
     return o;
 }
 
@@ -1351,6 +1364,37 @@ void tl_jni_each_declared(void (*fn)(tl_jclass *jc))
     pthread_mutex_unlock(&g_lock);
     for (int i = 0; i < n; i++) fn(list[i]);
     free(list);
+}
+
+bool tl_jni_runtime_up(void) { return tl_dvm != NULL; }
+
+/* The census: everything made so far, and the classes that made the most bytes since the last report (deltas, so a leak's source
+ * stands out from what was allocated once at start-up). */
+void tl_jni_census(int top)
+{
+    static pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
+    static uint64_t last_total;
+    if (top > 16) top = 16;
+    struct { tl_jclass *c; uint64_t d; } best[16] = {{0}};
+    pthread_mutex_lock(&lk);
+    pthread_mutex_lock(&g_lock);
+    for (int b = 0; b < NBUCKETS; b++) for (tl_jclass *c = g_classes[b]; c; c = c->next) {
+        uint64_t now = __atomic_load_n(&c->census_bytes, __ATOMIC_RELAXED), d = now - c->census_reported;
+        c->census_reported = now;
+        for (int i = 0; i < top; i++) if (d > best[i].d) {
+            memmove(&best[i + 1], &best[i], (size_t)(top - 1 - i) * sizeof(best[0]));
+            best[i].c = c; best[i].d = d; break;
+        }
+    }
+    pthread_mutex_unlock(&g_lock);
+    uint64_t total = atomic_load(&g_census_bytes), n = atomic_load(&g_census_count);
+    char line[1600]; int at = snprintf(line, sizeof(line), "heap: %llu objects, %llu MiB made in all (+%llu MiB since the last report); most:",
+                                       (unsigned long long)n, (unsigned long long)(total >> 20), (unsigned long long)((total - last_total) >> 20));
+    last_total = total;
+    for (int i = 0; i < top && best[i].c && at < (int)sizeof(line) - 80; i++)
+        at += snprintf(line + at, sizeof(line) - (size_t)at, " %s %llu KiB%s", best[i].c->name, (unsigned long long)(best[i].d >> 10), i + 1 < top && best[i + 1].c ? "," : "");
+    pthread_mutex_unlock(&lk);
+    tl_log_line("%s", line);
 }
 
 void tl_jni_forget_if(bool (*drop)(tl_jclass *jc, void *user), void *user)

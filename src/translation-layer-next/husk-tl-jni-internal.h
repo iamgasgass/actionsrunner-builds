@@ -46,6 +46,8 @@ struct tl_jclass {
     tl_jclass *next;
     void *dvm;                         /* the interpreter's class (husk-tl-dvm.c), or NULL */
     _Atomic bool linking;              /* declared, its bytecode still being linked (by the thread holding the link lock) */
+    uint64_t census_count, census_bytes;    /* objects of this class made so far, and their bytes (tl_jni_census) */
+    uint64_t census_reported;               /* census_bytes at the last report */
 };
 
 /* A class another thread is still linking: wait for it (returns at once on the linking thread itself). */
@@ -79,6 +81,7 @@ tl_jfield *tl_jni_field(tl_jclass *cls, const char *name, const char *sig, bool 
 jvalue *tl_jni_field_slot(jobj *o, tl_jfield *f);
 tl_jclass *tl_jni_find_declared(const char *name);   /* already declared, or NULL */
 void tl_jni_each_declared(void (*fn)(tl_jclass *jc));
+void tl_jni_census(int top);              /* logs what the Java runtime has allocated, by class (husk-tl-jni.c) */
 /* Unlink classes for which drop returns true, so a later lookup can declare them from a new DEX. */
 void tl_jni_forget_if(bool (*drop)(tl_jclass *jc, void *user), void *user);
 int32_t tl_jni_register_one(jobj *cls, const char *name, const char *sig, void *fn);

@@ -172,6 +172,15 @@ public class HostTest {
         h.post(() -> Looper.myQueue().addIdleHandler(() -> { idle.incrementAndGet(); return false; }));
         sleep(200);
         check(idle.get() == 1, "IdleHandler runs once and is dropped (ran " + idle.get() + ")");
+        {   // HandlerThread: Android's semantics (an unstarted one must not hang getLooper/quit)
+            android.os.HandlerThread ht = new android.os.HandlerThread("t");
+            check(ht.getLooper() == null && !ht.quit(), "unstarted HandlerThread: getLooper null, quit false, no hang");
+            ht.start();
+            check(ht.getLooper() != null && ht.getThreadHandler() != null && ht.getThreadHandler() == ht.getThreadHandler(), "started HandlerThread gives its looper and one handler");
+            check(ht.quitSafely(), "HandlerThread quits");
+            try { ht.join(2000); } catch (InterruptedException ie) {}
+            check(!ht.isAlive(), "HandlerThread ended after quit");
+        }
 
         // --- DownloadManager over a local HTTP server
         com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);

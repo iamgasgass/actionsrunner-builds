@@ -178,6 +178,9 @@ static void *heartbeat_thread(void *arg)
         tl_log_line("unity: alive: %lu frames (+%lu)", f, f - last);
 #endif
         last = f;
+        /* the Java runtime keeps everything it makes (no collector yet): every ~30 s, what was made and by which classes */
+        { extern void tl_jni_census(int top); extern bool tl_jni_runtime_up(void);
+          if (tick >= 40 && tick % 10 == 0 && tl_jni_runtime_up()) tl_jni_census(8); }
         { extern volatile struct { uint64_t count, x21, impl, mask; } tl_va_clobber;
           static uint64_t seen;
           if (tl_va_clobber.count != seen) {

@@ -783,7 +783,14 @@ NAT(Thread_nativeCreate)
         atomic_store(&stack, sz / 4 < (1u << 20) ? (1u << 20) : sz / 4);
     }
     pthread_attr_destroy(&at);
-    if (rc != 0) { free(s); return dvm_throw("java/lang/OutOfMemoryError", "pthread_create"); }
+    if (rc != 0) {
+        /* not alive after all: it was marked alive above, and left so a never-started thread looked alive for ever (getLooper,
+           join and isAlive then waited on it, and Media3's playback looper provider was left half made) */
+        if (pf) dvm_slots(s->thread)[pf->slot].j = 0;
+        tl_log_line("dvm: no thread could be made (%d): OutOfMemoryError", rc);
+        free(s);
+        return dvm_throw("java/lang/OutOfMemoryError", "pthread_create");
+    }
     return true;
 }
 
