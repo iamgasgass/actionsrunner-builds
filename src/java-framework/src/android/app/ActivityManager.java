@@ -176,7 +176,7 @@ public class ActivityManager {
     }
     public java.util.List<RunningTaskInfo> getRunningTasks(int max) { return new java.util.ArrayList<>(); }
     public java.util.List<AppTask> getAppTasks() { java.util.ArrayList<AppTask> l = new java.util.ArrayList<>(); l.add(new AppTask()); return l; }
-    public java.util.List<RunningServiceInfo> getRunningServices(int max) { return new java.util.ArrayList<>(); }
+    public java.util.List<RunningServiceInfo> getRunningServices(int max) { return husk.Services.running(max); }   /* the app's own: the only ones in this process */
     public android.os.Debug.MemoryInfo[] getProcessMemoryInfo(int[] pids) { android.os.Debug.MemoryInfo[] r = new android.os.Debug.MemoryInfo[pids.length]; for (int i = 0; i < r.length; i++) r[i] = new android.os.Debug.MemoryInfo(); return r; }
     public int getLauncherLargeIconSize() { return (int) (48 * husk.Native.density()); }
     public int getLauncherLargeIconDensity() { return (int) (husk.Native.density() * 160); }

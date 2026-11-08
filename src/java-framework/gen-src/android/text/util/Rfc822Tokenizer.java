@@ -5,8 +5,35 @@ package android.text.util;
 public class Rfc822Tokenizer implements android.widget.MultiAutoCompleteTextView.Tokenizer {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
     public Rfc822Tokenizer() {}
-    public static void tokenize(java.lang.CharSequence p0, java.util.Collection p1) {}
-    public static android.text.util.Rfc822Token[] tokenize(java.lang.CharSequence p0) { return null; }
+    public static void tokenize(java.lang.CharSequence text, java.util.Collection out) {
+        /* addresses split on commas and semicolons outside quotes, <> and (); each one "Name <address> (comment)" */
+        if (text == null) return;
+        String s = text.toString();
+        StringBuilder cur = new StringBuilder();
+        int depthA = 0, depthP = 0; boolean q = false;
+        for (int i = 0; i <= s.length(); i++) {
+            char c = i < s.length() ? s.charAt(i) : ',';
+            if (c == '"' && depthP == 0) q = !q;
+            else if (!q && c == '<') depthA++;
+            else if (!q && c == '>' && depthA > 0) depthA--;
+            else if (!q && c == '(') depthP++;
+            else if (!q && c == ')' && depthP > 0) depthP--;
+            if ((c == ',' || c == ';') && !q && depthA == 0 && depthP == 0) { one(cur.toString(), out); cur.setLength(0); continue; }
+            cur.append(c);
+        }
+    }
+    private static void one(String part, java.util.Collection out) {
+        part = part.trim();
+        if (part.isEmpty()) return;
+        String name = null, addr, comment = null;
+        int lp = part.indexOf('('), rp = part.lastIndexOf(')');
+        if (lp >= 0 && rp > lp) { comment = part.substring(lp + 1, rp).trim(); part = (part.substring(0, lp) + part.substring(rp + 1)).trim(); }
+        int la = part.indexOf('<'), ra = part.lastIndexOf('>');
+        if (la >= 0 && ra > la) { addr = part.substring(la + 1, ra).trim(); name = part.substring(0, la).trim(); if (name.startsWith("\"") && name.endsWith("\"") && name.length() >= 2) name = name.substring(1, name.length() - 1); if (name.isEmpty()) name = null; }
+        else addr = part;
+        out.add(new android.text.util.Rfc822Token(name, addr, comment));
+    }
+    public static android.text.util.Rfc822Token[] tokenize(java.lang.CharSequence p0) { java.util.ArrayList<android.text.util.Rfc822Token> l = new java.util.ArrayList<>(); tokenize(p0, l); return l.toArray(new android.text.util.Rfc822Token[0]); }
     public int findTokenEnd(java.lang.CharSequence p0, int p1) { return 0; }
     public int findTokenStart(java.lang.CharSequence p0, int p1) { return 0; }
     public java.lang.CharSequence terminateToken(java.lang.CharSequence p0) { return null; }

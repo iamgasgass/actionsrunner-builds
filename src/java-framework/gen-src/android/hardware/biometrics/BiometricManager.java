@@ -23,9 +23,9 @@ public class BiometricManager {
     public static final int TYPE_FINGERPRINT = 2;
     public BiometricManager(android.content.Context p0, android.hardware.biometrics.IAuthService p1) {}
     public static java.lang.String authenticatorToStr(int p0) { return null; }
-    public int canAuthenticate() { return 0; }
-    public int canAuthenticate(int p0) { return 0; }
-    public int canAuthenticate(int p0, int p1) { return 0; }
+    public int canAuthenticate() { return BIOMETRIC_ERROR_NO_HARDWARE; }   /* no biometric sensor an Android app can reach on Husk */
+    public int canAuthenticate(int p0) { return BIOMETRIC_ERROR_NO_HARDWARE; }
+    public int canAuthenticate(int p0, int p1) { return BIOMETRIC_ERROR_NO_HARDWARE; }
     public android.hardware.biometrics.BiometricTestSession createTestSession(int p0) { return null; }
     public long[] getAuthenticatorIds() { return (long[]) huskProps.get("AuthenticatorIds"); }
     public long[] getAuthenticatorIds(int p0) { return null; }

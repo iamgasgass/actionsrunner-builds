@@ -21,8 +21,8 @@ public abstract class Service extends android.content.ContextWrapper implements 
     public void onTaskRemoved(Intent root) {}
     public void onTimeout(int startId) {}
     public final void stopSelf() { husk.Services.stopSelf(this); }
-    public final void stopSelf(int id) { stopSelf(); }
-    public final boolean stopSelfResult(int id) { stopSelf(); return true; }
+    public final void stopSelf(int id) { husk.Services.stopSelf(this, id); }
+    public final boolean stopSelfResult(int id) { return husk.Services.stopSelf(this, id); }
     public final void setForeground(boolean f) {}
     public final void startForeground(int id, Notification n) {}
     public final void startForeground(int id, Notification n, int type) {}

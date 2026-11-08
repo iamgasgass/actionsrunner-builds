@@ -4,8 +4,9 @@ package android.animation;
 @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
 public class IntArrayEvaluator implements android.animation.TypeEvaluator {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
+    private int[] mReuse;
     public IntArrayEvaluator() {}
-    public IntArrayEvaluator(int[] p0) {}
-    public java.lang.Object evaluate(float p0, java.lang.Object p1, java.lang.Object p2) { return null; }
-    public int[] evaluate(float p0, int[] p1, int[] p2) { return null; }
+    public IntArrayEvaluator(int[] p0) { mReuse = p0; }
+    public java.lang.Object evaluate(float p0, java.lang.Object p1, java.lang.Object p2) { return evaluate(p0, (int[]) p1, (int[]) p2); }
+    public int[] evaluate(float f, int[] a, int[] b) { int[] o = mReuse != null ? mReuse : new int[a.length]; for (int i = 0; i < o.length; i++) o[i] = (int) (a[i] + f * (b[i] - a[i])); return o; }
 }

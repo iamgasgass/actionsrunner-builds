@@ -23,7 +23,7 @@ public class PrecomputedText implements android.text.Spannable {
     public int getSpanEnd(java.lang.Object p0) { return 0; }
     public int getSpanFlags(java.lang.Object p0) { return 0; }
     public int getSpanStart(java.lang.Object p0) { return 0; }
-    public java.lang.Object[] getSpans(int p0, int p1, java.lang.Class p2) { return null; }
+    public java.lang.Object[] getSpans(int p0, int p1, java.lang.Class p2) { return (Object[]) java.lang.reflect.Array.newInstance(p2 != null ? p2 : Object.class, 0); }
     public int getStart() { return (huskProps.get("Start") instanceof Integer ? (Integer) huskProps.get("Start") : 0); }
     public java.lang.CharSequence getText() { return (java.lang.CharSequence) huskProps.get("Text"); }
     public float getWidth(int p0, int p1) { return 0f; }

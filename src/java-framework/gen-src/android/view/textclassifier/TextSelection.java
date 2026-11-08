@@ -19,7 +19,7 @@ public final class TextSelection implements android.os.Parcelable {
     protected TextSelection() {}
     public static final class Builder {
         private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-        public Builder(int p0, int p1) {}
+        public Builder(int p0, int p1) { huskProps.put("SelectionStartIndex", Integer.valueOf(p0)); huskProps.put("SelectionEndIndex", Integer.valueOf(p1)); }
         public android.view.textclassifier.TextSelection build() { android.view.textclassifier.TextSelection x = new android.view.textclassifier.TextSelection(); x.huskProps.putAll(huskProps); return x; }
         public android.view.textclassifier.TextSelection.Builder setEntityType(java.lang.String p0, float p1) { return this; }
         public android.view.textclassifier.TextSelection.Builder setExtras(android.os.Bundle p0) { huskProps.put("Extras", p0); return this; }
@@ -45,7 +45,7 @@ public final class TextSelection implements android.os.Parcelable {
         protected Request() {}
         public static final class Builder {
             private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-            public Builder(java.lang.CharSequence p0, int p1, int p2) {}
+            public Builder(java.lang.CharSequence p0, int p1, int p2) { huskProps.put("Text", p0); huskProps.put("StartIndex", Integer.valueOf(p1)); huskProps.put("EndIndex", Integer.valueOf(p2)); }
             public android.view.textclassifier.TextSelection.Request build() { android.view.textclassifier.TextSelection.Request x = new android.view.textclassifier.TextSelection.Request(); x.huskProps.putAll(huskProps); return x; }
             public android.view.textclassifier.TextSelection.Request.Builder setDarkLaunchAllowed(boolean p0) { huskProps.put("DarkLaunchAllowed", Boolean.valueOf(p0)); return this; }
             public android.view.textclassifier.TextSelection.Request.Builder setDefaultLocales(android.os.LocaleList p0) { huskProps.put("DefaultLocales", p0); return this; }

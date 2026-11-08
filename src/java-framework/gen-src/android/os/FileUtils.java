@@ -60,9 +60,9 @@ public final class FileUtils {
     public static boolean isFilenameSafe(java.io.File p0) { return false; }
     public static boolean isValidExtFilename(java.lang.String p0) { return false; }
     public static boolean isValidFatFilename(java.lang.String p0) { return false; }
-    public static java.io.File[] listFilesOrEmpty(java.io.File p0) { return null; }
-    public static java.io.File[] listFilesOrEmpty(java.io.File p0, java.io.FilenameFilter p1) { return null; }
-    public static java.lang.String[] listOrEmpty(java.io.File p0) { return null; }
+    public static java.io.File[] listFilesOrEmpty(java.io.File p0) { java.io.File[] l = p0 == null ? null : p0.listFiles(); return l != null ? l : new java.io.File[0]; }
+    public static java.io.File[] listFilesOrEmpty(java.io.File p0, java.io.FilenameFilter p1) { java.io.File[] l = p0 == null ? null : p0.listFiles(p1); return l != null ? l : new java.io.File[0]; }
+    public static java.lang.String[] listOrEmpty(java.io.File p0) { String[] l = p0 == null ? null : p0.list(); return l != null ? l : new String[0]; }
     public static java.io.File newFileOrNull(java.lang.String p0) { return null; }
     public static long parseSize(java.lang.String p0) { return 0L; }
     public static java.lang.String readTextFile(java.io.File p0, int p1, java.lang.String p2) { return null; }
@@ -73,7 +73,7 @@ public final class FileUtils {
     public static int setPermissions(java.io.File p0, int p1, int p2, int p3) { return 0; }
     public static int setPermissions(java.io.FileDescriptor p0, int p1, int p2, int p3) { return 0; }
     public static int setPermissions(java.lang.String p0, int p1, int p2, int p3) { return 0; }
-    public static java.lang.String[] splitFileName(java.lang.String p0, java.lang.String p1) { return null; }
+    public static java.lang.String[] splitFileName(java.lang.String mime, java.lang.String name) { int d = name.lastIndexOf('.'); return d > 0 ? new String[] { name.substring(0, d), name.substring(d + 1) } : new String[] { name, null }; }
     public static void stringToFile(java.io.File p0, java.lang.String p1) {}
     public static void stringToFile(java.lang.String p0, java.lang.String p1) {}
     public static boolean sync(java.io.FileOutputStream p0) { return false; }

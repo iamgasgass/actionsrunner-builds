@@ -167,7 +167,7 @@ public class SubscriptionManager {
     public static android.content.res.Resources getResourcesForSubId(android.content.Context p0, int p1, boolean p2) { return null; }
     public static java.util.Set getServiceCapabilitiesSet(int p0) { return new java.util.HashSet(); }
     public static int getSlotIndex(int p0) { return 0; }
-    public static int[] getSubId(int p0) { return null; }
+    public static int[] getSubId(int p0) { return new int[0]; }
     public static int getSubscriptionId(int p0) { return 0; }
     public static android.net.Uri getUriForSubscriptionId(int p0) { return null; }
     public static void invalidateSubscriptionManagerServiceCaches() {}
@@ -199,8 +199,8 @@ public class SubscriptionManager {
     public android.telephony.SubscriptionManager createForAllUserProfiles() { return this; }
     public android.os.ParcelUuid createSubscriptionGroup(java.util.List p0) { return null; }
     public java.util.List getAccessibleSubscriptionInfoList() { return (huskProps.get("AccessibleSubscriptionInfoList") != null ? (java.util.List) huskProps.get("AccessibleSubscriptionInfoList") : new java.util.ArrayList()); }
-    public int[] getActiveSubscriptionIdList() { return (int[]) huskProps.get("ActiveSubscriptionIdList"); }
-    public int[] getActiveSubscriptionIdList(boolean p0) { return null; }
+    public int[] getActiveSubscriptionIdList() { Object a = huskProps.get("ActiveSubscriptionIdList"); return a != null ? (int[]) a : new int[0]; }
+    public int[] getActiveSubscriptionIdList(boolean p0) { return getActiveSubscriptionIdList(); }
     public android.telephony.SubscriptionInfo getActiveSubscriptionInfo(int p0) { return null; }
     public int getActiveSubscriptionInfoCount() { return (huskProps.get("ActiveSubscriptionInfoCount") instanceof Integer ? (Integer) huskProps.get("ActiveSubscriptionInfoCount") : 0); }
     public int getActiveSubscriptionInfoCountMax() { return (huskProps.get("ActiveSubscriptionInfoCountMax") instanceof Integer ? (Integer) huskProps.get("ActiveSubscriptionInfoCountMax") : 0); }
@@ -223,7 +223,7 @@ public class SubscriptionManager {
     public java.lang.String getPhoneNumber(int p0, int p1) { return null; }
     public int getPreferredDataSubscriptionId() { return (huskProps.get("PreferredDataSubscriptionId") instanceof Integer ? (Integer) huskProps.get("PreferredDataSubscriptionId") : 0); }
     public java.util.List getSelectableSubscriptionInfoList() { return (huskProps.get("SelectableSubscriptionInfoList") != null ? (java.util.List) huskProps.get("SelectableSubscriptionInfoList") : new java.util.ArrayList()); }
-    public int[] getSubscriptionIds(int p0) { return null; }
+    public int[] getSubscriptionIds(int p0) { return new int[0]; }
     public java.util.List getSubscriptionInfoListAssociatedWithUser(android.os.UserHandle p0) { return new java.util.ArrayList(); }
     public java.util.List getSubscriptionPlans(int p0) { return new java.util.ArrayList(); }
     public android.os.UserHandle getSubscriptionUserHandle(int p0) { return null; }

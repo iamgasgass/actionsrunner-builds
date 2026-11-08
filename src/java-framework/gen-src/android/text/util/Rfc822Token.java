@@ -4,10 +4,11 @@ package android.text.util;
 @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
 public class Rfc822Token {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-    public Rfc822Token(java.lang.String p0, java.lang.String p1, java.lang.String p2) {}
-    public static java.lang.String quoteComment(java.lang.String p0) { return null; }
-    public static java.lang.String quoteName(java.lang.String p0) { return null; }
-    public static java.lang.String quoteNameIfNecessary(java.lang.String p0) { return null; }
+    public Rfc822Token(java.lang.String p0, java.lang.String p1, java.lang.String p2) { huskProps.put("Name", p0); huskProps.put("Address", p1); huskProps.put("Comment", p2); }
+    public static java.lang.String quoteComment(java.lang.String p0) { StringBuilder b = new StringBuilder(); for (char c : p0.toCharArray()) { if (c == '(' || c == ')' || c == '\\') b.append('\\'); b.append(c); } return b.toString(); }
+    public static java.lang.String quoteName(java.lang.String p0) { StringBuilder b = new StringBuilder(); for (char c : p0.toCharArray()) { if (c == '\\' || c == '"') b.append('\\'); b.append(c); } return b.toString(); }
+    public static java.lang.String quoteNameIfNecessary(java.lang.String p0) { for (char c : p0.toCharArray()) if (!(Character.isLetterOrDigit(c) || c == ' ' || c == '.' || c == '-' || c == '_')) return '"' + quoteName(p0) + '"'; return p0; }
+    @Override public String toString() { StringBuilder b = new StringBuilder(); String n = getName(), a = getAddress(), c = getComment(); if (n != null && !n.isEmpty()) b.append(quoteNameIfNecessary(n)).append(' '); if (c != null && !c.isEmpty()) b.append('(').append(quoteComment(c)).append(") "); if (a != null && !a.isEmpty()) b.append('<').append(a).append('>'); return b.toString(); }
     public java.lang.String getAddress() { return (java.lang.String) huskProps.get("Address"); }
     public java.lang.String getComment() { return (java.lang.String) huskProps.get("Comment"); }
     public java.lang.String getName() { return (java.lang.String) huskProps.get("Name"); }

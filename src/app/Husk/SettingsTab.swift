@@ -32,7 +32,7 @@ struct SettingsTab: View {
                     row(DiscoverView(), "sparkle.magnifyingglass", .mint, "Discover", "Find apps in F-Droid and other repositories")
                     row(LibrarySettings(), "square.grid.2x2.fill", .blue, "Library", "Your apps and their icons")
                     row(PerformanceSettings(), "speedometer", .orange, "Performance", "Renderer, sound")
-                    row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
+                    row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light, Intermediate or Dark, accent colour, app icon")
                     row(FontSettings(), "textformat", .indigo, "Fonts", "Chinese, Japanese and Korean text")
                     row(FAQTab(), "questionmark.circle.fill", .teal, "Help", "Answers to common problems")
                     row(AboutSettings(), "info.circle.fill", .gray, "About Husk", "Version \(Bundle.main.version) · \(Bundle.main.commit)")
@@ -980,10 +980,7 @@ struct AppearanceSettings: View {
     var body: some View {
         HuskForm {
             Section {
-                Picker("Appearance", selection: $appearance) {
-                    ForEach(Theme.Appearance.allCases) { Text($0.title).tag($0) }
-                }
-                .pickerStyle(.segmented)
+                AppearancePicker(selection: $appearance)
                 .onChange(of: appearance) { v in
                     HuskLog.log("ui", "appearance: \(v.rawValue)")
                 }
@@ -991,8 +988,9 @@ struct AppearanceSettings: View {
             } header: {
                 Text("Theme")
             } footer: {
-                Text("System follows the phone: light by day, dark by night. The guest's own "
-                   + "screen stays dark either way — it is a picture of another phone. "
+                Text("System follows the phone: Light by day, Intermediate by night. Intermediate is "
+                   + "Husk's deep navy; Dark is true black, which also saves power on OLED screens. "
+                   + "The guest's own screen stays dark either way — it is a picture of another phone. "
                    + "Holiday decorations appear from December to early January.")
             }
 

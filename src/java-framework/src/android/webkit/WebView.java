@@ -304,7 +304,7 @@ public class WebView extends AbsoluteLayout implements android.view.ViewTreeObse
     public int getRendererRequestedPriority() { return RENDERER_PRIORITY_IMPORTANT; }
     public boolean getRendererPriorityWaivedWhenNotVisible() { return false; }
     public void setTextClassifier(android.view.textclassifier.TextClassifier tc) {}
-    public android.view.textclassifier.TextClassifier getTextClassifier() { return null; }
+    public android.view.textclassifier.TextClassifier getTextClassifier() { return android.view.textclassifier.TextClassifier.NO_OP; }
     public Looper getWebViewLooper() { return Looper.getMainLooper(); }
     public void postVisualStateCallback(long requestId, VisualStateCallback callback) { mHandler.post(() -> callback.onComplete(requestId)); }
     public WebMessagePort[] createWebMessageChannel() { return HuskWebMessagePort.channel(this); }

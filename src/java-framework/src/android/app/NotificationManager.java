@@ -64,7 +64,7 @@ public class NotificationManager {
     public static final long SET_LISTENER_ACCESS_GRANTED_IS_USER_AWARE = 302563478L;
     public static final int VISIBILITY_NO_OVERRIDE = -1000;
     public NotificationManager(android.content.Context p0) { this(); }
-    public static android.app.NotificationManager from(android.content.Context p0) { return null; }
+    public static android.app.NotificationManager from(android.content.Context p0) { return (android.app.NotificationManager) p0.getSystemService(android.content.Context.NOTIFICATION_SERVICE); }
     public static android.app.INotificationManager getService() { return null; }
     public static void invalidateNotificationChannelCache() {}
     public static void invalidateNotificationChannelGroupCache() {}

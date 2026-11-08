@@ -14,7 +14,7 @@ public interface TextClassifier {
     java.lang.String HINT_TEXT_IS_NOT_EDITABLE = "android.text_is_not_editable";
     int LOCAL = 0;
     java.lang.String LOG_TAG = "androidtc";
-    android.view.textclassifier.TextClassifier NO_OP = null;
+    android.view.textclassifier.TextClassifier NO_OP = new husk.NoOpTextClassifier();   /* Android's: answers every request with an empty result */
     int SYSTEM = 1;
     java.lang.String TYPE_ADDRESS = "address";
     java.lang.String TYPE_DATE = "date";

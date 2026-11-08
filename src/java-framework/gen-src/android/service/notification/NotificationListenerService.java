@@ -67,10 +67,10 @@ public abstract class NotificationListenerService extends android.app.Service {
     public void clearRequestedListenerHints() {}
     public android.app.NotificationChannel createConversationNotificationChannelForPackage(java.lang.String p0, android.os.UserHandle p1, java.lang.String p2, java.lang.String p3) { return null; }
     public void createLegacyIconExtras(android.app.Notification p0) {}
-    public android.service.notification.StatusBarNotification[] getActiveNotifications() { return (android.service.notification.StatusBarNotification[]) huskProps.get("ActiveNotifications"); }
-    public android.service.notification.StatusBarNotification[] getActiveNotifications(int p0) { return null; }
-    public android.service.notification.StatusBarNotification[] getActiveNotifications(java.lang.String[] p0) { return null; }
-    public android.service.notification.StatusBarNotification[] getActiveNotifications(java.lang.String[] p0, int p1) { return null; }
+    public android.service.notification.StatusBarNotification[] getActiveNotifications() { Object a = huskProps.get("ActiveNotifications"); return a != null ? (android.service.notification.StatusBarNotification[]) a : new android.service.notification.StatusBarNotification[0]; }
+    public android.service.notification.StatusBarNotification[] getActiveNotifications(int p0) { return getActiveNotifications(); }
+    public android.service.notification.StatusBarNotification[] getActiveNotifications(java.lang.String[] p0) { return getActiveNotifications(); }
+    public android.service.notification.StatusBarNotification[] getActiveNotifications(java.lang.String[] p0, int p1) { return getActiveNotifications(); }
     protected android.content.Context getContext() { return (android.content.Context) huskProps.get("Context"); }
     public int getCurrentInterruptionFilter() { return (huskProps.get("CurrentInterruptionFilter") instanceof Integer ? (Integer) huskProps.get("CurrentInterruptionFilter") : 0); }
     public int getCurrentListenerHints() { return (huskProps.get("CurrentListenerHints") instanceof Integer ? (Integer) huskProps.get("CurrentListenerHints") : 0); }

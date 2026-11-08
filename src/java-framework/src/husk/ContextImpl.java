@@ -94,7 +94,7 @@ public final class ContextImpl extends Context {
     @Override public void unregisterReceiver(BroadcastReceiver r) { Broadcasts.unregister(r); }
     @Override public ComponentName startService(Intent s) { return Services.start(this, s); }
     @Override public boolean stopService(Intent s) { return Services.stop(s); }
-    @Override public boolean bindService(Intent s, ServiceConnection c, int flags) { return Services.bind(this, s, c); }
+    @Override public boolean bindService(Intent s, ServiceConnection c, int flags) { return Services.bind(this, s, c, flags); }
     @Override public void unbindService(ServiceConnection c) { Services.unbind(c); }
     @Override public int checkPermission(String p, int pid, int uid) { return PackageManager.PERMISSION_GRANTED; }
     @Override public Context createPackageContext(String pkg, int flags) throws PackageManager.NameNotFoundException {

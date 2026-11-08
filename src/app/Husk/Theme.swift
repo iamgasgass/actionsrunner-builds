@@ -13,11 +13,25 @@ import UIKit
 /// The one thing that is not the system's is the chrome over the guest's picture (`huskPanel`,
 /// `GuestControl`), which is drawn flat and always dark: it floats over a picture of another phone.
 enum Theme {
+    /// Whether dark means pure black (Appearance.dark) rather than the deep navy of Appearance.intermediate.
+    ///
+    /// Read by the dynamic colours below and by `Console`'s palette every time they resolve, so it is a plain static the
+    /// providers can reach from any trait collection; `apply` keeps it in step with the setting and makes every window
+    /// resolve its colours again when it changes.
+    nonisolated(unsafe) static var trueBlack: Bool = Appearance.current == .dark
+
+    /// A colour that is `normal` everywhere except in the true-black appearance, where it is `black`.
+    static func blackAware(_ normal: UIColor, black: UIColor) -> UIColor {
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark && trueBlack ? black : normal.resolvedColor(with: trait)
+        }
+    }
+
     /// The page behind grouped content.
-    static let bgUI = UIColor.systemGroupedBackground
+    static let bgUI = blackAware(.systemGroupedBackground, black: .black)
     static let bg = Color(uiColor: bgUI)
     /// Cards, rows, anything holding content.
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let surface = Color(uiColor: blackAware(.secondarySystemGroupedBackground, black: UIColor(white: 0.075, alpha: 1)))
     /// One step further up: wells, chips, the things that sit on a card.
     static let surfaceHigh = Color(uiColor: .tertiarySystemFill)
     /// The edge that separates a surface from the page.
@@ -36,9 +50,12 @@ enum Theme {
     static let shadow = Color.black.opacity(0.25)
 
     /// The appearance the app is drawn in. System is the default: it follows the phone, light by day and
-    /// dark by night. Light and Dark pin one.
+    /// Intermediate by night. Light, Intermediate and Dark pin one.
+    ///
+    /// Intermediate is Husk's deep-navy dark look; Dark is a true black one (black pages, near-black cards), which
+    /// also lets OLED screens switch their pixels off.
     enum Appearance: String, CaseIterable, Identifiable {
-        case system, light, dark
+        case system, light, intermediate, dark
 
         static let key = "husk.appearance"
 
@@ -48,6 +65,7 @@ enum Theme {
             switch self {
             case .system: return "System"
             case .light: return "Light"
+            case .intermediate: return "Intermediate"
             case .dark: return "Dark"
             }
         }
@@ -56,9 +74,12 @@ enum Theme {
             switch self {
             case .system: return .unspecified
             case .light: return .light
-            case .dark: return .dark
+            case .intermediate, .dark: return .dark
             }
         }
+
+        /// Pure black rather than navy.
+        var isTrueBlack: Bool { self == .dark }
 
         static var current: Appearance {
             Appearance(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system
@@ -70,10 +91,29 @@ enum Theme {
     /// Through UIKit rather than `.preferredColorScheme`: going back to "follow the system" means handing
     /// the window `nil`, and SwiftUI does not reliably let go of a scheme it has once forced. The window's
     /// own override does, and sheets and covers presented from it inherit it.
+    ///
+    /// Intermediate and Dark are both UIKit's dark style, so moving between them changes no trait and nothing would
+    /// draw its colours again. When the black setting changes, each window is flipped to the other style for one
+    /// run-loop turn under a snapshot of itself, then set to the real one, and the snapshot fades out: every dynamic
+    /// colour resolves afresh and the change reads as a cross-fade rather than a flash.
     static func apply(_ appearance: Appearance) {
+        let blackChanged = trueBlack != appearance.isTrueBlack
+        trueBlack = appearance.isTrueBlack
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
             for window in scene.windows {
-                window.overrideUserInterfaceStyle = appearance.style
+                guard blackChanged, !window.isHidden, window.bounds.width > 0 else {
+                    window.overrideUserInterfaceStyle = appearance.style
+                    continue
+                }
+                let cover = window.snapshotView(afterScreenUpdates: false)
+                if let cover { cover.frame = window.bounds; window.addSubview(cover) }
+                let current = window.traitCollection.userInterfaceStyle
+                window.overrideUserInterfaceStyle = current == .dark ? .light : .dark
+                DispatchQueue.main.async {
+                    window.overrideUserInterfaceStyle = appearance.style
+                    guard let cover else { return }
+                    UIView.animate(withDuration: 0.25, animations: { cover.alpha = 0 }, completion: { _ in cover.removeFromSuperview() })
+                }
             }
         }
     }
@@ -105,9 +145,75 @@ extension View {
     /// Always dark, whatever the app's appearance: it floats over a guest that is mostly black, and the
     /// controls on it are drawn in white.
     func huskPanel<S: Shape>(_ shape: S) -> some View {
-        self.background(Color(red: 0.082, green: 0.094, blue: 0.129).opacity(0.94), in: shape)
+        self.background(Color(uiColor: Theme.blackAware(UIColor(red: 0.082, green: 0.094, blue: 0.129, alpha: 1),
+                                                        black: UIColor(white: 0.04, alpha: 1))).opacity(0.94), in: shape)
             .overlay(shape.stroke(Color.white.opacity(0.10), lineWidth: 0.5))
             .environment(\.colorScheme, .dark)
+    }
+}
+
+/// The appearance choice as four small previews of the page and a card in each look, so the difference between
+/// Intermediate and Dark is seen rather than described. Used by Settings › Appearance and onboarding.
+struct AppearancePicker: View {
+    @Binding var selection: Theme.Appearance
+
+    private struct Look { let page: Color; let card: Color; let text: Color }
+    private static let light = Look(page: Color(white: 0.965), card: Color(white: 0.905), text: .black)
+    private static let navy = Look(page: Color(red: 0.035, green: 0.047, blue: 0.098), card: Color(red: 0.110, green: 0.133, blue: 0.220), text: .white)
+    private static let black = Look(page: .black, card: Color(white: 0.135), text: .white)
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ForEach(Theme.Appearance.allCases) { a in
+                Button { selection = a } label: {
+                    VStack(spacing: 6) {
+                        preview(a)
+                            .frame(height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(selection == a ? Theme.accent : Color.primary.opacity(0.15), lineWidth: selection == a ? 2.5 : 1))
+                        Text(a.title)
+                            .font(.system(size: 12, weight: selection == a ? .semibold : .regular))
+                            .foregroundStyle(selection == a ? Theme.accent : Color.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(a.title)
+                .accessibilityAddTraits(selection == a ? .isSelected : [])
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder private func preview(_ a: Theme.Appearance) -> some View {
+        switch a {
+        case .system:
+            ZStack {
+                mock(Self.light)
+                mock(Self.navy).mask(GeometryReader { g in
+                    Path { p in p.move(to: CGPoint(x: g.size.width, y: 0)); p.addLine(to: CGPoint(x: g.size.width, y: g.size.height)); p.addLine(to: CGPoint(x: 0, y: g.size.height)); p.closeSubpath() }
+                })
+            }
+        case .light: mock(Self.light)
+        case .intermediate: mock(Self.navy)
+        case .dark: mock(Self.black)
+        }
+    }
+
+    private func mock(_ l: Look) -> some View {
+        ZStack(alignment: .topLeading) {
+            l.page
+            VStack(alignment: .leading, spacing: 4) {
+                Capsule().fill(l.text.opacity(0.85)).frame(width: 22, height: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous).fill(l.card).frame(height: 14)
+                RoundedRectangle(cornerRadius: 4, style: .continuous).fill(l.card).frame(height: 14)
+            }
+            .padding(8)
+        }
     }
 }
 

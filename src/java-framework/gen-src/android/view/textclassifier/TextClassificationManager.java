@@ -6,11 +6,11 @@ public final class TextClassificationManager {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
     public TextClassificationManager(android.content.Context p0) {}
     public static android.view.textclassifier.TextClassificationConstants getSettings(android.content.Context p0) { return null; }
-    public android.view.textclassifier.TextClassifier createTextClassificationSession(android.view.textclassifier.TextClassificationContext p0) { return null; }
-    public android.view.textclassifier.TextClassifier createTextClassificationSession(android.view.textclassifier.TextClassificationContext p0, android.view.textclassifier.TextClassifier p1) { return null; }
-    public android.view.textclassifier.TextClassifier getClassifier(int p0) { return null; }
-    public android.view.textclassifier.TextClassifier getTextClassifier() { return (android.view.textclassifier.TextClassifier) huskProps.get("TextClassifier"); }
-    public android.view.textclassifier.TextClassifier getTextClassifier(int p0) { return null; }
+    public android.view.textclassifier.TextClassifier createTextClassificationSession(android.view.textclassifier.TextClassificationContext p0) { return getTextClassifier(); }
+    public android.view.textclassifier.TextClassifier createTextClassificationSession(android.view.textclassifier.TextClassificationContext p0, android.view.textclassifier.TextClassifier p1) { return p1 != null ? p1 : getTextClassifier(); }
+    public android.view.textclassifier.TextClassifier getClassifier(int p0) { return getTextClassifier(); }
+    public android.view.textclassifier.TextClassifier getTextClassifier() { Object c = huskProps.get("TextClassifier"); return c != null ? (android.view.textclassifier.TextClassifier) c : android.view.textclassifier.TextClassifier.NO_OP; }
+    public android.view.textclassifier.TextClassifier getTextClassifier(int p0) { return getTextClassifier(); }
     public void setTextClassificationSessionFactory(android.view.textclassifier.TextClassificationSessionFactory p0) { huskProps.put("TextClassificationSessionFactory", p0); }
     public void setTextClassifier(android.view.textclassifier.TextClassifier p0) { huskProps.put("TextClassifier", p0); }
     TextClassificationManager() { this((android.content.Context) null); }

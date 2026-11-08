@@ -21,7 +21,7 @@ public final class TextLinks implements android.os.Parcelable {
     protected TextLinks() {}
     public static final class Builder {
         private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-        public Builder(java.lang.String p0) {}
+        public Builder(java.lang.String p0) { huskProps.put("Text", p0); }
         public android.view.textclassifier.TextLinks.Builder addLink(int p0, int p1, java.util.Map p2) { return this; }
         public android.view.textclassifier.TextLinks.Builder addLink(int p0, int p1, java.util.Map p2, android.os.Bundle p3) { return this; }
         public android.view.textclassifier.TextLinks build() { android.view.textclassifier.TextLinks x = new android.view.textclassifier.TextLinks(); x.huskProps.putAll(huskProps); return x; }
@@ -46,7 +46,7 @@ public final class TextLinks implements android.os.Parcelable {
         protected Request() {}
         public static final class Builder {
             private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-            public Builder(java.lang.CharSequence p0) {}
+            public Builder(java.lang.CharSequence p0) { huskProps.put("Text", p0); }
             public android.view.textclassifier.TextLinks.Request build() { android.view.textclassifier.TextLinks.Request x = new android.view.textclassifier.TextLinks.Request(); x.huskProps.putAll(huskProps); return x; }
             public android.view.textclassifier.TextLinks.Request.Builder setDefaultLocales(android.os.LocaleList p0) { huskProps.put("DefaultLocales", p0); return this; }
             public android.view.textclassifier.TextLinks.Request.Builder setEntityConfig(android.view.textclassifier.TextClassifier.EntityConfig p0) { huskProps.put("EntityConfig", p0); return this; }

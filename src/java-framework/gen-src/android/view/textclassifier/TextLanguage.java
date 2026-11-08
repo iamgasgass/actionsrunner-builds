@@ -31,7 +31,7 @@ public final class TextLanguage implements android.os.Parcelable {
         protected Request() {}
         public static final class Builder {
             private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-            public Builder(java.lang.CharSequence p0) {}
+            public Builder(java.lang.CharSequence p0) { huskProps.put("Text", p0); }
             public android.view.textclassifier.TextLanguage.Request build() { android.view.textclassifier.TextLanguage.Request x = new android.view.textclassifier.TextLanguage.Request(); x.huskProps.putAll(huskProps); return x; }
             public android.view.textclassifier.TextLanguage.Request.Builder setExtras(android.os.Bundle p0) { huskProps.put("Extras", p0); return this; }
             Builder() { this((java.lang.CharSequence) null); }

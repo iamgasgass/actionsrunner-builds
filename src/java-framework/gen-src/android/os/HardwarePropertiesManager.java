@@ -15,7 +15,7 @@ public class HardwarePropertiesManager {
     public static final float UNDEFINED_TEMPERATURE = -3.4028234663852886e+38f;
     public HardwarePropertiesManager(android.content.Context p0, android.os.IHardwarePropertiesManager p1) {}
     public android.os.CpuUsageInfo[] getCpuUsages() { return (android.os.CpuUsageInfo[]) huskProps.get("CpuUsages"); }
-    public float[] getDeviceTemperatures(int p0, int p1) { return null; }
+    public float[] getDeviceTemperatures(int p0, int p1) { return new float[0]; }
     public float[] getFanSpeeds() { return (float[]) huskProps.get("FanSpeeds"); }
     HardwarePropertiesManager() { this((android.content.Context) null, (android.os.IHardwarePropertiesManager) null); }
 }

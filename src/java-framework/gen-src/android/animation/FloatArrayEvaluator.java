@@ -4,8 +4,9 @@ package android.animation;
 @SuppressWarnings({"unchecked", "rawtypes", "deprecation"})
 public class FloatArrayEvaluator implements android.animation.TypeEvaluator {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
+    private float[] mReuse;
     public FloatArrayEvaluator() {}
-    public FloatArrayEvaluator(float[] p0) {}
-    public java.lang.Object evaluate(float p0, java.lang.Object p1, java.lang.Object p2) { return null; }
-    public float[] evaluate(float p0, float[] p1, float[] p2) { return null; }
+    public FloatArrayEvaluator(float[] p0) { mReuse = p0; }
+    public java.lang.Object evaluate(float p0, java.lang.Object p1, java.lang.Object p2) { return evaluate(p0, (float[]) p1, (float[]) p2); }
+    public float[] evaluate(float f, float[] a, float[] b) { float[] o = mReuse != null ? mReuse : new float[a.length]; for (int i = 0; i < o.length; i++) o[i] = a[i] + f * (b[i] - a[i]); return o; }
 }

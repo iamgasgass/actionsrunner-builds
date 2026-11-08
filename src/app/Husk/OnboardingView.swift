@@ -277,10 +277,7 @@ struct OnboardingView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Appearance").font(.headline)
-                    Picker("Appearance", selection: $appearance) {
-                        ForEach(Theme.Appearance.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+                    AppearancePicker(selection: $appearance)
                     .onChange(of: appearance) { Theme.apply($0) }
                     Text("Accent Colour").font(.headline).padding(.top, 4)
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 12) {

@@ -6,7 +6,7 @@ public final class PerformanceHintManager {
     private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
     public static android.os.PerformanceHintManager create() { return new PerformanceHintManager(); }
     public android.os.PerformanceHintManager.Session createHintSession(int[] p0, long p1) { return null; }
-    public long getPreferredUpdateRateNanos() { return (huskProps.get("PreferredUpdateRateNanos") instanceof Long ? (Long) huskProps.get("PreferredUpdateRateNanos") : 0L); }
+    public long getPreferredUpdateRateNanos() { return (huskProps.get("PreferredUpdateRateNanos") instanceof Long ? (Long) huskProps.get("PreferredUpdateRateNanos") : -1L); }   /* -1: hint sessions are not supported */
     protected PerformanceHintManager() {}
     public static class Session implements java.io.Closeable {
         private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();

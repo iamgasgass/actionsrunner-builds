@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// The console look's pieces: its palette (dark or light, as Settings > Appearance says), the platform chips, the status dot,
+// The console look's pieces: its palette (light, navy Intermediate or true-black Dark, as Settings > Appearance says), the platform chips, the status dot,
 // and what Home and the Library need to know about an item's platform. Flat surfaces throughout -- no glass, no coloured washes.
 import SwiftUI
 import UIKit
@@ -7,19 +7,26 @@ import UIKit
 // MARK: - palette
 
 enum Console {
-    /// A colour for each appearance.
-    private static func adaptive(dark: UIColor, light: UIColor) -> Color {
-        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    /// A colour for each appearance: `dark` is Intermediate's navy, `black` the true-black Dark (the navy one when not given).
+    private static func adaptive(dark: UIColor, light: UIColor, black: UIColor? = nil) -> Color {
+        Color(uiColor: UIColor { trait in
+            guard trait.userInterfaceStyle == .dark else { return light }
+            return Theme.trueBlack ? (black ?? dark) : dark
+        })
     }
 
-    /// The page: Husk's deep navy, or near-white.
-    static let page = adaptive(dark: UIColor(red: 0.035, green: 0.047, blue: 0.098, alpha: 1), light: UIColor(white: 0.965, alpha: 1))
+    /// The page: Husk's deep navy, pure black, or near-white.
+    static let page = adaptive(dark: UIColor(red: 0.035, green: 0.047, blue: 0.098, alpha: 1), light: UIColor(white: 0.965, alpha: 1),
+                               black: .black)
     /// Cards and wells on the page.
-    static let card = adaptive(dark: UIColor(red: 0.075, green: 0.094, blue: 0.161, alpha: 1), light: UIColor(white: 0.905, alpha: 1))
+    static let card = adaptive(dark: UIColor(red: 0.075, green: 0.094, blue: 0.161, alpha: 1), light: UIColor(white: 0.905, alpha: 1),
+                               black: UIColor(white: 0.075, alpha: 1))
     /// One step up from a card: buttons beside Play.
-    static let raised = adaptive(dark: UIColor(red: 0.110, green: 0.133, blue: 0.220, alpha: 1), light: UIColor(white: 0.865, alpha: 1))
-    /// A card's outline on the navy page.
-    static let outline = adaptive(dark: UIColor(red: 0.20, green: 0.24, blue: 0.40, alpha: 0.55), light: UIColor(white: 0, alpha: 0.06))
+    static let raised = adaptive(dark: UIColor(red: 0.110, green: 0.133, blue: 0.220, alpha: 1), light: UIColor(white: 0.865, alpha: 1),
+                                 black: UIColor(white: 0.135, alpha: 1))
+    /// A card's outline on the page.
+    static let outline = adaptive(dark: UIColor(red: 0.20, green: 0.24, blue: 0.40, alpha: 0.55), light: UIColor(white: 0, alpha: 0.06),
+                                  black: UIColor(white: 1, alpha: 0.10))
     /// An unselected chip.
     static let chip = adaptive(dark: UIColor(white: 1, alpha: 0.12), light: UIColor(white: 0, alpha: 0.07))
     static let hairline = adaptive(dark: UIColor(white: 1, alpha: 0.08), light: UIColor(white: 0, alpha: 0.08))

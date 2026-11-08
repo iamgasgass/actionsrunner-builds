@@ -57,7 +57,7 @@ public final class TextClassification implements android.os.Parcelable {
         protected Request() {}
         public static final class Builder {
             private final java.util.HashMap<String, Object> huskProps = new java.util.HashMap<>();
-            public Builder(java.lang.CharSequence p0, int p1, int p2) {}
+            public Builder(java.lang.CharSequence p0, int p1, int p2) { huskProps.put("Text", p0); huskProps.put("StartIndex", Integer.valueOf(p1)); huskProps.put("EndIndex", Integer.valueOf(p2)); }
             public android.view.textclassifier.TextClassification.Request build() { android.view.textclassifier.TextClassification.Request x = new android.view.textclassifier.TextClassification.Request(); x.huskProps.putAll(huskProps); return x; }
             public android.view.textclassifier.TextClassification.Request.Builder setDefaultLocales(android.os.LocaleList p0) { huskProps.put("DefaultLocales", p0); return this; }
             public android.view.textclassifier.TextClassification.Request.Builder setExtras(android.os.Bundle p0) { huskProps.put("Extras", p0); return this; }
