@@ -65,7 +65,15 @@ public class Paint {
         mFlags = p.mFlags; mTypeface = p.mTypeface; mShader = p.mShader; mColorFilter = p.mColorFilter; mXfermode = p.mXfermode;
         mPathEffect = p.mPathEffect; mMaskFilter = p.mMaskFilter; mStyle = p.mStyle; mCap = p.mCap; mJoin = p.mJoin; mAlign = p.mAlign; mLocale = p.mLocale;
     }
-    public void reset() { Paint d = new Paint(); set(d); }
+    /* what a new Paint is: reset() copies it rather than making one (it is called per draw by some code, and kept by the runtime) */
+    private static Paint sDefaults;
+    public void reset() {
+        Paint d = sDefaults;
+        if (d == null) sDefaults = d = new Paint();
+        set(d);
+        mTypeface = null; mShader = null; mColorFilter = null; mXfermode = null; mPathEffect = null; mMaskFilter = null;
+        mFontFeatures = null; mFontVariation = null; mHinting = HINTING_ON;
+    }
 
     private static float f(int bits) { return Float.intBitsToFloat(bits); }
     private void pf(int slot, float v) { mP[slot] = Float.floatToRawIntBits(v); }

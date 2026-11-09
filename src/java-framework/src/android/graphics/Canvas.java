@@ -12,6 +12,7 @@ public class Canvas {
     private int mDensity = Bitmap.DENSITY_NONE;
     private final float[] mAff = new float[6];
     private final int[] mClip = new int[4];
+    private final float[] mPts = new float[4];          /* drawLine / drawPoint: one array per canvas, not one per call */
     private static final Paint sBitmapPaint = null;
 
     public Canvas() {}
@@ -78,12 +79,16 @@ public class Canvas {
     public void rotate(float deg) { if (deg != 0) { double r = Math.toRadians(deg); float c = (float) Math.cos(r), s = (float) Math.sin(r); concat6(c, -s, 0, s, c, 0); } }
     public final void rotate(float deg, float px, float py) { translate(px, py); rotate(deg); translate(-px, -py); }
     public void skew(float sx, float sy) { concat6(1, sx, 0, sy, 1, 0); }
-    public void concat(Matrix m) { if (m != null && !m.isIdentity() && mNative != 0) husk.Gfx.cvMatrix(mNative, m.huskAffine(), false); }
-    public void setMatrix(Matrix m) { if (mNative != 0) husk.Gfx.cvMatrix(mNative, (m == null ? new Matrix() : m).huskAffine(), true); }
+    public void concat(Matrix m) { if (m != null && !m.isIdentity() && mNative != 0) { m.huskAffine(mAff); husk.Gfx.cvMatrix(mNative, mAff, false); } }
+    public void setMatrix(Matrix m) {
+        if (mNative == 0) return;
+        if (m == null) { mAff[0] = 1; mAff[1] = 0; mAff[2] = 0; mAff[3] = 0; mAff[4] = 1; mAff[5] = 0; } else m.huskAffine(mAff);
+        husk.Gfx.cvMatrix(mNative, mAff, true);
+    }
     public void getMatrix(Matrix m) {
         if (mNative == 0) { m.reset(); return; }
         husk.Gfx.cvGetMatrix(mNative, mAff);
-        m.setValues(new float[] { mAff[0], mAff[1], mAff[2], mAff[3], mAff[4], mAff[5], 0, 0, 1 });
+        float[] v = m.m; v[0] = mAff[0]; v[1] = mAff[1]; v[2] = mAff[2]; v[3] = mAff[3]; v[4] = mAff[4]; v[5] = mAff[5]; v[6] = 0; v[7] = 0; v[8] = 1;
     }
     public final Matrix getMatrix() { Matrix m = new Matrix(); getMatrix(m); return m; }
 
@@ -152,10 +157,10 @@ public class Canvas {
     }
     public void drawArc(RectF o, float start, float sweep, boolean useCenter, Paint p) { drawArc(o.left, o.top, o.right, o.bottom, start, sweep, useCenter, p); }
     public void drawPath(Path path, Paint p) { if (mNative != 0 && path.n > 0) { husk.Gfx.cvDrawPath(mNative, path.ops, path.n, path.huskFill(), p.mP, p.huskShader()); touched(); } }
-    public void drawLine(float x0, float y0, float x1, float y1, Paint p) { drawLines(new float[] { x0, y0, x1, y1 }, 0, 4, p); }
+    public void drawLine(float x0, float y0, float x1, float y1, Paint p) { float[] v = mPts; v[0] = x0; v[1] = y0; v[2] = x1; v[3] = y1; drawLines(v, 0, 4, p); }
     public void drawLines(float[] pts, int offset, int count, Paint p) { if (mNative != 0) { husk.Gfx.cvDrawLines(mNative, pts, offset, count, p.mP, p.huskShader(), false); touched(); } }
     public void drawLines(float[] pts, Paint p) { drawLines(pts, 0, pts.length, p); }
-    public void drawPoint(float x, float y, Paint p) { drawPoints(new float[] { x, y }, 0, 2, p); }
+    public void drawPoint(float x, float y, Paint p) { float[] v = mPts; v[0] = x; v[1] = y; drawPoints(v, 0, 2, p); }
     public void drawPoints(float[] pts, int offset, int count, Paint p) { if (mNative != 0) { husk.Gfx.cvDrawLines(mNative, pts, offset, count, p.mP, p.huskShader(), true); touched(); } }
     public void drawPoints(float[] pts, Paint p) { drawPoints(pts, 0, pts.length, p); }
 

@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -25,7 +26,10 @@ enum {
     SL_OK = 0, SL_PARAMETER_INVALID = 2, SL_FEATURE_UNSUPPORTED = 12, SL_BUFFER_INSUFFICIENT = 7,
     SL_PLAYING = 3, SL_PAUSED = 2, SL_STOPPED = 1,
     SL_OBJECT_UNREALIZED = 1, SL_OBJECT_REALIZED = 2,
-    SL_DATAFORMAT_PCM = 2, SL_DATALOCATOR_BUFFERQUEUE = 6, SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE = 0x800007BD,
+    SL_DATAFORMAT_PCM = 2, SL_ANDROID_DATAFORMAT_PCM_EX = 4, SL_DATALOCATOR_BUFFERQUEUE = 6, SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE = 0x800007BD,
+    SL_BYTEORDER_BIGENDIAN = 1,
+    SL_PCM_REPRESENTATION_SIGNED_INT = 1, SL_PCM_REPRESENTATION_UNSIGNED_INT = 2, SL_PCM_REPRESENTATION_FLOAT = 3,
+    SL_PLAYEVENT_HEADATEND = 1,
 };
 
 /* The interface identifiers are compared by address; the guest imports them as variables holding a pointer to one of these. */
@@ -127,6 +131,13 @@ typedef struct sl_object {
     void (*bq_cb)(void *caller, void *ctx);
     void *bq_ctx;
     int channels, rate;
+    int bytes;                             /* per sample in the guest's buffers: 1, 2, 3 or 4 */
+    int repr;                              /* SL_PCM_REPRESENTATION_*: 8-bit is unsigned, the rest signed, unless PCM_EX says */
+    bool big_endian;
+    int16_t *conv; size_t conv_cap;        /* the buffer in 16-bit, for the host */
+    _Atomic int16_t millibel;              /* SLVolumeItf: 0 is full volume, negative is quieter */
+    atomic_bool muted;
+    _Atomic uint64_t played;               /* frames handed to the host since the player was made (SLPlayItf GetPosition) */
     atomic_int play_state;
     atomic_bool thread_run;
     pthread_t thread;
@@ -159,6 +170,7 @@ static void o_Destroy(const void *self)
 {
     sl_object *o = obj_of_object(self);
     if (o->kind == K_PLAYER) player_stop_thread(o);
+    free(o->conv);
     free(o);
 }
 static uint32_t o_SetPriority(const void *self, int32_t p, uint32_t pre) { (void)self; (void)p; (void)pre; return SL_OK; }
@@ -178,6 +190,55 @@ static sl_object *new_object(int kind)
 }
 
 /* ---- SLPlayItf and the player's thread */
+
+/* The guest's samples, as 16-bit signed for the host, with the volume applied: 8-bit unsigned, 16-bit, packed 24-bit, 32-bit integer
+ * and 32-bit float (Android's PCM_EX), in either byte order. 16-bit at full volume is handed over as it is. */
+static const int16_t *to_s16(sl_object *o, const void *data, int n)
+{
+    int mb = atomic_load(&o->millibel);
+    bool mute = atomic_load(&o->muted);
+    if (o->bytes == 2 && o->repr != SL_PCM_REPRESENTATION_UNSIGNED_INT && !o->big_endian && mb >= 0 && !mute) return data;
+    if (n <= 0) return NULL;
+    if (o->conv_cap < (size_t)n) {
+        int16_t *c = realloc(o->conv, (size_t)n * sizeof(int16_t));
+        if (!c) return NULL;
+        o->conv = c; o->conv_cap = (size_t)n;
+    }
+    float gain = mute ? 0.0f : mb >= 0 ? 1.0f : powf(10.0f, (float)mb / 2000.0f);
+    const uint8_t *p = data;
+    for (int i = 0; i < n; i++) {
+        float v;                                       /* -1 .. 1 */
+        switch (o->bytes) {
+        case 1: v = o->repr == SL_PCM_REPRESENTATION_SIGNED_INT ? (int8_t)p[i] / 128.0f : ((int)p[i] - 128) / 128.0f; break;
+        case 2: {
+            uint16_t u = o->big_endian ? (uint16_t)(p[2 * i] << 8 | p[2 * i + 1]) : (uint16_t)(p[2 * i] | p[2 * i + 1] << 8);
+            v = o->repr == SL_PCM_REPRESENTATION_UNSIGNED_INT ? ((int)u - 32768) / 32768.0f : (int16_t)u / 32768.0f;
+            break;
+        }
+        case 3: {
+            const uint8_t *s = p + 3 * (size_t)i;
+            int32_t x = o->big_endian ? (s[0] << 16 | s[1] << 8 | s[2]) : (s[2] << 16 | s[1] << 8 | s[0]);
+            if (o->repr == SL_PCM_REPRESENTATION_UNSIGNED_INT) x -= 1 << 23; else if (x & 0x800000) x -= 1 << 24;
+            v = x / 8388608.0f;
+            break;
+        }
+        default: {
+            const uint8_t *s = p + 4 * (size_t)i;
+            uint32_t u = o->big_endian ? ((uint32_t)s[0] << 24 | (uint32_t)s[1] << 16 | (uint32_t)s[2] << 8 | s[3])
+                                       : ((uint32_t)s[3] << 24 | (uint32_t)s[2] << 16 | (uint32_t)s[1] << 8 | s[0]);
+            if (o->repr == SL_PCM_REPRESENTATION_FLOAT) { float fv; memcpy(&fv, &u, 4); v = fv != fv ? 0.0f : fv; }
+            else if (o->repr == SL_PCM_REPRESENTATION_UNSIGNED_INT) v = ((double)u - 2147483648.0) / 2147483648.0;
+            else v = (int32_t)u / 2147483648.0f;
+            break;
+        }
+        }
+        v *= gain;
+        int s = (int)lrintf(v * 32767.0f);
+        o->conv[i] = (int16_t)(s < -32768 ? -32768 : s > 32767 ? 32767 : s);
+    }
+    return o->conv;
+}
+
 static void *player_pump(void *arg)
 {
     sl_object *o = arg;
@@ -190,9 +251,13 @@ static void *player_pump(void *arg)
         pthread_mutex_unlock(&o->mu);
         if (!data) { usleep(1000); continue; }
         int ch = o->channels > 0 ? o->channels : 2, rate = o->rate > 0 ? o->rate : 48000;
-        int frames = (int)(size / (2u * (uint32_t)ch));
-        if (tl_cocos_audio_hook) tl_cocos_audio_hook((const int16_t *)data, frames, ch, rate);
-        else { struct timespec ts = { 0, (long)((double)frames * 1e9 / rate) }; nanosleep(&ts, NULL); }
+        int frames = (int)(size / ((uint32_t)o->bytes * (uint32_t)ch));
+        const int16_t *pcm = to_s16(o, data, frames * ch);
+        if (pcm && frames > 0) {
+            if (tl_cocos_audio_hook) tl_cocos_audio_hook(pcm, frames, ch, rate);
+            else { struct timespec ts = { 0, (long)((double)frames * 1e9 / rate) }; nanosleep(&ts, NULL); }
+            atomic_fetch_add(&o->played, (uint64_t)frames);
+        }
         pthread_mutex_lock(&o->mu);
         if (o->qcount > 0) { o->qhead = (o->qhead + 1) % MAX_QUEUE; o->qcount--; o->qindex++; }
         pthread_mutex_unlock(&o->mu);
@@ -224,9 +289,20 @@ static uint32_t p_SetPlayState(const void *self, uint32_t state)
     return SL_OK;
 }
 static uint32_t p_GetPlayState(const void *self, uint32_t *state) { sl_object *o = OBJ_FROM(self, vt_play); if (state) *state = (uint32_t)atomic_load(&o->play_state); return SL_OK; }
-static uint32_t p_unsupported(void) { return SL_FEATURE_UNSUPPORTED; }
 static uint32_t p_ok(void) { return SL_OK; }
-static const void *const k_vt_play[] = { p_SetPlayState, p_GetPlayState, p_unsupported, p_unsupported, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok };
+static uint32_t p_GetDuration(const void *self, uint32_t *ms) { (void)self; if (ms) *ms = 0xFFFFFFFFu; return SL_OK; }  /* SL_TIME_UNKNOWN: a queue */
+static uint32_t p_GetPosition(const void *self, uint32_t *ms)
+{
+    sl_object *o = OBJ_FROM(self, vt_play);
+    if (ms) *ms = (uint32_t)(atomic_load(&o->played) * 1000u / (uint64_t)(o->rate > 0 ? o->rate : 48000));
+    return SL_OK;
+}
+static uint32_t p_GetMask(const void *self, uint32_t *mask) { (void)self; if (mask) *mask = 0; return SL_OK; }
+static uint32_t p_GetU32(const void *self, uint32_t *v) { (void)self; if (v) *v = 0; return SL_OK; }
+/* SetPlayState, GetPlayState, GetDuration, GetPosition, RegisterCallback, SetCallbackEventsMask, GetCallbackEventsMask,
+   SetMarkerPosition, ClearMarkerPosition, GetMarkerPosition, SetPositionUpdatePeriod, GetPositionUpdatePeriod */
+static const void *const k_vt_play[] = { p_SetPlayState, p_GetPlayState, p_GetDuration, p_GetPosition, p_ok, p_ok, p_GetMask,
+                                         p_ok, p_ok, p_GetU32, p_ok, p_GetU32 };
 
 /* ---- SLAndroidSimpleBufferQueueItf */
 static uint32_t q_Enqueue(const void *self, const void *buf, uint32_t size)
@@ -265,7 +341,16 @@ static uint32_t q_RegisterCallback(const void *self, void (*cb)(void *, void *),
 static const void *const k_vt_bq[] = { q_Enqueue, q_Clear, q_GetState, q_RegisterCallback };
 
 /* ---- SLVolumeItf, SLAndroidConfigurationItf: accepted, and nothing done with them */
-static const void *const k_vt_volume[] = { p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok, p_ok };
+/* SetVolumeLevel, GetVolumeLevel, GetMaxVolumeLevel, SetMute, GetMute, EnableStereoPosition, IsEnabledStereoPosition,
+   SetStereoPosition, GetStereoPosition: the level and the mute are applied to a player's samples; an output mix keeps them only */
+static uint32_t v_SetLevel(const void *self, int16_t mb) { sl_object *o = OBJ_FROM(self, vt_volume); atomic_store(&o->millibel, mb > 0 ? 0 : mb); return SL_OK; }
+static uint32_t v_GetLevel(const void *self, int16_t *mb) { sl_object *o = OBJ_FROM(self, vt_volume); if (mb) *mb = atomic_load(&o->millibel); return SL_OK; }
+static uint32_t v_GetMax(const void *self, int16_t *mb) { (void)self; if (mb) *mb = 0; return SL_OK; }
+static uint32_t v_SetMute(const void *self, uint32_t m) { sl_object *o = OBJ_FROM(self, vt_volume); atomic_store(&o->muted, m != 0); return SL_OK; }
+static uint32_t v_GetMute(const void *self, uint32_t *m) { sl_object *o = OBJ_FROM(self, vt_volume); if (m) *m = atomic_load(&o->muted); return SL_OK; }
+static uint32_t v_GetBool(const void *self, uint32_t *b) { (void)self; if (b) *b = 0; return SL_OK; }
+static uint32_t v_GetPos(const void *self, int16_t *p) { (void)self; if (p) *p = 0; return SL_OK; }
+static const void *const k_vt_volume[] = { v_SetLevel, v_GetLevel, v_GetMax, v_SetMute, v_GetMute, p_ok, v_GetBool, p_ok, v_GetPos };
 static uint32_t c_Config(const void *self, const void *key, const void *value, uint32_t size) { (void)self; (void)key; (void)value; (void)size; return SL_OK; }
 static const void *const k_vt_config[] = { c_Config, c_Config };
 
@@ -280,20 +365,38 @@ static uint32_t e_CreateMix(const void *self, const void **out, uint32_t n, cons
     return SL_OK;
 }
 typedef struct { void *locator; void *format; } sl_data;
-typedef struct { uint32_t type, channels, rate_mhz, bits, container, mask, endian; } sl_pcm;
+typedef struct { uint32_t type, channels, rate_mhz, bits, container, mask, endian; } sl_pcm;          /* SLDataFormat_PCM */
+typedef struct { uint32_t type, channels, rate_mhz, bits, container, mask, endian, repr; } sl_pcm_ex; /* SLAndroidDataFormat_PCM_EX */
 static uint32_t e_CreateAudioPlayer(const void *self, const void **out, const sl_data *src, const sl_data *snk, uint32_t n, const void *ids, const void *req)
 {
     (void)self; (void)snk; (void)n; (void)ids; (void)req;
     sl_object *o = new_object(K_PLAYER);
     if (!o) return 3;
     o->vt_play = k_vt_play; o->vt_volume = k_vt_volume; o->vt_bq = k_vt_bq; o->vt_config = k_vt_config;
-    o->channels = 2; o->rate = 48000;
+    o->channels = 2; o->rate = 48000; o->bytes = 2; o->repr = SL_PCM_REPRESENTATION_SIGNED_INT;
+    const char *what = "default";
     if (src && src->format) {
-        const sl_pcm *f = src->format;
-        if (f->type == SL_DATAFORMAT_PCM) { o->channels = (int)f->channels; o->rate = (int)(f->rate_mhz / 1000); }
+        /* Both formats start alike; PCM_EX (what OpenAL Soft and AAudio-less engines on Android 5+ ask for) adds the representation,
+           float among them. It used to be ignored, so its rate was taken for 48 kHz: GTA SA's 22050 Hz played fast and broken. */
+        const sl_pcm_ex *f = src->format;
+        if (f->type == SL_DATAFORMAT_PCM || f->type == SL_ANDROID_DATAFORMAT_PCM_EX) {
+            if (f->channels >= 1 && f->channels <= 8) o->channels = (int)f->channels;
+            uint32_t r = f->rate_mhz;
+            if (r >= 1000000) r /= 1000;           /* milliHertz, as the standard says */
+            if (r >= 4000 && r <= 384000) o->rate = (int)r;   /* some engines pass Hz: taken as they are */
+            uint32_t bits = f->container >= f->bits && f->container ? f->container : f->bits;
+            if (bits == 8 || bits == 16 || bits == 24 || bits == 32) o->bytes = (int)bits / 8;
+            o->big_endian = f->endian == SL_BYTEORDER_BIGENDIAN;
+            if (f->type == SL_ANDROID_DATAFORMAT_PCM_EX && f->repr >= SL_PCM_REPRESENTATION_SIGNED_INT && f->repr <= SL_PCM_REPRESENTATION_FLOAT)
+                o->repr = (int)f->repr;
+            else o->repr = o->bytes == 1 ? SL_PCM_REPRESENTATION_UNSIGNED_INT : SL_PCM_REPRESENTATION_SIGNED_INT;
+            if (o->repr == SL_PCM_REPRESENTATION_FLOAT && o->bytes != 4) o->repr = SL_PCM_REPRESENTATION_SIGNED_INT;
+            what = f->type == SL_DATAFORMAT_PCM ? "PCM" : "PCM_EX";
+        }
     }
     atomic_store(&o->play_state, SL_STOPPED);
-    tl_log_line("opensl: audio player (%d channels, %d Hz)", o->channels, o->rate);
+    tl_log_line("opensl: audio player (%d channels, %d Hz, %d-bit %s, %s)", o->channels, o->rate, o->bytes * 8,
+                o->repr == SL_PCM_REPRESENTATION_FLOAT ? "float" : o->repr == SL_PCM_REPRESENTATION_UNSIGNED_INT ? "unsigned" : "signed", what);
     *out = o;
     return SL_OK;
 }

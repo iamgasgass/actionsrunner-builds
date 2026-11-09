@@ -24,6 +24,10 @@ public final class RenderNode {
     private RecordingCanvas mCanvas;
     private boolean mHasDisplayList;
     public long mNativeRenderNode;
+    /* scratch for drawing: Compose draws every layer on every frame, and these were made anew each time (and kept by the runtime) */
+    private Matrix mDrawMatrix, mCamMatrix;
+    private Paint mDrawPaint;
+    private Camera mCam;
 
     public RenderNode(String name) { mName = name; synchronized (RenderNode.class) { mId = sNextId++; } mNativeRenderNode = mId; }
     public static RenderNode create(String name, Object animationHost) { return new RenderNode(name); }
@@ -66,11 +70,13 @@ public final class RenderNode {
         if (!mHasDisplayList || mBitmap == null || mAlpha <= 0f) return;
         int save = c.save();
         c.translate(mLeft, mTop);
-        if (!hasIdentityMatrix()) { Matrix m = new Matrix(); getMatrix(m); c.concat(m); }
+        if (!hasIdentityMatrix()) { if (mDrawMatrix == null) mDrawMatrix = new Matrix(); getMatrix(mDrawMatrix); c.concat(mDrawMatrix); }
         if (mClipRect != null) c.clipRect(mClipRect);
         Paint p = null;
         if (mAlpha < 1f || mLayerPaint != null) {
-            p = mLayerPaint != null ? new Paint(mLayerPaint) : new Paint();
+            if (mDrawPaint == null) mDrawPaint = new Paint();
+            p = mDrawPaint;
+            if (mLayerPaint != null) p.set(mLayerPaint); else p.reset();
             p.setAlpha(Math.round(mAlpha * (mLayerPaint != null ? mLayerPaint.getAlpha() : 255)));
         }
         c.drawBitmap(mBitmap, 0, 0, p);
@@ -108,11 +114,14 @@ public final class RenderNode {
         if (mStatic != null) out.set(mStatic);
         out.preTranslate(mTx, mTy);
         if (mRx != 0 || mRy != 0) {
-            Camera cam = new Camera();
+            if (mCam == null) { mCam = new Camera(); mCamMatrix = new Matrix(); }
+            Camera cam = mCam;
+            cam.save();
             cam.setLocation(0, 0, -Math.abs(mCamera) / 72f);
             cam.rotateX(mRx); cam.rotateY(mRy);
-            Matrix m3 = new Matrix();
+            Matrix m3 = mCamMatrix;
             cam.getMatrix(m3);
+            cam.restore();
             m3.preTranslate(-px, -py); m3.postTranslate(px, py);
             out.preConcat(m3);
         }

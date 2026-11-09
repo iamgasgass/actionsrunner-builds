@@ -162,6 +162,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback {
     private ViewTreeObserver mFloatingObserver;
     private WindowInsets mLastInsets;
     private Rect mClipBounds;
+    private Outline mDrawOutline; private Path mDrawOutlinePath; private RectF mDrawOutlineRectF;   /* drawFromParent's clip to the outline */
     private int mLayerType;
     private Paint mLayerPaint;
     private String mTransitionName;
@@ -1036,10 +1037,17 @@ public class View implements Drawable.Callback, KeyEvent.Callback {
         if (parent.getClipChildren()) c.clipRect(0, 0, w, h);
         if (mClipBounds != null) c.clipRect(mClipBounds);
         if (getClipToOutline() && mOutlineProvider != null) {
-            Outline o = new Outline();
+            /* the outline and its path are kept per view: this runs for each clipped view on every frame */
+            Outline o = mDrawOutline;
+            if (o == null) mDrawOutline = o = new Outline();
+            o.setEmpty(); o.mRadius = 0; o.mAlpha = 1;
             mOutlineProvider.getOutline(this, o);
             if (o.mRect != null) {
-                if (o.mRadius > 0) { Path p = new Path(); p.addRoundRect(new RectF(o.mRect), o.mRadius, o.mRadius, Path.Direction.CW); c.clipPath(p); }
+                if (o.mRadius > 0) {
+                    if (mDrawOutlinePath == null) { mDrawOutlinePath = new Path(); mDrawOutlineRectF = new RectF(); }
+                    Path p = mDrawOutlinePath; p.reset(); mDrawOutlineRectF.set(o.mRect);
+                    p.addRoundRect(mDrawOutlineRectF, o.mRadius, o.mRadius, Path.Direction.CW); c.clipPath(p);
+                }
                 else c.clipRect(o.mRect);
             } else if (o.mPath != null) c.clipPath(o.mPath);
         }

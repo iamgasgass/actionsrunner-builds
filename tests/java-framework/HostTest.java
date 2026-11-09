@@ -208,7 +208,63 @@ public class HostTest {
         check(done.contains(id) && done.contains(bad), "ACTION_DOWNLOAD_COMPLETE broadcast for both");
         srv.stop(0);
 
+        matrixAgainstOld();
         System.out.println(fails == 0 ? "ALL PASSED" : fails + " FAILED");
         System.exit(fails == 0 ? 0 : 1);
     }
+
+    // ---- android.graphics.Matrix, allocation-free now: the same numbers as the version it replaced (copied here as the reference)
+    static final class OldM {
+        final float[] m = { 1, 0, 0, 0, 1, 0, 0, 0, 1 };
+        static void mul(float[] out, float[] a, float[] b) {
+            float[] r = new float[9];
+            for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) r[3 * i + j] = a[3 * i] * b[j] + a[3 * i + 1] * b[3 + j] + a[3 * i + 2] * b[6 + j];
+            System.arraycopy(r, 0, out, 0, 9);
+        }
+        static float[] t(float dx, float dy) { return new float[] { 1, 0, dx, 0, 1, dy, 0, 0, 1 }; }
+        static float[] s(float sx, float sy, float px, float py) { return new float[] { sx, 0, px - sx * px, 0, sy, py - sy * py, 0, 0, 1 }; }
+        static float[] r(float deg, float px, float py) { double a = Math.toRadians(deg); float c = (float) Math.cos(a), sn = (float) Math.sin(a); return new float[] { c, -sn, px - c * px + sn * py, sn, c, py - sn * px - c * py, 0, 0, 1 }; }
+        static float[] k(float kx, float ky, float px, float py) { return new float[] { 1, kx, -kx * py, ky, 1, -ky * px, 0, 0, 1 }; }
+    }
+    static void matrixAgainstOld() {
+        java.util.Random rnd = new java.util.Random(7);
+        double worst = 0; int mapBad = 0, invBad = 0;
+        for (int trial = 0; trial < 3000; trial++) {
+            android.graphics.Matrix n = new android.graphics.Matrix(); OldM o = new OldM();
+            android.graphics.Matrix other = new android.graphics.Matrix(); other.setValues(new float[] { 1.1f, 0.2f, 3, -0.1f, 0.9f, -4, 0, 0, 1 });
+            for (int step = 0; step < 6; step++) {
+                float a = (rnd.nextFloat() - 0.5f) * 40, b = (rnd.nextFloat() - 0.5f) * 40, px = rnd.nextFloat() * 100, py = rnd.nextFloat() * 100;
+                float sx = 0.2f + rnd.nextFloat() * 2, sy = 0.2f + rnd.nextFloat() * 2, deg = rnd.nextFloat() * 360, kx = (rnd.nextFloat() - 0.5f), ky = (rnd.nextFloat() - 0.5f);
+                switch (rnd.nextInt(13)) {
+                case 0: n.preTranslate(a, b); OldM.mul(o.m, o.m, OldM.t(a, b)); break;
+                case 1: n.postTranslate(a, b); OldM.mul(o.m, OldM.t(a, b), o.m); break;
+                case 2: n.preScale(sx, sy, px, py); OldM.mul(o.m, o.m, OldM.s(sx, sy, px, py)); break;
+                case 3: n.postScale(sx, sy, px, py); OldM.mul(o.m, OldM.s(sx, sy, px, py), o.m); break;
+                case 4: n.preRotate(deg, px, py); OldM.mul(o.m, o.m, OldM.r(deg, px, py)); break;
+                case 5: n.postRotate(deg, px, py); OldM.mul(o.m, OldM.r(deg, px, py), o.m); break;
+                case 6: n.preSkew(kx, ky, px, py); OldM.mul(o.m, o.m, OldM.k(kx, ky, px, py)); break;
+                case 7: n.postSkew(kx, ky, px, py); OldM.mul(o.m, OldM.k(kx, ky, px, py), o.m); break;
+                case 8: n.preConcat(other); OldM.mul(o.m, o.m, other.huskAffine().length == 6 ? vals(other) : null); break;
+                case 9: n.postConcat(other); OldM.mul(o.m, vals(other), o.m); break;
+                case 10: n.setRotate(deg, px, py); System.arraycopy(OldM.r(deg, px, py), 0, o.m, 0, 9); break;
+                case 11: n.setScale(sx, sy, px, py); System.arraycopy(OldM.s(sx, sy, px, py), 0, o.m, 0, 9); break;
+                default: n.setTranslate(a, b); System.arraycopy(OldM.t(a, b), 0, o.m, 0, 9); break;
+                }
+            }
+            float[] v = vals(n);
+            for (int i = 0; i < 9; i++) { double d = Math.abs(v[i] - o.m[i]) / Math.max(1, Math.abs(o.m[i])); if (d > worst) worst = d; }
+            android.graphics.RectF r = new android.graphics.RectF(1, 2, 30, 40), rr = new android.graphics.RectF();
+            n.mapRect(rr, r);
+            float[] p = { 1, 2, 30, 2, 30, 40, 1, 40 }; n.mapPoints(p);
+            float l = Math.min(Math.min(p[0], p[2]), Math.min(p[4], p[6])), rt = Math.max(Math.max(p[1], p[3]), Math.max(p[5], p[7]));
+            if (rr.left != l || rr.bottom != rt) mapBad++;
+            android.graphics.Matrix inv = new android.graphics.Matrix();
+            if (n.invert(inv)) { android.graphics.Matrix id = new android.graphics.Matrix(); id.setConcat(n, inv); float[] q = vals(id);
+                if (Math.abs(q[0] - 1) > 1e-3 || Math.abs(q[4] - 1) > 1e-3 || Math.abs(q[1]) > 1e-3 || Math.abs(q[2]) > 1e-2) invBad++; }
+        }
+        check(worst < 1e-5, "Matrix pre/post/set/concat match the old allocating version (worst relative difference " + worst + ")");
+        check(mapBad == 0, "Matrix.mapRect without a temporary array gives what mapPoints gives");
+        check(invBad == 0, "Matrix.invert: M x M^-1 = I");
+    }
+    static float[] vals(android.graphics.Matrix m) { float[] v = new float[9]; m.getValues(v); return v; }
 }

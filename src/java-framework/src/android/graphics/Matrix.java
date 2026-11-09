@@ -20,44 +20,68 @@ public class Matrix {
     public void setValues(float[] v) { System.arraycopy(v, 0, m, 0, 9); }
     /** The affine part, as husk.Gfx takes it. */
     public float[] huskAffine() { return new float[] { m[0], m[1], m[2], m[3], m[4], m[5] }; }
+    /** The affine part into the caller's array (Canvas keeps one): the drawing path makes no garbage. */
+    public void huskAffine(float[] out) { out[0] = m[0]; out[1] = m[1]; out[2] = m[2]; out[3] = m[3]; out[4] = m[4]; out[5] = m[5]; }
 
+    /*
+     * No allocation anywhere here: the view system concatenates a matrix per view per frame, and each operation used to make two
+     * float[9] (the operand and the product), which the runtime keeps -- the largest share of float[] in long sessions.
+     */
     private static void mul(float[] out, float[] a, float[] b) {
-        float[] r = new float[9];
-        for (int i = 0; i < 3; i++) for (int j = 0; j < 3; j++) r[3 * i + j] = a[3 * i] * b[j] + a[3 * i + 1] * b[3 + j] + a[3 * i + 2] * b[6 + j];
-        System.arraycopy(r, 0, out, 0, 9);
+        float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], a6 = a[6], a7 = a[7], a8 = a[8];
+        float b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3], b4 = b[4], b5 = b[5], b6 = b[6], b7 = b[7], b8 = b[8];
+        out[0] = a0 * b0 + a1 * b3 + a2 * b6; out[1] = a0 * b1 + a1 * b4 + a2 * b7; out[2] = a0 * b2 + a1 * b5 + a2 * b8;
+        out[3] = a3 * b0 + a4 * b3 + a5 * b6; out[4] = a3 * b1 + a4 * b4 + a5 * b7; out[5] = a3 * b2 + a4 * b5 + a5 * b8;
+        out[6] = a6 * b0 + a7 * b3 + a8 * b6; out[7] = a6 * b1 + a7 * b4 + a8 * b7; out[8] = a6 * b2 + a7 * b5 + a8 * b8;
     }
-    private static float[] t(float dx, float dy) { return new float[] { 1, 0, dx, 0, 1, dy, 0, 0, 1 }; }
-    private static float[] s(float sx, float sy, float px, float py) { return new float[] { sx, 0, px - sx * px, 0, sy, py - sy * py, 0, 0, 1 }; }
-    private static float[] r(float deg, float px, float py) {
-        double a = Math.toRadians(deg); float c = (float) Math.cos(a), sn = (float) Math.sin(a);
-        return new float[] { c, -sn, px - c * px + sn * py, sn, c, py - sn * px - c * py, 0, 0, 1 };
+    private void set9(float v0, float v1, float v2, float v3, float v4, float v5, float v6, float v7, float v8) {
+        m[0] = v0; m[1] = v1; m[2] = v2; m[3] = v3; m[4] = v4; m[5] = v5; m[6] = v6; m[7] = v7; m[8] = v8;
     }
-    private static float[] k(float kx, float ky, float px, float py) { return new float[] { 1, kx, -kx * py, ky, 1, -ky * px, 0, 0, 1 }; }
+    /** this = this x B, for an affine B (b6, b7, b8 = 0, 0, 1) */
+    private void preAff(float b0, float b1, float b2, float b3, float b4, float b5) {
+        float a0 = m[0], a1 = m[1], a2 = m[2], a3 = m[3], a4 = m[4], a5 = m[5], a6 = m[6], a7 = m[7], a8 = m[8];
+        set9(a0 * b0 + a1 * b3, a0 * b1 + a1 * b4, a0 * b2 + a1 * b5 + a2,
+             a3 * b0 + a4 * b3, a3 * b1 + a4 * b4, a3 * b2 + a4 * b5 + a5,
+             a6 * b0 + a7 * b3, a6 * b1 + a7 * b4, a6 * b2 + a7 * b5 + a8);
+    }
+    /** this = A x this, for an affine A */
+    private void postAff(float a0, float a1, float a2, float a3, float a4, float a5) {
+        float b0 = m[0], b1 = m[1], b2 = m[2], b3 = m[3], b4 = m[4], b5 = m[5], b6 = m[6], b7 = m[7], b8 = m[8];
+        set9(a0 * b0 + a1 * b3 + a2 * b6, a0 * b1 + a1 * b4 + a2 * b7, a0 * b2 + a1 * b5 + a2 * b8,
+             a3 * b0 + a4 * b3 + a5 * b6, a3 * b1 + a4 * b4 + a5 * b7, a3 * b2 + a4 * b5 + a5 * b8,
+             b6, b7, b8);
+    }
 
-    public void setTranslate(float dx, float dy) { System.arraycopy(t(dx, dy), 0, m, 0, 9); }
-    public void setScale(float sx, float sy, float px, float py) { System.arraycopy(s(sx, sy, px, py), 0, m, 0, 9); }
+    public void setTranslate(float dx, float dy) { set9(1, 0, dx, 0, 1, dy, 0, 0, 1); }
+    public void setScale(float sx, float sy, float px, float py) { set9(sx, 0, px - sx * px, 0, sy, py - sy * py, 0, 0, 1); }
     public void setScale(float sx, float sy) { setScale(sx, sy, 0, 0); }
-    public void setRotate(float d, float px, float py) { System.arraycopy(r(d, px, py), 0, m, 0, 9); }
+    public void setRotate(float d, float px, float py) { double a = Math.toRadians(d); setSinCos((float) Math.sin(a), (float) Math.cos(a), px, py); }
     public void setRotate(float d) { setRotate(d, 0, 0); }
-    public void setSinCos(float sin, float cos, float px, float py) { float[] v = { cos, -sin, px - cos * px + sin * py, sin, cos, py - sin * px - cos * py, 0, 0, 1 }; System.arraycopy(v, 0, m, 0, 9); }
+    public void setSinCos(float sin, float cos, float px, float py) { set9(cos, -sin, px - cos * px + sin * py, sin, cos, py - sin * px - cos * py, 0, 0, 1); }
     public void setSinCos(float sin, float cos) { setSinCos(sin, cos, 0, 0); }
-    public void setSkew(float kx, float ky, float px, float py) { System.arraycopy(k(kx, ky, px, py), 0, m, 0, 9); }
+    public void setSkew(float kx, float ky, float px, float py) { set9(1, kx, -kx * py, ky, 1, -ky * px, 0, 0, 1); }
     public void setSkew(float kx, float ky) { setSkew(kx, ky, 0, 0); }
     public boolean setConcat(Matrix a, Matrix b) { mul(m, a.m, b.m); return true; }
-    public boolean preTranslate(float dx, float dy) { mul(m, m, t(dx, dy)); return true; }
-    public boolean preScale(float sx, float sy, float px, float py) { mul(m, m, s(sx, sy, px, py)); return true; }
+    public boolean preTranslate(float dx, float dy) { preAff(1, 0, dx, 0, 1, dy); return true; }
+    public boolean preScale(float sx, float sy, float px, float py) { preAff(sx, 0, px - sx * px, 0, sy, py - sy * py); return true; }
     public boolean preScale(float sx, float sy) { return preScale(sx, sy, 0, 0); }
-    public boolean preRotate(float d, float px, float py) { mul(m, m, r(d, px, py)); return true; }
+    public boolean preRotate(float d, float px, float py) {
+        double a = Math.toRadians(d); float c = (float) Math.cos(a), sn = (float) Math.sin(a);
+        preAff(c, -sn, px - c * px + sn * py, sn, c, py - sn * px - c * py); return true;
+    }
     public boolean preRotate(float d) { return preRotate(d, 0, 0); }
-    public boolean preSkew(float kx, float ky, float px, float py) { mul(m, m, k(kx, ky, px, py)); return true; }
+    public boolean preSkew(float kx, float ky, float px, float py) { preAff(1, kx, -kx * py, ky, 1, -ky * px); return true; }
     public boolean preSkew(float kx, float ky) { return preSkew(kx, ky, 0, 0); }
     public boolean preConcat(Matrix o) { mul(m, m, o.m); return true; }
-    public boolean postTranslate(float dx, float dy) { mul(m, t(dx, dy), m); return true; }
-    public boolean postScale(float sx, float sy, float px, float py) { mul(m, s(sx, sy, px, py), m); return true; }
+    public boolean postTranslate(float dx, float dy) { postAff(1, 0, dx, 0, 1, dy); return true; }
+    public boolean postScale(float sx, float sy, float px, float py) { postAff(sx, 0, px - sx * px, 0, sy, py - sy * py); return true; }
     public boolean postScale(float sx, float sy) { return postScale(sx, sy, 0, 0); }
-    public boolean postRotate(float d, float px, float py) { mul(m, r(d, px, py), m); return true; }
+    public boolean postRotate(float d, float px, float py) {
+        double a = Math.toRadians(d); float c = (float) Math.cos(a), sn = (float) Math.sin(a);
+        postAff(c, -sn, px - c * px + sn * py, sn, c, py - sn * px - c * py); return true;
+    }
     public boolean postRotate(float d) { return postRotate(d, 0, 0); }
-    public boolean postSkew(float kx, float ky, float px, float py) { mul(m, k(kx, ky, px, py), m); return true; }
+    public boolean postSkew(float kx, float ky, float px, float py) { postAff(1, kx, -kx * py, ky, 1, -ky * px); return true; }
     public boolean postSkew(float kx, float ky) { return postSkew(kx, ky, 0, 0); }
     public boolean postConcat(Matrix o) { mul(m, o.m, m); return true; }
 
@@ -67,9 +91,8 @@ public class Matrix {
         float det = a * A + b * B + c * C;
         if (det == 0 || Float.isNaN(det)) return false;
         if (inverse != null) {
-            float[] v = { A, -(b * i - c * h), b * f - c * e, B, a * i - c * g, -(a * f - c * d), C, -(a * h - b * g), a * e - b * d };
-            for (int k = 0; k < 9; k++) v[k] /= det;
-            System.arraycopy(v, 0, inverse.m, 0, 9);
+            inverse.set9(A / det, -(b * i - c * h) / det, (b * f - c * e) / det, B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+                         C / det, -(a * h - b * g) / det, (a * e - b * d) / det);
         }
         return true;
     }
@@ -91,12 +114,13 @@ public class Matrix {
     }
     public void mapVectors(float[] v) { mapVectors(v, 0, v, 0, v.length / 2); }
     public void mapVectors(float[] dst, float[] src) { mapVectors(dst, 0, src, 0, src.length / 2); }
+    private float mx(float x, float y) { float w = m[6] * x + m[7] * y + m[8]; if (w == 0) w = 1; return (m[0] * x + m[1] * y + m[2]) / w; }
+    private float my(float x, float y) { float w = m[6] * x + m[7] * y + m[8]; if (w == 0) w = 1; return (m[3] * x + m[4] * y + m[5]) / w; }
     public boolean mapRect(RectF dst, RectF src) {
-        float[] p = { src.left, src.top, src.right, src.top, src.right, src.bottom, src.left, src.bottom };
-        mapPoints(p);
-        float l = Math.min(Math.min(p[0], p[2]), Math.min(p[4], p[6])), r = Math.max(Math.max(p[0], p[2]), Math.max(p[4], p[6]));
-        float t = Math.min(Math.min(p[1], p[3]), Math.min(p[5], p[7])), b = Math.max(Math.max(p[1], p[3]), Math.max(p[5], p[7]));
-        dst.set(l, t, r, b);
+        float sl = src.left, st = src.top, sr = src.right, sb = src.bottom;
+        float x0 = mx(sl, st), y0 = my(sl, st), x1 = mx(sr, st), y1 = my(sr, st), x2 = mx(sr, sb), y2 = my(sr, sb), x3 = mx(sl, sb), y3 = my(sl, sb);
+        dst.set(Math.min(Math.min(x0, x1), Math.min(x2, x3)), Math.min(Math.min(y0, y1), Math.min(y2, y3)),
+                Math.max(Math.max(x0, x1), Math.max(x2, x3)), Math.max(Math.max(y0, y1), Math.max(y2, y3)));
         return rectStaysRect();
     }
     public boolean mapRect(RectF r) { return mapRect(r, r); }
@@ -114,8 +138,7 @@ public class Matrix {
             else if (stf == ScaleToFit.END) { ox = dst.width() - dw; oy = dst.height() - dh; }
             tx = dst.left + ox - src.left * sc; ty = dst.top + oy - src.top * sc;
         }
-        float[] v = { sx, 0, tx, 0, sy, ty, 0, 0, 1 };
-        System.arraycopy(v, 0, m, 0, 9);
+        set9(sx, 0, tx, 0, sy, ty, 0, 0, 1);
         return true;
     }
     public boolean setPolyToPoly(float[] src, int srcIndex, float[] dst, int dstIndex, int pointCount) {
@@ -127,8 +150,7 @@ public class Matrix {
         float svx = sx1 - sx0, svy = sy1 - sy0, dvx = dx1 - dx0, dvy = dy1 - dy0;
         float sl = svx * svx + svy * svy; if (sl == 0) return false;
         float a = (svx * dvx + svy * dvy) / sl, b = (svx * dvy - svy * dvx) / sl;
-        float[] v = { a, -b, dx0 - (a * sx0 - b * sy0), b, a, dy0 - (b * sx0 + a * sy0), 0, 0, 1 };
-        System.arraycopy(v, 0, m, 0, 9);
+        set9(a, -b, dx0 - (a * sx0 - b * sy0), b, a, dy0 - (b * sx0 + a * sy0), 0, 0, 1);
         return true;
     }
     @Override public boolean equals(Object o) { return o instanceof Matrix && java.util.Arrays.equals(m, ((Matrix) o).m); }

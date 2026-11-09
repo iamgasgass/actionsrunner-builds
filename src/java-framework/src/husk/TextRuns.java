@@ -10,6 +10,10 @@ import android.text.style.*;
 public final class TextRuns {
     private TextRuns() {}
     private static final ThreadLocal<TextPaint> sWork = new ThreadLocal<TextPaint>() { protected TextPaint initialValue() { return new TextPaint(); } };
+    /* draw's own paints, one set per thread: a text with spans is drawn on every frame, and each draw made a TextPaint (and a Paint
+       per background run). A ReplacementSpan may draw text through here again: the inner call then makes its own. */
+    private static final class Draw { final TextPaint wp = new TextPaint(); final Paint bg = new Paint(); boolean busy; }
+    private static final ThreadLocal<Draw> sDraw = new ThreadLocal<Draw>() { protected Draw initialValue() { return new Draw(); } };
     public static float measure(CharSequence text, int start, int end, TextPaint paint) {
         if (end <= start) return 0;
         if (!(text instanceof Spanned)) return paint.measureText(text.toString(), start, end);
@@ -34,7 +38,16 @@ public final class TextRuns {
         String s = text.toString();
         if (!(text instanceof Spanned)) { c.drawText(s, start, end, x, baseline, paint); return; }
         Spanned sp = (Spanned) text;
-        TextPaint wp = new TextPaint();
+        Draw d = sDraw.get();
+        boolean mine = !d.busy;
+        if (!mine) d = new Draw();
+        d.busy = true;
+        try { drawRuns(c, text, sp, s, start, end, x, baseline, top, bottom, paint, d); }
+        finally { if (mine) d.busy = false; }
+    }
+    private static void drawRuns(Canvas c, CharSequence text, Spanned sp, String s, int start, int end, float x, float baseline, int top, int bottom,
+                                 TextPaint paint, Draw d) {
+        TextPaint wp = d.wp;
         for (int i = start; i < end; ) {
             int next = sp.nextSpanTransition(i, end, CharacterStyle.class);
             wp.set(paint);
@@ -53,7 +66,7 @@ public final class TextRuns {
                 x += w; i = next; continue;
             }
             w = wp.measureText(s, i, next);
-            if (wp.bgColor != 0) { Paint bg = new Paint(); bg.setColor(wp.bgColor); c.drawRect(x, top, x + w, bottom, bg); }
+            if (wp.bgColor != 0) { Paint bg = d.bg; bg.reset(); bg.setColor(wp.bgColor); c.drawRect(x, top, x + w, bottom, bg); }
             c.drawText(s, i, next, x, baseline + wp.baselineShift, wp);
             x += w;
             i = next;

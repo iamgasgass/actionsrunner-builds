@@ -428,17 +428,31 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
         int save = c.save();
         if (mClipToPadding) c.clipRect(mScrollX + mPaddingLeft, mScrollY + mPaddingTop, mScrollX + getWidth() - mPaddingRight, mScrollY + getHeight() - mPaddingBottom);
         int n = mChildrenCount;
-        View[] kids = mChildren.clone();
+        /* a copy of the children (a child may be removed while drawing) and the drawing order: kept per group and reused, they were
+           made on every frame for every group. A group drawn again while it draws (into another canvas, for a blur) makes its own. */
+        boolean mine = !mDrawBusy;
+        View[] kids; int[] idx;
+        if (mine && mDrawKids != null && mDrawKids.length >= n) { kids = mDrawKids; idx = mDrawIdx; }
+        else { kids = new View[Math.max(n, 4)]; idx = new int[kids.length]; if (mine) { mDrawKids = kids; mDrawIdx = idx; } }
+        System.arraycopy(mChildren, 0, kids, 0, n);
+        mDrawBusy = true;
+        try { drawChildren(c, kids, idx, n); }
+        finally { if (mine) { mDrawBusy = false; java.util.Arrays.fill(kids, 0, n, null); } }
+        if (mDisappearingChildren != null && !mDisappearingChildren.isEmpty())
+            for (Object o : mDisappearingChildren.toArray()) drawChild(c, (View) o, getDrawingTime());
+        c.restoreToCount(save);
+    }
+    private View[] mDrawKids; private int[] mDrawIdx; private boolean mDrawBusy;
+    private void drawChildren(Canvas c, View[] kids, int[] idx, int n) {
         boolean order = mChildrenDrawingOrder;
         // children with a higher Z draw later
-        int[] idx = new int[n];
-        for (int i = 0; i < n; i++) idx[i] = order ? getChildDrawingOrder(n, i) : i;
+        for (int i = 0; i < n; i++) { int k = order ? getChildDrawingOrder(n, i) : i; idx[i] = k >= 0 && k < n ? k : i; }
         boolean anyZ = false;
         for (int i = 0; i < n; i++) if (kids[idx[i]] != null && kids[idx[i]].getZ() != 0) { anyZ = true; break; }
         if (anyZ) {
             Integer[] o = new Integer[n]; for (int i = 0; i < n; i++) o[i] = idx[i];
             final View[] k = kids;
-            java.util.Arrays.sort(o, (a, b) -> Float.compare(k[a].getZ(), k[b].getZ()));
+            java.util.Arrays.sort(o, (a, b) -> Float.compare(k[a] == null ? 0 : k[a].getZ(), k[b] == null ? 0 : k[b].getZ()));
             for (int i = 0; i < n; i++) idx[i] = o[i];
         }
         for (int i = 0; i < n; i++) {
@@ -446,9 +460,6 @@ public abstract class ViewGroup extends View implements ViewParent, ViewManager 
             if (child == null) continue;
             if (child.getVisibility() == VISIBLE || child.getAnimation() != null) drawChild(c, child, getDrawingTime());
         }
-        if (mDisappearingChildren != null && !mDisappearingChildren.isEmpty())
-            for (Object o : mDisappearingChildren.toArray()) drawChild(c, (View) o, getDrawingTime());
-        c.restoreToCount(save);
     }
     protected boolean drawChild(Canvas c, View child, long time) { child.drawFromParent(c, this); return false; }
     public long getDrawingTime() { return android.os.SystemClock.uptimeMillis(); }
