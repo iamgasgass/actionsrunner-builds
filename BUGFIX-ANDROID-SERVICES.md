@@ -94,3 +94,15 @@ Nel log l'audio non ha più discontinuità e il video parte su tutti i canali, c
 Test aggiunti: `tests/translation-layer/run_audio.sh` (conversione dell'uscita audio), `tests/translation-layer/run_opensles.sh` (player OpenSL come lo usa OpenAL) e il confronto di `Matrix` in `tests/java-framework`.
 
 Il garbage collector della macchina virtuale Java non è incluso in questa versione (vedi il messaggio di consegna).
+
+## Correzioni dai log delle 20:19 (GassPlayer, build v9)
+
+| Sintomo | Causa | Correzione |
+|---|---|---|
+| Risoluzione dei nomi (DNS) diversa da Android in tutte le app Java | `husk-tl-bionic-net.c` leggeva i flag `AI_*` di `getaddrinfo` e `NI_*` di `getnameinfo` con i valori di glibc. Bionic usa invece quelli BSD/NetBSD (`AI_NUMERICSERV` 0x8, `AI_ADDRCONFIG` 0x400, `AI_V4MAPPED` 0x800; `NI_NUMERICHOST` 0x2, `NI_NAMEREQD` 0x4). Così l'`AI_ADDRCONFIG` che libcore usa per ogni risoluzione arrivava a iOS come `AI_NUMERICSERV`: niente filtro sulle famiglie raggiungibili (IPv6 anche senza rete IPv6). Inoltre la ricerca inversa con `NI_NAMEREQD` restituiva l'indirizzo numerico come nome | Flag convertiti con i valori di bionic, verificati sul suo `netdb.h`. Per `NI_*` i valori di bionic e di iOS coincidono |
+| `recvfrom`/`recvmsg` su socket TCP | iOS non restituisce un indirizzo per un socket connesso, ma veniva convertito comunque il buffer non inizializzato | Lunghezza dell'indirizzo 0, come su Linux |
+| `recvmsg`: flag e messaggi di controllo persi | `msg_flags` sempre azzerato; `SCM_RIGHTS` (passaggio di file descriptor, usato da `LocalSocket` e `ParcelFileDescriptor`) non veniva né spedito né ricevuto, e i descriptor ricevuti restavano aperti | `MSG_TRUNC`/`MSG_CTRUNC`/`MSG_EOR`/`MSG_OOB` convertiti. `SCM_RIGHTS` convertito nei due sensi (intestazione da 16 byte allineata a 8 su Android, da 12 allineata a 4 su iOS). I descriptor che non entrano nel buffer vengono chiusi con `MSG_CTRUNC`. Test: `tests/translation-layer/run_net_cmsg.sh` |
+| `getsockopt(SO_RCVTIMEO/SO_SNDTIMEO)` | Su iOS `tv_usec` è di 4 byte con 4 byte di riempimento: l'app leggeva un valore sporco | Valore azzerato e microsecondi estesi a 8 byte |
+| `SO_LINGER` | Su iOS `SO_LINGER` è in tick di clock, su Linux in secondi | Usato `SO_LINGER_SEC` |
+| Opzioni mancanti | `SO_RCVLOWAT`, `SO_SNDLOWAT`, `IPV6_TCLASS` (`Socket.setTrafficClass` di libcore) venivano ignorate; `SO_PEERCRED` (`LocalSocket.getPeerCredentials`) falliva | Tradotte; `SO_PEERCRED` è costruito da `LOCAL_PEERPID` e `getpeereid` |
+| `libunwind.so` assente dal runtime (eccezioni C++ di libc++/libssl non gestite) | Un runtime Java fornito per URL (`HUSK_JAVA_RUNTIME_URL`) ha la precedenza su quello costruito in CI e può essere precedente a `libunwind.so` | `build.yml`: se il runtime ricevuto non ha `libunwind.so`, la CI lo costruisce con l'NDK del runner e lo aggiunge; se non può, lo segnala con un avviso |

@@ -264,8 +264,11 @@ static long b_recvfrom(int fd, void *p, size_t n, int flags, void *g, socklen_t 
 {
     struct sockaddr_storage s; socklen_t sl = sizeof(s);
     TL_ERRNO_BEGIN();
+    s.ss_family = AF_UNSPEC;
     long r = recvfrom(fd, p, n, msg_flags_to_darwin(flags), g ? (struct sockaddr *)&s : NULL, g ? &sl : NULL);
-    if (r >= 0 && g && glen) *glen = sa_from_darwin((struct sockaddr *)&s, g, *glen);
+    /* a connected stream gives no address (sl 0): the guest's length is then 0, as Linux's; it used to get the uninitialised
+       storage converted into its buffer */
+    if (r >= 0 && g && glen) *glen = sl ? sa_from_darwin((struct sockaddr *)&s, g, *glen) : 0;
     int e = errno;
     TL_ERRNO_END();
     NTRACE("recvfrom(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
@@ -274,6 +277,81 @@ static long b_recvfrom(int fd, void *p, size_t n, int flags, void *g, socklen_t 
 
 /* bionic's msghdr: 8-byte iovlen and controllen, and a pad after the 4-byte namelen. */
 typedef struct { void *name; uint32_t namelen; struct iovec *iov; size_t iovlen; void *control; size_t controllen; int flags; } guest_msghdr;
+
+/*
+ * Control messages. Linux's cmsghdr has an 8-byte length and 8-byte alignment (data at 16), Darwin's a 4-byte length and 4-byte
+ * alignment (data at 12), and SOL_SOCKET differs. SCM_RIGHTS -- passing descriptors, what Android's LocalSocket and
+ * ParcelFileDescriptor over sockets use -- is converted both ways; the rest (packet info, timestamps) is dropped. Both used to be:
+ * a descriptor sent never arrived, and one received was neither reported nor closed.
+ */
+enum { G_SCM_RIGHTS = 1, G_CMSG_HDR = 16, G_MSG_CTRUNC = 0x8, G_MSG_TRUNC = 0x20, G_MSG_EOR = 0x80, G_MSG_OOB = 0x1 };
+#define G_CMSG_ALIGN(n) (((n) + 7) & ~(size_t)7)
+
+static int msg_flags_from_darwin(int f)
+{
+    int r = 0;
+    if (f & MSG_OOB) r |= G_MSG_OOB;
+    if (f & MSG_EOR) r |= G_MSG_EOR;
+    if (f & MSG_TRUNC) r |= G_MSG_TRUNC;
+    if (f & MSG_CTRUNC) r |= G_MSG_CTRUNC;
+    return r;
+}
+
+/* The descriptors of the guest's SCM_RIGHTS messages, into a Darwin control buffer (malloc'd; NULL when there are none). */
+static void *cmsg_to_darwin(const guest_msghdr *g, socklen_t *len)
+{
+    *len = 0;
+    if (!g->control || g->controllen < G_CMSG_HDR) return NULL;
+    const uint8_t *c = g->control;
+    size_t nfd = 0;
+    for (size_t off = 0; off + G_CMSG_HDR <= g->controllen; ) {
+        size_t l; int lv, ty; memcpy(&l, c + off, 8); memcpy(&lv, c + off + 8, 4); memcpy(&ty, c + off + 12, 4);
+        if (l < G_CMSG_HDR || off + l > g->controllen) break;
+        if (lv == G_SOL_SOCKET && ty == G_SCM_RIGHTS) nfd += (l - G_CMSG_HDR) / sizeof(int);
+        off += G_CMSG_ALIGN(l);
+    }
+    if (!nfd || nfd > 253) return NULL;                 /* SCM_MAX_FD */
+    socklen_t sz = (socklen_t)CMSG_SPACE(nfd * sizeof(int));
+    uint8_t *d = calloc(1, sz);
+    if (!d) return NULL;
+    struct cmsghdr *h = (struct cmsghdr *)d;
+    h->cmsg_len = (socklen_t)CMSG_LEN(nfd * sizeof(int)); h->cmsg_level = SOL_SOCKET; h->cmsg_type = SCM_RIGHTS;
+    uint8_t *out = CMSG_DATA(h);
+    for (size_t off = 0; off + G_CMSG_HDR <= g->controllen; ) {
+        size_t l; int lv, ty; memcpy(&l, c + off, 8); memcpy(&lv, c + off + 8, 4); memcpy(&ty, c + off + 12, 4);
+        if (l < G_CMSG_HDR || off + l > g->controllen) break;
+        if (lv == G_SOL_SOCKET && ty == G_SCM_RIGHTS) {
+            size_t k = (l - G_CMSG_HDR) / sizeof(int) * sizeof(int);
+            memcpy(out, c + off + G_CMSG_HDR, k); out += k;
+        }
+        off += G_CMSG_ALIGN(l);
+    }
+    *len = sz;
+    return d;
+}
+
+/* Darwin's received control messages into the guest's buffer; descriptors that do not fit are closed and MSG_CTRUNC is set. */
+static void cmsg_from_darwin(struct msghdr *m, guest_msghdr *g, int *gflags)
+{
+    size_t cap = g->control ? g->controllen : 0, used = 0;
+    uint8_t *out = g->control;
+    if (m->msg_controllen) for (struct cmsghdr *h = CMSG_FIRSTHDR(m); h; h = CMSG_NXTHDR(m, h)) {
+        if (h->cmsg_level != SOL_SOCKET || h->cmsg_type != SCM_RIGHTS || h->cmsg_len < CMSG_LEN(0)) continue;
+        size_t nfd = (h->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+        const uint8_t *fds = CMSG_DATA(h);
+        size_t fit = cap > used + G_CMSG_HDR ? (cap - used - G_CMSG_HDR) / sizeof(int) : 0;
+        if (fit > nfd) fit = nfd;
+        if (fit) {
+            size_t l = G_CMSG_HDR + fit * sizeof(int); int lv = G_SOL_SOCKET, ty = G_SCM_RIGHTS;
+            memcpy(out + used, &l, 8); memcpy(out + used + 8, &lv, 4); memcpy(out + used + 12, &ty, 4);
+            memcpy(out + used + G_CMSG_HDR, fds, fit * sizeof(int));
+            used += G_CMSG_ALIGN(l);
+            if (used > cap) used = cap;
+        }
+        for (size_t i = fit; i < nfd; i++) { int fd; memcpy(&fd, fds + i * sizeof(int), sizeof(int)); close(fd); *gflags |= G_MSG_CTRUNC; }
+    }
+    g->controllen = used;
+}
 
 static long b_sendmsg(int fd, const guest_msghdr *g, int flags)
 {
@@ -285,20 +363,28 @@ static long b_sendmsg(int fd, const guest_msghdr *g, int flags)
         m.msg_name = &s;
     }
     m.msg_iov = g->iov; m.msg_iovlen = (int)g->iovlen;
-    TL_ERRNO_BEGIN(); long r = sendmsg(fd, &m, msg_flags_to_darwin(flags)); TL_ERRNO_END(); return r;
+    socklen_t cl; void *ctl = cmsg_to_darwin(g, &cl);
+    m.msg_control = ctl; m.msg_controllen = cl;
+    TL_ERRNO_BEGIN(); long r = sendmsg(fd, &m, msg_flags_to_darwin(flags)); TL_ERRNO_END();
+    free(ctl);
+    return r;
 }
 static long b_recvmsg(int fd, guest_msghdr *g, int flags)
 {
     struct msghdr m; memset(&m, 0, sizeof(m));
-    struct sockaddr_storage s;
+    struct sockaddr_storage s; s.ss_family = AF_UNSPEC;
     if (g->name) { m.msg_name = &s; m.msg_namelen = sizeof(s); }
     m.msg_iov = g->iov; m.msg_iovlen = (int)g->iovlen;
+    /* Darwin's headers are smaller than Linux's, so a buffer the guest's size holds what the guest's can */
+    uint8_t ctl[1024];
+    if (g->control && g->controllen >= G_CMSG_HDR) { m.msg_control = ctl; m.msg_controllen = (socklen_t)(g->controllen < sizeof(ctl) ? g->controllen : sizeof(ctl)); }
     TL_ERRNO_BEGIN();
     long r = recvmsg(fd, &m, msg_flags_to_darwin(flags));
     if (r >= 0) {
-        if (g->name) g->namelen = sa_from_darwin((struct sockaddr *)&s, g->name, g->namelen);
-        g->controllen = 0;
-        g->flags = 0;
+        if (g->name) g->namelen = m.msg_namelen ? sa_from_darwin((struct sockaddr *)&s, g->name, g->namelen) : 0;
+        int gf = msg_flags_from_darwin(m.msg_flags);
+        cmsg_from_darwin(&m, g, &gf);
+        g->flags = gf;
     }
     TL_ERRNO_END();
     return r;
@@ -353,14 +439,15 @@ static bool opt_to_darwin(int level, int name, int *dlevel, int *dname)
 {
     static const struct { int g, d; } sol[] = {
         { 1, SO_DEBUG }, { 2, SO_REUSEADDR }, { 3, SO_TYPE }, { 4, SO_ERROR }, { 5, SO_DONTROUTE }, { 6, SO_BROADCAST },
-        { 7, SO_SNDBUF }, { 8, SO_RCVBUF }, { 9, SO_KEEPALIVE }, { 10, SO_OOBINLINE }, { 13, SO_LINGER }, { 15, SO_REUSEPORT },
-        { 20, SO_RCVTIMEO }, { 21, SO_SNDTIMEO }, { 30, SO_ACCEPTCONN },
+        { 7, SO_SNDBUF }, { 8, SO_RCVBUF }, { 9, SO_KEEPALIVE }, { 10, SO_OOBINLINE }, { 13, 0x1080 /* SO_LINGER_SEC: Linux's is in seconds, Darwin's SO_LINGER in clock ticks */ }, { 15, SO_REUSEPORT },
+        { 18, SO_RCVLOWAT }, { 19, SO_SNDLOWAT }, { 20, SO_RCVTIMEO }, { 21, SO_SNDTIMEO }, { 30, SO_ACCEPTCONN },
     };
     static const struct { int g, d; } tcp[] = { { 1, TCP_NODELAY }, { 2, TCP_MAXSEG }, { 4, 0x10 /* TCP_KEEPALIVE */ }, { 5, 0x101 /* TCP_KEEPINTVL */ }, { 6, 0x102 /* TCP_KEEPCNT */ } };
     static const struct { int g, d; } ip[] = { { 1, IP_TOS }, { 2, IP_TTL }, { 32, IP_MULTICAST_IF }, { 33, IP_MULTICAST_TTL }, { 34, IP_MULTICAST_LOOP },
                                                { 35, IP_ADD_MEMBERSHIP }, { 36, IP_DROP_MEMBERSHIP } };
     static const struct { int g, d; } ip6[] = { { 26, IPV6_V6ONLY }, { 16, IPV6_UNICAST_HOPS }, { 17, IPV6_MULTICAST_IF }, { 18, IPV6_MULTICAST_HOPS },
-                                                { 19, IPV6_MULTICAST_LOOP }, { 20, IPV6_JOIN_GROUP }, { 21, IPV6_LEAVE_GROUP } };
+                                                { 19, IPV6_MULTICAST_LOOP }, { 20, IPV6_JOIN_GROUP }, { 21, IPV6_LEAVE_GROUP },
+                                                { 67, 36 /* IPV6_TCLASS */ } };   /* libcore's Socket.setTrafficClass on its IPv6 sockets */
 #define LOOK(tab, lvl) do { for (size_t i = 0; i < sizeof(tab) / sizeof(tab[0]); i++) if (tab[i].g == name) { *dlevel = (lvl); *dname = tab[i].d; return true; } return false; } while (0)
     switch (level) {
     case G_SOL_SOCKET: LOOK(sol, SOL_SOCKET);
@@ -432,9 +519,23 @@ static int b_setsockopt(int fd, int level, int name, const void *val, socklen_t 
 static int b_getsockopt(int fd, int level, int name, void *val, socklen_t *len)
 {
     int dl, dn;
+    if (level == G_SOL_SOCKET && name == 17 && val && len && *len >= 12) {
+        /* SO_PEERCRED (LocalSocket.getPeerCredentials): struct ucred { pid, uid, gid } from Darwin's peer pid and peer ids */
+        int32_t cred[3] = { 0, 0, 0 };
+        pid_t pid = 0; socklen_t pl = sizeof(pid); uid_t u; gid_t gr;
+        TL_ERRNO_BEGIN();
+        int r = getsockopt(fd, 0 /* SOL_LOCAL */, 0x002 /* LOCAL_PEERPID */, &pid, &pl);
+        if (r == 0 && getpeereid(fd, &u, &gr) == 0) { cred[0] = pid; cred[1] = (int32_t)u; cred[2] = (int32_t)gr; memcpy(val, cred, 12); *len = 12; }
+        else if (r == 0) r = -1;
+        TL_ERRNO_END();
+        return r;
+    }
     if (!opt_to_darwin(level, name, &dl, &dn)) { tl_set_guest_errno(G_ENOPROTOOPT); return -1; }
+    bool tv = level == G_SOL_SOCKET && (name == 20 || name == 21);
+    if (tv && val && len && *len >= 16) memset(val, 0, 16);   /* Darwin's timeval has a 4-byte tv_usec and 4 bytes of padding */
     TL_ERRNO_BEGIN();
     int r = getsockopt(fd, dl, dn, val, len);
+    if (r == 0 && tv && val && *len >= 12) { int32_t us; memcpy(&us, (uint8_t *)val + 8, 4); int64_t l = us; memcpy((uint8_t *)val + 8, &l, 8); *len = 16; }
     int e = errno;
     if (r == 0 && level == G_SOL_SOCKET && name == 4 && *len >= sizeof(int)) *(int *)val = tl_errno_to_guest(*(int *)val);   /* SO_ERROR holds an errno */
     TL_ERRNO_END();
@@ -452,16 +553,23 @@ typedef struct guest_addrinfo {
     struct guest_addrinfo *ai_next;
 } guest_addrinfo;
 
+/*
+ * bionic's AI_* are NetBSD's (its resolver comes from there), not glibc's: PASSIVE 1, CANONNAME 2, NUMERICHOST 4, NUMERICSERV 8,
+ * ALL 0x100, V4MAPPED_CFG 0x200, ADDRCONFIG 0x400, V4MAPPED 0x800. They were read as glibc's, so libcore's every lookup
+ * (AI_ADDRCONFIG) reached Darwin as AI_NUMERICSERV and lost its "only families this device can reach", and an app's
+ * AI_NUMERICSERV became AI_V4MAPPED. Darwin's are the same BSD values but for NUMERICSERV (0x1000).
+ */
 static int ai_flags_to_darwin(int f)
 {
     int r = 0;
     if (f & 0x1) r |= AI_PASSIVE;
     if (f & 0x2) r |= AI_CANONNAME;
     if (f & 0x4) r |= AI_NUMERICHOST;
-    if (f & 0x8) r |= AI_V4MAPPED;
-    if (f & 0x10) r |= AI_ALL;
-    if (f & 0x20) r |= AI_ADDRCONFIG;
-    if (f & 0x400) r |= AI_NUMERICSERV;
+    if (f & 0x8) r |= AI_NUMERICSERV;
+    if (f & 0x100) r |= AI_ALL;
+    if (f & 0x200) r |= AI_V4MAPPED_CFG;
+    if (f & 0x400) r |= AI_ADDRCONFIG;
+    if (f & 0x800) r |= AI_V4MAPPED;
     return r;
 }
 
@@ -518,11 +626,13 @@ static int b_getnameinfo(const void *g, socklen_t glen, char *host, socklen_t ho
     struct sockaddr_storage s;
     socklen_t n = sa_to_darwin(g, glen, &s);
     if (!n) return 5;
+    /* bionic's NI_* are the BSD ones, as Darwin's: NOFQDN 1, NUMERICHOST 2, NAMEREQD 4, NUMERICSERV 8, DGRAM 16 (they were
+       read as glibc's: libcore's reverse lookup with NI_NAMEREQD reached Darwin as NI_NOFQDN and gave the number back as a name) */
     int f = 0;
-    if (flags & 1) f |= NI_NUMERICHOST;
-    if (flags & 2) f |= NI_NUMERICSERV;
-    if (flags & 4) f |= NI_NOFQDN;
-    if (flags & 8) f |= NI_NAMEREQD;
+    if (flags & 1) f |= NI_NOFQDN;
+    if (flags & 2) f |= NI_NUMERICHOST;
+    if (flags & 4) f |= NI_NAMEREQD;
+    if (flags & 8) f |= NI_NUMERICSERV;
     if (flags & 16) f |= NI_DGRAM;
     return getnameinfo((struct sockaddr *)&s, n, host, hostlen, serv, servlen, f);
 }

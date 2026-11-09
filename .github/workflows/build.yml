@@ -669,6 +669,20 @@ jobs:
           java=no; sys=no; ps4=no
           # A URL that is set but fails is an error everywhere: a broken artifact must not turn into a quietly lesser IPA.
           if [ -n "${JAVA_URL:-}" ]; then scripts/ci_prebuilt.sh java-runtime "$JAVA_URL" "${JAVA_SHA:-}"; java=yes; fi
+          # A runtime given by URL may predate libunwind.so (the C++ unwinder libc++ and libssl need to catch an exception): it is
+          # added here from the runner's NDK, which the runtime made by the prebuilt job already carries.
+          lib64=build/java-runtime/com.android.art/lib64
+          if [ "$java" = yes ] && [ -d build/java-runtime ] && [ ! -f "$lib64/libunwind.so" ]; then
+            ndk="${ANDROID_NDK:-${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}}}"
+            unw="$(mktemp -d)"
+            if [ -n "$ndk" ] && ANDROID_NDK="$ndk" bash scripts/build_art_support.sh "$unw" && [ -f "$unw/libunwind.so" ]; then
+              mkdir -p "$lib64" && cp "$unw/libunwind.so" "$lib64/libunwind.so"
+              echo "libunwind.so added to the given Java runtime (NDK: $ndk)"
+            else
+              echo "::warning title=No libunwind.so::the Java runtime has none and no NDK on this runner could build it: C++ exceptions in libc++/libssl are not caught"
+            fi
+            rm -rf "$unw"
+          fi
           if [ -n "${SYS_URL:-}" ];  then scripts/ci_prebuilt.sh android-system "$SYS_URL" "${SYS_SHA:-}"; sys=yes; fi
           if [ "$PS4_MODE" != skip ] && [ -n "${PS4_URL:-}" ]; then scripts/ci_prebuilt.sh ps4 "$PS4_URL" "${PS4_SHA:-}"; ps4=yes; fi
 
