@@ -23,7 +23,9 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -157,6 +159,39 @@ static int msg_flags_to_darwin(int f)
 static int g_net_trace = -1;
 #define NTRACE(...) do { if (g_net_trace < 0) g_net_trace = getenv("TL_NET_TRACE") ? 1 : 0; if (g_net_trace) tl_log_line("net: " __VA_ARGS__); } while (0)
 
+/*
+ * The status line and the headers that say what came back (type, length, redirect, encodings) of each plain-HTTP response a socket
+ * receives, when the received block starts with one: what a media player was sent when it says it cannot read a stream. At most
+ * 200 responses a run; nothing is logged for TLS, whose bytes are encrypted here. Off with TL_NET_HTTP_LOG=0.
+ */
+static _Atomic int g_http_logged;
+void tl_net_log_http_head(int fd, const void *buf, long n);
+void tl_net_log_http_head(int fd, const void *buf, long n)
+{
+    if (n < 12 || memcmp(buf, "HTTP/1.", 7) != 0) return;
+    static int off = -1;
+    if (off < 0) { const char *e = getenv("TL_NET_HTTP_LOG"); off = e && e[0] == '0'; }
+    if (off || atomic_fetch_add(&g_http_logged, 1) >= 200) return;
+    const char *p = buf, *end = p + (n < 4096 ? n : 4096);
+    char line[600]; size_t w = 0;
+    const char *eol = memchr(p, '\n', (size_t)(end - p));
+    size_t sl = (size_t)((eol ? eol : end) - p); if (sl && p[sl - 1] == '\r') sl--; if (sl > 120) sl = 120;
+    w += (size_t)snprintf(line + w, sizeof(line) - w, "%.*s", (int)sl, p);
+    static const char *const keep[] = { "content-type:", "content-length:", "location:", "content-encoding:", "transfer-encoding:", "content-range:" };
+    for (const char *q = eol ? eol + 1 : end; q < end && w < sizeof(line) - 1; ) {
+        const char *e2 = memchr(q, '\n', (size_t)(end - q));
+        size_t l = (size_t)((e2 ? e2 : end) - q); if (l && q[l - 1] == '\r') l--;
+        if (!l) break;                                         /* the end of the headers */
+        for (size_t k = 0; k < sizeof(keep) / sizeof(keep[0]); k++) {
+            size_t kl = strlen(keep[k]);
+            if (l > kl && !strncasecmp(q, keep[k], kl)) { w += (size_t)snprintf(line + w, sizeof(line) - w, ", %.*s", (int)(l > 160 ? 160 : l), q); break; }
+        }
+        if (!e2) break;
+        q = e2 + 1;
+    }
+    tl_log_line("net: fd %d response: %s", fd, line);
+}
+
 static void quiet_sigpipe(int fd)
 {
     int one = 1;
@@ -247,7 +282,9 @@ static long b_send(int fd, const void *p, size_t n, int flags)
 }
 static long b_recv(int fd, void *p, size_t n, int flags)
 {
-    TL_ERRNO_BEGIN(); long r = recv(fd, p, n, msg_flags_to_darwin(flags)); int e = errno; TL_ERRNO_END(); NTRACE("recv(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0); return r;
+    TL_ERRNO_BEGIN(); long r = recv(fd, p, n, msg_flags_to_darwin(flags)); int e = errno; TL_ERRNO_END(); NTRACE("recv(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
+    if (r > 0 && !(flags & 0x2)) tl_net_log_http_head(fd, p, r);
+    return r;
 }
 static long b_sendto(int fd, const void *p, size_t n, int flags, const void *g, socklen_t glen);
 static long b___sendto_chk(int fd, const void *p, size_t n, size_t bl, int flags, const void *g, socklen_t glen) { (void)bl; return b_sendto(fd, p, n, flags, g, glen); }
@@ -272,6 +309,7 @@ static long b_recvfrom(int fd, void *p, size_t n, int flags, void *g, socklen_t 
     int e = errno;
     TL_ERRNO_END();
     NTRACE("recvfrom(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
+    if (r > 0 && !(flags & 0x2)) tl_net_log_http_head(fd, p, r);
     return r;
 }
 

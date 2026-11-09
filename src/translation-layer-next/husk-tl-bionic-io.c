@@ -658,6 +658,8 @@ static long b_read(int fd, void *p, size_t n)
       bool tl_timerfd_is(int fd);
       if (tr && tl_timerfd_is(fd)) { char nm[32] = ""; pthread_getname_np(pthread_self(), nm, sizeof(nm)); tl_log_line("timerfd[%s]: read fd %d -> %ld errno %d", nm, fd, r, r < 0 ? e : 0); } }
     if (net_trace_fd(fd)) tl_log_line("net: read(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
+    /* a socket read with read() rather than recv(): its HTTP response head is logged as recv's is (husk-tl-bionic-net.c) */
+    if (r >= 12 && !memcmp(p, "HTTP/1.", 7)) { void tl_net_log_http_head(int fd, const void *buf, long n); tl_net_log_http_head(fd, p, r); }
     { static int tr = -1, said; if (tr < 0) tr = getenv("TL_FILE_TRACE") ? atoi(getenv("TL_FILE_TRACE")) : 0; if (tr && n == 32 && said++ < 20) tl_log_line("file: read(fd %d, 32) -> %ld errno %d", fd, r, r < 0 ? e : 0); }
     return r;
 }
