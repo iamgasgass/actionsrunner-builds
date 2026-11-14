@@ -77,6 +77,15 @@ final class CloudJobModel: Identifiable {
     var logState: LogState = .none
     @ObservationIgnored var lastLogAttempt: Date?
     @ObservationIgnored var annotationsLoaded = false
+    /// Schermate del job aperte (il job osservato non subisce il limite di download per giro).
+    @ObservationIgnored var watchers = 0
+    /// Chiede al monitoraggio un aggiornamento immediato del log.
+    @ObservationIgnored var refreshRequested = false
+    /// Step terminati all'ultimo download del log: quando uno step termina il suo log diventa
+    /// disponibile su GitHub e viene scaricato subito, senza attendere l'intervallo.
+    @ObservationIgnored var stepsDoneAtLastLog = -1
+
+    var stepsDone: Int { job.steps?.filter { $0.status == "completed" }.count ?? 0 }
 
     init(job: GHJob) {
         id = job.id
@@ -370,7 +379,12 @@ final class CloudRunEngine {
             } else {
                 interval = model.run?.status == "in_progress" ? 3 : 5
             }
-            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            // attesa a piccoli passi: una richiesta di aggiornamento interrompe l'attesa
+            let wake = Date().addingTimeInterval(interval)
+            while Date() < wake, !Task.isCancelled {
+                if model.jobs.contains(where: \.refreshRequested) { break }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
         }
     }
 
@@ -395,18 +409,27 @@ final class CloudRunEngine {
     /// Log e annotazioni: completi per i job terminati, parziali (ogni 15 s) per quelli in corso.
     private func refreshLogs(final: Bool) async throws {
         var fetched = 0
+        let lowRate = (api.rateRemaining ?? 5000) < 800
         for jm in model.jobs {
             if Task.isCancelled { return }
+            let requested = jm.refreshRequested
+            jm.refreshRequested = false
             let completed = jm.job.isCompleted
             if completed && jm.logState == .complete { continue }
             if case .unavailable = jm.logState, completed { continue }
+            let watched = jm.watchers > 0
             if !completed {
                 guard jm.job.status == "in_progress" else { continue }
-                if let last = jm.lastLogAttempt, Date().timeIntervalSince(last) < 15 { continue }
+                // log parziale ogni 15 s, anche con il job aperto sullo schermo.
+                // Uno step appena terminato si scarica subito (il suo log è ora completo).
+                let gap: TimeInterval = lowRate ? 30 : 15
+                let stepFinished = jm.stepsDone != jm.stepsDoneAtLastLog
+                if !requested, !stepFinished, let last = jm.lastLogAttempt, Date().timeIntervalSince(last) < gap { continue }
             }
-            if fetched >= (final ? 50 : 3) { break }
+            if fetched >= (final ? 50 : 3) && !watched && !requested { continue }
             fetched += 1
             jm.lastLogAttempt = Date()
+            jm.stepsDoneAtLastLog = jm.stepsDone
             if jm.logState == .none { jm.logState = .loading }
             await loadLog(jm, partial: !completed)
             if completed && !jm.annotationsLoaded {
