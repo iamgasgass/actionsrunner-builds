@@ -67,3 +67,19 @@ portate due soluzioni:
 
 Non risolvibili da Husk: le risposte `HTTP 551`, `400 Bad Request`, `Connection reset` e `Socket closed` vengono dal server IPTV.
 `guest-serial.log` è il log della modalità Emulazione (QEMU), separata dal translation layer usato da GassPlayer.
+
+## Film con solo audio (log del 14/11/2026, build 29ee32b5e7)
+
+Nel log, per i film che partono senza immagine Media3 crea **solo il decoder audio** (AC-3): la traccia video viene scartata prima
+ancora di arrivare al decoder, perché nessun decoder di Husk dichiarava il profilo o il livello del video. Husk dichiarava H.264 fino
+al livello 5.2 senza High 10 e HEVC solo Main/Main 10 al livello 5.1, tier Main. Un film HEVC con HDR10 (profilo Main10HDR10), a
+livello 5.2 o superiore, nel tier High, o in H.264 High 10 restava senza video.
+
+| Correzione | Riferimento |
+|---|---|
+| HEVC: Main, Main Still, Main 10, Main10HDR10, Main10HDR10Plus fino al livello 6.2, tier Main e High | come Andarium (`videoDecodeCapabilities`: HEVC livello 186 = 6.2) |
+| H.264 High 10 dichiarato quando una sessione di prova di VideoToolbox conferma la decodifica hardware | come `high10Available()` di Andarium |
+| Un NAL di tipo sconosciuto dopo NAL validi viene saltato invece di scartare l'intero frame | comportamento dei decoder Android |
+
+Se un film resta ancora senza video, il codec è uno che VideoToolbox su iPhone non decodifica (MPEG-4 Part 2/XviD, MPEG-2, AV1 su chip
+precedenti all'A17 Pro): serve il log di quel film.

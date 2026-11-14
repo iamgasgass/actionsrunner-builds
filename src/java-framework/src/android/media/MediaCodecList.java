@@ -8,17 +8,28 @@ public final class MediaCodecList {
     private static MediaCodecInfo[] sInfos;
     static synchronized MediaCodecInfo[] infos() {
         if (sInfos == null) {
-            int[][] avc = {
-                { MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline, MediaCodecInfo.CodecProfileLevel.AVCLevel52 },
-                { MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline, MediaCodecInfo.CodecProfileLevel.AVCLevel52 },
-                { MediaCodecInfo.CodecProfileLevel.AVCProfileMain, MediaCodecInfo.CodecProfileLevel.AVCLevel52 },
-                { MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedHigh, MediaCodecInfo.CodecProfileLevel.AVCLevel52 },
-                { MediaCodecInfo.CodecProfileLevel.AVCProfileHigh, MediaCodecInfo.CodecProfileLevel.AVCLevel52 },
-            };
-            int[][] hevc = {
-                { MediaCodecInfo.CodecProfileLevel.HEVCProfileMain, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel51 },
-                { MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel51 },
-            };
+            /* What VideoToolbox decodes, as Andarium's host lists it (darwin/platform/apple/video_decoder.mm): H.264 to level 5.2 (the
+               hardware opens 4096x2304 at any level), High 10 where a probe session says the chip has it, and HEVC Main and Main 10
+               to level 6.2 in both tiers. Media3 drops a video track whose profile or level no decoder lists and plays the sound
+               alone: a film in HEVC with HDR10 (Main10HDR10), at level 5.2 or above, in the high tier, or in H.264 High 10 started
+               with no picture. */
+            int L52 = MediaCodecInfo.CodecProfileLevel.AVCLevel52;
+            java.util.ArrayList<int[]> avcl = new java.util.ArrayList<>();
+            for (int p : new int[] { MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedBaseline, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
+                                     MediaCodecInfo.CodecProfileLevel.AVCProfileMain,
+                                     MediaCodecInfo.CodecProfileLevel.AVCProfileConstrainedHigh, MediaCodecInfo.CodecProfileLevel.AVCProfileHigh })
+                avcl.add(new int[] { p, L52 });
+            if (husk.MediaCodecNative.supported("video/avc-high10"))
+                avcl.add(new int[] { MediaCodecInfo.CodecProfileLevel.AVCProfileHigh10, MediaCodecInfo.CodecProfileLevel.AVCLevel51 });
+            int[][] avc = avcl.toArray(new int[0][]);
+            java.util.ArrayList<int[]> hevcl = new java.util.ArrayList<>();
+            for (int p : new int[] { MediaCodecInfo.CodecProfileLevel.HEVCProfileMain, MediaCodecInfo.CodecProfileLevel.HEVCProfileMainStill,
+                                     MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10, MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
+                                     MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus }) {
+                hevcl.add(new int[] { p, MediaCodecInfo.CodecProfileLevel.HEVCMainTierLevel62 });
+                hevcl.add(new int[] { p, MediaCodecInfo.CodecProfileLevel.HEVCHighTierLevel62 });
+            }
+            int[][] hevc = hevcl.toArray(new int[0][]);
             ArrayList<MediaCodecInfo> l = new ArrayList<>();
             l.add(new MediaCodecInfo("c2.husk.avc.decoder", false, MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_AVC, avc)));
             if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_VIDEO_HEVC))

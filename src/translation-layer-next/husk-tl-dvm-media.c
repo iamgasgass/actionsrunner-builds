@@ -498,9 +498,11 @@ static bool each_nal(const codec *c, const uint8_t *d, size_t n,
             while (end > begin && d[end - 1] == 0) end--; /* Annex-B trailing_zero_8bits */
             if (end > begin && nal_header_valid(c, d + begin, end - begin)) {
                 fn(arg, d + begin, end - begin); count++;
-            } else if (end > begin) {
-                return false;
+            } else if (end > begin && count == 0) {
+                return false;               /* not Annex-B after all (a length-prefixed unit that holds 00 00 01 by chance) */
             }
+            /* a NAL unit of a type no decoder uses, after good ones, is left out as decoders do; it used to throw away the
+               whole access unit, picture and all */
             cursor = next;
         }
         return count > 0;
@@ -927,10 +929,45 @@ static int kind_of(const char *mime)
 }
 #define C ((codec *)(uintptr_t)a[0].j)
 
+/* Whether the chip decodes H.264 High 10: a session on a High 10 SPS that VideoToolbox must give to the hardware, as Andarium's
+   host asks (darwin/platform/apple/video_decoder.mm, high10Available). Once a process. */
+static bool avc_high10_available(void)
+{
+    static int known = -1;
+    if (known >= 0) return known;
+    static const uint8_t sps[] = { 0x67, 0x6e, 0x00, 0x0a, 0xa6, 0xcd, 0x94, 0x42, 0x6c, 0x04, 0x40, 0x00, 0x00, 0x03, 0x00, 0x40,
+                                   0x00, 0x00, 0x1e, 0x03, 0xc4, 0x89, 0x65, 0x80 };
+    static const uint8_t pps[] = { 0x68, 0xeb, 0xe3, 0xcb, 0x22, 0xc0 };
+    const uint8_t *sets[] = { sps, pps };
+    const size_t sizes[] = { sizeof(sps), sizeof(pps) };
+    bool ok = false;
+    CMVideoFormatDescriptionRef fmt = NULL;
+    if (CMVideoFormatDescriptionCreateFromH264ParameterSets(NULL, 2, sets, sizes, 4, &fmt) == noErr && fmt) {
+        const void *k1[] = { kVTVideoDecoderSpecification_RequireHardwareAcceleratedVideoDecoder };
+        const void *v1[] = { kCFBooleanTrue };
+        CFDictionaryRef spec = CFDictionaryCreate(NULL, k1, v1, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        VTDecompressionSessionRef vt = NULL;
+        if (spec && VTDecompressionSessionCreate(NULL, fmt, spec, NULL, NULL, &vt) == noErr && vt) {
+            CFTypeRef hw = NULL;
+            ok = VTSessionCopyProperty(vt, kVTDecompressionPropertyKey_UsingHardwareAcceleratedVideoDecoder, NULL, &hw) == noErr
+                 && hw == kCFBooleanTrue;
+            if (hw) CFRelease(hw);
+            VTDecompressionSessionInvalidate(vt);
+            CFRelease(vt);
+        }
+        if (spec) CFRelease(spec);
+        CFRelease(fmt);
+    }
+    tl_log_line("media: H.264 High 10 %s on this device", ok ? "decoded in hardware" : "not available");
+    known = ok;
+    return ok;
+}
 NAT(M_supported)
 {
     (void)self;
-    int k = kind_of(tl_jni_string(a[0].l));
+    const char *mime = tl_jni_string(a[0].l);
+    if (mime && !strcmp(mime, "video/avc-high10")) { *ret = Z(avc_high10_available()); return true; }
+    int k = kind_of(mime);
     bool ok = k == K_AVC || k == K_AAC || k == K_MP3 || (k >= K_AC3 && audio_available(k));
     if (k == K_HEVC) {
         if (__builtin_available(macOS 10.13, iOS 11.0, *)) ok = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC);
