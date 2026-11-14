@@ -17,7 +17,6 @@
 #define _DARWIN_C_SOURCE
 #include <Accelerate/Accelerate.h>
 #include <AudioToolbox/AudioToolbox.h>
-#include <CoreGraphics/CoreGraphics.h>
 #include <CoreMedia/CoreMedia.h>
 #include <CoreVideo/CoreVideo.h>
 #include <VideoToolbox/VideoToolbox.h>
@@ -1293,6 +1292,9 @@ static size_t g_xfer_w, g_xfer_h;
 static bool g_xfer_broken;
 static bool hw_scale_to_bitmap(CVPixelBufferRef src, size_t x0, size_t y0, size_t w, size_t h, uint8_t *px, size_t bw, size_t bh, size_t bstride)
 {
+    /* the whole buffer only: iOS's VTPixelTransferSession has no source crop, so a picture with a clean aperture smaller than its
+       buffer is left to vImage, which crops */
+    if (x0 || y0 || w != CVPixelBufferGetWidth(src) || h != CVPixelBufferGetHeight(src)) return false;
     if (__builtin_available(iOS 16.0, macOS 13.0, *)) {
         bool ok = false;
         pthread_mutex_lock(&g_xfer_mu);
@@ -1314,9 +1316,6 @@ static bool hw_scale_to_bitmap(CVPixelBufferRef src, size_t x0, size_t y0, size_
         }
         CVPixelBufferRef dst = NULL;
         if (g_xfer && g_xfer_pool && CVPixelBufferPoolCreatePixelBuffer(NULL, g_xfer_pool, &dst) == kCVReturnSuccess && dst) {
-            /* the picture's clean aperture, every time (the session is shared by every stream) */
-            CFDictionaryRef crop = CGRectCreateDictionaryRepresentation(CGRectMake((CGFloat)x0, (CGFloat)y0, (CGFloat)w, (CGFloat)h));
-            if (crop) { VTSessionSetProperty(g_xfer, kVTPixelTransferPropertyKey_SourceCropRectangle, crop); CFRelease(crop); }
             if (VTPixelTransferSessionTransferImage(g_xfer, src, dst) == noErr
                     && CVPixelBufferLockBaseAddress(dst, kCVPixelBufferLock_ReadOnly) == kCVReturnSuccess) {
                 uint8_t *b = CVPixelBufferGetBaseAddress(dst);
