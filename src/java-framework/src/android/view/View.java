@@ -162,6 +162,7 @@ public class View implements Drawable.Callback, KeyEvent.Callback {
     private ViewTreeObserver mFloatingObserver;
     private WindowInsets mLastInsets;
     private Rect mClipBounds;
+    private Rect mFgBounds, mFgOut;     /* onDrawForeground's, every frame */
     private Outline mDrawOutline; private Path mDrawOutlinePath; private RectF mDrawOutlineRectF;   /* drawFromParent's clip to the outline */
     private int mLayerType;
     private Paint mLayerPaint;
@@ -990,7 +991,9 @@ public class View implements Drawable.Callback, KeyEvent.Callback {
     protected void dispatchDraw(Canvas c) {}
     public void onDrawForeground(Canvas c) {
         if (mForeground != null) {
-            Rect b = new Rect(0, 0, getWidth(), getHeight()), out = new Rect();
+            if (mFgBounds == null) { mFgBounds = new Rect(); mFgOut = new Rect(); }
+            Rect b = mFgBounds, out = mFgOut;
+            b.set(0, 0, getWidth(), getHeight());
             if (mForegroundGravity == Gravity.FILL) out.set(b);
             else Gravity.apply(mForegroundGravity, mForeground.getIntrinsicWidth(), mForeground.getIntrinsicHeight(), b, out);
             mForeground.setBounds(out);

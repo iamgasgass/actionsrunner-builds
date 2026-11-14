@@ -200,6 +200,20 @@ public class HostTest {
             sleep(300);
             check(got.get() == 1, "the queued message is delivered once");
         }
+        {   // Parcel.marshall/unmarshall keep Bundles (Media3's CueEncoder/CueDecoder: how subtitles reach the playback thread)
+            ArrayList<Bundle> cues = new ArrayList<>();
+            Bundle cue = new Bundle(); cue.putString("text", "hello"); cues.add(cue);
+            Bundle all = new Bundle(); all.putParcelableArrayList("c", cues); all.putLong("d", 42L);
+            Parcel w = Parcel.obtain(); w.writeBundle(all); byte[] bytes = w.marshall(); w.recycle();
+            Parcel rd = Parcel.obtain(); rd.unmarshall(bytes, 0, bytes.length); rd.setDataPosition(0);
+            Bundle back = rd.readBundle(Bundle.class.getClassLoader()); rd.recycle();
+            ArrayList<Bundle> got = back == null ? null : back.getParcelableArrayList("c");
+            check(back != null && got != null && got.size() == 1 && "hello".equals(got.get(0).getString("text")) && back.getLong("d") == 42L,
+                  "Parcel marshall/unmarshall round-trips a Bundle (subtitle cues)");
+            Parcel pw = Parcel.obtain(); pw.writeInt(7); byte[] plain = pw.marshall();
+            Parcel q2 = Parcel.obtain(); q2.unmarshall(plain, 0, plain.length); q2.setDataPosition(0);
+            check(plain.length == 4 && q2.readInt() == 7, "a parcel of plain values marshals to its bytes only");
+        }
         {   // quitSafely delivers what is already due, drops later messages
             android.os.HandlerThread ht = new android.os.HandlerThread("q");
             ht.start();

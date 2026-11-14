@@ -28,6 +28,7 @@ public class TextureView extends View {
     private Bitmap mShown;
     private Surface mCanvasSurface;
     private int mHuskComposedFrames;
+    private final Rect mDrawDst = new Rect();       /* onDraw's destination, every frame: one per view, not one per frame */
     public TextureView(android.content.Context c) { super(c); }
     public TextureView(android.content.Context c, android.util.AttributeSet a) { super(c, a); }
     public TextureView(android.content.Context c, android.util.AttributeSet a, int s) { super(c, a, s); }
@@ -95,7 +96,8 @@ public class TextureView extends View {
             int save = c.save();
             c.concat(mMatrix);
             Paint p = mLayerPaint != null ? mLayerPaint : mPaint;
-            c.drawBitmap(f, null, new Rect(0, 0, getWidth(), getHeight()), p);
+            mDrawDst.set(0, 0, getWidth(), getHeight());
+            c.drawBitmap(f, null, mDrawDst, p);
             c.restoreToCount(save);
             int composed = ++mHuskComposedFrames;
             if (composed <= 5 || composed % 120 == 0) {

@@ -56,3 +56,14 @@ portate due soluzioni:
 |---|---|---|
 | Decoder VideoToolbox (`darwin/platform/apple/video_decoder.mm`): se l'uscita BGRA non è disponibile ripiega sul formato 4:2:0 nativo; buffer IOSurface; rispetta il full range dello stream | Husk chiedeva solo BGRA: se il decoder la rifiutava (es. alcuni HEVC 10 bit) → "no decoder session" e **schermo nero** | Sessione BGRA con IOSurface; in caso di rifiuto, sessione 4:2:0 (video o full range secondo lo stream) convertita in RGBA con vImage (BT.709 per HD, BT.601 sotto) |
 | Uscita audio (`darwin/device/audio/apple_playback_sink.mm`): gestisce le interruzioni di iOS e riprende la riproduzione | Dopo una chiamata, Siri o un'altra app che prende l'audio, iOS ferma la coda audio e non la riavvia: il thread audio dell'app restava **bloccato per sempre** (e con lui l'orologio del player: anche il video si bloccava) | Se la coda non accetta campioni per 250 ms viene riavviata; finché resta muta i campioni scorrono al ritmo reale, quindi nulla si blocca. Nuovo test in `tests/translation-layer/audio_test.c` |
+
+## Dai log del 14/11/2026 (GassPlayer, iPhone15,2, iOS 27.0.1)
+
+| Problema nel log | Causa | Correzione |
+|---|---|---|
+| `E/ExoPlayerImplInternal: Playback error … NullPointerException: Bundle.getParcelableArrayList on a null object reference` a ogni avvio di canale, subito dopo il primo frame | Media3 passa ogni sottotitolo/closed caption dal thread di caricamento a quello di riproduzione come byte di `Parcel` (`CueEncoder`: `writeBundle` + `marshall`; `CueDecoder`: `unmarshall` + `readBundle`). Il `Parcel` di Husk tiene Bundle e oggetti in una tabella a parte e `marshall()` copiava solo i byte: dopo `unmarshall()` il Bundle letto era `null` | `marshall()` aggiunge ai byte un trailer di 16 byte con il riferimento agli oggetti; `unmarshall()` li ritrova. Un parcel di soli valori resta identico a prima. Nuovo test in `tests/java-framework` |
+| Frame video 1920×1080 convertiti a piena risoluzione (8 MiB scritti per frame) e poi ridotti di nuovo su una superficie di 786 px | Conversione prima di conoscere la dimensione della superficie | `MediaCodec` blocca prima il canvas e converte già alla dimensione mostrata: il decoder nativo scala con `vImageScale` (SIMD) direttamente dal buffer VideoToolbox |
+| `heap: … made in all`: il runtime non ha garbage collector, ogni oggetto creato per frame resta | Allocazioni a ogni frame nei percorsi di disegno (`new RectF` in `Canvas.drawBitmap(Rect,Rect)`, `new Rect` in `TextureView.onDraw` e `View.onDrawForeground`, `new float[6]` in `drawBitmap(Matrix)`, `new RectF` in `drawPicture(Rect)`) | Oggetti riusati: nessuna allocazione per frame in questi percorsi |
+
+Non risolvibili da Husk: le risposte `HTTP 551`, `400 Bad Request`, `Connection reset` e `Socket closed` vengono dal server IPTV.
+`guest-serial.log` è il log della modalità Emulazione (QEMU), separata dal translation layer usato da GassPlayer.

@@ -180,10 +180,18 @@ public class Canvas {
         husk.Gfx.cvDrawBitmap(mNative, b.huskNative(), sl, st, sr, sb, dst.left, dst.top, dst.right, dst.bottom, paintOf(p));
         touched();
     }
-    public void drawBitmap(Bitmap b, Rect src, Rect dst, Paint p) { drawBitmap(b, src, new RectF(dst), p); }
+    /* the Rect form straight to the native call: it is how every view draws a bitmap, and a RectF per call was never freed */
+    public void drawBitmap(Bitmap b, Rect src, Rect dst, Paint p) {
+        if (mNative == 0 || b == null || b.isRecycled() || dst == null) return;
+        float sl = 0, st = 0, sr = b.getWidth(), sb = b.getHeight();
+        if (src != null) { sl = src.left; st = src.top; sr = src.right; sb = src.bottom; }
+        husk.Gfx.cvDrawBitmap(mNative, b.huskNative(), sl, st, sr, sb, dst.left, dst.top, dst.right, dst.bottom, paintOf(p));
+        touched();
+    }
     public void drawBitmap(Bitmap b, Matrix m, Paint p) {
         if (mNative == 0 || b == null || b.isRecycled()) return;
-        husk.Gfx.cvDrawBitmapM(mNative, b.huskNative(), (m == null ? new Matrix() : m).huskAffine(), paintOf(p));
+        if (m == null) { mAff[0] = 1; mAff[1] = 0; mAff[2] = 0; mAff[3] = 0; mAff[4] = 1; mAff[5] = 0; } else m.huskAffine(mAff);
+        husk.Gfx.cvDrawBitmapM(mNative, b.huskNative(), mAff, paintOf(p));
         touched();
     }
     public void drawBitmap(int[] colors, int offset, int stride, float x, float y, int w, int h, boolean alpha, Paint p) {
@@ -196,7 +204,11 @@ public class Canvas {
     public void drawBitmapMesh(Bitmap b, int mw, int mh, float[] verts, int vo, int[] colors, int co, Paint p) { drawBitmap(b, 0, 0, p); }
     public void drawPicture(Picture pic) { if (pic != null) pic.draw(this); }
     public void drawPicture(Picture pic, RectF dst) { save(); translate(dst.left, dst.top); if (pic.getWidth() > 0 && pic.getHeight() > 0) scale(dst.width() / pic.getWidth(), dst.height() / pic.getHeight()); drawPicture(pic); restore(); }
-    public void drawPicture(Picture pic, Rect dst) { drawPicture(pic, new RectF(dst)); }
+    public void drawPicture(Picture pic, Rect dst) {
+        save(); translate(dst.left, dst.top);
+        if (pic.getWidth() > 0 && pic.getHeight() > 0) scale((float) dst.width() / pic.getWidth(), (float) dst.height() / pic.getHeight());
+        drawPicture(pic); restore();
+    }
     public void drawVertices(VertexMode mode, int vc, float[] verts, int vo, float[] tex, int to, int[] colors, int co, short[] idx, int io, int ic, Paint p) {}
     public void drawRenderNode(android.graphics.RenderNode n) { if (n != null) n.huskDraw(this); }
 

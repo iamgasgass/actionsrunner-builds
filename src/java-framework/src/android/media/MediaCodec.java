@@ -635,23 +635,9 @@ public final class MediaCodec {
         if (!valid) { drawFailure("output Surface is invalid/released", o, s); return; }
         final int outW = mOutW, outH = mOutH;
         if (outW <= 0 || outH <= 0) { drawFailure("decoder output dimensions are not positive", o, s); return; }
-        if (mFrame != null && (mFrame.isRecycled() || mFrame.getWidth() != outW || mFrame.getHeight() != outH)) {
-            try { mFrame.recycle(); } catch (RuntimeException ignored) {}
-            mFrame = null;
-        }
-        try {
-            if (mFrame == null) mFrame = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888);
-        } catch (RuntimeException e) {
-            drawFailure("could not allocate output Bitmap: " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
-            return;
-        }
-        boolean copied;
-        try { copied = husk.MediaCodecNative.renderFrame(o.frame, mFrame); }
-        catch (RuntimeException e) {
-            drawFailure("native renderFrame threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
-            return;
-        }
-        if (!copied) { drawFailure("native renderFrame returned false (CVPixelBuffer -> Bitmap)", o, s); return; }
+        /* The canvas first, so the frame is converted at the size it is shown at: a 1920x1080 picture on a phone's 786-wide
+           surface was converted at full size (8 MiB written per frame), then scaled down again when drawn. Stretched to fit, each
+           side is never made larger than the surface's; cropped to fill, the frame keeps its own size. */
         Canvas c;
         try { c = s.lockCanvas(null); }
         catch (RuntimeException e) {
@@ -665,6 +651,21 @@ public final class MediaCodec {
             if (cw <= 0 || ch <= 0) {
                 drawFailure("Canvas has invalid dimensions " + cw + "x" + ch, o, s);
             } else {
+                int fw = outW, fh = outH;
+                if (mScaling != VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) { fw = Math.min(outW, cw); fh = Math.min(outH, ch); }
+                if (mFrame != null && (mFrame.isRecycled() || mFrame.getWidth() != fw || mFrame.getHeight() != fh)) {
+                    try { mFrame.recycle(); } catch (RuntimeException ignored) {}
+                    mFrame = null;
+                }
+                boolean copied = false;
+                try {
+                    if (mFrame == null) mFrame = Bitmap.createBitmap(fw, fh, Bitmap.Config.ARGB_8888);
+                    copied = husk.MediaCodecNative.renderFrame(o.frame, mFrame);
+                    if (!copied) drawFailure("native renderFrame returned false (CVPixelBuffer -> Bitmap)", o, s);
+                } catch (RuntimeException e) {
+                    drawFailure("frame conversion threw " + e.getClass().getSimpleName() + ": " + e.getMessage(), o, s);
+                }
+                if (!copied) return;      /* the finally posts the canvas unchanged: the last good frame stays up */
                 Rect dst = mDst;
                 dst.set(0, 0, cw, ch);
                 if (mScaling == VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING) {

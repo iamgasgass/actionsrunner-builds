@@ -30,10 +30,43 @@ public final class Parcel {
     private int put(int n) { int at = mPos; grow(at + n); mPos = at + n; if (mPos > mSize) mSize = mPos; return at; }
     private int take(int n) { int at = mPos; if (at + n > mSize) { mPos = mSize; return -1; } mPos = at + n; return at; }
     private static int pad(int n) { return (n + 3) & ~3; }
-    public byte[] marshall() { return java.util.Arrays.copyOf(mBuf, mSize); }
-    public void marshall(java.nio.ByteBuffer b) { b.put(mBuf, 0, mSize); }
-    public void unmarshall(byte[] d, int off, int len) { grow(len); System.arraycopy(d, off, mBuf, 0, len); mSize = len; mPos = 0; }
-    public void unmarshall(java.nio.ByteBuffer b) { int len = b.remaining(); grow(len); b.get(mBuf, 0, len); mSize = len; mPos = 0; }
+    /*
+     * marshall()/unmarshall(): the objects of the side table are not bytes, so they travel as a 16-byte trailer -- a token into a
+     * table of this process and a magic number -- after the parcel's own bytes. They used to be dropped: the bytes held only
+     * the objects' indices, and a parcel unmarshalled from them read null for every Bundle, list or Parcelable. Media3 carries
+     * every subtitle cue that way (CueEncoder: writeBundle + marshall; CueDecoder on the playback thread: unmarshall +
+     * readBundle), so a stream with subtitles or closed captions -- most IPTV channels -- stopped with a NullPointerException
+     * ("Bundle.getParcelableArrayList on a null object reference", "Unexpected runtime error") as soon as it started.
+     * The table keeps the newest entries only (it is the one place such bytes are understood: this process).
+     */
+    private static final long MARSHALL_MAGIC = 0x31304C43504B5348L;          /* "HSKPCL01" little-endian */
+    private static final int MARSHALL_TRAILER = 16, MARSHALL_KEEP = 16384;
+    private static final java.util.LinkedHashMap<Long, Object[]> sMarshalled = new java.util.LinkedHashMap<Long, Object[]>(64, 0.75f, false) {
+        @Override protected boolean removeEldestEntry(Map.Entry<Long, Object[]> e) { return size() > MARSHALL_KEEP; }
+    };
+    private static long sNextToken = 1;
+    private static void putLong(byte[] b, int at, long v) { for (int i = 0; i < 8; i++) b[at + i] = (byte) (v >>> (8 * i)); }
+    private static long getLong(byte[] b, int at) { long v = 0; for (int i = 7; i >= 0; i--) v = v << 8 | (b[at + i] & 255L); return v; }
+    public byte[] marshall() {
+        if (mObjects.isEmpty()) return java.util.Arrays.copyOf(mBuf, mSize);
+        long token;
+        synchronized (sMarshalled) { token = sNextToken++; sMarshalled.put(token, mObjects.toArray()); }
+        byte[] out = java.util.Arrays.copyOf(mBuf, mSize + MARSHALL_TRAILER);
+        putLong(out, mSize, token); putLong(out, mSize + 8, MARSHALL_MAGIC);
+        return out;
+    }
+    public void marshall(java.nio.ByteBuffer b) { b.put(marshall()); }
+    public void unmarshall(byte[] d, int off, int len) {
+        mObjects.clear();
+        if (len >= MARSHALL_TRAILER && getLong(d, off + len - 8) == MARSHALL_MAGIC) {
+            Object[] objs;
+            synchronized (sMarshalled) { objs = sMarshalled.get(getLong(d, off + len - 16)); }
+            if (objs != null) java.util.Collections.addAll(mObjects, objs);
+            len -= MARSHALL_TRAILER;
+        }
+        grow(len); System.arraycopy(d, off, mBuf, 0, len); mSize = len; mPos = 0;
+    }
+    public void unmarshall(java.nio.ByteBuffer b) { byte[] d = new byte[b.remaining()]; b.get(d); unmarshall(d, 0, d.length); }
     public void appendFrom(Parcel p, int off, int len) {
         int at = put(len); System.arraycopy(p.mBuf, off, mBuf, at, len);
         if (!p.mObjects.isEmpty()) { /* references in the copied range keep pointing into p's table: copy it whole, shifted */

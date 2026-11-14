@@ -1142,7 +1142,7 @@ NAT(M_renderFrame)
         if (CVPixelBufferGetPlaneCount(f->pb) != 2 || src_w == 0 || src_h == 0) goto done;
         pixel_buffer_render_rect(f->pb, &x0, &y0, &w, &h);
         x0 &= ~(size_t)1; y0 &= ~(size_t)1;                /* chroma is shared by 2x2 pixels */
-        if (w != bi.width || h != bi.height || x0 + w > src_w || y0 + h > src_h) goto done;
+        if (x0 + w > src_w || y0 + h > src_h) goto done;
         uint8_t *yp = CVPixelBufferGetBaseAddressOfPlane(f->pb, 0), *cp = CVPixelBufferGetBaseAddressOfPlane(f->pb, 1);
         size_t ys = CVPixelBufferGetBytesPerRowOfPlane(f->pb, 0), cs = CVPixelBufferGetBytesPerRowOfPlane(f->pb, 1);
         if (!yp || !cp) goto done;
@@ -1163,9 +1163,19 @@ NAT(M_renderFrame)
         if (!made[full][hd]) goto done;
         vImage_Buffer ysrc = { yp + y0 * ys + x0, h, w, ys };
         vImage_Buffer csrc = { cp + (y0 / 2) * cs + x0, (h + 1) / 2, (w + 1) / 2, cs };
-        vImage_Buffer out = { px, h, w, bi.stride };
         const uint8_t argb_to_rgba[4] = { 1, 2, 3, 0 };
-        vstatus = vImageConvert_420Yp8_CbCr8ToARGB8888(&ysrc, &csrc, &out, &conv[full][hd], argb_to_rgba, 255, kvImageNoFlags);
+        if (w == bi.width && h == bi.height) {
+            vImage_Buffer out = { px, h, w, bi.stride };
+            vstatus = vImageConvert_420Yp8_CbCr8ToARGB8888(&ysrc, &csrc, &out, &conv[full][hd], argb_to_rgba, 255, kvImageNoFlags);
+        } else {
+            /* shown smaller than decoded: converted at full size into scratch, then scaled into the bitmap */
+            uint8_t *tmp = malloc(w * h * 4);
+            if (!tmp) goto done;
+            vImage_Buffer full_rgba = { tmp, h, w, w * 4 }, out = { px, bi.height, bi.width, bi.stride };
+            vstatus = vImageConvert_420Yp8_CbCr8ToARGB8888(&ysrc, &csrc, &full_rgba, &conv[full][hd], argb_to_rgba, 255, kvImageNoFlags);
+            if (vstatus == kvImageNoError) vstatus = vImageScale_ARGB8888(&full_rgba, &out, NULL, kvImageNoFlags);
+            free(tmp);
+        }
         ok = vstatus == kvImageNoError;
         goto done;
     }
@@ -1176,13 +1186,21 @@ NAT(M_renderFrame)
 
     stage = "validate clean aperture and dimensions";
     pixel_buffer_render_rect(f->pb, &x0, &y0, &w, &h);
-    if (w != bi.width || h != bi.height || w == 0 || h == 0 || stride < (x0 + w) * 4u) goto done;
+    if (w == 0 || h == 0 || stride < (x0 + w) * 4u) goto done;
 
     stage = "convert BGRA pixels to Android RGBA Bitmap";
     vImage_Buffer src = { base + y0 * stride + x0 * 4u, h, w, stride };
-    vImage_Buffer dst = { px, h, w, bi.stride };
+    vImage_Buffer dst = { px, bi.height, bi.width, bi.stride };
     const uint8_t bgra_to_rgba[4] = { 2, 1, 0, 3 };
-    vstatus = vImagePermuteChannels_ARGB8888(&src, &dst, bgra_to_rgba, kvImageNoFlags);
+    if (w == bi.width && h == bi.height) {
+        vstatus = vImagePermuteChannels_ARGB8888(&src, &dst, bgra_to_rgba, kvImageNoFlags);
+    } else {
+        /* the bitmap is the surface's size (MediaCodec.draw): scaled straight from the decoder's buffer -- vImage treats the
+           four channels alike, so BGRA scales as it is -- and the channels reordered in place, on the small picture only */
+        stage = "scale BGRA pixels to the surface's size";
+        vstatus = vImageScale_ARGB8888(&src, &dst, NULL, kvImageNoFlags);
+        if (vstatus == kvImageNoError) vstatus = vImagePermuteChannels_ARGB8888(&dst, &dst, bgra_to_rgba, kvImageNoFlags);
+    }
     ok = vstatus == kvImageNoError;
 
 done:
