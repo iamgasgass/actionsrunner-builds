@@ -7,7 +7,7 @@ system image LineageOS dentro l'app), non firmata con certificato: firmata ad ho
 ## Cosa serve
 
 Un runner macOS con **Xcode 27+** (il progetto Andarium è nel formato JSON di Xcode 27 e il
-deployment target è iOS 27.0). Default `macos-26`; cambialo con la variabile `ANDARIUM_RUNNER`.
+deployment target è iOS 27.0). Default `xcode-27` (immagine GitHub in preview con Xcode 27.0–27.2; `macos-26` ha solo Xcode 26). Per la versione xlarge imposta la variabile `ANDARIUM_RUNNER` a `xcode-27-xlarge`.
 
 Artifact prebuilt **obbligatori** (non si possono costruire su GitHub):
 

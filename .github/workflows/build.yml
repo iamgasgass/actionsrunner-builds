@@ -49,7 +49,7 @@
 #
 # then ANDARIUM_PREBUILT = gh-release:OWNER/REPO@prebuilt-1
 #
-# Other repository variables: ANDARIUM_RUNNER (default macos-26), ANDARIUM_XCODE (e.g. 27.0; default the newest 27+).
+# Other repository variables: ANDARIUM_RUNNER (default xcode-27, the GitHub image with Xcode 27; macos-26 has only Xcode 26), ANDARIUM_XCODE (e.g. 27.0; default the newest 27+).
 
 name: Build Andarium IPA
 
@@ -110,7 +110,7 @@ env:
 jobs:
   ipa:
     name: Andarium IPA
-    runs-on: ${{ vars.ANDARIUM_RUNNER || 'macos-26' }}
+    runs-on: ${{ vars.ANDARIUM_RUNNER || 'xcode-27' }}
     timeout-minutes: 360
     permissions:
       contents: write             # the optional release
