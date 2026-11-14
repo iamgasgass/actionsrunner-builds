@@ -1,72 +1,80 @@
-# OmniChat per iOS
+# Actions Runner per iOS
 
-App di chat IA per iOS (SwiftUI, iOS 17+) con interfaccia nello stile dell'app ChatGPT per iOS. Riprende le funzioni di [aifreeforever.com/chat/gpt-5](https://aifreeforever.com/chat/gpt-5): selettore modelli, ruolo e nome dell'IA, lunghezza e formato delle risposte, lingua, ricerca web, modalità focus, allegati immagine e cronologia delle chat.
+App iOS (SwiftUI, iOS 17+) che importa un **file .zip contenente una repository** e ne esegue i workflow
+(`.github/workflows/*.yml`) **sui runner reali di GitHub** (Ubuntu, Windows, **macOS con Xcode**),
+mostrando nell'app job, step, log, annotazioni e artifact (es. l'IPA). Nessuna libreria di terze parti.
 
-## Funzioni
+Interfaccia interamente **Liquid Glass** (`Views/GlassUI.swift`): vetro nativo `glassEffect` su iOS 26,
+materiale come ripiego su iOS 17–25; schede, pulsanti e campi in vetro. Aspetto **Sistema / Chiaro / Scuro**
+(Impostazioni → Aspetto): sfondo graphite nello scuro, porcellana grigio-azzurra nel chiaro.
+Icona: blu notte originale (predefinita), variante **scura** sul nero di sistema e **tinted** (iOS 18+).
 
-- **Selettore modelli** nel titolo (come ChatGPT): 24 modelli preferiti già pronti (GPT 5, GPT 5.4, Claude Opus 5.5, Gemini 3.5 Flash, DeepSeek V4, Grok 4, Kimi K2.6, Qwen, Llama, GLM e altri), più la scheda **Tutti i modelli**, che scarica la lista aggiornata dal provider. Con la stella aggiungi un modello ai preferiti.
-- **Streaming** delle risposte token per token, con pulsante Stop
-- **Markdown**: titoli, elenchi, citazioni, tabelle, blocchi di codice con pulsante Copia
-- **Menu laterale** con ricerca, chat raggruppate per data, rinomina, condividi ed elimina
-- **Tono e formato**: 22 ruoli (Programmatore, Insegnante, Chef…), 11 nomi (Aria, Luna, Kai…), lunghezza (Breve / Bilanciata / Dettagliata), formato (Paragrafi / Elenco / Passo dopo passo / Misto) e 13 lingue
-- **Cerca sul web** (OpenRouter `:online`) e **Modalità focus**
-- **Allegati foto** per i modelli con visione
-- Modifica dei messaggi, rigenerazione, copia, condivisione
-- Tema chiaro, scuro o di sistema e feedback aptico
-- API key salvata nel Portachiavi; chat salvate solo sul dispositivo
+Bundle ID: `com.iamgasgass.actionsrunner`.
 
-## Backend
+## Uso
 
-Il sito non ha un'API pubblica, quindi l'app usa una qualsiasi **API compatibile con OpenAI**:
+1. **Impostazioni → Account GitHub**: incolla un token di accesso personale.
+   - consigliato: token *classic* con scope `repo` e `workflow` (il link nell'app apre la pagina già compilata);
+   - in alternativa *fine-grained* con Contents, Actions, Workflows, Secrets e Variables in lettura/scrittura
+     (Administration in scrittura per creare repository dall'app).
 
-| Provider | Base URL |
-|---|---|
-| **OpenRouter** (consigliato: una sola chiave per centinaia di modelli, inclusi gratuiti) | `https://openrouter.ai/api/v1` |
-| OpenAI | `https://api.openai.com/v1` |
-| Groq | `https://api.groq.com/openai/v1` |
-| Personalizzato (LM Studio, Ollama, LiteLLM…) | il tuo URL |
+   Il token resta nel portachiavi del dispositivo e viene inviato solo a `api.github.com`.
+2. **Progetti → +**: importa lo zip (va bene anche il "Download ZIP" di GitHub).
+3. Apri un workflow → **Esegui su GitHub** → scegli o crea un repository e il branch → **Avvia**.
 
-1. Crea una chiave su <https://openrouter.ai/keys>
-2. Apri l'app, poi **Impostazioni**, incolla la chiave e tocca **Verifica connessione**
+## Cosa fa
 
-> Gli ID dei modelli predefiniti sono in `OmniChat/Models/ModelCatalog.swift`. Se un ID dà errore 404, scegli il modello giusto dalla scheda **Tutti i modelli** (lista live) oppure correggi il file.
+- **Caricamento**: calcola in locale gli SHA-1 git dei file e carica solo quelli che GitHub non ha
+  (Git Data API, 4 upload in parallelo, cache dei blob già inviati); crea un commit con l'albero
+  identico al progetto (permessi eseguibili e symlink inclusi). La storia del branch non viene riscritta.
+- **Avvio**: con `workflow_dispatch` (e i suoi input) se il workflow lo dichiara, altrimenti con il
+  **push** del commit; l'ID della run arriva dalla risposta di GitHub (`return_run_details`) o viene
+  cercato per commit.
+- **Secrets e variabili**: facoltativamente copia nel repository quelli configurati nell'app; i secrets
+  sono cifrati sul dispositivo con la *sealed box* di libsodium (reimplementata in Swift e verificata
+  contro libsodium).
+- **Monitoraggio**: richieste condizionali con ETag (le risposte 304 non consumano il limite di GitHub),
+  intervallo adattivo (3 s in esecuzione, 5 s in coda, più lento se il limite si avvicina), ripresa
+  automatica dopo errori di rete.
+- **Log**: scaricati per ogni job (anche parziali durante l'esecuzione), divisi per step tramite gli
+  orari, con gruppi, errori e avvisi come su github.com; annotazioni dei job.
+- **Artifact**: elenco, download, contenuto e condivisione dei singoli file (es. `.ipa`).
+- **Controllo**: annulla (anche forzato), riesegui (tutti i job, solo i falliti, con log di debug),
+  apri su GitHub.
+- **Persistenza**: le run restano nella scheda Esecuzioni; dopo il riavvio dell'app il monitoraggio
+  riprende; notifica di fine se l'app è in background.
 
-## Struttura
+## Costruire l'app (GitHub Actions)
 
-```
-.
-├── .github/workflows/build.yml   # CI: XcodeGen + build + IPA non firmato
-├── project.yml                   # Specifica XcodeGen
-└── OmniChat/
-    ├── App/          # Entry point e stato globale
-    ├── Models/       # Modelli dati e catalogo modelli IA
-    ├── Services/     # Client API (streaming SSE), storage, Keychain
-    ├── Views/        # Chat, sidebar, selettore modelli, impostazioni
-    └── Resources/    # Assets (icona, colore accento)
-```
+1. Carica questa cartella in un repository GitHub (con `project.yml` e `.github/`).
+2. Il workflow `.github/workflows/build.yml` (macOS 26) genera il progetto con XcodeGen, archivia l'app
+   e produce l'**IPA non firmato** (artifact `ActionsRunner-unsigned-ipa`).
+3. Installa l'IPA con AltStore, SideStore, Sideloadly o TrollStore.
+4. Opzionale: IPA firmato con i secrets `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`,
+   `BUILD_PROVISION_PROFILE_BASE64`; un tag `v*` pubblica una Release.
 
-## Build in locale
+Gli unit test (`Tests/ActionsRunnerTests`) non fanno parte della CI; si eseguono da Xcode (⌘U).
+
+In locale su un Mac:
 
 ```bash
 brew install xcodegen
 xcodegen generate
-open OmniChat.xcodeproj
+open ActionsRunner.xcodeproj
 ```
 
-In Xcode seleziona il tuo Team in *Signing & Capabilities* (cambia anche il bundle ID `com.omnichat.app` se serve) e avvia l'app su simulatore o iPhone.
+## Struttura
 
-## Build con GitHub Actions
-
-Ogni push su `main` avvia `.github/workflows/build.yml`, che:
-
-1. genera il progetto con XcodeGen
-2. compila in Release per `iphoneos` **senza firma**
-3. crea `OmniChat-unsigned.ipa` e lo carica tra gli **Artifacts** del workflow
-
-Se pubblichi un tag `v*` (es. `git tag v1.0.0 && git push --tags`), l'IPA viene allegato anche a una **GitHub Release**.
-
-L'IPA non è firmato: per installarlo firmalo con **AltStore**, **SideStore**, **Sideloadly** o con il tuo certificato Apple Developer.
-
-## Note
-
-OmniChat è un client indipendente e non è affiliato con OpenAI, Anthropic, Google, aifreeforever.com o altri fornitori. I nomi dei modelli appartengono ai rispettivi proprietari.
+```
+project.yml                     XcodeGen (nessun pacchetto esterno)
+.github/workflows/build.yml     CI: IPA non firmato (+ firmato e release opzionali)
+Sources/ActionsRunner/
+  App/         avvio dell'app, schede, RunCenter (run su GitHub)
+  GitHub/      API REST, caricamento (Git Data API), avvio e monitoraggio delle run, sealed box
+  Core/        JSON ordinato, parser YAML, modelli di stato
+  Workflow/    lettura e validazione dei workflow, matrix, filtri branch
+  Expressions/ verifica delle espressioni ${{ }} prima dell'invio
+  Storage/     progetti importati, impostazioni, portachiavi, ZIP
+  Views/       interfaccia SwiftUI
+Tests/ActionsRunnerTests/       test (YAML, espressioni, matrix, ZIP, crittografia, API)
+```
