@@ -45,6 +45,13 @@ public final class MediaCodecList {
                 l.add(new MediaCodecInfo("c2.husk.dolby-vision.decoder", false,
                     MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION, dvl.toArray(new int[0][]))));
             }
+            /* MPEG-4 Part 2 (XviD, DivX: older films, mostly in MKV and AVI), where this iOS has the decoder (a probe session says).
+               Without it such a film played its sound and no picture. Level 5 (720p) is the most it claims; larger streams are
+               still tried, as Media3 does past the level when nothing else decodes them. */
+            if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_VIDEO_MPEG4))
+                l.add(new MediaCodecInfo("c2.husk.mpeg4.decoder", false, MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_MPEG4, new int[][] {
+                    { MediaCodecInfo.CodecProfileLevel.MPEG4ProfileSimple, MediaCodecInfo.CodecProfileLevel.MPEG4Level6 },
+                    { MediaCodecInfo.CodecProfileLevel.MPEG4ProfileAdvancedSimple, MediaCodecInfo.CodecProfileLevel.MPEG4Level5 } })));
             l.add(new MediaCodecInfo("c2.husk.aac.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_AAC, 8,
                 new int[] { MediaCodecInfo.CodecProfileLevel.AACObjectLC, MediaCodecInfo.CodecProfileLevel.AACObjectHE, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS })));
             l.add(new MediaCodecInfo("c2.husk.mp3.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_MPEG, 2, new int[0])));

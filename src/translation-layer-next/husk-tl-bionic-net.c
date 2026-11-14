@@ -195,7 +195,8 @@ void tl_net_log_http_head(int fd, const void *buf, long n)
 /*
  * Which codecs a received MP4 declares: each sample description ('stsd') seen in what a socket receives is logged once with its
  * format (avc1, hvc1, dvh1, mp4v, av01, ...), its picture size and its configuration box. When a film plays its sound and no
- * picture, this line says which video format the player could find no decoder for. At most 24 lines a run.
+ * picture, this line says which video format the player could find no decoder for. Matroska files say it by their tracks'
+ * CodecID. At most 24 lines a run.
  */
 static _Atomic int g_stsd_logged;
 void tl_net_sniff_media(int fd, const void *buf, long n);
@@ -203,6 +204,28 @@ void tl_net_sniff_media(int fd, const void *buf, long n)
 {
     if (n < 64 || atomic_load_explicit(&g_stsd_logged, memory_order_relaxed) >= 24) return;
     const uint8_t *b = buf, *end = b + n;
+    /* Matroska (MKV): the tracks' CodecID strings (element 0x86, then a one-byte size: 0x80 | length) */
+    static const char *const mkv[] = { "V_MPEG4/ISO/AVC", "V_MPEGH/ISO/HEVC", "V_MPEG4/ISO/ASP", "V_MPEG4/ISO/SP", "V_MPEG4/ISO/AP",
+                                       "V_MS/VFW/FOURCC", "V_MPEG2", "V_MPEG1", "V_AV1", "V_VP9", "V_VP8", "V_THEORA", "V_REAL",
+                                       "V_PRORES", "V_QUICKTIME", "V_DIRAC", "V_UNCOMPRESSED", NULL };
+    for (int i = 0; mkv[i]; i++) {
+        size_t kl = strlen(mkv[i]);
+        const uint8_t *x = memmem(b, (size_t)n, mkv[i], kl);
+        if (!x || x < b + 2 || x[-2] != 0x86) continue;
+        char extra[48] = "";
+        if (!strcmp(mkv[i], "V_MS/VFW/FOURCC")) {
+            /* CodecPrivate (0x63A2) holds a BITMAPINFOHEADER: its biCompression is the codec's FourCC (XVID, DX50, DIV3, WVC1...) */
+            const uint8_t *cp = memmem(x, (size_t)(end - x), "\x63\xA2", 2);
+            if (cp && cp + 3 + 20 <= end) {
+                const uint8_t *bih = cp + 3;                              /* the size byte, then the header */
+                char f[5] = { (char)bih[16], (char)bih[17], (char)bih[18], (char)bih[19], 0 };
+                bool ok = true; for (int k = 0; k < 4; k++) if (f[k] < 32 || f[k] > 126) ok = false;
+                if (ok) snprintf(extra, sizeof(extra), " (FourCC %s)", f);
+            }
+        }
+        if (atomic_fetch_add(&g_stsd_logged, 1) >= 24) return;
+        tl_log_line("net: fd %d carries a Matroska video track: %s%s", fd, mkv[i], extra);
+    }
     for (const uint8_t *p = b; p + 4 <= end; ) {
         const uint8_t *s = memmem(p, (size_t)(end - p), "stsd", 4);
         if (!s) return;

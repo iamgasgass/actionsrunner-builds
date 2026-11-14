@@ -96,3 +96,15 @@ profili 4 e 8).
 |---|---|
 | Decoder `c2.husk.dolby-vision.decoder` (profili dvhe 4, 5, 7, 8 fino a UHD60) sullo stesso VideoToolbox HEVC | Il video Dolby Vision si vede. Il profilo 5 usa lo spazio colore IPTPQc2: senza la conversione Dolby i colori possono avere una dominante verde/viola |
 | Ogni descrizione di traccia MP4 (`stsd`) ricevuta dalla rete viene scritta nel log: formato (avc1, hvc1, dvh1, mp4v, av01…), dimensione, box di configurazione e profilo | Se il film resta senza immagine, la riga `net: fd N carries an MP4 video track: …` dice esattamente quale codec manca |
+
+## Film senza video: è un MKV (log del 14/11/2026, build b09f0861a3)
+
+Il nuovo log mostra la riga del codec per gli altri film (`avc1 1920x1080 avcC(profile 100 level 40)`) ma **nessuna** per il film
+91393: non è un MP4. Il modo in cui il player lo legge (i primi 1024 byte, poi gli ultimi 25 KB, poi dal byte 917) è quello di
+Matroska (intestazione, indice Cues in fondo, poi i dati). Un film MKV di 1,8 GB con audio AC-3 5.1 senza decoder video in Husk è,
+quasi sempre, **MPEG-4 Part 2 (XviD/DivX)**.
+
+| Correzione | Effetto |
+|---|---|
+| Decoder `c2.husk.mpeg4.decoder` (video/mp4v-es) su VideoToolbox, dichiarato solo se una sessione di prova riesce (l'header di prova generato da Husk è stato verificato con ffmpeg). Header VOS/VOL da csd-0 o dall'inizio del primo frame (MKV `V_MS/VFW/FOURCC`), attesa del primo I-VOP | I film XviD/DivX mostrano l'immagine, se iOS ha il decoder: il log dirà `MPEG-4 Part 2 (XviD/DivX) decoder available/not available on this device` |
+| Il rilevatore di codec ora legge anche i CodecID Matroska (`V_MPEG4/ISO/ASP`, `V_MS/VFW/FOURCC` con il FourCC, `V_MPEG2`, `V_AV1`…), provato su file MKV reali | La riga `net: fd N carries a Matroska video track: …` dice il codec del film |

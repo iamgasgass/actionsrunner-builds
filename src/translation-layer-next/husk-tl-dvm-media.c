@@ -44,7 +44,7 @@ static jvalue J(int64_t v) { jvalue r; r.j = v; return r; }
 static jvalue Z(bool v) { jvalue r; r.j = v; return r; }
 static jvalue L(void *p) { jvalue r; r.j = 0; r.l = p; return r; }
 
-enum { K_AVC = 1, K_HEVC, K_AAC, K_MP3, K_AC3, K_EAC3, K_MP2, K_MP1 };
+enum { K_AVC = 1, K_HEVC, K_AAC, K_MP3, K_AC3, K_EAC3, K_MP2, K_MP1, K_MP4V };
 #define MAX_DEC_CH 16                               /* channels a decoder may hand out before the mixdown */
 enum { FLAG_KEY_FRAME = 1, FLAG_EOS = 4 };
 #define REORDER 4                                   /* frames held to put decode order into display order */
@@ -75,6 +75,7 @@ typedef struct codec {
     unsigned audio_timing_log_count;
     CMVideoFormatDescriptionRef fmt;
     VTDecompressionSessionRef vt;
+    uint8_t *vol; size_t vol_n;                     /* MPEG-4 Part 2: the stream's VOS/VO/VOL headers */
     frame *sorted; int nsorted;                     /* decoded, by presentation time */
     frame *ready, **ready_tail;                     /* in display order, for the Java side */
     int width, height;
@@ -286,6 +287,53 @@ static void session_drop(codec *c)
     pthread_mutex_unlock(&c->lock);
 }
 
+static const char *video_name(const codec *c) { return c->kind == K_AVC ? "H.264" : c->kind == K_HEVC ? "HEVC" : "MPEG-4 Part 2"; }
+/* A decompression session on c->fmt, its output IOSurface-backed BGRA, else the decoder's own 4:2:0 (see renderFrame) */
+static bool vt_open(codec *c)
+{
+    OSStatus st;
+    /* Packed BGRA first: the hardware converts while it decodes and renderFrame only reorders the bytes. A decoder that will not
+       emit it (some 10-bit HEVC on older chips) still decodes into its own 4:2:0 layout, which renderFrame converts -- this used
+       to be "no decoder session" and a black picture. IOSurface-backed buffers, as Kernarium's decoder asks for, keep the
+       conversion on the hardware path. */
+    bool full_range = false;
+    {
+        CFTypeRef fr = CMFormatDescriptionGetExtension(c->fmt, kCMFormatDescriptionExtension_FullRangeVideo);
+        full_range = fr && CFGetTypeID(fr) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)fr);
+    }
+    const OSType formats[2] = { kCVPixelFormatType_32BGRA,
+                                full_range ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange };
+    VTDecompressionOutputCallbackRecord callback = { vt_out, c };
+    st = -1;
+    for (int k = 0; k < 2 && st != noErr; k++) {
+        int pixel_format = (int)formats[k];
+        CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
+        CFDictionaryRef surface = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        if (!number || !surface) {
+            if (number) CFRelease(number);
+            if (surface) CFRelease(surface);
+            tl_log_line("media: could not allocate the VideoToolbox destination attributes");
+            return false;
+        }
+        const void *keys[] = { kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferIOSurfacePropertiesKey };
+        const void *values[] = { number, surface };
+        CFDictionaryRef destination = CFDictionaryCreate(NULL, keys, values, 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFRelease(number); CFRelease(surface);
+        if (!destination) { tl_log_line("media: could not create the VideoToolbox destination attributes"); return false; }
+        c->vt = NULL;
+        st = VTDecompressionSessionCreate(NULL, c->fmt, NULL, destination, &callback, &c->vt);
+        CFRelease(destination);
+        if (st != noErr || !c->vt) {
+            tl_log_line("media: no %s decoder session for %s output (%d)", video_name(c),
+                        k == 0 ? "BGRA" : "4:2:0", (int)st);
+            if (c->vt) { VTDecompressionSessionInvalidate(c->vt); CFRelease(c->vt); }
+            c->vt = NULL;
+            if (st == noErr) st = -1;
+        } else if (k > 0) tl_log_line("media: decoding to %s 4:2:0, converted when drawn", full_range ? "full-range" : "video-range");
+    }
+    return st == noErr && c->vt;
+}
+
 static bool session_make(codec *c)
 {
     if (c->fmt) { CFRelease(c->fmt); c->fmt = NULL; }
@@ -329,46 +377,9 @@ static bool session_make(codec *c)
                     c->kind == K_AVC ? "H.264" : "HEVC", nv, ns, npp);
         session_drop(c);
     }
-    /* Packed BGRA first: the hardware converts while it decodes and renderFrame only reorders the bytes. A decoder that will not
-       emit it (some 10-bit HEVC on older chips) still decodes into its own 4:2:0 layout, which renderFrame converts -- this used
-       to be "no decoder session" and a black picture. IOSurface-backed buffers, as Kernarium's decoder asks for, keep the
-       conversion on the hardware path. */
-    bool full_range = false;
-    {
-        CFTypeRef fr = CMFormatDescriptionGetExtension(c->fmt, kCMFormatDescriptionExtension_FullRangeVideo);
-        full_range = fr && CFGetTypeID(fr) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)fr);
-    }
-    const OSType formats[2] = { kCVPixelFormatType_32BGRA,
-                                full_range ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange };
-    VTDecompressionOutputCallbackRecord callback = { vt_out, c };
-    st = -1;
-    for (int k = 0; k < 2 && st != noErr; k++) {
-        int pixel_format = (int)formats[k];
-        CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
-        CFDictionaryRef surface = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-        if (!number || !surface) {
-            if (number) CFRelease(number);
-            if (surface) CFRelease(surface);
-            tl_log_line("media: could not allocate the VideoToolbox destination attributes");
-            return false;
-        }
-        const void *keys[] = { kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferIOSurfacePropertiesKey };
-        const void *values[] = { number, surface };
-        CFDictionaryRef destination = CFDictionaryCreate(NULL, keys, values, 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-        CFRelease(number); CFRelease(surface);
-        if (!destination) { tl_log_line("media: could not create the VideoToolbox destination attributes"); return false; }
-        c->vt = NULL;
-        st = VTDecompressionSessionCreate(NULL, c->fmt, NULL, destination, &callback, &c->vt);
-        CFRelease(destination);
-        if (st != noErr || !c->vt) {
-            tl_log_line("media: no %s decoder session for %s output (%d)", c->kind == K_AVC ? "H.264" : "HEVC",
-                        k == 0 ? "BGRA" : "4:2:0", (int)st);
-            if (c->vt) { VTDecompressionSessionInvalidate(c->vt); CFRelease(c->vt); }
-            c->vt = NULL;
-            if (st == noErr) st = -1;
-        } else if (k > 0) tl_log_line("media: decoding to %s 4:2:0, converted when drawn", full_range ? "full-range" : "video-range");
-    }
-    if (st != noErr || !c->vt) return false;
+    if (!vt_open(c)) return false;
+    st = noErr;
+    if (!c->vt) return false;
     tl_log_line("media: %s decoder for %dx%d",
                 c->kind == K_AVC ? "H.264" : "HEVC", c->width, c->height);
     return true;
@@ -701,6 +712,138 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
     if (flags & FLAG_EOS) video_drain(c);
 }
 
+
+/* ---- MPEG-4 Part 2 (video/mp4v-es: XviD, DivX, most older films in MKV and AVI) ----
+ * VideoToolbox decodes it (kCMVideoCodecType_MPEG4Video) from a format description that carries the stream's VOS/VOL headers in
+ * an 'esds' atom. They come as csd-0, or (Matroska's V_MS/VFW/FOURCC) at the start of the first frame. Each sample is one VOP. */
+static size_t put_desc(uint8_t *o, uint8_t tag, size_t len)        /* a descriptor's tag and its length in the 4-byte form */
+{
+    o[0] = tag; o[1] = (uint8_t)(0x80 | ((len >> 21) & 0x7f)); o[2] = (uint8_t)(0x80 | ((len >> 14) & 0x7f));
+    o[3] = (uint8_t)(0x80 | ((len >> 7) & 0x7f)); o[4] = (uint8_t)(len & 0x7f);
+    return 5;
+}
+static CFDataRef mp4v_esds(const uint8_t *vol, size_t n)
+{
+    size_t dsi = 5 + n, dcd = 5 + 13 + dsi, sl = 5 + 1, es = 5 + 3 + dcd + sl, total = 4 + es;
+    uint8_t *b = calloc(1, total);
+    if (!b) return NULL;
+    size_t i = 4;                                                     /* version and flags: 0 */
+    i += put_desc(b + i, 0x03, 3 + dcd + sl); b[i++] = 0; b[i++] = 1; b[i++] = 0;   /* ES_Descriptor, ES_ID 1 */
+    i += put_desc(b + i, 0x04, 13 + dsi);
+    b[i++] = 0x20; b[i++] = 0x11;                                     /* MPEG-4 Visual, a visual stream */
+    i += 11;                                                          /* buffer size, max and average bitrate: unknown */
+    i += put_desc(b + i, 0x05, n); memcpy(b + i, vol, n); i += n;     /* DecoderSpecificInfo: the headers */
+    i += put_desc(b + i, 0x06, 1); b[i++] = 2;                        /* SLConfigDescriptor */
+    CFDataRef d = CFDataCreate(NULL, b, (CFIndex)i);
+    free(b);
+    return d;
+}
+/* The headers at the start of a frame: everything before its first VOP (00 00 01 B6), if a VOL (00 00 01 2x) is among them */
+static size_t mp4v_headers(const uint8_t *d, size_t n, bool *has_vol)
+{
+    *has_vol = false;
+    for (size_t i = 0; i + 4 <= n; i++) {
+        if (d[i] || d[i + 1] || d[i + 2] != 1) continue;
+        if (d[i + 3] >= 0x20 && d[i + 3] <= 0x2f) *has_vol = true;
+        if (d[i + 3] == 0xB6) return i;
+    }
+    return n;
+}
+static bool mp4v_session(codec *c)
+{
+    if (c->vt) session_drop(c);
+    if (c->fmt) { CFRelease(c->fmt); c->fmt = NULL; }
+    if (!c->vol_n || c->width <= 0 || c->height <= 0) return false;
+    CFDataRef esds = mp4v_esds(c->vol, c->vol_n);
+    if (!esds) return false;
+    const void *ak[] = { CFSTR("esds") }, *av[] = { esds };
+    CFDictionaryRef atoms = CFDictionaryCreate(NULL, ak, av, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    CFRelease(esds);
+    const void *ek[] = { kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms }, *ev[] = { atoms };
+    CFDictionaryRef ext = atoms ? CFDictionaryCreate(NULL, ek, ev, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks) : NULL;
+    if (atoms) CFRelease(atoms);
+    OSStatus st = ext ? CMVideoFormatDescriptionCreate(NULL, kCMVideoCodecType_MPEG4Video, c->width, c->height, ext, &c->fmt) : -1;
+    if (ext) CFRelease(ext);
+    if (st != noErr || !c->fmt) { tl_log_line("media: MPEG-4 Part 2 headers refused (%d)", (int)st); c->fmt = NULL; return false; }
+    if (!vt_open(c)) return false;
+    tl_log_line("media: MPEG-4 Part 2 decoder for %dx%d (%zu header bytes)", c->width, c->height, c->vol_n);
+    return true;
+}
+static void mp4v_set_headers(codec *c, const uint8_t *d, size_t n)
+{
+    if (!d || !n || (c->vol_n == n && !memcmp(c->vol, d, n))) return;
+    uint8_t *v = malloc(n);
+    if (!v) return;
+    memcpy(v, d, n); free(c->vol); c->vol = v; c->vol_n = n;
+    mp4v_session(c);
+}
+static void mp4v_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int flags)
+{
+    if (!d || !n) { if (flags & FLAG_EOS) video_drain(c); return; }
+    bool has_vol;
+    size_t head = mp4v_headers(d, n, &has_vol);
+    if (has_vol && head > 0) mp4v_set_headers(c, d, head);
+    if (head >= n) { if (flags & FLAG_EOS) video_drain(c); return; }     /* headers only (codec config) */
+    if (!c->vt) {
+        if (c->failed++ < 3) tl_log_line("media: MPEG-4 Part 2 frame before its VOL header; dropped");
+        return;
+    }
+    /* the first picture decoded must be an I-VOP (vop_coding_type 0) */
+    int vop_type = head + 4 < n ? d[head + 4] >> 6 : 0;
+    if (c->waiting_for_random_access) {
+        if (vop_type != 0) { c->waiting_dropped++; return; }
+        c->waiting_for_random_access = false;
+        tl_log_line("media: MPEG-4 Part 2 decoding starts (after %u dropped)", c->waiting_dropped);
+    }
+    pthread_mutex_lock(&c->lock); c->video_inflight++; pthread_mutex_unlock(&c->lock);
+    CMBlockBufferRef bb = NULL; CMSampleBufferRef sb = NULL;
+    OSStatus st = CMBlockBufferCreateWithMemoryBlock(NULL, NULL, n, NULL, NULL, 0, n, kCMBlockBufferAssureMemoryNowFlag, &bb);
+    if (st == noErr) st = CMBlockBufferReplaceDataBytes(d, bb, 0, n);
+    CMSampleTimingInfo tm = { kCMTimeInvalid, CMTimeMake(pts, 1000000), kCMTimeInvalid };
+    size_t ss = n;
+    if (st == noErr) st = CMSampleBufferCreateReady(NULL, bb, c->fmt, 1, 1, &tm, 1, &ss, &sb);
+    if (st == noErr) { VTDecodeInfoFlags info = 0; st = VTDecompressionSessionDecodeFrame(c->vt, sb, 0, NULL, &info); }
+    if (st != noErr) {
+        pthread_mutex_lock(&c->lock);
+        if (c->video_inflight > 0) c->video_inflight--;
+        c->failed++;
+        pthread_cond_broadcast(&c->frame_cond);
+        pthread_mutex_unlock(&c->lock);
+        if (c->failed < 5 || c->trace) tl_log_line("media: VideoToolbox refused an MPEG-4 Part 2 frame (%d)", (int)st);
+    }
+    if (sb) CFRelease(sb);
+    if (bb) CFRelease(bb);
+    if (flags & FLAG_EOS) video_drain(c);
+}
+/* Whether this iOS has an MPEG-4 Part 2 decoder: a session on a Simple Profile 320x240 stream's headers (made here, bit by bit) */
+static bool mp4v_available(void)
+{
+    static int known = -1;
+    if (known >= 0) return known;
+    uint8_t vol[40]; size_t n = 0;
+    static const uint8_t pre[] = { 0, 0, 1, 0xB0, 0x01, 0, 0, 1, 0xB5, 0x09, 0, 0, 1, 0x00, 0, 0, 1, 0x20 };
+    memcpy(vol, pre, sizeof(pre)); n = sizeof(pre);
+    uint64_t bits = 0; int nb = 0;
+#define PUT(v, k) do { bits = bits << (k) | ((uint64_t)(v) & ((1ull << (k)) - 1)); nb += (k); while (nb >= 8) { vol[n++] = (uint8_t)(bits >> (nb - 8)); nb -= 8; } } while (0)
+    PUT(0, 1); PUT(1, 8); PUT(0, 1); PUT(1, 4); PUT(0, 1); PUT(0, 2); PUT(1, 1);   /* random access, Simple, no id, 1:1, no vbv, rectangular */
+    PUT(25, 16); PUT(1, 1); PUT(0, 1); PUT(1, 1);                                   /* time increment resolution 25, not fixed rate */
+    PUT(320, 13); PUT(1, 1); PUT(240, 13); PUT(1, 1);                               /* width, height */
+    PUT(0, 1); PUT(1, 1); PUT(0, 1); PUT(0, 1); PUT(0, 1); PUT(1, 1); PUT(1, 1); PUT(0, 1); PUT(0, 1);
+    PUT(0, 1); while (nb) PUT(1, 1);                                                 /* next_start_code */
+#undef PUT
+    codec c = { .kind = K_MP4V, .width = 320, .height = 240 };
+    c.vol = vol; c.vol_n = n;
+    pthread_mutex_init(&c.lock, NULL); pthread_cond_init(&c.frame_cond, NULL);
+    c.ready_tail = &c.ready;
+    bool ok = mp4v_session(&c);
+    session_drop(&c);
+    if (c.fmt) CFRelease(c.fmt);
+    pthread_cond_destroy(&c.frame_cond); pthread_mutex_destroy(&c.lock);
+    tl_log_line("media: MPEG-4 Part 2 (XviD/DivX) %s on this device", ok ? "decoder available" : "decoder not available");
+    known = ok;
+    return ok;
+}
+
 /* ---- audio ---- */
 
 /* AudioToolbox wants AAC's AudioSpecificConfig inside an ES descriptor (the 'esds' magic cookie) */
@@ -920,6 +1063,7 @@ static int kind_of(const char *mime)
     if (!strcasecmp(mime, "video/avc")) return K_AVC;
     if (!strcasecmp(mime, "video/hevc")) return K_HEVC;
     if (!strcasecmp(mime, "video/dolby-vision")) return K_HEVC;          /* its HEVC base layer (MediaCodecList lists dvhe only) */
+    if (!strcasecmp(mime, "video/mp4v-es")) return K_MP4V;
     if (!strcasecmp(mime, "audio/mp4a-latm")) return K_AAC;
     if (!strcasecmp(mime, "audio/mpeg")) return K_MP3;
     if (!strcasecmp(mime, "audio/ac3")) return K_AC3;
@@ -968,6 +1112,7 @@ NAT(M_supported)
     (void)self;
     const char *mime = tl_jni_string(a[0].l);
     if (mime && !strcmp(mime, "video/avc-high10")) { *ret = Z(avc_high10_available()); return true; }
+    if (mime && !strcasecmp(mime, "video/mp4v-es")) { *ret = Z(mp4v_available()); return true; }
     int k = kind_of(mime);
     bool ok = k == K_AVC || k == K_AAC || k == K_MP3 || (k >= K_AC3 && audio_available(k));
     if (k == K_HEVC) {
@@ -983,7 +1128,7 @@ NAT(M_create)
     if (!k) { *ret = J(0); return true; }
     codec *c = calloc(1, sizeof(*c));
     c->kind = k; c->trace = trace_on();
-    c->waiting_for_random_access = (k == K_AVC || k == K_HEVC);
+    c->waiting_for_random_access = (k == K_AVC || k == K_HEVC || k == K_MP4V);
     for (int i = 0; i < 256; i++) c->pps_sps[i] = -1;
     pthread_mutex_init(&c->lock, NULL);
     pthread_cond_init(&c->frame_cond, NULL);
@@ -1007,6 +1152,10 @@ NAT(M_configure)
         }
         if (c->params_changed) { c->params_changed = false; session_make(c); }
         *ret = Z(true);
+    } else if (c->kind == K_MP4V) {
+        c->width = a[1].i; c->height = a[2].i;
+        if (csd[0] && csd[0]->arr.len) mp4v_set_headers(c, csd[0]->arr.data, csd[0]->arr.len);
+        *ret = Z(true);
     } else {
         *ret = Z(audio_open(c, csd[0] ? csd[0]->arr.data : NULL, csd[0] ? csd[0]->arr.len : 0, a[3].i, a[4].i));
     }
@@ -1022,6 +1171,7 @@ NAT(M_decode)
     if (b && n > b->arr.len) n = b->arr.len;
     const uint8_t *d = b ? b->arr.data : NULL;
     if (c->kind == K_AVC || c->kind == K_HEVC) video_decode(c, d, n, a[3].j, a[4].i);
+    else if (c->kind == K_MP4V) mp4v_decode(c, d, n, a[3].j, a[4].i);
     else if (a[4].i & 2) audio_open(c, d, n, c->rate, c->in_channels ? c->in_channels : c->channels);   /* codec config: an AudioSpecificConfig */
     else audio_decode(c, d, n, a[3].j);
     *ret = I(0);
@@ -1298,6 +1448,7 @@ NAT(M_destroy)
     for (int i = 0; i < 16; i++) free(c->vps[i].d);
     for (int i = 0; i < 32; i++) free(c->sps[i].d);
     for (int i = 0; i < 256; i++) free(c->pps[i].d);
+    free(c->vol);
     /* nextPcm's scratch array: the Java side copied each packet out of it before asking for the next one, so its memory can go
        (the object itself stays, empty, as the runtime has no collector to hand it to) */
     if (c->pcm_array) {
