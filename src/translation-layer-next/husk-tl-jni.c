@@ -633,7 +633,7 @@ static jvalue invoke(jobj *self, tl_jmeth *m, bool nonvirtual, const jvalue *arg
     }
     if (!m->warned) {
         m->warned = true;
-        tl_log_line("jni: UNIMPLEMENTED Java method %s.%s%s (returning zero)", m->cls->name, m->name, m->sig);
+        tl_log_line("jni: UNIMPLEMENTED Java method %s.%s%s (returning zero)", m->cls ? m->cls->name : "?", m->name, m->sig);
     }
     return g_zero;
 }
@@ -704,7 +704,8 @@ static jvalue call_va(int kind, jobj *self, void *mid, tl_va_list *ap)
 
 jvalue tl_jni_call(jobj *self_or_class, const char *name, const char *sig, const jvalue *args)
 {
-    bool is_class = self_or_class && self_or_class->kind == TL_K_CLASS;
+    if (!self_or_class) { tl_jni_throw("java/lang/NullPointerException", name ? name : "call on null"); return g_zero; }
+    bool is_class = self_or_class->kind == TL_K_CLASS;
     tl_jclass *cls = is_class ? self_or_class->klass.jc : self_or_class->cls;
     tl_jmeth *m = lookup_method(cls, name, sig, is_class);
     return invoke(is_class ? NULL : self_or_class, m, false, args);

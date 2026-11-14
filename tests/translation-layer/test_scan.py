@@ -178,7 +178,10 @@ check("java: .so outside lib/ ignored", r["libraries"] == [] and r["abis"] == []
 r = scan(good_apk)
 check("good: verdict", r["verdict"] == "native", r["summary"])
 check("good: abis", r["abis"] == ["arm64-v8a", "armeabi-v7a"], r["abis"])
-check("good: only arm64 analysed", {l["name"] for l in r["libraries"]} == {"libgood.so", "librelr.so"})
+check("good: arm64 analysed, 32-bit ARM listed for the arm32 translator",
+      {l["name"] for l in r["libraries"]} == {"libgood.so", "librelr.so", "libv7.so"}
+      and lib(r, "libv7.so")["abi"] == "armeabi-v7a" and lib(r, "libv7.so")["relocations"] == 0,
+      [(l["name"], l["abi"]) for l in r["libraries"]])
 g = lib(r, "libgood.so")
 check("good: status ok", g["status"] == "ok", g)
 check("good: 16k aligned, no conflict", g["maxAlign"] == 16384 and g["conflictPages"] == 0, g)
@@ -216,7 +219,7 @@ check("svc: stack-guard reads match llvm-objdump",
 check("svc: notes explain", any("system call" in n for n in s["notes"]), s["notes"])
 
 r = scan(v7_apk)
-check("v7: 32-bit ARM only", r["verdict"] == "noArm64" and "32-bit ARM" in r["summary"], r)
+check("v7: 32-bit ARM only is translated", r["verdict"] == "native" and "32-bit ARM" in r["summary"], r)
 r = scan(x86_apk)
 check("x86: needs a translator", r["verdict"] == "noArm64" and "FEXCore" in r["summary"], r)
 

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <AudioToolbox/AudioToolbox.h>
 void tl_log_line(const char *fmt, ...) { (void)fmt; }
 void (*tl_cocos_audio_hook)(const int16_t *, int, int, int);
@@ -15,7 +16,8 @@ OSStatus AudioQueueNewOutput(const AudioStreamBasicDescription *f, AudioQueueOut
 { (void)u; (void)a; (void)b; (void)fl; g_q.cb = cb; g_q.f = *f; g_rate = f->mSampleRate; g_ch = (int)f->mChannelsPerFrame; *q = &g_q; return 0; }
 OSStatus AudioQueueAllocateBuffer(AudioQueueRef q, UInt32 n, AudioQueueBufferRef *b) { (void)q; (void)n; g_b.mAudioData = g_mem; *b = &g_b; return 0; }
 OSStatus AudioQueueEnqueueBuffer(AudioQueueRef q, AudioQueueBufferRef b, UInt32 n, void *d) { (void)q; (void)b; (void)n; (void)d; return 0; }
-OSStatus AudioQueueStart(AudioQueueRef q, void *t) { (void)q; (void)t; return 0; }
+static int g_starts;
+OSStatus AudioQueueStart(AudioQueueRef q, void *t) { (void)q; (void)t; g_starts++; return 0; }
 OSStatus AudioQueuePause(AudioQueueRef q) { (void)q; return 0; }
 OSStatus AudioQueueDispose(AudioQueueRef q, int i) { (void)q; (void)i; return 0; }
 
@@ -65,6 +67,16 @@ int main(void)
     int16_t six[6 * 480]; for (int i = 0; i < 480; i++) for (int c = 0; c < 6; c++) six[6 * i + c] = (int16_t)(c == 0 ? 500 : c == 1 ? -500 : 9999);
     tl_cocos_audio_hook(six, 480, 6, 48000); drain();
     check(out[0] == 500 && out[1] == -500 && out[200] == 500, "5.1 at 48 kHz: front left and right, untouched");
+    /* the output stops taking samples (iOS stopped the queue for a call): a writer must not wait for ever */
+    {
+        static int16_t big[2 * 48000];
+        int before = g_starts;
+        struct timespec t0, t1; clock_gettime(CLOCK_MONOTONIC, &t0);
+        tl_cocos_audio_hook(big, 24000, 2, 48000);         /* more than the ring holds, nothing draining it */
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        double s = (double)(t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+        check(s < 5.0 && g_starts > before, "a stopped output is restarted and the writer goes on (no hang)");
+    }
     printf(fails ? "FAILED\n" : "ALL PASSED\n");
     return fails != 0;
 }

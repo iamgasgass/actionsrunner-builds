@@ -107,7 +107,8 @@ static void blob_set(blob *b, const uint8_t *d, size_t n, bool *changed)
 }
 
 /* ---- parameter-set ids: the first fields of the RBSP, read past emulation-prevention bytes ---- */
-typedef struct { uint8_t b[64]; size_t n, bit; } rbsp;
+/* 128 bytes: an HEVC SPS with seven sub-layers that each carry a profile puts its id ~100 bytes in */
+typedef struct { uint8_t b[128]; size_t n, bit; } rbsp;
 static void rbsp_init(rbsp *r, const uint8_t *nal, size_t n, size_t skip)
 {
     r->n = 0; r->bit = 0;
@@ -328,32 +329,46 @@ static bool session_make(codec *c)
                     c->kind == K_AVC ? "H.264" : "HEVC", nv, ns, npp);
         session_drop(c);
     }
-    int pixel_format = kCVPixelFormatType_32BGRA;
-    CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
-    if (!number) {
-        tl_log_line("media: could not allocate the VideoToolbox pixel-format value");
-        return false;
+    /* Packed BGRA first: the hardware converts while it decodes and renderFrame only reorders the bytes. A decoder that will not
+       emit it (some 10-bit HEVC on older chips) still decodes into its own 4:2:0 layout, which renderFrame converts -- this used
+       to be "no decoder session" and a black picture. IOSurface-backed buffers, as Kernarium's decoder asks for, keep the
+       conversion on the hardware path. */
+    bool full_range = false;
+    {
+        CFTypeRef fr = CMFormatDescriptionGetExtension(c->fmt, kCMFormatDescriptionExtension_FullRangeVideo);
+        full_range = fr && CFGetTypeID(fr) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)fr);
     }
-    const void *keys[] = { kCVPixelBufferPixelFormatTypeKey };
-    const void *values[] = { number };
-    CFDictionaryRef destination = CFDictionaryCreate(
-        NULL, keys, values, 1,
-        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    CFRelease(number);
-    if (!destination) {
-        tl_log_line("media: could not create the VideoToolbox destination attributes");
-        return false;
-    }
-
+    const OSType formats[2] = { kCVPixelFormatType_32BGRA,
+                                full_range ? kCVPixelFormatType_420YpCbCr8BiPlanarFullRange : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange };
     VTDecompressionOutputCallbackRecord callback = { vt_out, c };
-    st = VTDecompressionSessionCreate(
-        NULL, c->fmt, NULL, destination, &callback, &c->vt);
-    CFRelease(destination);
-    if (st != noErr || !c->vt) {
-        tl_log_line("media: no decoder session (%d)", (int)st);
+    st = -1;
+    for (int k = 0; k < 2 && st != noErr; k++) {
+        int pixel_format = (int)formats[k];
+        CFNumberRef number = CFNumberCreate(NULL, kCFNumberIntType, &pixel_format);
+        CFDictionaryRef surface = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        if (!number || !surface) {
+            if (number) CFRelease(number);
+            if (surface) CFRelease(surface);
+            tl_log_line("media: could not allocate the VideoToolbox destination attributes");
+            return false;
+        }
+        const void *keys[] = { kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferIOSurfacePropertiesKey };
+        const void *values[] = { number, surface };
+        CFDictionaryRef destination = CFDictionaryCreate(NULL, keys, values, 2, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CFRelease(number); CFRelease(surface);
+        if (!destination) { tl_log_line("media: could not create the VideoToolbox destination attributes"); return false; }
         c->vt = NULL;
-        return false;
+        st = VTDecompressionSessionCreate(NULL, c->fmt, NULL, destination, &callback, &c->vt);
+        CFRelease(destination);
+        if (st != noErr || !c->vt) {
+            tl_log_line("media: no %s decoder session for %s output (%d)", c->kind == K_AVC ? "H.264" : "HEVC",
+                        k == 0 ? "BGRA" : "4:2:0", (int)st);
+            if (c->vt) { VTDecompressionSessionInvalidate(c->vt); CFRelease(c->vt); }
+            c->vt = NULL;
+            if (st == noErr) st = -1;
+        } else if (k > 0) tl_log_line("media: decoding to %s 4:2:0, converted when drawn", full_range ? "full-range" : "video-range");
     }
+    if (st != noErr || !c->vt) return false;
     tl_log_line("media: %s decoder for %dx%d",
                 c->kind == K_AVC ? "H.264" : "HEVC", c->width, c->height);
     return true;
@@ -640,7 +655,19 @@ static void video_decode(codec *c, const uint8_t *d, size_t n, int64_t pts, int 
         /* VideoToolbox is asynchronous. Do not let the app submit an unlimited number of access units
            while its decode callbacks are still pending. */
         pthread_mutex_lock(&c->lock);
-        while (c->video_inflight >= 4) pthread_cond_wait(&c->frame_cond, &c->lock);
+        /* bounded: a session that never calls back for a picture (invalidated under it, or a lost callback) must not hang the
+           app's playback thread for ever; after a second the slots are taken as free */
+        if (c->video_inflight >= 4) {
+            struct timespec until; clock_gettime(CLOCK_REALTIME, &until);
+            until.tv_sec += 1;
+            while (c->video_inflight >= 4) {
+                if (pthread_cond_timedwait(&c->frame_cond, &c->lock, &until) == ETIMEDOUT) {
+                    tl_log_line("media: %d VideoToolbox callbacks outstanding for a second; going on", c->video_inflight);
+                    c->video_inflight = 0;
+                    break;
+                }
+            }
+        }
         c->video_inflight++;
         pthread_mutex_unlock(&c->lock);
         CMBlockBufferRef bb = NULL; CMSampleBufferRef sb = NULL;
@@ -1109,9 +1136,41 @@ NAT(M_renderFrame)
     stride = CVPixelBufferGetBytesPerRow(f->pb);
     base = CVPixelBufferGetBaseAddress(f->pb);
 
-    /* VideoToolbox was configured for 32BGRA. Refuse to reinterpret another
-       format as four-byte BGRA: planar 4:2:0 buffers can legitimately have a
-       NULL base address and would otherwise produce a silent black frame. */
+    if (pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange || pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
+        /* the session's 4:2:0 fallback (session_make): Y and CbCr planes to RGBA with BT.709 (BT.601 below HD) */
+        stage = "convert 4:2:0 planes to Android RGBA Bitmap";
+        if (CVPixelBufferGetPlaneCount(f->pb) != 2 || src_w == 0 || src_h == 0) goto done;
+        pixel_buffer_render_rect(f->pb, &x0, &y0, &w, &h);
+        x0 &= ~(size_t)1; y0 &= ~(size_t)1;                /* chroma is shared by 2x2 pixels */
+        if (w != bi.width || h != bi.height || x0 + w > src_w || y0 + h > src_h) goto done;
+        uint8_t *yp = CVPixelBufferGetBaseAddressOfPlane(f->pb, 0), *cp = CVPixelBufferGetBaseAddressOfPlane(f->pb, 1);
+        size_t ys = CVPixelBufferGetBytesPerRowOfPlane(f->pb, 0), cs = CVPixelBufferGetBytesPerRowOfPlane(f->pb, 1);
+        if (!yp || !cp) goto done;
+        bool full = pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
+        bool hd = src_h >= 720;
+        static vImage_YpCbCrToARGB conv[2][2];
+        static bool made[2][2];
+        static pthread_mutex_t conv_mu = PTHREAD_MUTEX_INITIALIZER;
+        pthread_mutex_lock(&conv_mu);
+        if (!made[full][hd]) {
+            vImage_YpCbCrPixelRange range = full ? (vImage_YpCbCrPixelRange){ 0, 128, 255, 255, 255, 1, 255, 0 }
+                                                 : (vImage_YpCbCrPixelRange){ 16, 128, 235, 240, 235, 16, 240, 16 };
+            vstatus = vImageConvert_YpCbCrToARGB_GenerateConversion(hd ? kvImage_YpCbCrToARGBMatrix_ITU_R_709_2 : kvImage_YpCbCrToARGBMatrix_ITU_R_601_4,
+                                                                    &range, &conv[full][hd], kvImage420Yp8_CbCr8, kvImageARGB8888, kvImageNoFlags);
+            made[full][hd] = vstatus == kvImageNoError;
+        }
+        pthread_mutex_unlock(&conv_mu);
+        if (!made[full][hd]) goto done;
+        vImage_Buffer ysrc = { yp + y0 * ys + x0, h, w, ys };
+        vImage_Buffer csrc = { cp + (y0 / 2) * cs + x0, (h + 1) / 2, (w + 1) / 2, cs };
+        vImage_Buffer out = { px, h, w, bi.stride };
+        const uint8_t argb_to_rgba[4] = { 1, 2, 3, 0 };
+        vstatus = vImageConvert_420Yp8_CbCr8ToARGB8888(&ysrc, &csrc, &out, &conv[full][hd], argb_to_rgba, 255, kvImageNoFlags);
+        ok = vstatus == kvImageNoError;
+        goto done;
+    }
+    /* Anything else is refused rather than reinterpreted as four-byte BGRA: planar buffers can have a NULL base address and
+       would otherwise produce a silent black frame. */
     if (pixel_format != kCVPixelFormatType_32BGRA || !base || src_w == 0 || src_h == 0
             || stride < src_w * 4u) goto done;
 
@@ -1183,6 +1242,13 @@ NAT(M_destroy)
     for (int i = 0; i < 16; i++) free(c->vps[i].d);
     for (int i = 0; i < 32; i++) free(c->sps[i].d);
     for (int i = 0; i < 256; i++) free(c->pps[i].d);
+    /* nextPcm's scratch array: the Java side copied each packet out of it before asking for the next one, so its memory can go
+       (the object itself stays, empty, as the runtime has no collector to hand it to) */
+    if (c->pcm_array) {
+        uint8_t *empty = calloc(1, 1);
+        if (empty) { free(c->pcm_array->arr.data); c->pcm_array->arr.data = empty; c->pcm_array->arr.len = 0; }
+        c->pcm_array = NULL;
+    }
     if (c->trace) tl_log_line("media: codec closed after %ld outputs, %ld failures", c->decoded, c->failed);
     pthread_cond_destroy(&c->frame_cond);
     pthread_mutex_destroy(&c->lock);

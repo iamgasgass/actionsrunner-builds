@@ -265,7 +265,7 @@ static void deliver_txn(sess *to, uint32_t br, const binder_txn *t, const void *
     size_t need = (size_t)t->data_size + (size_t)t->offsets_size;
     void *buf = alloc_buf(to, need ? need : 8);
     if (buf && t->data_size) memcpy(buf, data, (size_t)t->data_size);
-    if (buf && t->offsets_size) memcpy((uint8_t *)buf + (size_t)t->data_size, offs, (size_t)t->offsets_size);
+    if (buf && t->offsets_size && offs) memcpy((uint8_t *)buf + (size_t)t->data_size, offs, (size_t)t->offsets_size);
     out.buffer = (uint64_t)(uintptr_t)buf;
     out.offsets = (uint64_t)(uintptr_t)((uint8_t *)buf + (size_t)t->data_size);
     uint32_t cmd = br;

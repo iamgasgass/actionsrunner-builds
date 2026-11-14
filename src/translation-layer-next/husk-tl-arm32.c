@@ -302,10 +302,12 @@ static uint32_t wrap_pthread_create(uint32_t thr, uint32_t attr, uint32_t start,
 static uint32_t wrap_mutex_init(uint32_t mu, uint32_t attr, uint32_t a, uint32_t b)
 {
     (void)attr; (void)a; (void)b;
-    pthread_mutex_t *m = calloc(1, sizeof(*m));
-    pthread_mutex_init(m, NULL);
     uint32_t *o = (uint32_t *)host(mu);
-    if (o) *o = tl_a32_intern_host(m);
+    if (!o) return 22;                                  /* EINVAL: no guest mutex to hold it */
+    pthread_mutex_t *m = calloc(1, sizeof(*m));
+    if (!m) return 12;                                  /* ENOMEM */
+    pthread_mutex_init(m, NULL);
+    *o = tl_a32_intern_host(m);
     return 0;
 }
 static pthread_mutex_t *guest_mutex(uint32_t mu)
@@ -330,10 +332,12 @@ static uint32_t wrap_mutex_destroy(uint32_t mu, uint32_t a, uint32_t b, uint32_t
 static uint32_t wrap_cond_init(uint32_t cv, uint32_t attr, uint32_t a, uint32_t b)
 {
     (void)attr; (void)a; (void)b;
-    pthread_cond_t *c = calloc(1, sizeof(*c));
-    pthread_cond_init(c, NULL);
     uint32_t *o = (uint32_t *)host(cv);
-    if (o) *o = tl_a32_intern_host(c);
+    if (!o) return 22;
+    pthread_cond_t *c = calloc(1, sizeof(*c));
+    if (!c) return 12;
+    pthread_cond_init(c, NULL);
+    *o = tl_a32_intern_host(c);
     return 0;
 }
 static pthread_cond_t *guest_cond(uint32_t cv)

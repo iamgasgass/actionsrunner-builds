@@ -21,7 +21,12 @@ public final class MessageQueue {
     }
 
     synchronized boolean enqueue(Message m, long when) {
-        if (quitting) { m.next = null; m.recycle(); return false; }
+        if (m.isInUse()) throw new IllegalStateException(m + " This message is already in use.");
+        if (quitting) {
+            android.util.Log.w("MessageQueue", "sending message to a Handler on a dead thread");
+            m.next = null; m.recycle(); return false;
+        }
+        m.markInUse();
         m.when = when;
         if (head == null || when < head.when) { m.next = head; head = m; }
         else { Message p = head; while (p.next != null && p.next.when <= when) p = p.next; m.next = p.next; p.next = m; }
@@ -34,7 +39,7 @@ public final class MessageQueue {
             Message next = p.next;
             boolean hit = p.target == h && (byWhat ? p.what == what && (token == null || p.obj == token) : (r == null || p.callback == r) && (token == null || p.obj == token));
             if (byWhat == false && r == null && token == null) hit = p.target == h;
-            if (hit) { if (prev == null) head = next; else prev.next = next; p.next = null; p.recycle(); }
+            if (hit) { if (prev == null) head = next; else prev.next = next; p.next = null; p.recycleUnchecked(); }
             else prev = p;
             p = next;
         }
@@ -47,23 +52,35 @@ public final class MessageQueue {
     }
     synchronized boolean hasCallback(Handler h, Runnable r) { for (Message p = head; p != null; p = p.next) if (p.target == h && p.callback == r && r != null) return true; return false; }
     synchronized boolean hasAny(Handler h) { for (Message p = head; p != null; p = p.next) if (p.target == h) return true; return false; }
-    synchronized void quit() {
+    synchronized void quit() { quit(false); }
+    /* safe: messages already due are still delivered, as Android's quitSafely does; later ones are dropped */
+    synchronized void quit(boolean safe) {
         quitting = true;
-        Message p = head; head = null;
-        while (p != null) { Message next = p.next; p.next = null; p.recycle(); p = next; }
+        Message keep = null, p = head;
+        if (safe) {
+            long now = SystemClock.uptimeMillis();
+            if (p != null && p.when <= now) {
+                keep = p;
+                while (p.next != null && p.next.when <= now) p = p.next;
+                Message rest = p.next; p.next = null; p = rest;
+            }
+        }
+        head = keep;
+        while (p != null) { Message next = p.next; p.next = null; p.recycleUnchecked(); p = next; }
         notifyAll();
     }
 
     private boolean mNativeLooper;
     Message next(boolean main) {
         for (;;) {
-            if (husk.Native.sessionEnded()) { synchronized (this) { quitting = true; } return null; }
+            if (husk.Native.sessionEnded()) { quit(false); return null; }
             if (main) Looper.deliverInput();
             mNativeLooper = husk.Native.nativeLooperPoll();
             synchronized (this) {
-                if (quitting) return null;
                 long now = SystemClock.uptimeMillis();
-                if (head != null && head.when <= now) { Message m = head; head = m.next; m.next = null; mIdleRan = false; return m; }
+                /* after quitSafely the messages that were due are still in the queue, and go out before the loop ends */
+                if (head != null && (head.when <= now || quitting)) { Message m = head; head = m.next; m.next = null; mIdleRan = false; return m; }
+                if (quitting) return null;
             }
             runIdle();
             synchronized (this) {

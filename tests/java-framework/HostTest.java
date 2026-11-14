@@ -181,6 +181,40 @@ public class HostTest {
             try { ht.join(2000); } catch (InterruptedException ie) {}
             check(!ht.isAlive(), "HandlerThread ended after quit");
         }
+        {   // Message pool: copies, in-use tracking, no object handed out twice
+            Message o = Message.obtain(h, 5, 6, 7, "x");
+            o.getData().putString("k", "v");
+            Message c = Message.obtain(o);
+            check(c != null && c != o && c.what == 5 && c.arg1 == 6 && c.arg2 == 7 && "x".equals(c.obj) && c.getTarget() == h
+                  && "v".equals(c.getData().getString("k")) && c.getData() != o.getData(), "Message.obtain(Message) copies");
+            o.recycle(); o.recycle();
+            Message a1 = Message.obtain(), a2 = Message.obtain();
+            check(a1 != a2, "a message recycled twice is pooled once");
+            final AtomicInteger got = new AtomicInteger();
+            Handler hh = new Handler(h.getLooper()) { public void handleMessage(Message m) { got.incrementAndGet(); } };
+            Message once = hh.obtainMessage(1);
+            hh.sendMessageDelayed(once, 100);
+            boolean inUse = false;
+            try { hh.sendMessage(once); } catch (IllegalStateException ise) { inUse = true; }
+            check(inUse, "sending a message that is already queued throws, as on Android");
+            sleep(300);
+            check(got.get() == 1, "the queued message is delivered once");
+        }
+        {   // quitSafely delivers what is already due, drops later messages
+            android.os.HandlerThread ht = new android.os.HandlerThread("q");
+            ht.start();
+            final List<String> q = Collections.synchronizedList(new ArrayList<>());
+            Handler qh = new Handler(ht.getLooper());
+            final Object gate = new Object();
+            qh.post(() -> { synchronized (gate) { try { gate.wait(200); } catch (InterruptedException ie2) {} } q.add("first"); });
+            qh.post(() -> q.add("due"));
+            qh.postDelayed(() -> q.add("late"), 5000);
+            sleep(50);
+            ht.quitSafely();
+            synchronized (gate) { gate.notifyAll(); }
+            try { ht.join(2000); } catch (InterruptedException ie) {}
+            check(q.equals(java.util.Arrays.asList("first", "due")) && !ht.isAlive(), "quitSafely: due messages delivered, later ones dropped " + q);
+        }
 
         // --- DownloadManager over a local HTTP server
         com.sun.net.httpserver.HttpServer srv = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);

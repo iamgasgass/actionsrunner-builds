@@ -185,7 +185,8 @@ public class DownloadManager {
                 return;
             }
         } catch (java.io.FileNotFoundException e) {
-            fail(it, it.file != null && !it.file.getParentFile().canWrite() ? ERROR_FILE_ERROR : ERROR_HTTP_DATA_ERROR);
+            File dir = it.file != null ? it.file.getAbsoluteFile().getParentFile() : null;
+            fail(it, dir != null && !dir.canWrite() ? ERROR_FILE_ERROR : ERROR_HTTP_DATA_ERROR);
         } catch (java.io.IOException e) {
             if (it.removed) return;
             android.util.Log.w("DownloadManager", "download " + it.id + " stopped: " + e);

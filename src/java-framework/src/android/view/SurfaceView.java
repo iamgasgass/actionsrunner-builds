@@ -97,13 +97,18 @@ public class SurfaceView extends View {
         if (mGL) { mGL = false; husk.EGLNative.hide(); }
         synchronized (mLock) {
             mCreated = false; mHasFrame = false;
-            if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
-            Bitmap front = mFront, back = mBack;
-            mFront = null; mBack = null; mLocked = false;
-            if (front != null) { try { front.recycle(); } catch (RuntimeException ignored) {} }
-            if (back != null && back != front) { try { back.recycle(); } catch (RuntimeException ignored) {} }
+            /* A producer that still holds the canvas (a decoder thread between lockCanvas and unlockCanvasAndPost) is drawing into the
+               back buffer right now: freeing it here would pull the memory from under that draw. Its post() frees the buffers. */
+            if (!mLocked) freeBuffersLocked();
             mLock.notifyAll();
         }
+    }
+    private void freeBuffersLocked() {
+        if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
+        Bitmap front = mFront, back = mBack;
+        mFront = null; mBack = null;
+        if (front != null) { try { front.recycle(); } catch (RuntimeException ignored) {} }
+        if (back != null && back != front) { try { back.recycle(); } catch (RuntimeException ignored) {} }
     }
     /** Software drawing: a canvas on the back buffer (kept from the last frame, as Android's is). */
     private Canvas lock(Rect dirty) {
@@ -134,6 +139,13 @@ public class SurfaceView extends View {
     private void post(Canvas c) {
         synchronized (mLock) {
             if (!mLocked) throw new IllegalStateException("Surface was not locked");
+            if (!mCreated) {
+                /* the surface was destroyed while this frame was drawn: nothing to show it on; the buffers go now */
+                mLocked = false;
+                freeBuffersLocked();
+                mLock.notifyAll();
+                return;
+            }
             mBackCanvas.restoreToCount(mSaveHusk);
             // swap: the posted buffer becomes the front, the next lock draws on a copy of it
             Bitmap f = mFront;

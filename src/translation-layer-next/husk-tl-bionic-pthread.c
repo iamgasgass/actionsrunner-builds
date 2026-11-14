@@ -492,7 +492,7 @@ static int b_detach(pthread_t t) { return rc(pthread_detach(t)); }
 static uint32_t sigset_to_darwin(uint64_t g)
 {
     uint32_t d = 0;
-    for (int s = 1; s < 32; s++) if (g & (1ull << (s - 1))) { int ds = tl_signal_to_darwin(s); if (ds > 0) d |= 1u << (ds - 1); }
+    for (int s = 1; s <= 64; s++) if (g & (1ull << (s - 1))) { /* to 64: the real-time signals Darwin carries (34) */ int ds = tl_signal_to_darwin(s); if (ds > 0) d |= 1u << (ds - 1); }
     return d;
 }
 static uint64_t sigset_from_darwin(uint32_t d)

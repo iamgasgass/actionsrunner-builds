@@ -60,6 +60,10 @@ public class SurfaceTexture {
                 mBack = null; mBackCanvas = null;
             }
             mLocked = false; mTimestamp = System.nanoTime();
+            if (mReleased) {   /* released while this frame was drawn: its canvases were left for this post to free */
+                if (mBackCanvas != null) { mBackCanvas.huskRelease(); mBackCanvas = null; }
+                if (mFrontCanvas != null) { mFrontCanvas.huskRelease(); mFrontCanvas = null; }
+            }
             mLock.notifyAll();
         }
         android.view.View v = huskView;

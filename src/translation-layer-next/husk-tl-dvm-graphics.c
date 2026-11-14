@@ -52,6 +52,7 @@ typedef struct gbitmap {
     uint8_t *px;
     CGContextRef ctx;               /* drawn into by a Canvas; also how its pixels become a CGImage */
     struct gcanvas *owner;          /* the Canvas whose state the context holds now (see cv_new) */
+    struct gcanvas *canvases;       /* every live Canvas made on it (owner or orphan): told when the bitmap goes */
 } gbitmap;
 
 typedef struct gcanvas {
@@ -61,7 +62,10 @@ typedef struct gcanvas {
     int depth;                      /* Android's save count - 1 */
     uint64_t layer_bits[4];         /* which save levels are layers (end a transparency layer on restore) */
     bool orphan;                    /* another Canvas was made on the bitmap since: this one no longer owns the context's state */
+    struct gcanvas *next_on_bm;     /* gbitmap.canvases */
 } gcanvas;
+/* gbitmap.canvases and gcanvas.next_on_bm: canvases are made and freed on several threads (a decoder's, the UI's, finalizers) */
+static pthread_mutex_t g_canvas_list = PTHREAD_MUTEX_INITIALIZER;
 
 static CGColorSpaceRef rgb(void)
 {
@@ -115,8 +119,12 @@ int32_t tl_AndroidBitmap_getDataSpace(void *env, void *bitmap) { (void)env; (voi
 static void bm_free(gbitmap *b)
 {
     if (!b) return;
-    /* a canvas outliving its bitmap (recycle() before the canvas is collected) must not restore state on a released context */
-    if (b->owner) { b->owner->orphan = true; b->owner->bm = NULL; b->owner = NULL; }
+    /* a canvas outliving its bitmap (recycle() before the canvas is collected) must not restore state on, or draw into, a released
+       context: every canvas made on it -- the owner and the orphans -- loses its context, and its drawing calls do nothing */
+    pthread_mutex_lock(&g_canvas_list);
+    for (gcanvas *v = b->canvases, *n; v; v = n) { n = v->next_on_bm; v->orphan = true; v->bm = NULL; v->c = NULL; v->next_on_bm = NULL; }
+    b->canvases = NULL; b->owner = NULL;
+    pthread_mutex_unlock(&g_canvas_list);
     CGContextRelease(b->ctx);
     free(b->px);
     free(b);
@@ -418,9 +426,13 @@ static void cv_unwind(gcanvas *v)
 static gcanvas *cv_new(gbitmap *b)
 {
     gcanvas *v = calloc(1, sizeof(*v));
+    if (!v) return NULL;
     v->bm = b; v->c = b->ctx;
+    pthread_mutex_lock(&g_canvas_list);
     if (b->owner && !b->owner->orphan) { cv_unwind(b->owner); b->owner->orphan = true; b->owner->depth = 0; }
     b->owner = v;
+    v->next_on_bm = b->canvases; b->canvases = v;
+    pthread_mutex_unlock(&g_canvas_list);
     CGContextSaveGState(v->c);              /* the canvas's own level, undone when it is freed */
     CGContextTranslateCTM(v->c, 0, b->h);
     CGContextScaleCTM(v->c, 1, -1);
@@ -431,10 +443,13 @@ static gcanvas *cv_new(gbitmap *b)
 static void cv_free(gcanvas *v)
 {
     if (!v) return;
-    if (!v->orphan) {
+    pthread_mutex_lock(&g_canvas_list);
+    if (!v->orphan && v->c) {
         cv_unwind(v);
         if (v->bm && v->bm->owner == v) v->bm->owner = NULL;
     }
+    if (v->bm) for (gcanvas **p = &v->bm->canvases; *p; p = &(*p)->next_on_bm) if (*p == v) { *p = v->next_on_bm; break; }
+    pthread_mutex_unlock(&g_canvas_list);
     free(v);
 }
 static CGBlendMode blend_of(int mode);
@@ -778,6 +793,8 @@ static jvalue Ii(int32_t i) { jvalue v; v.j = (uint32_t)i; return v; }
 static jvalue Ff(float f) { jvalue v; v.j = 0; v.f = f; return v; }
 static jvalue Ll(void *p) { jvalue v; v.j = 0; v.l = p; return v; }
 #define H(T, k) ((T *)(uintptr_t)a[k].j)
+/* A canvas whose bitmap has been freed has no context left: its drawing calls do nothing, as on a recycled bitmap */
+static inline gcanvas *cv_live(gcanvas *v) { return v && v->c ? v : NULL; }
 static void *arr_data(jobj *x) { return x && x->kind == TL_K_PRIM_ARRAY ? x->arr.data : NULL; }
 static uint32_t arr_len(jobj *x) { return x && x->kind == TL_K_PRIM_ARRAY ? x->arr.len : 0; }
 
@@ -937,12 +954,12 @@ NAT(G_bmCopy)
 /* ---- Canvas */
 NAT(G_cvNew) { (void)self; gbitmap *b = H(gbitmap, 0); *ret = J(b ? (int64_t)(uintptr_t)cv_new(b) : 0); return true; }
 NAT(G_cvFree) { (void)self; (void)ret; cv_free(H(gcanvas, 0)); return true; }
-NAT(G_cvSave) { (void)self; gcanvas *v = H(gcanvas, 0); *ret = Ii(v ? cv_save(v, false, 1, CGRectNull) : 1); return true; }
+NAT(G_cvSave) { (void)self; gcanvas *v = cv_live(H(gcanvas, 0)); *ret = Ii(v ? cv_save(v, false, 1, CGRectNull) : 1); return true; }
 /* (long, l, t, r, b, int alpha) */
 NAT(G_cvSaveLayer)
 {
     (void)self;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     CGRect r = CGRectMake(a[1].f, a[2].f, a[3].f - a[1].f, a[4].f - a[2].f);
     *ret = Ii(v ? cv_save(v, true, a[5].i / 255.0f, r) : 1);
     return true;
@@ -950,19 +967,19 @@ NAT(G_cvSaveLayer)
 NAT(G_cvSaveLayerMode)
 {
     (void)self;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     CGRect r = CGRectMake(a[1].f, a[2].f, a[3].f - a[1].f, a[4].f - a[2].f);
     *ret = Ii(v ? cv_save_mode(v, true, a[5].i / 255.0f, r, a[6].i) : 1);
     return true;
 }
-NAT(G_cvRestore) { (void)self; (void)ret; gcanvas *v = H(gcanvas, 0); if (v) cv_restore(v); return true; }
-NAT(G_cvRestoreTo) { (void)self; (void)ret; gcanvas *v = H(gcanvas, 0); int n = a[1].i; if (v) while (v->depth + 1 > n && v->depth > 0) cv_restore(v); return true; }
-NAT(G_cvSaveCount) { (void)self; gcanvas *v = H(gcanvas, 0); *ret = Ii(v ? v->depth + 1 : 1); return true; }
+NAT(G_cvRestore) { (void)self; (void)ret; gcanvas *v = cv_live(H(gcanvas, 0)); if (v) cv_restore(v); return true; }
+NAT(G_cvRestoreTo) { (void)self; (void)ret; gcanvas *v = cv_live(H(gcanvas, 0)); int n = a[1].i; if (v) while (v->depth + 1 > n && v->depth > 0) cv_restore(v); return true; }
+NAT(G_cvSaveCount) { (void)self; gcanvas *v = cv_live(H(gcanvas, 0)); *ret = Ii(v ? v->depth + 1 : 1); return true; }
 /* (long, float[6] affine: sx kx tx ky sy ty, boolean set) */
 NAT(G_cvMatrix)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); float *m = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); float *m = arr_data(a[1].l);
     if (!v || !m) return true;
     CGAffineTransform t = CGAffineTransformMake(m[0], m[3], m[1], m[4], m[2], m[5]);
     if (a[2].z) {
@@ -975,7 +992,7 @@ NAT(G_cvMatrix)
 NAT(G_cvGetMatrix)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); float *m = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); float *m = arr_data(a[1].l);
     if (!v || !m) return true;
     CGAffineTransform t = CGAffineTransformConcat(CGContextGetCTM(v->c), CGAffineTransformInvert(v->base));
     m[0] = (float)t.a; m[1] = (float)t.c; m[2] = (float)t.tx; m[3] = (float)t.b; m[4] = (float)t.d; m[5] = (float)t.ty;
@@ -985,7 +1002,7 @@ NAT(G_cvGetMatrix)
 NAT(G_cvClipRect)
 {
     (void)self;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     *ret = Ii(1);
     if (!v) return true;
     CGRect r = CGRectMake(a[1].f, a[2].f, a[3].f - a[1].f, a[4].f - a[2].f);
@@ -1002,7 +1019,7 @@ NAT(G_cvClipRect)
 NAT(G_cvClipPath)
 {
     (void)self;
-    gcanvas *v = H(gcanvas, 0); float *f = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); float *f = arr_data(a[1].l);
     *ret = Ii(1);
     if (!v || !f) return true;
     CGPathRef p = build_path(f, a[2].i);
@@ -1022,7 +1039,7 @@ NAT(G_cvClipPath)
 NAT(G_cvClipBounds)
 {
     (void)self;
-    gcanvas *v = H(gcanvas, 0); int32_t *o = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); int32_t *o = arr_data(a[1].l);
     *ret = Ii(0);
     if (!v || !o) return true;
     CGRect r = CGContextGetClipBoundingBox(v->c);
@@ -1036,7 +1053,7 @@ NAT(G_cvClipBounds)
 NAT(G_cvDrawColor)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v) return true;
     CGContextRef c = v->c;
     CGContextSaveGState(c);
@@ -1061,7 +1078,7 @@ static void shape(gcanvas *v, CGPathRef p, jobj *paint, int64_t shader)
 NAT(G_cvDrawRect)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v) return true;
     CGRect r = CGRectMake(a[1].f, a[2].f, a[3].f - a[1].f, a[4].f - a[2].f);
     const int32_t *p = paint_of(a[5].l);
@@ -1084,7 +1101,7 @@ NAT(G_cvDrawRect)
 NAT(G_cvDrawRRect)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v) return true;
     float rad[8]; for (int i = 0; i < 8; i++) rad[i] = (i & 1) ? a[6].f : a[5].f;
     CGMutablePathRef p = CGPathCreateMutable();
@@ -1096,7 +1113,7 @@ NAT(G_cvDrawRRect)
 NAT(G_cvDrawOval)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v) return true;
     CGPathRef p = CGPathCreateWithEllipseInRect(CGRectMake(a[1].f, a[2].f, a[3].f - a[1].f, a[4].f - a[2].f), NULL);
     shape(v, p, a[5].l, a[6].j);
@@ -1107,7 +1124,7 @@ NAT(G_cvDrawOval)
 NAT(G_cvDrawArc)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v) return true;
     CGMutablePathRef p = CGPathCreateMutable();
     float l = a[1].f, t = a[2].f, r = a[3].f, b = a[4].f;
@@ -1124,7 +1141,7 @@ NAT(G_cvDrawArc)
 NAT(G_cvDrawPath)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); float *f = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); float *f = arr_data(a[1].l);
     if (!v || !f) return true;
     CGPathRef p = build_path(f, a[2].i);
     draw_path(v->c, p, paint_of(a[4].l), (gshader *)(uintptr_t)a[5].j, a[3].i == 1);
@@ -1135,7 +1152,7 @@ NAT(G_cvDrawPath)
 NAT(G_cvDrawLines)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); float *f = arr_data(a[1].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); float *f = arr_data(a[1].l);
     if (!v || !f) return true;
     int off = a[2].i, n = a[3].i;
     if (off < 0 || (uint32_t)(off + n) > arr_len(a[1].l)) return true;
@@ -1159,7 +1176,7 @@ NAT(G_cvDrawLines)
 NAT(G_cvDrawBitmap)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); gbitmap *b = H(gbitmap, 1);
+    gcanvas *v = cv_live(H(gcanvas, 0)); gbitmap *b = H(gbitmap, 1);
     if (!v || !b) return true;
     const int32_t *p = paint_of(a[10].l);
     int32_t q[P_COUNT]; memcpy(q, p, sizeof(q));
@@ -1189,7 +1206,7 @@ NAT(G_cvDrawBitmap)
 NAT(G_cvDrawBitmapM)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0); gbitmap *b = H(gbitmap, 1); float *m = arr_data(a[2].l);
+    gcanvas *v = cv_live(H(gcanvas, 0)); gbitmap *b = H(gbitmap, 1); float *m = arr_data(a[2].l);
     if (!v || !b || !m) return true;
     const int32_t *p = paint_of(a[3].l);
     int32_t q[P_COUNT]; memcpy(q, p, sizeof(q));
@@ -1214,7 +1231,7 @@ NAT(G_cvDrawBitmapM)
 NAT(G_cvDrawText)
 {
     (void)self; (void)ret;
-    gcanvas *v = H(gcanvas, 0);
+    gcanvas *v = cv_live(H(gcanvas, 0));
     if (!v || !a[1].l) return true;
     draw_text(v, a[1].l, a[2].i, a[3].i, a[4].f, a[5].f, paint_of(a[6].l), (gface *)(uintptr_t)a[7].j, (gshader *)(uintptr_t)a[8].j);
     return true;

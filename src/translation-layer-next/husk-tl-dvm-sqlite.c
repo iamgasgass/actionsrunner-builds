@@ -153,7 +153,7 @@ NAT(S_columnBlob)
     if (!b && sqlite3_column_type(ST, a[1].i) == SQLITE_NULL) { *ret = L(NULL); return true; }
     jobj *arr = tl_jni_new_prim_array('B', (uint32_t)n);
     arr->refs = 1u << 30;
-    if (n) memcpy(arr->arr.data, b, (size_t)n);
+    if (n > 0 && b) memcpy(arr->arr.data, b, (size_t)n);
     *ret = L(arr);
     return true;
 }

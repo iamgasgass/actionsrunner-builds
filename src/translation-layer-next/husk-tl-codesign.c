@@ -1826,7 +1826,7 @@ int husk_codesign_executable_identifier(const char *exe, char *out, int outlen)
         const uint8_t *cd = sb_slot(sig, len, 0, &cdl);
         if (cd && cdl >= 24 && rd_be32(cd) == 0xfade0c02u) {
             uint32_t io = rd_be32(cd + 20);
-            if (io && io < cdl) { snprintf(out, (size_t)outlen, "%.*s", outlen - 1, (const char *)cd + io); ok = out[0] != 0; }
+            if (out && outlen > 0 && io && io < cdl) { snprintf(out, (size_t)outlen, "%.*s", outlen - 1, (const char *)cd + io); ok = out[0] != 0; }
         }
     }
     free(sig);

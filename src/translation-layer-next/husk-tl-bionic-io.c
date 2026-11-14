@@ -1747,7 +1747,7 @@ static int b_sigdelset(uint64_t *s, int sig) { if (sig < 1 || sig > 64) { tl_set
 static int b_sigsuspend(const uint64_t *mask)
 {
     uint32_t m = 0;
-    for (int s = 1; s < 32; s++) if (*mask & (1ull << (s - 1))) { int d = tl_signal_to_darwin(s); if (d > 0) m |= 1u << (d - 1); }
+    for (int s = 1; s <= 64; s++) if (*mask & (1ull << (s - 1))) { /* to 64: the real-time signals Darwin carries (34) */ int d = tl_signal_to_darwin(s); if (d > 0) m |= 1u << (d - 1); }
     sigset_t ds; memcpy(&ds, &m, sizeof(m));
     sig_trace("sigsuspend begins, mask", (int)*mask);
     TL_ERRNO_BEGIN(); int r = sigsuspend(&ds); TL_ERRNO_END();
