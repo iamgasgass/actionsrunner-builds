@@ -1,0 +1,502 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Andarium: build the complete, sideloadable IPA from this checkout and the prebuilt artifacts.
+#
+#   Run workflow (manual)      build; "release" also publishes the IPA on a GitHub release
+#   push to main / master      build and keep the IPA as a workflow artifact
+#   push of a tag like v1.0    build and publish the IPA on that tag's release
+#
+# The chain is the one Andarium/README.md documents ("Build"), run on a macOS runner:
+#
+#   1. prebuilt inputs   fetched and recognised by content (.github/ci/fetch-prebuilt.sh, place-prebuilt.py)
+#   2. dependencies      the iOS device prefixes (Mesa/KosmicKrisp GPU, GLib/libslirp network, GPT fdisk, zstd):
+#                        taken from the prebuilt inputs when they verify against this commit's manifest, otherwise
+#                        built from source with dependencies/prepare.sh + build-*.sh and cached
+#   3. runtime           cmake --preset kernarium-ios-device-android(-app-store), linking the prebuilt kernel bundle
+#   4. frameworks        Kernarium/scripts/package-ios-frameworks.sh --runtimes android (steps 2-4 are skipped when
+#                        an already packaged .build/kernarium-xcframeworks is among the prebuilt inputs)
+#   5. system image      Andarium/scripts/stage-system-image.py, from the prebuilt LineageOS release
+#   6. app               xcodebuild -scheme Andarium, without a signing team
+#   7. IPA               .github/ci/package-ipa.sh: ad hoc signed with Config/Andarium.entitlements embedded, which
+#                        SideStore / AltStore re-sign at install and TrollStore installs as it is
+#
+# Prebuilt inputs. Two of them cannot be built here and are required:
+#
+#   the Android kernel bundle   android-6.18-arm64-4k-...   (a directory with kernel-artifact.json)
+#   the LineageOS 24 release    lineage24-mainline6.18-...  (release-manifest.json + guest/system.img[.zst|.xz|.gz])
+#
+# The rest is optional: the dependency prefixes (.build/dependencies/...) or the packaged .build/kernarium-xcframeworks.
+# The names the build expects are in kernel/mainline-6.18/artifacts/accepted-android-4k.env and
+# android/lineage-24/metadata/accepted-release.env. Give them as archives (tar, tar.gz, tar.xz, tar.zst, zip, 7z, also split
+# in parts) in any layout, from any of:
+#
+#   - the "prebuilt" input of a manual run, or the repository variable ANDARIUM_PREBUILT (input wins), a list of
+#       https://host/file.tar.zst                       an URL
+#       https://host/a.tar.001+https://host/a.tar.002   the parts of one split archive
+#       gh-release:OWNER/REPO@TAG/ASSET-GLOB            release assets (secret PREBUILT_TOKEN for a private repository;
+#       gh-release:OWNER/REPO@TAG                       NAME.001, NAME.002 ... parts are joined automatically)
+#     separated by spaces, commas or new lines;
+#   - the folder prebuilt/ of this checkout (archives or already unpacked directories; note .gitignore drops *.img).
+#
+# Making them, on the Mac that built them:
+#
+#   tar -C .build/kernel/artifacts   -cf - android-6.18-arm64-4k-<id>     | zstd -19 -T0 -o kernel.tar.zst
+#   tar -C .build/android/releases   -cf - lineage24-mainline6.18-4k-<id> | zstd -19 -T0 --long=31 -o android.tar.zst
+#   tar -C .build -cf - dependencies/apple-gpu-vulkan-experiment/ios-device-arm64 dependencies/ios-device-arm64/network \
+#       dependencies/ios-storage dependencies/ios-zstd | zstd -19 -T0 -o deps.tar.zst          # optional
+#   split -b 1900m -d -a 3 android.tar.zst android.tar.zst.                                   # a release asset is < 2 GiB
+#   gh release create prebuilt-1 kernel.tar.zst android.tar.zst.* deps.tar.zst --repo OWNER/REPO
+#
+# then ANDARIUM_PREBUILT = gh-release:OWNER/REPO@prebuilt-1
+#
+# Other repository variables: ANDARIUM_RUNNER (default macos-26), ANDARIUM_XCODE (e.g. 27.0; default the newest 27+).
+
+name: Build Andarium IPA
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v[0-9]*', '[0-9]+.[0-9]+*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSES/**'
+  workflow_dispatch:
+    inputs:
+      prebuilt:
+        description: Prebuilt archives (URLs / gh-release:OWNER/REPO@TAG[/ASSET]); empty = variable ANDARIUM_PREBUILT + prebuilt/
+        type: string
+        default: ''
+      configuration:
+        description: Release (sideload, JIT-capable runtime) or AppStore (App Store runtime and bundle checks)
+        type: choice
+        options: [Release, AppStore]
+        default: Release
+      release:
+        description: Publish a GitHub release with the IPA
+        type: boolean
+        default: false
+      tag:
+        description: Release tag (empty = andarium-<version>-<build>)
+        type: string
+        default: ''
+      prerelease:
+        description: Mark the release as a pre-release
+        type: boolean
+        default: false
+      xcode:
+        description: Xcode version (empty = ANDARIUM_XCODE or the newest 27+)
+        type: string
+        default: ''
+      rebuild_dependencies:
+        description: Ignore the dependency cache (prefixes not among the prebuilt artifacts are built from source)
+        type: boolean
+        default: false
+
+concurrency:
+  group: andarium-ipa-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') && !inputs.release }}
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
+  HOMEBREW_NO_ANALYTICS: '1'
+  # Bumping it throws away the dependency cache.
+  CACHE_VERSION: v1
+
+jobs:
+  ipa:
+    name: Andarium IPA
+    runs-on: ${{ vars.ANDARIUM_RUNNER || 'macos-26' }}
+    timeout-minutes: 360
+    permissions:
+      contents: write             # the optional release
+    env:
+      CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+      PREBUILT: ${{ inputs.prebuilt || vars.ANDARIUM_PREBUILT }}
+      PREBUILT_TOKEN: ${{ secrets.PREBUILT_TOKEN }}
+      GH_TOKEN: ${{ secrets.PREBUILT_TOKEN || github.token }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          # the AppStore configuration compares the embedded artifacts with this commit's history
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select Xcode
+        id: xcode
+        env:
+          WANTED: ${{ inputs.xcode || vars.ANDARIUM_XCODE }}
+        run: |
+          set -eu
+          # The Andarium project is the JSON format Xcode 27 reads, and everything deploys to iOS 27.0.
+          version_of() { /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist" 2>/dev/null || true; }
+          chosen=
+          if [ -n "$WANTED" ]; then
+            for app in /Applications/Xcode_"$WANTED".app /Applications/Xcode-"$WANTED".app /Applications/Xcode_"$WANTED"*.app; do
+              [ -d "$app" ] && { chosen=$app; break; }
+            done
+            [ -n "$chosen" ] || { echo "::error::Xcode $WANTED is not installed on this runner"; ls -d /Applications/Xcode* || true; exit 1; }
+          else
+            best=
+            for app in /Applications/Xcode*.app; do
+              [ -d "$app" ] && [ ! -L "$app" ] || continue
+              case "$app" in *beta* | *Beta* | *_RC* ) continue ;; esac
+              version=$(version_of "$app")
+              major=${version%%.*}
+              case "$major" in ''|*[!0-9]*) continue ;; esac
+              [ "$major" -ge 27 ] || continue
+              key=$(printf '%s' "$version" | awk -F. '{ printf "%04d%04d%04d", $1, $2, $3 }')
+              if [ -z "$best" ] || [ "$key" -gt "$best" ]; then best=$key; chosen=$app; fi
+            done
+            if [ -z "$chosen" ]; then
+              # no stable 27+: take a beta / RC 27+ rather than fail
+              for app in /Applications/Xcode*.app; do
+                version=$(version_of "$app"); major=${version%%.*}
+                case "$major" in ''|*[!0-9]*) continue ;; esac
+                [ "$major" -ge 27 ] && chosen=$app
+              done
+            fi
+            [ -n "$chosen" ] || { echo "::error::No Xcode 27 or newer on $RUNNER_NAME; set the variable ANDARIUM_RUNNER to a newer image"; ls -d /Applications/Xcode* || true; exit 1; }
+          fi
+          sudo xcode-select -s "$chosen/Contents/Developer"
+          xcodebuild -version
+          echo "path=$chosen" >> "$GITHUB_OUTPUT"
+          echo "version=$(xcodebuild -version | awk 'NR==1 { print $2 }')-$(xcodebuild -version | awk 'NR==2 { print $3 }')" >> "$GITHUB_OUTPUT"
+          echo "sdk=$(xcrun --sdk iphoneos --show-sdk-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Free disk space
+        env:
+          KEEP: ${{ steps.xcode.outputs.path }}
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          # The system image is several GB and is copied a few times on its way into the IPA.
+          for app in /Applications/Xcode*.app; do
+            [ "$app" = "$KEEP" ] || [ -L "$app" ] || sudo rm -rf "$app" &
+          done
+          xcrun simctl delete all >/dev/null 2>&1 || true
+          sudo rm -rf ~/Library/Developer/CoreSimulator/Caches /Users/runner/Library/Android /usr/local/share/dotnet \
+            /Users/runner/.dotnet /Users/runner/hostedtoolcache/CodeQL 2>/dev/null &
+          wait
+          df -h "$GITHUB_WORKSPACE"
+
+      - name: Python and host tools
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: |
+          set -eu
+          brew install cmake ninja meson pkgconf autoconf automake gettext libtool gperf groff zstd xz sevenzip
+          cmake --version | head -n 1
+          # Meson, Mako, PyYAML and packaging for Mesa, where the dependency scripts look first
+          python3 -m venv .build/gpu-tools-venv
+          .build/gpu-tools-venv/bin/pip install --quiet --upgrade pip
+          .build/gpu-tools-venv/bin/pip install --quiet meson mako pyyaml packaging
+          # prepare.sh replays the dependency patch series as commits
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898283+github-actions[bot]@users.noreply.github.com'
+          echo "PYTHON3=$(command -v python3)" >> "$GITHUB_ENV"
+          echo "JOBS=$(sysctl -n hw.ncpu)" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------------ 1. prebuilt inputs
+      - name: Restore the dependency cache
+        id: cache
+        if: ${{ !inputs.rebuild_dependencies }}
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build/dependencies/apple-gpu-vulkan-experiment/ios-device-arm64
+            .build/dependencies/ios-device-arm64/network
+            .build/dependencies/ios-storage
+            .build/dependencies/ios-zstd
+          key: andarium-deps-${{ env.CACHE_VERSION }}-${{ runner.arch }}-${{ steps.xcode.outputs.sdk }}-${{ hashFiles('dependencies/**') }}
+
+      - name: Fetch the prebuilt artifacts
+        run: |
+          set -eu
+          set --
+          [ -z "$PREBUILT" ] || set -- "$PREBUILT"
+          [ ! -d prebuilt ] || set -- "$@" prebuilt
+          [ "$#" -gt 0 ] || { echo "::error::No prebuilt artifacts: set the 'prebuilt' input, the ANDARIUM_PREBUILT variable or add a prebuilt/ folder (see the header of .github/workflows/build.yml)"; exit 1; }
+          sh .github/ci/fetch-prebuilt.sh "$RUNNER_TEMP/prebuilt" "$@"
+          df -h "$GITHUB_WORKSPACE"
+
+      - name: Recognise and place them
+        id: place
+        run: |
+          set -eu
+          set -- "$RUNNER_TEMP"/prebuilt/*
+          python3 -I .github/ci/place-prebuilt.py --root "$GITHUB_WORKSPACE" "$@"
+          rm -rf "$RUNNER_TEMP/prebuilt"
+
+      - name: Check the required inputs
+        env:
+          KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
+          ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
+          XCFRAMEWORKS: ${{ steps.place.outputs.xcframeworks }}
+        run: |
+          set -eu
+          . kernel/mainline-6.18/artifacts/accepted-android-4k.env
+          . android/lineage-24/metadata/accepted-release.env
+          missing=0
+          if [ -z "$ANDROID_DIR" ]; then
+            echo "::error::The LineageOS release was not among the prebuilt artifacts (expected $LINEAGE24_ACCEPTED_DIRECTORY_NAME: release-manifest.json + guest/system.img)"
+            missing=1
+          elif [ "$(basename "$ANDROID_DIR")" != "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
+            echo "::warning::The LineageOS release is $(basename "$ANDROID_DIR"), this commit accepts $LINEAGE24_ACCEPTED_DIRECTORY_NAME"
+          fi
+          if [ "$XCFRAMEWORKS" != true ]; then
+            if [ -z "$KERNEL_DIR" ]; then
+              echo "::error::The Android kernel bundle was not among the prebuilt artifacts (expected $UML_KERNEL_ARTIFACT_DIRECTORY_NAME with kernel-artifact.json)"
+              missing=1
+            elif [ "$(basename "$KERNEL_DIR")" != "$UML_KERNEL_ARTIFACT_DIRECTORY_NAME" ]; then
+              echo "::warning::The kernel bundle is $(basename "$KERNEL_DIR"), this commit accepts $UML_KERNEL_ARTIFACT_DIRECTORY_NAME"
+            fi
+          fi
+          exit "$missing"
+
+      # ------------------------------------------------------------------ 2. dependencies
+      - name: Verify the dependency prefixes
+        id: deps
+        if: steps.place.outputs.xcframeworks != 'true'
+        env:
+          FROM_PREBUILT_GPU: ${{ steps.place.outputs.gpu }}
+          FROM_PREBUILT_NETWORK: ${{ steps.place.outputs.network }}
+          FROM_PREBUILT_STORAGE: ${{ steps.place.outputs.storage }}
+          FROM_PREBUILT_ZSTD: ${{ steps.place.outputs.zstd }}
+        run: |
+          set -eu
+          D=.build/dependencies
+          check() {
+            # check NAME PREFIX FROM_PREBUILT VERIFY-COMMAND...: keep a prefix that verifies, else drop it
+            name=$1 prefix=$2 prebuilt=$3; shift 3
+            [ "$prebuilt" != true ] || echo "$name: from the prebuilt artifacts"
+            if [ -e "$prefix" ]; then
+              if "$@" >"$RUNNER_TEMP/verify-$name.log" 2>&1; then
+                echo "$name: verified prefix $prefix"; echo "$name=ok" >> "$GITHUB_OUTPUT"; return
+              fi
+              tail -n 20 "$RUNNER_TEMP/verify-$name.log"
+              echo "::warning::The $name prefix does not verify against this commit; it is built from source"
+              rm -rf "$prefix"
+            fi
+            echo "$name=build" >> "$GITHUB_OUTPUT"
+          }
+          check gpu "$D/apple-gpu-vulkan-experiment/ios-device-arm64" "$FROM_PREBUILT_GPU" \
+            dependencies/build-apple-gpu.sh --platform ios --prefix "$D/apple-gpu-vulkan-experiment/ios-device-arm64" --verify-only
+          check network "$D/ios-device-arm64/network" "$FROM_PREBUILT_NETWORK" \
+            dependencies/build-ios-network.sh --platform ios --prefix "$D/ios-device-arm64/network" --verify-only
+          check storage "$D/ios-storage" "$FROM_PREBUILT_STORAGE" dependencies/build-ios-storage.sh --verify-only
+          check zstd "$D/ios-zstd" "$FROM_PREBUILT_ZSTD" dependencies/build-ios-zstd.sh --verify-only
+
+      - name: Metal toolchain
+        if: steps.deps.outputs.gpu == 'build'
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Build the GPU prefix (Mesa, KosmicKrisp, virglrenderer, libepoxy)
+        if: steps.deps.outputs.gpu == 'build'
+        timeout-minutes: 200
+        run: |
+          set -eu
+          dependencies/prepare.sh --product apple-gpu-vulkan-experiment
+          dependencies/build-apple-gpu.sh --platform ios --jobs "$JOBS"
+
+      - name: Build the network prefix (GLib, libslirp)
+        if: steps.deps.outputs.network == 'build'
+        run: |
+          set -eu
+          dependencies/prepare.sh --product ios-network
+          dependencies/build-ios-network.sh --platform ios --jobs "$JOBS"
+
+      - name: Build GPT fdisk and zstd
+        if: steps.deps.outputs.storage == 'build' || steps.deps.outputs.zstd == 'build'
+        env:
+          STORAGE: ${{ steps.deps.outputs.storage }}
+          ZSTD: ${{ steps.deps.outputs.zstd }}
+        run: |
+          set -eu
+          if [ "$STORAGE" = build ]; then
+            dependencies/prepare.sh --product ios-storage
+            dependencies/build-ios-storage.sh --jobs "$JOBS"
+          fi
+          if [ "$ZSTD" = build ]; then
+            dependencies/prepare.sh --product ios-compression
+            dependencies/build-ios-zstd.sh --jobs "$JOBS"
+          fi
+
+      - name: Save the dependency cache
+        if: >-
+          steps.place.outputs.xcframeworks != 'true' && steps.cache.outputs.cache-hit != 'true' &&
+          (steps.deps.outputs.gpu == 'build' || steps.deps.outputs.network == 'build' ||
+           steps.deps.outputs.storage == 'build' || steps.deps.outputs.zstd == 'build')
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .build/dependencies/apple-gpu-vulkan-experiment/ios-device-arm64
+            .build/dependencies/ios-device-arm64/network
+            .build/dependencies/ios-storage
+            .build/dependencies/ios-zstd
+          key: andarium-deps-${{ env.CACHE_VERSION }}-${{ runner.arch }}-${{ steps.xcode.outputs.sdk }}-${{ hashFiles('dependencies/**') }}
+
+      - name: Drop the dependency build trees
+        if: steps.place.outputs.xcframeworks != 'true'
+        run: |
+          rm -rf .build/dependency-build .build/dependency-cache external/sources
+          df -h "$GITHUB_WORKSPACE"
+
+      # ------------------------------------------------------------------ 3-4. runtime and frameworks
+      - name: Build the Android runtime
+        if: steps.place.outputs.xcframeworks != 'true'
+        env:
+          KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
+        run: |
+          set -eu
+          preset=kernarium-ios-device-android
+          [ "$CONFIGURATION" != AppStore ] || preset=kernarium-ios-device-android-app-store
+          cmake --preset "$preset" \
+            -DUML_ANDROID17_KERNEL_ARTIFACT_DIR="$KERNEL_DIR" \
+            -DPython3_EXECUTABLE="$PYTHON3"
+          cmake --build --preset "$preset" --parallel "$JOBS"
+
+      - name: Package the frameworks
+        if: steps.place.outputs.xcframeworks != 'true'
+        run: |
+          set -eu
+          if [ "$CONFIGURATION" = AppStore ]; then
+            Kernarium/scripts/package-ios-frameworks.sh --app-store --runtimes android
+          else
+            Kernarium/scripts/package-ios-frameworks.sh --runtimes android
+          fi
+          ls .build/kernarium-xcframeworks
+
+      # ------------------------------------------------------------------ 5. system image
+      - name: Stage the Android system image
+        env:
+          ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
+        run: |
+          set -eu
+          . android/lineage-24/metadata/accepted-release.env
+          if [ "$(basename "$ANDROID_DIR")" = "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
+            python3 Andarium/scripts/stage-system-image.py          # checked against the accepted release too
+          else
+            python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR"
+          fi
+          rm -rf .build/android/releases     # staged as a copy; free the space before Xcode copies it again
+          du -sh .build/andarium-system
+          df -h "$GITHUB_WORKSPACE"
+
+      # ------------------------------------------------------------------ 6. app
+      - name: Build Andarium.app
+        run: |
+          set -eu
+          xcodebuild build \
+            -project Andarium/Andarium.xcodeproj \
+            -scheme Andarium \
+            -configuration "$CONFIGURATION" \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath .build/andarium-derived-data \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= DEVELOPMENT_TEAM= \
+            > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || {
+              grep -E 'error:' "$RUNNER_TEMP/xcodebuild.log" | head -n 50 || true
+              tail -n 200 "$RUNNER_TEMP/xcodebuild.log"; exit 1; }
+          grep -E '^\*\* ' "$RUNNER_TEMP/xcodebuild.log" || true
+          app=".build/andarium-derived-data/Build/Products/$CONFIGURATION-iphoneos/Andarium.app"
+          [ -d "$app" ] || { tail -n 200 "$RUNNER_TEMP/xcodebuild.log"; echo "::error::xcodebuild made no $app"; exit 1; }
+          echo "APP=$app" >> "$GITHUB_ENV"
+
+      # ------------------------------------------------------------------ 7. IPA
+      - name: Package the IPA
+        id: ipa
+        run: |
+          set -eu
+          rm -rf .build/andarium-system            # now inside the app
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist")
+          mkdir -p dist
+          sh .github/ci/package-ipa.sh "$APP" Andarium/Config/Andarium.entitlements dist/Andarium.ipa
+          rm -rf .build/andarium-derived-data
+          size=$(stat -f %z dist/Andarium.ipa)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+          shasum -a 256 dist/Andarium.ipa | tee dist/Andarium.ipa.sha256
+
+      - name: Upload the IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Andarium-${{ steps.ipa.outputs.version }}-${{ steps.ipa.outputs.build }}-${{ env.CONFIGURATION }}
+          path: |
+            dist/Andarium.ipa
+            dist/Andarium.ipa.sha256
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_INPUT: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease && 'true' || 'false' }}
+          VERSION: ${{ steps.ipa.outputs.version }}
+          BUILD: ${{ steps.ipa.outputs.build }}
+          SIZE: ${{ steps.ipa.outputs.size }}
+        run: |
+          set -eu
+          if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then tag=${GITHUB_REF#refs/tags/}
+          else tag=${TAG_INPUT:-andarium-$VERSION-$BUILD}; fi
+          flags=
+          [ "$PRERELEASE" != true ] || flags=--prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" $flags \
+              --title "Andarium $VERSION ($BUILD)" --notes "Andarium $VERSION ($BUILD), $CONFIGURATION, unsigned IPA for SideStore / AltStore / TrollStore. Built from $GITHUB_SHA."
+          if [ "$SIZE" -lt 2147483648 ]; then
+            gh release upload "$tag" dist/Andarium.ipa dist/Andarium.ipa.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            # A release asset must be under 2 GiB: publish the IPA in parts (cat Andarium.ipa.* > Andarium.ipa).
+            split -b 1900m -d -a 3 dist/Andarium.ipa dist/Andarium.ipa.
+            gh release upload "$tag" dist/Andarium.ipa.[0-9][0-9][0-9] dist/Andarium.ipa.sha256 --repo "$GITHUB_REPOSITORY" --clobber
+            echo "::warning::The IPA is over 2 GiB and was published in parts; join them with: cat Andarium.ipa.0* > Andarium.ipa"
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          XCODE: ${{ steps.xcode.outputs.version }}
+          KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
+          ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
+          XCFRAMEWORKS: ${{ steps.place.outputs.xcframeworks }}
+          GPU: ${{ steps.deps.outputs.gpu }}
+          NETWORK: ${{ steps.deps.outputs.network }}
+          STORAGE: ${{ steps.deps.outputs.storage }}
+          ZSTD: ${{ steps.deps.outputs.zstd }}
+          VERSION: ${{ steps.ipa.outputs.version }}
+          BUILD: ${{ steps.ipa.outputs.build }}
+          SIZE: ${{ steps.ipa.outputs.size }}
+        run: |
+          {
+            echo "### Andarium IPA"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Configuration | $CONFIGURATION |"
+            echo "| Xcode | ${XCODE:-?} |"
+            echo "| Kernel bundle | $(basename "${KERNEL_DIR:-—}") |"
+            echo "| Android release | $(basename "${ANDROID_DIR:-—}") |"
+            if [ "$XCFRAMEWORKS" = true ]; then
+              echo "| Frameworks | prebuilt .build/kernarium-xcframeworks |"
+            else
+              echo "| Dependencies | gpu: ${GPU:-?}, network: ${NETWORK:-?}, storage: ${STORAGE:-?}, zstd: ${ZSTD:-?} (ok = cached/prebuilt) |"
+            fi
+            if [ -n "$SIZE" ]; then
+              echo "| IPA | Andarium $VERSION ($BUILD), $((SIZE / 1048576)) MiB |"
+            else
+              echo "| IPA | not built |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
