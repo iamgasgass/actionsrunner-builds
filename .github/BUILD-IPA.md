@@ -37,7 +37,10 @@ interna: il workflow li riconosce dal contenuto.
    gh-release:OWNER/REPO@prebuilt-1/android.tar.zst.*         # solo alcuni
    ```
    Per una repo privata aggiungi il secret `PREBUILT_TOKEN` (token con lettura su quella repo).
-2. **Cartella `prebuilt/`** nella repo (archivi o cartelle già estratte). Attenzione: GitHub rifiuta
+2. **Niente di tutto questo:** il workflow cerca da solo, tra le release della tua repo e poi di
+   `imxieyi/Kernarium` (variabile `ANDARIUM_UPSTREAM` per cambiarla), gli asset il cui nome (o il
+   tag della release) contiene gli ID accettati sopra (`20261111-6.18.60-mc2`, `20261110-los24-r22`).
+3. **Cartella `prebuilt/`** nella repo (archivi o cartelle già estratte). Attenzione: GitHub rifiuta
    file > 100 MB e `.gitignore` esclude `*.img`, quindi per la system image usa il punto 1.
 
 Preparazione sul Mac che ha gli artifact:

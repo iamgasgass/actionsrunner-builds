@@ -49,6 +49,9 @@
 #
 # then ANDARIUM_PREBUILT = gh-release:OWNER/REPO@prebuilt-1
 #
+# With none of these, the releases of this repository and then of ANDARIUM_UPSTREAM (default imxieyi/Kernarium) are
+# searched for assets that carry the accepted kernel / Android release IDs (.github/ci/discover-prebuilt.py).
+#
 # Other repository variables: ANDARIUM_RUNNER (default xcode-27, the GitHub image with Xcode 27; macos-26 has only Xcode 26), ANDARIUM_XCODE (e.g. 27.0; default the newest 27+).
 
 name: Build Andarium IPA
@@ -218,12 +221,31 @@ jobs:
           key: andarium-deps-${{ env.CACHE_VERSION }}-${{ runner.arch }}-${{ steps.xcode.outputs.sdk }}-${{ hashFiles('dependencies/**') }}
 
       - name: Fetch the prebuilt artifacts
+        env:
+          UPSTREAM: ${{ vars.ANDARIUM_UPSTREAM || 'imxieyi/Kernarium' }}
         run: |
           set -eu
           set --
           [ -z "$PREBUILT" ] || set -- "$PREBUILT"
           [ ! -d prebuilt ] || set -- "$@" prebuilt
-          [ "$#" -gt 0 ] || { echo "::error::No prebuilt artifacts: set the 'prebuilt' input, the ANDARIUM_PREBUILT variable or add a prebuilt/ folder (see the header of .github/workflows/build.yml)"; exit 1; }
+          if [ "$#" -eq 0 ]; then
+            # Nothing named: look for this commit's accepted kernel bundle and Android release among the releases
+            # of this repository, then of the upstream one (README: "download prebuilt images from releases").
+            for repo in "$GITHUB_REPOSITORY" $UPSTREAM; do
+              found=$(python3 -I .github/ci/discover-prebuilt.py --root "$GITHUB_WORKSPACE" --repo "$repo")
+              if [ -n "$found" ]; then
+                echo "Using the prebuilt artifacts of $repo:"; printf '  %s\n' $found
+                set -- $found
+                break
+              fi
+            done
+          fi
+          if [ "$#" -eq 0 ]; then
+            . kernel/mainline-6.18/artifacts/accepted-android-4k.env
+            . android/lineage-24/metadata/accepted-release.env
+            echo "::error::No prebuilt artifacts. Give the kernel bundle $UML_KERNEL_ARTIFACT_DIRECTORY_NAME and the Android release $LINEAGE24_ACCEPTED_DIRECTORY_NAME (archives) with the 'prebuilt' input of Run workflow, the repository variable ANDARIUM_PREBUILT, or a prebuilt/ folder; none was found among the releases of $GITHUB_REPOSITORY or $UPSTREAM either (see .github/BUILD-IPA.md)"
+            exit 1
+          fi
           sh .github/ci/fetch-prebuilt.sh "$RUNNER_TEMP/prebuilt" "$@"
           df -h "$GITHUB_WORKSPACE"
 
