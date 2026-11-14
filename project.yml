@@ -1,0 +1,82 @@
+name: GassMaps
+
+options:
+  bundleIdPrefix: com.iamgasgass
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  developmentLanguage: it
+
+packages:
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: "6.8.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+targets:
+  GassMaps:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: GassMaps
+    dependencies:
+      - package: MapLibre
+        product: MapLibre
+    scheme: {}
+    info:
+      path: GassMaps/Info.plist
+      properties:
+        CFBundleDisplayName: GassMaps
+        CFBundleName: GassMaps
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleDevelopmentRegion: it
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UIUserInterfaceStyle: Dark
+        UIStatusBarStyle: UIStatusBarStyleLightContent
+        UIViewControllerBasedStatusBarAppearance: true
+        UIRequiresFullScreen: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        NSLocationWhenInUseUsageDescription: "GassMaps usa la tua posizione per mostrarti sulla mappa, calcolare i percorsi e trovare i luoghi vicini."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "GassMaps usa la tua posizione per la navigazione."
+        NSMicrophoneUsageDescription: "GassMaps usa il microfono per la ricerca vocale."
+        NSSpeechRecognitionUsageDescription: "GassMaps trasforma la tua voce in testo per cercare luoghi e indirizzi."
+        NSLocationTemporaryUsageDescriptionDictionary:
+          Navigation: "GassMaps ha bisogno della posizione precisa per mostrarti dove sei in tempo reale e guidarti svolta per svolta."
+        UIBackgroundModes:
+          - location
+          - audio
+    settings:
+      base:
+        PRODUCT_NAME: GassMaps
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.GassMaps
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MACCATALYST: "NO"
+        GENERATE_INFOPLIST_FILE: "NO"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconLight AppIconNeon"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: "YES"
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_BITCODE: "NO"
+        DEBUG_INFORMATION_FORMAT: dwarf

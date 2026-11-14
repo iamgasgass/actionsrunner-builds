@@ -1,0 +1,106 @@
+name: Build unsigned IPA
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build GassMaps.ipa (unsigned)
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'   # Liquid Glass richiede l'SDK di iOS 26
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project GassMaps.xcodeproj \
+            -scheme GassMaps \
+            -clonedSourcePackagesDirPath build/SourcePackages
+
+      - name: Build (no code signing)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project GassMaps.xcodeproj \
+            -scheme GassMaps \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            -clonedSourcePackagesDirPath build/SourcePackages \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            build 2>&1 | tee build/xcodebuild.log | grep -E "error:|warning: unable|BUILD (SUCCEEDED|FAILED)" || true
+          # Se la compilazione fallisce il workflow si ferma (prima produceva lo stesso un'IPA
+          # più leggera senza eseguibile, che si installava ma dava "Failed to map … Bad file descriptor")
+          if ! grep -q "BUILD SUCCEEDED" build/xcodebuild.log; then
+            echo "## ❌ Compilazione fallita" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "error:" build/xcodebuild.log | sort -u | head -40 >> "$GITHUB_STEP_SUMMARY" || true
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "error:" build/xcodebuild.log | sort -u | head -40 | while read -r line; do echo "::error::$line"; done
+            exit 1
+          fi
+          APP=build/DerivedData/Build/Products/Release-iphoneos/GassMaps.app
+          test -d "$APP"
+          # l'eseguibile deve esistere ed essere un binario iOS arm64 valido
+          test -s "$APP/GassMaps"
+          file "$APP/GassMaps"
+          lipo -info "$APP/GassMaps" | grep -q arm64
+          echo "✅ Eseguibile: $(du -h "$APP/GassMaps" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -R build/DerivedData/Build/Products/Release-iphoneos/GassMaps.app Payload/
+          # rimuove eventuali firme residue
+          find Payload -name "_CodeSignature" -type d -prune -exec rm -rf {} +
+          zip -qry GassMaps-unsigned.ipa Payload
+          ls -lh GassMaps-unsigned.ipa
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: build/xcodebuild.log
+          if-no-files-found: ignore
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GassMaps-unsigned-ipa
+          path: GassMaps-unsigned.ipa
+
+      - name: Publish GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: GassMaps-unsigned.ipa
+          generate_release_notes: true
