@@ -192,6 +192,53 @@ void tl_net_log_http_head(int fd, const void *buf, long n)
     tl_log_line("net: fd %d response: %s", fd, line);
 }
 
+/*
+ * Which codecs a received MP4 declares: each sample description ('stsd') seen in what a socket receives is logged once with its
+ * format (avc1, hvc1, dvh1, mp4v, av01, ...), its picture size and its configuration box. When a film plays its sound and no
+ * picture, this line says which video format the player could find no decoder for. At most 24 lines a run.
+ */
+static _Atomic int g_stsd_logged;
+void tl_net_sniff_media(int fd, const void *buf, long n);
+void tl_net_sniff_media(int fd, const void *buf, long n)
+{
+    if (n < 64 || atomic_load_explicit(&g_stsd_logged, memory_order_relaxed) >= 24) return;
+    const uint8_t *b = buf, *end = b + n;
+    for (const uint8_t *p = b; p + 4 <= end; ) {
+        const uint8_t *s = memmem(p, (size_t)(end - p), "stsd", 4);
+        if (!s) return;
+        p = s + 4;
+        const uint8_t *e = s + 12;                                 /* version/flags, entry count, then the first entry */
+        if (e + 8 > end) return;
+        uint32_t count = (uint32_t)s[8] << 24 | (uint32_t)s[9] << 16 | (uint32_t)s[10] << 8 | s[11];
+        uint32_t esize = (uint32_t)e[0] << 24 | (uint32_t)e[1] << 16 | (uint32_t)e[2] << 8 | e[3];
+        if (count == 0 || count > 16 || esize < 16 || esize > (1u << 20)) continue;
+        char fourcc[5] = { (char)e[4], (char)e[5], (char)e[6], (char)e[7], 0 };
+        bool printable = true;
+        for (int i = 0; i < 4; i++) if (fourcc[i] < 32 || fourcc[i] > 126) printable = false;
+        if (!printable) continue;
+        static const char *const video[] = { "avc1", "avc3", "hvc1", "hev1", "dvh1", "dvhe", "dva1", "dvav", "dav1", "av01", "vp08",
+                                             "vp09", "mp4v", "s263", "h263", "mjpg", "mp2v", "vc-1", "encv", NULL };
+        bool is_video = false;
+        for (int i = 0; video[i]; i++) if (!memcmp(fourcc, video[i], 4)) is_video = true;
+        char line[200]; size_t w = 0;
+        w += (size_t)snprintf(line + w, sizeof(line) - w, "%s", fourcc);
+        if (is_video && e + 36 <= end) w += (size_t)snprintf(line + w, sizeof(line) - w, " %ux%u", (unsigned)(e[32] << 8 | e[33]), (unsigned)(e[34] << 8 | e[35]));
+        /* the configuration boxes inside the entry */
+        const uint8_t *lim = e + esize < end ? e + esize : end;
+        static const char *const boxes[] = { "avcC", "hvcC", "dvcC", "dvvC", "dvwC", "av1C", "vpcC", "esds", "dac3", "dec3", "sinf", NULL };
+        for (int i = 0; boxes[i] && w < sizeof(line) - 16; i++) {
+            const uint8_t *x = memmem(e + 8, (size_t)(lim - (e + 8)), boxes[i], 4);
+            if (!x) continue;
+            w += (size_t)snprintf(line + w, sizeof(line) - w, " %s", boxes[i]);
+            if (!strcmp(boxes[i], "avcC") && x + 6 <= lim) w += (size_t)snprintf(line + w, sizeof(line) - w, "(profile %u level %u)", x[5], x + 8 <= lim ? x[7] : 0);
+            if (!strcmp(boxes[i], "hvcC") && x + 18 <= lim) w += (size_t)snprintf(line + w, sizeof(line) - w, "(profile %u level %u)", x[5] & 0x1f, x[16]);
+            if ((!strcmp(boxes[i], "dvcC") || !strcmp(boxes[i], "dvvC")) && x + 8 <= lim) w += (size_t)snprintf(line + w, sizeof(line) - w, "(profile %u)", (unsigned)(x[6] >> 1));
+        }
+        if (atomic_fetch_add(&g_stsd_logged, 1) >= 24) return;
+        tl_log_line("net: fd %d carries an MP4 %s track: %s", fd, is_video ? "video" : "media", line);
+    }
+}
+
 static void quiet_sigpipe(int fd)
 {
     int one = 1;
@@ -283,7 +330,7 @@ static long b_send(int fd, const void *p, size_t n, int flags)
 static long b_recv(int fd, void *p, size_t n, int flags)
 {
     TL_ERRNO_BEGIN(); long r = recv(fd, p, n, msg_flags_to_darwin(flags)); int e = errno; TL_ERRNO_END(); NTRACE("recv(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
-    if (r > 0 && !(flags & 0x2)) tl_net_log_http_head(fd, p, r);
+    if (r > 0 && !(flags & 0x2)) { tl_net_log_http_head(fd, p, r); tl_net_sniff_media(fd, p, r); }
     return r;
 }
 static long b_sendto(int fd, const void *p, size_t n, int flags, const void *g, socklen_t glen);
@@ -309,7 +356,7 @@ static long b_recvfrom(int fd, void *p, size_t n, int flags, void *g, socklen_t 
     int e = errno;
     TL_ERRNO_END();
     NTRACE("recvfrom(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0);
-    if (r > 0 && !(flags & 0x2)) tl_net_log_http_head(fd, p, r);
+    if (r > 0 && !(flags & 0x2)) { tl_net_log_http_head(fd, p, r); tl_net_sniff_media(fd, p, r); }
     return r;
 }
 

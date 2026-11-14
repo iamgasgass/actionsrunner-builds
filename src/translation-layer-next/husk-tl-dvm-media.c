@@ -919,6 +919,7 @@ static int kind_of(const char *mime)
     if (!mime) return 0;
     if (!strcasecmp(mime, "video/avc")) return K_AVC;
     if (!strcasecmp(mime, "video/hevc")) return K_HEVC;
+    if (!strcasecmp(mime, "video/dolby-vision")) return K_HEVC;          /* its HEVC base layer (MediaCodecList lists dvhe only) */
     if (!strcasecmp(mime, "audio/mp4a-latm")) return K_AAC;
     if (!strcasecmp(mime, "audio/mpeg")) return K_MP3;
     if (!strcasecmp(mime, "audio/ac3")) return K_AC3;

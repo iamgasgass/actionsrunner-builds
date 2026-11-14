@@ -83,3 +83,16 @@ livello 5.2 o superiore, nel tier High, o in H.264 High 10 restava senza video.
 
 Se un film resta ancora senza video, il codec è uno che VideoToolbox su iPhone non decodifica (MPEG-4 Part 2/XviD, MPEG-2, AV1 su chip
 precedenti all'A17 Pro): serve il log di quel film.
+
+## Film ancora senza video (log del 14/11/2026, build 2316cfd5d2)
+
+Il log mostra che il film (id 91393, 1,8 GB, audio AC-3 5.1) apre **solo** il decoder audio, anche con profili e livelli
+H.264/HEVC estesi. Con un solo video, ExoPlayer lo seleziona anche quando supera le capacità dichiarate; lo scarta solo se **nessun
+decoder esiste per quel tipo di video**. Quindi il film usa un formato diverso da H.264/HEVC. Il candidato più probabile per un
+film da servizio streaming è **Dolby Vision profilo 5**, che Media3 non può mandare a un decoder HEVC da solo (a differenza dei
+profili 4 e 8).
+
+| Correzione | Effetto |
+|---|---|
+| Decoder `c2.husk.dolby-vision.decoder` (profili dvhe 4, 5, 7, 8 fino a UHD60) sullo stesso VideoToolbox HEVC | Il video Dolby Vision si vede. Il profilo 5 usa lo spazio colore IPTPQc2: senza la conversione Dolby i colori possono avere una dominante verde/viola |
+| Ogni descrizione di traccia MP4 (`stsd`) ricevuta dalla rete viene scritta nel log: formato (avc1, hvc1, dvh1, mp4v, av01…), dimensione, box di configurazione e profilo | Se il film resta senza immagine, la riga `net: fd N carries an MP4 video track: …` dice esattamente quale codec manca |

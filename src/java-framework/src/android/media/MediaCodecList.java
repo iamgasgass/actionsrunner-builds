@@ -32,8 +32,19 @@ public final class MediaCodecList {
             int[][] hevc = hevcl.toArray(new int[0][]);
             ArrayList<MediaCodecInfo> l = new ArrayList<>();
             l.add(new MediaCodecInfo("c2.husk.avc.decoder", false, MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_AVC, avc)));
-            if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_VIDEO_HEVC))
+            if (husk.MediaCodecNative.supported(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
                 l.add(new MediaCodecInfo("c2.husk.hevc.decoder", false, MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_HEVC, hevc)));
+                /* Dolby Vision on HEVC (dvhe/dvh1), the base layer through the same VideoToolbox decoder. Media3 sends profiles 4 and 8
+                   to an HEVC decoder by itself, but profile 5 (most streaming-service films) has no fallback: with no Dolby Vision decoder
+                   listed, the film played its sound and no picture. Profile 5's colours are IPTPQc2, which this path shows uncorrected
+                   (a green/purple cast), but the picture is there. */
+                java.util.ArrayList<int[]> dvl = new java.util.ArrayList<>();
+                for (int p : new int[] { MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheDtr, MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheStn,
+                                         MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheDtb, MediaCodecInfo.CodecProfileLevel.DolbyVisionProfileDvheSt })
+                    dvl.add(new int[] { p, MediaCodecInfo.CodecProfileLevel.DolbyVisionLevelUhd60 });
+                l.add(new MediaCodecInfo("c2.husk.dolby-vision.decoder", false,
+                    MediaCodecInfo.CodecCapabilities.video(MediaFormat.MIMETYPE_VIDEO_DOLBY_VISION, dvl.toArray(new int[0][]))));
+            }
             l.add(new MediaCodecInfo("c2.husk.aac.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_AAC, 8,
                 new int[] { MediaCodecInfo.CodecProfileLevel.AACObjectLC, MediaCodecInfo.CodecProfileLevel.AACObjectHE, MediaCodecInfo.CodecProfileLevel.AACObjectHE_PS })));
             l.add(new MediaCodecInfo("c2.husk.mp3.decoder", false, MediaCodecInfo.CodecCapabilities.audio(MediaFormat.MIMETYPE_AUDIO_MPEG, 2, new int[0])));
