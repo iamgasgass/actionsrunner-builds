@@ -17,6 +17,7 @@
 #define _DARWIN_C_SOURCE
 #include <Accelerate/Accelerate.h>
 #include <AudioToolbox/AudioToolbox.h>
+#include <CoreGraphics/CoreGraphics.h>
 #include <CoreMedia/CoreMedia.h>
 #include <CoreVideo/CoreVideo.h>
 #include <VideoToolbox/VideoToolbox.h>
@@ -1282,6 +1283,58 @@ NAT(M_nextPcm)
     *ret = L(arr);
     return true;
 }
+/* Scaling (and 4:2:0 -> BGRA) on the hardware: VTPixelTransferSession into an IOSurface buffer of the bitmap's size, whose bytes
+   are then put in the bitmap's channel order. The CPU then touches only the shown picture's pixels, once. One session and pool
+   for the process (frames are drawn one at a time); false when it cannot be done here (before iOS 16), and vImage does it. */
+static pthread_mutex_t g_xfer_mu = PTHREAD_MUTEX_INITIALIZER;
+static VTPixelTransferSessionRef g_xfer;
+static CVPixelBufferPoolRef g_xfer_pool;
+static size_t g_xfer_w, g_xfer_h;
+static bool g_xfer_broken;
+static bool hw_scale_to_bitmap(CVPixelBufferRef src, size_t x0, size_t y0, size_t w, size_t h, uint8_t *px, size_t bw, size_t bh, size_t bstride)
+{
+    if (__builtin_available(iOS 16.0, macOS 13.0, *)) {
+        bool ok = false;
+        pthread_mutex_lock(&g_xfer_mu);
+        if (g_xfer_broken) { pthread_mutex_unlock(&g_xfer_mu); return false; }
+        if (!g_xfer && VTPixelTransferSessionCreate(NULL, &g_xfer) != noErr) { g_xfer = NULL; g_xfer_broken = true; }
+        if (g_xfer && (!g_xfer_pool || g_xfer_w != bw || g_xfer_h != bh)) {
+            if (g_xfer_pool) { CVPixelBufferPoolRelease(g_xfer_pool); g_xfer_pool = NULL; }
+            int fmt = kCVPixelFormatType_32BGRA, iw = (int)bw, ih = (int)bh;
+            CFNumberRef nf = CFNumberCreate(NULL, kCFNumberIntType, &fmt), nw = CFNumberCreate(NULL, kCFNumberIntType, &iw),
+                        nh = CFNumberCreate(NULL, kCFNumberIntType, &ih);
+            CFDictionaryRef ios = CFDictionaryCreate(NULL, NULL, NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            const void *k[] = { kCVPixelBufferPixelFormatTypeKey, kCVPixelBufferWidthKey, kCVPixelBufferHeightKey, kCVPixelBufferIOSurfacePropertiesKey };
+            const void *v[] = { nf, nw, nh, ios };
+            CFDictionaryRef attrs = nf && nw && nh && ios ? CFDictionaryCreate(NULL, k, v, 4, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks) : NULL;
+            if (nf) CFRelease(nf); if (nw) CFRelease(nw); if (nh) CFRelease(nh); if (ios) CFRelease(ios);
+            if (!attrs || CVPixelBufferPoolCreate(NULL, NULL, attrs, &g_xfer_pool) != kCVReturnSuccess) g_xfer_pool = NULL;
+            if (attrs) CFRelease(attrs);
+            g_xfer_w = bw; g_xfer_h = bh;
+        }
+        CVPixelBufferRef dst = NULL;
+        if (g_xfer && g_xfer_pool && CVPixelBufferPoolCreatePixelBuffer(NULL, g_xfer_pool, &dst) == kCVReturnSuccess && dst) {
+            /* the picture's clean aperture, every time (the session is shared by every stream) */
+            CFDictionaryRef crop = CGRectCreateDictionaryRepresentation(CGRectMake((CGFloat)x0, (CGFloat)y0, (CGFloat)w, (CGFloat)h));
+            if (crop) { VTSessionSetProperty(g_xfer, kVTPixelTransferPropertyKey_SourceCropRectangle, crop); CFRelease(crop); }
+            if (VTPixelTransferSessionTransferImage(g_xfer, src, dst) == noErr
+                    && CVPixelBufferLockBaseAddress(dst, kCVPixelBufferLock_ReadOnly) == kCVReturnSuccess) {
+                uint8_t *b = CVPixelBufferGetBaseAddress(dst);
+                if (b) {
+                    vImage_Buffer from = { b, bh, bw, CVPixelBufferGetBytesPerRow(dst) }, to = { px, bh, bw, bstride };
+                    const uint8_t bgra_to_rgba[4] = { 2, 1, 0, 3 };
+                    ok = vImagePermuteChannels_ARGB8888(&from, &to, bgra_to_rgba, kvImageNoFlags) == kvImageNoError;
+                }
+                CVPixelBufferUnlockBaseAddress(dst, kCVPixelBufferLock_ReadOnly);
+            }
+            CVPixelBufferRelease(dst);
+        }
+        if (!ok && !g_xfer_broken) { static int said; if (said++ < 3) tl_log_line("media: hardware scaling failed; scaling on the CPU"); }
+        pthread_mutex_unlock(&g_xfer_mu);
+        return ok;
+    }
+    return false;
+}
 /* renderFrame(frame, bitmap): copy VideoToolbox output to the runtime's RGBA_8888 Bitmap. */
 NAT(M_renderFrame)
 {
@@ -1324,6 +1377,16 @@ NAT(M_renderFrame)
     stride = CVPixelBufferGetBytesPerRow(f->pb);
     base = CVPixelBufferGetBaseAddress(f->pb);
 
+    {
+        /* shown smaller than decoded, or in 4:2:0: the hardware scales and converts (one pass), the CPU only reorders */
+        size_t cx, cy, cw2, ch2;
+        pixel_buffer_render_rect(f->pb, &cx, &cy, &cw2, &ch2);
+        bool planar = pixel_format != kCVPixelFormatType_32BGRA;
+        if ((planar || cw2 != bi.width || ch2 != bi.height) && cw2 && ch2) {
+            stage = "scale on the hardware";
+            if (hw_scale_to_bitmap(f->pb, cx, cy, cw2, ch2, px, bi.width, bi.height, bi.stride)) { ok = true; w = bi.width; h = bi.height; goto done; }
+        }
+    }
     if (pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange || pixel_format == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange) {
         /* the session's 4:2:0 fallback (session_make): Y and CbCr planes to RGBA with BT.709 (BT.601 below HD) */
         stage = "convert 4:2:0 planes to Android RGBA Bitmap";

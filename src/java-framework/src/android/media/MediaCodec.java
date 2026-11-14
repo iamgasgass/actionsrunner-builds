@@ -140,7 +140,7 @@ public final class MediaCodec {
             }
         }
     }
-    private static final class Out { int index = -1; long pts; int flags, size; long frame; ByteBuffer data; }
+    private static final class Out { int index = -1; long pts; int flags, size; long frame; ByteBuffer data; long when; }
     private static final int CB_INPUT = 1, CB_FORMAT = 2, CB_OUTPUT = 3, CB_RENDERED = 4;
     private static final ArrayDeque<CodecCallbackTask> sCallbackTasks = new ArrayDeque<>();
     private static final class CodecCallbackTask implements Runnable {
@@ -482,7 +482,7 @@ public final class MediaCodec {
         synchronized (sBufferPoolLock) {
             Out o = sOutPool.pollFirst();
             if (o == null) o = new Out();
-            o.index = -1; o.pts = 0; o.flags = o.size = 0; o.frame = 0; o.data = null;
+            o.index = -1; o.pts = 0; o.flags = o.size = 0; o.frame = 0; o.data = null; o.when = 0;
             return o;
         }
     }
@@ -610,6 +610,16 @@ public final class MediaCodec {
         if (o.data != null) { putBuffer(sOutputBufferPool, o.data); o.data = null; }
         if (o.frame != 0) {
             int released = ++mReleasedVideoFrames;
+            if (render) {
+                /* shown by the presentation thread at the time asked for (Media3 releases a frame up to 50 ms early, with the
+                   vsync it is meant for); it used to be converted and drawn here, at once, on the app's playback thread */
+                if (released <= 5) android.util.Log.i("MediaCodec", "Husk releaseOutputBuffer: count=" + released + ", codec=" + mName
+                    + ", index=" + index + ", inMs=" + (whenNs > 0 ? (whenNs - System.nanoTime()) / 1000000 : 0)
+                    + ", surface=" + surfaceDescription(mSurface));
+                queueRender(o, whenNs);
+                if (pendingInput != null) postInput(gen, pendingInput);
+                return;
+            }
             if (released <= 5 || (TRACE && released % 120 == 0)) {
                 android.util.Log.i("MediaCodec", "Husk releaseOutputBuffer: count=" + released + ", codec=" + mName
                     + ", index=" + index + ", render=" + render + ", ptsUs=" + o.pts
@@ -622,6 +632,78 @@ public final class MediaCodec {
         }
         recycleOut(o);
         if (pendingInput != null) postInput(gen, pendingInput);
+    }
+    /* ---- presentation, as SurfaceFlinger does it: each frame shown at its release time, on a thread of the codec's own ----
+       A frame whose time has come while a later one is also due is dropped for the later (the display shows the newest due
+       frame); the queue is short, and is emptied by flush, stop and release. Drawing never runs on the app's playback thread,
+       which goes on feeding the decoders and the audio meanwhile. */
+    private static final int MAX_RENDER_QUEUE = 6;
+    private static final long MAX_EARLY_NS = 200_000_000L;     /* a time further ahead than this is not believed: shown at once */
+    private final ArrayDeque<Out> mRenderQueue = new ArrayDeque<>();
+    private final Object mRenderLock = new Object();           /* held while a frame is drawn: release() waits for it */
+    private Thread mRenderThread;
+    private boolean mRenderStop;
+    private int mRenderDropped;
+    private void queueRender(Out o, long whenNs) {
+        long now = System.nanoTime();
+        o.when = whenNs <= 0 || whenNs - now > MAX_EARLY_NS ? now : whenNs;
+        Out dropped = null;
+        synchronized (mRenderQueue) {
+            if (mRenderStop) { dropped = o; }
+            else {
+                if (mRenderThread == null) {
+                    mRenderThread = new Thread(this::renderLoop, "HuskVideoPresent");
+                    mRenderThread.setDaemon(true);
+                    mRenderThread.setPriority(Thread.MAX_PRIORITY);
+                    mRenderThread.start();
+                }
+                mRenderQueue.addLast(o);
+                if (mRenderQueue.size() > MAX_RENDER_QUEUE) { dropped = mRenderQueue.pollFirst(); mRenderDropped++; }
+                mRenderQueue.notifyAll();
+            }
+        }
+        if (dropped != null) discard(dropped);
+    }
+    private void discard(Out o) {
+        if (o.frame != 0) { husk.MediaCodecNative.freeFrame(o.frame); o.frame = 0; }
+        recycleOut(o);
+    }
+    private void clearRenderQueue() {
+        java.util.ArrayList<Out> drop;
+        synchronized (mRenderQueue) { drop = new java.util.ArrayList<>(mRenderQueue); mRenderQueue.clear(); mRenderQueue.notifyAll(); }
+        for (Out o : drop) discard(o);
+    }
+    private void renderLoop() {
+        java.util.ArrayList<Out> late = new java.util.ArrayList<>();
+        for (;;) {
+            Out o;
+            synchronized (mRenderQueue) {
+                if (mRenderStop) return;
+                if (mRenderQueue.isEmpty()) { try { mRenderQueue.wait(); } catch (InterruptedException e) { return; } continue; }
+                long now = System.nanoTime();
+                Out head = mRenderQueue.peekFirst();
+                long early = head.when - now;
+                if (early > 1_000_000L) {                       /* not yet: wait for its time (or for a flush / a newer frame) */
+                    try { mRenderQueue.wait(early / 1_000_000L, (int) (early % 1_000_000L)); } catch (InterruptedException e) { return; }
+                    continue;
+                }
+                o = mRenderQueue.pollFirst();
+                Out next;
+                while ((next = mRenderQueue.peekFirst()) != null && next.when - now <= 1_000_000L) {   /* a later frame is due too */
+                    late.add(o); o = mRenderQueue.pollFirst(); mRenderDropped++;
+                }
+            }
+            for (Out d : late) discard(d);
+            late.clear();
+            long t0 = TRACE ? System.nanoTime() : 0;
+            synchronized (mRenderLock) {
+                if (!mRenderStop) {
+                    try { draw(o); } catch (RuntimeException e) { drawFailure("presentation threw " + e, o, mSurface); }
+                }
+            }
+            if (TRACE) { mDrawNs += System.nanoTime() - t0; mDrawn++; }
+            discard(o);
+        }
     }
     private static final boolean TRACE = System.getenv("TL_MEDIA_TRACE") != null;
     private int mDrawn, mSkipped;
@@ -724,6 +806,7 @@ public final class MediaCodec {
             mGeneration++; mPendingInputCallbacks.clear();
         }
         synchronized (mDecodeLock) { husk.MediaCodecNative.flush(mNative); }
+        clearRenderQueue();
         dropOutputs();
         synchronized (mLock) {
             mFreeInputs.clear(); if (mCallback == null) for (int i = 0; i < INPUTS; i++) mFreeInputs.add(i);
@@ -734,6 +817,7 @@ public final class MediaCodec {
     public void stop() {
         synchronized (mLock) { if (mState == ST_RELEASED) throw new IllegalStateException(); mGeneration++; mPendingInputCallbacks.clear(); }
         synchronized (mDecodeLock) { if (mNative != 0) husk.MediaCodecNative.flush(mNative); }
+        clearRenderQueue();
         dropOutputs();
         synchronized (mLock) {
             if (mState == ST_RUNNING) mState = ST_CONFIGURED;
@@ -761,7 +845,11 @@ public final class MediaCodec {
         ByteBuffer[] inputs = mInputs; mInputs = null; mInputCapacity = 0;
         java.util.Arrays.fill(mLoggedInputBuffers, false); java.util.Arrays.fill(mLoggedQueuedInput, false);
         if (inputs != null) for (ByteBuffer b : inputs) putInputBuffer(b);
-        if (mFrame != null) { try { mFrame.recycle(); } catch (RuntimeException ignored) {} mFrame = null; }
+        synchronized (mRenderQueue) { mRenderStop = true; mRenderQueue.notifyAll(); }
+        clearRenderQueue();
+        synchronized (mRenderLock) {                            /* a frame being drawn now finishes before its bitmap goes */
+            if (mFrame != null) { try { mFrame.recycle(); } catch (RuntimeException ignored) {} mFrame = null; }
+        }
         mSurface = null; mInputFormat = null; mOutputFormat = null;
         mCallback = null; mCallbackHandler = null; mRendered = null; mRenderedHandler = null;
         synchronized (mLock) { mFreeInputs.clear(); mQueue.clear(); }

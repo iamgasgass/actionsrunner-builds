@@ -108,3 +108,11 @@ quasi sempre, **MPEG-4 Part 2 (XviD/DivX)**.
 |---|---|
 | Decoder `c2.husk.mpeg4.decoder` (video/mp4v-es) su VideoToolbox, dichiarato solo se una sessione di prova riesce (l'header di prova generato da Husk è stato verificato con ffmpeg). Header VOS/VOL da csd-0 o dall'inizio del primo frame (MKV `V_MS/VFW/FOURCC`), attesa del primo I-VOP | I film XviD/DivX mostrano l'immagine, se iOS ha il decoder: il log dirà `MPEG-4 Part 2 (XviD/DivX) decoder available/not available on this device` |
 | Il rilevatore di codec ora legge anche i CodecID Matroska (`V_MPEG4/ISO/ASP`, `V_MS/VFW/FOURCC` con il FourCC, `V_MPEG2`, `V_AV1`…), provato su file MKV reali | La riga `net: fd N carries a Matroska video track: …` dice il codec del film |
+
+## Video a scatti (14/11/2026)
+
+| Causa | Correzione |
+|---|---|
+| Ogni frame veniva convertito e disegnato **sul thread di riproduzione di ExoPlayer**, dentro `releaseOutputBuffer`: mentre disegnava, il player non alimentava né il decoder né l'audio | Un thread di presentazione per codec (`HuskVideoPresent`, priorità massima), come SurfaceFlinger su Android: `releaseOutputBuffer` mette il frame in coda e ritorna subito |
+| Il frame veniva mostrato **subito**, ignorando l'orario chiesto da ExoPlayer (`releaseOutputBuffer(index, releaseTimeNs)`): Media3 rilascia i frame fino a 50 ms prima, con un anticipo che varia di ~10 ms da un frame all'altro → cadenza irregolare | Ogni frame è mostrato all'istante chiesto; se un frame più recente è già dovuto, quello vecchio è saltato (come il display di Android); la coda è corta e viene svuotata da flush/stop/release |
+| Riduzione dei frame sulla CPU (vImage Lanczos sull'intero 1920×1080) | Riduzione e conversione 4:2:0→BGRA sull'hardware con `VTPixelTransferSession` (iOS 16+) in un buffer IOSurface della dimensione mostrata; la CPU tocca solo i pixel mostrati, una volta. vImage resta come ripiego |
