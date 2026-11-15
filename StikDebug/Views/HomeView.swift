@@ -320,6 +320,16 @@ struct HomeView: View {
     private func performExternalURLAction(_ action: HomeExternalAction) {
         switch action {
         case .enableJIT(let config):
+            // A request for an app installed in this LiveContainer (e.g. Henge's "Turn on JIT when
+            // it opens"): it is not installed on the device, so launch it in a Multitask window
+            // and attach to that process instead of asking debugserver for the bundle ID.
+            if config.pid == nil, let bundleID = config.bundleID,
+               let guest = LiveContainerJITController.guestApp(bundleID: bundleID) {
+                let script = config.scriptData.map { (data: $0, name: config.scriptName ?? "\(guest.displayName).js") }
+                primaryTabSelection = AppFeature.liveContainer.id
+                LiveContainerJITController.shared.enableJIT(for: guest, scriptOverride: script)
+                return
+            }
             if hasAppeared {
                 startJITInBackground(
                     bundleID: config.bundleID,
@@ -474,6 +484,17 @@ struct HomeView: View {
 
             // Never "return" to the LiveContainer StikDebug lives in: relaunching it would kill StikDebug
             // (and the Multitask window of the target app).
+            // LiveContainer's "StikDebug (Another LiveContainer/Multitask)" flow sends the host's
+            // bundle ID with the PID of a LiveProcess. Without an app-specific script there is no
+            // way to look one up, so on TXM devices fall back to universal.js (attaching without a
+            // script does not enable JIT there).
+            if scriptData == nil, pid != nil, ProcessInfo.processInfo.hasTXM,
+               LiveContainerBridge.isOwnHost(bundleID: bundleID),
+               let universal = LiveContainerJITScript.bundledScript(ScriptResource(resourceName: "universal", fileName: "universal.js")) {
+                scriptData = universal.data
+                scriptName = universal.name
+            }
+
             let resumeBundleID = (pid == nil || LiveContainerBridge.isOwnHost(bundleID: bundleID)) ? nil : bundleID
 
             var callback: DebugAppCallback? = nil

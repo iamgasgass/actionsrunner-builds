@@ -12,14 +12,12 @@ import SwiftUI
 struct LiveContainerAppsView: View {
     @ObservedObject private var tunnel = TunnelManager.shared
     @ObservedObject private var mounting = MountingProgress.shared
+    @ObservedObject private var controller = LiveContainerJITController.shared
 
     @State private var apps: [LiveContainerGuestApp] = []
     @State private var searchText = ""
     @State private var showHidden = false
     @State private var pendingApp: LiveContainerGuestApp?
-    @State private var busyAppID: String?
-    @State private var statusMessage: String?
-    @State private var scriptRunModel: RunJSViewModel?
 
     private var filteredApps: [LiveContainerGuestApp] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -49,22 +47,16 @@ struct LiveContainerAppsView: View {
                     } footer: {
                         Text("The app opens in a LiveContainer Multitask window and StikDebug attaches to it. Keep StikDebug open until the JIT request completes.")
                     }
+
+                    Section {
+                        Toggle("Show Hidden Apps", isOn: $showHidden)
+                    }
                 }
 
                 howItWorksSection
             }
             .searchable(text: $searchText)
             .navigationTitle("LiveContainer")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Toggle("Show Hidden Apps", isOn: $showHidden)
-                        Button("Reload", systemImage: "arrow.clockwise", action: reload)
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                }
-            }
             .onAppear {
                 reload()
                 startTunnelInBackground(showErrorUI: false)
@@ -82,18 +74,18 @@ struct LiveContainerAppsView: View {
             ) { app in
                 Button("Launch \(app.displayName) with JIT") {
                     pendingApp = nil
-                    launch(app)
+                    controller.enableJIT(for: app)
                 }
                 Button("Cancel", role: .cancel) { pendingApp = nil }
             } message: { app in
-                Text("\(app.displayName) will open in a LiveContainer Multitask window and StikDebug will enable JIT for it.")
+                Text("\(app.displayName) will open in a LiveContainer Multitask window and StikDebug will enable JIT for it. If it is already open, it will be restarted.")
             }
-            .sheet(item: $scriptRunModel) { model in
+            .sheet(item: $controller.scriptRunModel) { model in
                 NavigationStack {
                     RunJSView(model: model)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { scriptRunModel = nil }
+                                Button("Done") { controller.scriptRunModel = nil }
                             }
                         }
                         .navigationBarTitleDisplayMode(.inline)
@@ -116,15 +108,11 @@ struct LiveContainerAppsView: View {
             }
             LabeledContent("Device connection", value: tunnel.isConnected ? "Connected" : "Not connected")
             LabeledContent("Developer Disk Image", value: mounting.coolisMounted ? "Mounted" : "Not mounted")
-            if !LiveContainerBridge.multitaskJITSupported {
-                Text("JIT in a Multitask window needs iOS 17.4 or newer.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-            if let statusMessage {
-                Text(statusMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            LabeledContent("JIT script required", value: ProcessInfo.processInfo.hasTXM ? "Yes (TXM)" : "No")
+            if let message = controller.statusMessage {
+                Label(message, systemImage: controller.lastResultIsError ? "exclamationmark.triangle.fill" : "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(controller.lastResultIsError ? .red : .secondary)
             }
         }
     }
@@ -137,7 +125,7 @@ struct LiveContainerAppsView: View {
             3. In LiveContainer settings, enable Multitask and keep the LiveProcess extension installed.
             4. Open StikDebug from LiveContainer, choose an app here and tap it.
 
-            StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app is started in a separate LiveContainer process and StikDebug attaches to it by PID.
+            StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app is started in a separate LiveContainer process and StikDebug attaches to it by PID. On devices that need a JIT script, the app's LiveContainer JIT script, your assigned script or universal.js is used.
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -155,14 +143,15 @@ struct LiveContainerAppsView: View {
                     Text(app.bundleIdentifier)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        if app.isShared { tag("Shared") }
-                        if app.isJITNeeded { tag("Run with JIT") }
-                        if app.jitLaunchScript != nil { tag("Script") }
+                    let tags = tags(for: app)
+                    if !tags.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(tags, id: \.self) { tag($0) }
+                        }
                     }
                 }
                 Spacer()
-                if busyAppID == app.id {
+                if controller.busyAppID == app.id {
                     ProgressView()
                 } else {
                     Image(systemName: "bolt.fill")
@@ -170,10 +159,18 @@ struct LiveContainerAppsView: View {
                 }
             }
         }
-        .disabled(busyAppID != nil)
+        .disabled(controller.isBusy)
     }
 
-    private func tag(_ text: LocalizedStringKey) -> some View {
+    private func tags(for app: LiveContainerGuestApp) -> [String] {
+        var tags: [String] = []
+        if app.isShared { tags.append("Shared") }
+        if app.isJITNeeded { tags.append("Run with JIT") }
+        if app.jitLaunchScript != nil { tags.append("LC Script") }
+        return tags
+    }
+
+    private func tag(_ text: String) -> some View {
         Text(text)
             .font(.caption2.weight(.semibold))
             .padding(.horizontal, 6)
@@ -181,121 +178,8 @@ struct LiveContainerAppsView: View {
             .background(Capsule().fill(Color.accentColor.opacity(0.15)))
     }
 
-    // MARK: - Actions
-
     private func reload() {
         apps = LiveContainerBridge.installedGuestApps(includeHidden: showHidden)
-    }
-
-    private func launch(_ app: LiveContainerGuestApp) {
-        busyAppID = app.id
-        statusMessage = "Waiting for device connection…"
-        Haptics.medium()
-        LogManager.shared.addInfoLog("[LiveContainer] Launching \(app.displayName) (\(app.relativeBundlePath)) with JIT in the same LiveContainer")
-
-        Task { @MainActor in
-            let ready = await Task.detached(priority: .userInitiated) {
-                Self.waitForJITPrerequisites()
-            }.value
-            guard ready else {
-                finish(error: "The device connection or Developer Disk Image wasn't ready in time. Make sure LocalDevVPN is on and the pairing file is imported, then try again.")
-                return
-            }
-
-            statusMessage = "Starting \(app.displayName) in Multitask…"
-            let pid: Int32
-            do {
-                pid = try await LiveContainerBridge.launchInMultitask(app)
-            } catch {
-                finish(error: error.localizedDescription)
-                return
-            }
-
-            guard !LiveContainerBridge.isOwnProcess(pid: pid) else {
-                finish(error: "LiveContainer returned StikDebug's own process. Enable Multitask in LiveContainer settings and try again.")
-                return
-            }
-
-            statusMessage = "Attaching to \(app.displayName) (PID \(pid))…"
-            LogManager.shared.addInfoLog("[LiveContainer] \(app.displayName) is running as PID \(pid)")
-            attach(pid: pid, app: app)
-        }
-    }
-
-    private func attach(pid: Int32, app: LiveContainerGuestApp) {
-        var script: (data: Data, name: String)?
-        if let data = app.jitLaunchScript {
-            script = (data, "\(app.displayName) (LiveContainer)")
-        } else if let preferred = ScriptStore.preferredScript(for: app.bundleIdentifier) {
-            script = preferred
-        }
-
-        var callback: DebugAppCallback?
-        if ProcessInfo.processInfo.hasTXM, let script {
-            callback = { pid, debugProxy, remoteServer, semaphore in
-                // No resumeBundleID: the target lives in this LiveContainer, relaunching
-                // the host bundle would terminate StikDebug.
-                let model = RunJSViewModel(pid: Int(pid), debugProxy: debugProxy,
-                                           remoteServer: remoteServer, semaphore: semaphore,
-                                           resumeBundleID: nil)
-                DispatchQueue.main.async { scriptRunModel = model }
-                do {
-                    try model.runScript(data: script.data, name: script.name)
-                } catch {
-                    semaphore.signal()
-                    DispatchQueue.main.async {
-                        showAlert(title: "Error Occurred While Executing Script.".localized,
-                                  message: error.localizedDescription, showOk: true)
-                    }
-                }
-            }
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let keepAlive = DebugKeepAliveLease()
-            defer { keepAlive.invalidate() }
-
-            var lastMessage: String?
-            let logger: LogFunc = { message in
-                if let message {
-                    lastMessage = message
-                    LogManager.shared.addInfoLog(message)
-                }
-            }
-            let success = JITEnableContext.shared.debugApp(withPID: pid, logger: logger, jsCallback: callback)
-            DispatchQueue.main.async {
-                if success {
-                    finish(message: "JIT enabled for \(app.displayName). Switch to its Multitask window.")
-                } else {
-                    finish(error: lastMessage ?? "StikDebug could not attach to \(app.displayName).")
-                }
-            }
-        }
-    }
-
-    private func finish(message: String) {
-        busyAppID = nil
-        statusMessage = message
-        Haptics.light()
-        AccessibilityAnnouncer.announce(message)
-    }
-
-    private func finish(error: String) {
-        busyAppID = nil
-        statusMessage = error
-        LogManager.shared.addErrorLog("[LiveContainer] \(error)")
-        showAlert(title: "Failed to Enable JIT".localized, message: error, showOk: true)
-    }
-
-    nonisolated private static func waitForJITPrerequisites(timeout: TimeInterval = 25) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if TunnelManager.shared.isConnected && MountingProgress.shared.coolisMounted {
-                return true
-            }
-            usleep(250_000)
-        }
-        return TunnelManager.shared.isConnected && MountingProgress.shared.coolisMounted
     }
 }
 
