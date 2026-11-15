@@ -13,7 +13,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 UDID="${1:-${WINIOS_DEVICE_UDID:-}}"
-BUNDLE_ID="${2:-${WINIOS_BUNDLE_ID:-com.windowsios.universal}}"
+BUNDLE_ID="${2:-${WINIOS_BUNDLE_ID:-com.iamgasgass.windowsiosx}}"
 PYTHON="${PYTHON:-$(command -v python3)}"
 LAUNCH_JSON="$ROOT/work/device_launch.json"
 

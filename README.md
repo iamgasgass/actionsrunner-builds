@@ -1,323 +1,484 @@
 <div align="center">
 
-# WindowsiOS Universal
+<img src="docs/images/icon.png" width="128" height="128" alt="Icona di WindowsiOS X">
 
-**Fork of [`ammaarreshi/WindowsiOS`](https://github.com/ammaarreshi/WindowsiOS) (upstream `0071d69`) that runs on every compatible iPhone — not only the iPhone Duo — the way [Henge](https://github.com/Leviidev/Henge) does.**
+# WindowsiOS X
+
+**Windows 11 ARM64 su iPhone e iPad, senza jailbreak, senza Mac e senza PC.**
+Si installa direttamente sul telefono, come [Henge](https://github.com/Leviidev/Henge) installa macOS.
+
+`com.iamgasgass.windowsiosx` · iOS 17+ · chip A14 / M1 o successivo · licenza GPL
 
 </div>
 
-### Supported devices / Dispositivi supportati
+---
 
-Same rule as Henge: **iOS 17 or later on an A14 / M1 chip or newer**. The virtual CPU advertises Armv8.5 features (`core/sysreg.c`) and the JIT copies those instructions to the host unchanged, so older chips (A13 and earlier) would crash with `SIGILL`; the app checks this at launch and says so.
+> **In una riga:** WindowsiOS X è un fork di [`ammaarreshi/WindowsiOS`](https://github.com/ammaarreshi/WindowsiOS)
+> (che funzionava solo sull'iPhone Duo e richiedeva un Mac per preparare Windows). Questo fork funziona su
+> **tutti gli iPhone compatibili** e **scarica e installa Windows 11 da solo, sull'iPhone**.
 
-| Device RAM | iPhones | Guest RAM (auto) | JIT region | vCPUs | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 12 GB | iPhone 17 Pro / Pro Max, iPhone Air, **iPhone Duo** | 4608 MB | 384 MB | 4 | ✅ as upstream |
+## Indice
+
+1. [Cos'è](#1-cosè)
+2. [Cosa cambia rispetto all'originale](#2-cosa-cambia-rispetto-alloriginale)
+3. [Dispositivi compatibili](#3-dispositivi-compatibili)
+4. [Installazione passo per passo](#4-installazione-passo-per-passo)
+5. [Come funziona l'installazione sull'iPhone](#5-come-funziona-linstallazione-sulliphone)
+6. [Il disco "WindowsiOS X Tools"](#6-il-disco-windowsios-x-tools)
+7. [Impostazioni: memoria, vCPU, Lite](#7-impostazioni-memoria-vcpu-lite)
+8. [Interfaccia: modalità Laptop e Studio](#8-interfaccia-modalità-laptop-e-studio)
+9. [Aggiornare, reinstallare, migrare](#9-aggiornare-reinstallare-migrare)
+10. [Risoluzione dei problemi](#10-risoluzione-dei-problemi)
+11. [Compilare l'app](#11-compilare-lapp)
+12. [Struttura del repository](#12-struttura-del-repository)
+13. [Cronologia completa delle modifiche](#13-cronologia-completa-delle-modifiche)
+14. [Cosa è verificato e cosa no](#14-cosa-è-verificato-e-cosa-no)
+15. [Il motore (dall'originale)](#15-il-motore-dalloriginale)
+16. [Crediti e licenze](#16-crediti-e-licenze)
+
+---
+
+## 1. Cos'è
+
+WindowsiOS X esegue **Windows 11 Pro ARM64 originale e non modificato** dentro un'app iOS. Non usa
+`Hypervisor.framework`, che Apple ha tolto agli iPhone non jailbroken. Usa invece:
+
+- un **traduttore binario dinamico ARM64 → ARM64** (JIT) con MMU software a pagine da 4 KB, scritto per
+  quello che chiede il kernel di Windows (`ntoskrnl.exe`);
+- un **PC virtuale completo**: UEFI (EDK2), ACPI 6.3, GICv3 con ITS/MSI-X, PCIe, disco NVMe, USB 3.0
+  (tastiera e tablet), audio Intel HD (altoparlante e microfono), rete VirtIO;
+- un'**interfaccia iOS** che fa da portatile: schermo sopra, tastiera e trackpad sotto.
+
+Il JIT richiede il debugger per abilitare la memoria eseguibile (iOS 26/27 con TXM): si attiva con
+[StikDebug](https://github.com/StephenDev0/StikDebug) dal telefono, oppure da un Mac con lo script di lancio.
+
+## 2. Cosa cambia rispetto all'originale
+
+| | WindowsiOS (originale) | **WindowsiOS X** |
+| :--- | :--- | :--- |
+| Dispositivi | solo iPhone Duo (`iPhone19,4`, 12 GB) | ogni iPhone/iPad con **A14 / M1 o successivo** |
+| Memoria per Windows | fissa, 4,5 GB | **scelta in base alla RAM del dispositivo** (2–4,5 GB), modificabile |
+| Area JIT | fissa, 384 MB | 256 / 320 / 384 MB in base alla RAM |
+| vCPU | fisse, 4 | 2–4 in base al dispositivo, modificabili |
+| Chip troppo vecchio | crash (`SIGILL`) | **messaggio chiaro** all'avvio |
+| Preparazione di Windows | **su un Mac** (WinPE, DISM, script Python) | **sull'iPhone**, con un tocco |
+| Download di Windows | a mano, sul Mac | **dall'app**, dai server Microsoft, con ripresa e verifica SHA-1 |
+| Driver di rete | non installato automaticamente | **NetKVM** installato in fase di installazione e al primo accesso, più il disco **Tools** |
+| Interfaccia senza cerniera | pensata per il pieghevole | **verticale = Laptop, orizzontale = Studio** su ogni iPhone |
+| Firma | team e profilo dell'autore | firma automatica, bundle ID `com.iamgasgass.windowsiosx` |
+| Compilazione | solo su Mac | **GitHub Actions** produce l'IPA non firmata |
+| Xcode | iOS 27.1 SDK obbligatorio | **qualsiasi Xcode recente**: il sensore cerniera si compila solo se l'SDK lo ha |
+| Icona | — | icona dedicata (dall'icona di Husk, adattata al logo Windows) |
+| Nome | Windows 11 | **WindowsiOS X** |
+
+L'elenco dettagliato, modifica per modifica, è nella [sezione 13](#13-cronologia-completa-delle-modifiche).
+
+## 3. Dispositivi compatibili
+
+La regola è la stessa di Henge: **iOS 17 o successivo, chip A14 / M1 o più recente**. La CPU virtuale dichiara
+a Windows istruzioni Armv8.5 (`core/sysreg.c`, ad esempio `FRINTTS`, `SB`, `LRCPC2`), e il JIT le passa così
+come sono al processore dell'iPhone. Un A13 o precedente non le ha: l'app lo rileva
+(`hw.optional.arm.FEAT_*`, o in mancanza il modello) e mostra un messaggio invece di avviarsi.
+
+| RAM del dispositivo | iPhone | Memoria a Windows (auto) | Area JIT | vCPU | Stato |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| 12 GB | iPhone 17 Pro / Pro Max, iPhone Air, **iPhone Duo** | 4608 MB | 384 MB | 4 | ✅ |
 | 8 GB | iPhone 15 Pro / Pro Max, 16 / 16 Plus / 16 Pro / 16 Pro Max / 16e, 17 | 3584 MB | 384 MB | 4 | ✅ |
-| 6 GB | iPhone 12 Pro / Pro Max, 13 Pro / Pro Max, 14 / 14 Plus / 14 Pro / Pro Max, 15 / 15 Plus | 2560 MB | 320 MB | 4 | ✅ |
-| 4 GB | iPhone 12 / 12 mini, 13 / 13 mini, SE (3rd gen) | 2048 MB | 256 MB | 2 | ⚠️ experimental (use the *lite* image) |
-| — | iPads with A14 / M1 or newer | by RAM, as above | | | ✅ (Studio layout) |
-| — | iPhone 11 and older (A13-) | — | — | — | ❌ chip too old |
+| 6 GB | iPhone 12 Pro / Pro Max, 13 Pro / Pro Max, 14 / 14 Plus / 14 Pro / Pro Max, 15 / 15 Plus | 2560 MB | 320 MB | 4 | ✅ (**provato su iPhone 14 Pro**) |
+| 4 GB | iPhone 12 / 12 mini, 13 / 13 mini, SE (3ª gen.) | 2048 MB | 256 MB | 2 | ⚠️ sperimentale, usa **Lite** |
+| — | iPad con A14 / M1 o successivo | in base alla RAM | | | ✅ (layout Studio) |
+| — | iPhone 11 e precedenti (A13 o più vecchi) | — | — | — | ❌ chip troppo vecchio |
 
-The tier is chosen from the RAM the device reports, not from the model name, so newer iPhones are covered automatically. Guest RAM and vCPUs can be changed in the app (tap the device line on the boot card). Changes apply the next time the app starts with JIT enabled, because guest RAM is reserved while the debugger is attached.
+La fascia si sceglie dalla RAM che il dispositivo dichiara (`hw.memsize`), non dal nome del modello: i
+modelli futuri sono coperti automaticamente. All'avvio Windows riceve sempre al massimo quello che lascia
+**almeno 1,5 GB a iOS**. Se la memoria non basta, l'app riprova scendendo di 512 MB alla volta.
 
-### What changed from upstream / Cosa cambia rispetto all'originale
+## 4. Installazione passo per passo
 
-- **Device profile** (`ios/Sources/Native/winios_device.c`): reads `hw.machine`, `hw.memsize`, `hw.ncpu` and the `hw.optional.arm.FEAT_*` flags; picks guest RAM, JIT size and vCPU count per device instead of upstream's fixed 4.5 GB / 384 MB / 4 vCPU; refuses chips that lack an advertised feature.
-- **Guest RAM pre-allocation** (`winios_jit.c`): starts from the device's size (or your override) and steps down 512 MB at a time, always leaving iOS at least 1.5 GB. Upstream required 2.5 GB of spare RAM on top of 2 GB+ guest, which ruled out every 4 GB iPhone.
-- **Layout without a hinge** (`VMViewModel.swift`, `HingeSensorView.swift`): on any iPhone without a hinge sensor, portrait = laptop deck (Windows on top, keyboard + trackpad below), landscape = full-screen Studio. The iPhone Duo keeps its `UIHingeInteraction` posture logic.
-- **Settings sheet** (`DeviceSupport.swift`): model name, memory, recommended values, manual RAM / vCPU.
-- **Signing**: no upstream team ID / provisioning profile; automatic signing, generic bundle ID `com.windowsios.universal`, `increased-memory-limit` entitlement requested (optional, as in Henge).
-- **Scripts**: `scripts/launch_on_device.sh <UDID>` works for any device (`launch_on_duo.sh` kept as an alias); no hard-coded UDIDs, bundle ID or personal paths in the launch / dependency scripts; the libslirp iOS patch is vendored in `patches/`.
-- **CI**: `.github/workflows/build-ipa.yml` builds an unsigned `WindowsiOS.ipa` on GitHub Actions (artifact, or release on a `v*` tag).
+**Servono:** un iPhone compatibile con **almeno 30 GB liberi**, SideStore / AltStore / TrollStore,
+[StikDebug](https://github.com/StephenDev0/StikDebug) per il JIT, Wi-Fi e il telefono in carica.
 
-### Install / Installazione — like Henge, all on the iPhone
+1. **Installa l'app.** Scarica `WindowsiOS-X.ipa` da GitHub (*Actions → Build IPA → ultima run → Artifacts*,
+   oppure dalla pagina *Releases*) e caricala con SideStore, AltStore o TrollStore.
+2. **Aprila.** Nella scheda iniziale vedi il modello, la RAM e cosa verrà dato a Windows, ad esempio
+   `IPHONE 14 PRO · 6 GB · 2560 MB / 4 VCPU`. Toccando quella riga apri le impostazioni.
+3. **Tocca _INSTALL WINDOWS 11_.** Si apre la schermata di installazione, impostata come quella di Henge:
+   - **Versione:** Windows 11 Pro ARM64 nelle 38 lingue del catalogo Microsoft; è già proposta quella
+     dell'iPhone. In alternativa puoi **importare un `.esd`** dall'app File o da iCloud.
+   - **Nome account:** account locale senza password, con accesso automatico.
+   - **Lite:** consigliato su iPhone da 4–6 GB (vedi [sezione 7](#7-impostazioni-memoria-vcpu-lite)).
+   - **Elimina il download dopo l'installazione:** libera circa 5 GB.
+   - In fondo l'app indica **quanto spazio serve e quanto ne hai libero**.
+4. **Tocca _Install Windows 11_.** L'app:
+   1. scarica Windows dai server Microsoft (circa 5 GB, riprende se si interrompe);
+   2. controlla l'hash SHA-1 del file;
+   3. prepara sull'iPhone il disco di installazione (alcuni minuti).
+5. **Attiva il JIT** quando l'app lo chiede (*Enable JIT (StikDebug)*), poi tocca *JIT is on: install*.
+6. **Guarda Windows che si installa.** Puoi chiudere il foglio e vedere lo schermo della VM:
+   Windows PE (7 passaggi numerati) → riavvio → configurazione di Windows (automatica) → spegnimento.
+   **Tieni l'app aperta e l'iPhone in carica.** Stima: 1–2 ore.
+7. **Chiudi l'app** (scorri verso l'alto), riaprila con il JIT e tocca **BOOT WINDOWS 11**.
+8. **Rete:** se Windows dice *"impossibile rilevare l'hardware di rete"*, apri l'unità **WINIOSTOOLS** (D:)
+   ed esegui **`Installa-driver.cmd`** (vedi [sezione 6](#6-il-disco-windowsios-x-tools)).
 
-1. Sideload `WindowsiOS.ipa` (GitHub Actions → *Build IPA* → artifact) with SideStore, AltStore or TrollStore.
-2. Open it, tap **INSTALL WINDOWS 11**, pick the language, the account name and Lite (recommended on 4–6 GB iPhones), tap **Install Windows 11**.
-3. The app downloads Windows 11 Pro ARM64 from Microsoft's servers (resumable, checksum verified), builds the installer disk on the iPhone, and asks for JIT (StikDebug).
-4. Windows PE installs Windows in the VM (DISM, VirtIO network driver, Lite tuning, bcdboot), reboots into Windows' unattended setup, which signs in and turns off by itself. Keep the app open and the iPhone plugged in: 1–2 hours, about 30 GB free needed.
-5. Close the app (swipe it away), open it again with JIT, tap **BOOT WINDOWS 11**.
+Se chiudi l'app durante l'installazione nella VM, alla riapertura **riprende da sola** con il disco
+d'installazione ancora collegato.
 
-No Mac is needed. The old route still works: put `code.fd`, `vars.fd` and `windows11.hvsparse` from `scripts/provision_windows_arm64.py` in **WindowsiOS › Machines › Win11**.
+## 5. Come funziona l'installazione sull'iPhone
 
-How it works: `host/win_installer.c` reads the ESD with wimlib and writes a GPT disk image with a FAT32 Windows PE partition and an exFAT partition holding the ESD, with FatFs (no mounting: iOS apps can't). `ios/Sources/Resources/install/startnet.cmd` and `unattend.xml` are the scripts that run in the VM. CI adds Microsoft's download list (`scripts/make_windows_catalog.py`), EDK2's UEFI firmware, Red Hat's NetKVM driver and `opt_hive_arm64.exe`.
+```mermaid
+flowchart TD
+    A["Catalogo Microsoft (products.cab del Media Creation Tool)<br/>→ windows-catalog.json, generato in CI"] --> B
+    B["Download dell'ESD ARM64 da dl.delivery.mp.microsoft.com<br/>HTTP con Range (riprende), file .part"] --> C
+    C["Verifica SHA-1 (dal catalogo Microsoft)"] --> D
+    D["host/win_installer.c sull'iPhone<br/>wimlib legge l'ESD · FatFs scrive il disco"] --> E
+    E["installer.img (GPT)<br/>P1 FAT32 'WINPE': bootaa64.efi, \boot, \sources\boot.wim, \winios\<br/>P2 exFAT 'WINESD': \sources\install.esd + winios.tag"] --> F
+    F["VM: NVMe 1 = windows11.img (40 GB, sparse)<br/>NVMe 2 = installer.img (sola lettura)"] --> G
+    G["Windows PE · startnet.cmd<br/>diskpart → DISM /Apply-Image → driver → unattend → Lite → bcdboot"] --> H
+    H["Riavvio (PSCI reset, stessa sessione)"] --> I
+    I["Setup di Windows non presidiato (unattend.xml)<br/>account, lingua, fuso orario, pnputil NetKVM"] --> J
+    J["shutdown → la VM si spegne → l'app segna 'Installato'<br/>ed elimina installer.img"]
+```
 
-> Not tested on hardware by this fork. The device-profile C code was syntax-checked and unit-tested on Linux with mocked `sysctl` values for every RAM tier and for A13/A12 devices; the Swift / Objective-C changes and the CI workflow have not been built yet (that needs Xcode 27.1+ on macOS). Upstream's engine itself was verified only on an iPhone Duo. Reports from other iPhones are welcome.
+### 5.1 Catalogo
+`scripts/make_windows_catalog.py` gira su GitHub Actions. Scarica `products.cab` dal link ufficiale del Media
+Creation Tool di Windows 11 (`go.microsoft.com/fwlink/?LinkId=2156292`), lo estrae e tiene gli **ESD ARM64
+consumer** (Home + Pro), uno per lingua. Per ogni lingua salva nome del file, URL, dimensione, **SHA-1** e
+build (ad esempio `26100.4349`). Il risultato, `windows-catalog.json`, va nell'app. Nell'ultima build
+contiene **38 lingue**.
 
----
+### 5.2 Download
+- Il server dei file ESD, `dl.delivery.mp.microsoft.com`, **presenta in HTTPS un certificato intestato a
+  un altro nome**, e iOS lo rifiuta. Come il Media Creation Tool, l'app scarica in **HTTP**: l'eccezione ATS
+  in `Info.plist` vale **solo per quel dominio**.
+- L'integrità è garantita dallo **SHA-1 del catalogo Microsoft**: se non coincide, il file viene cancellato.
+- Il download scrive su `Machines/Downloads/<nome>.esd.part` a blocchi, con `Range: bytes=N-`. Dopo
+  un'interruzione riprende da dove era arrivato, fino a 30 tentativi. Gli errori di certificato fermano il
+  download con un messaggio, invece di riprovare all'infinito.
 
-<div align="center">
+### 5.3 Disco di installazione (`host/win_installer.c`)
+Le app iOS non possono montare dischi. Il disco quindi viene **scritto direttamente nel file immagine**:
+- **wimlib** (compilata per iOS in `scripts/build_ios_deps.sh`) legge l'ESD, trova l'edizione con
+  `EDITIONID = Professional` e architettura ARM64, ed estrae i file di avvio UEFI dell'immagine 1
+  (`\efi`, `\boot`, `\bootmgr.efi`). Esporta poi Windows PE (immagine 2) come `boot.wim` (XPRESS) e vi
+  inserisce il nostro `startnet.cmd`.
+- **FatFs** (in `third_party/fatfs`) scrive la tabella **GPT** (MBR protettivo, intestazioni e copia di
+  riserva con CRC32), formatta la partizione 1 in **FAT32** e la 2 in **exFAT**, e copia i file.
+- L'ESD viene copiato **identico**, senza ricompressione, in `\sources\install.esd`. DISM lo applica
+  direttamente.
+- `winios.tag` contiene il numero dell'immagine Pro, per `startnet.cmd`.
 
-# WindowsiOS
+### 5.4 Windows PE (`ios/Sources/Resources/install/startnet.cmd`)
+Sullo schermo della VM compaiono 7 passaggi numerati:
+1. trova i due volumi del disco d'installazione;
+2. **controllo anti-reinstallazione**: se trova un Windows già installato (`winios-installed.txt`) si spegne
+   invece di cancellare il disco. Serve se il firmware riavvia di nuovo l'installer;
+3. `diskpart`: GPT con partizioni EFI (100 MB), MSR e Windows sul disco da 40 GB;
+4. `dism /Apply-Image` di Windows 11 Pro (il passaggio lungo);
+5. driver: `dism /Add-Driver` con NetKVM, più una copia in `C:\Windows\WinIOS\drivers` per il primo accesso;
+6. `unattend.xml` in `Panther`, controlli TPM, Secure Boot, RAM e CPU disattivati (`LabConfig`),
+   BitLocker disattivato, `BypassNRO`; con **Lite**: `opt_hive_arm64.exe`, `lite_soft.reg`,
+   `lite_user.reg` e rimozione delle app preinstallate;
+7. `bcdboot` e `bcdedit` (niente cicli di ripristino automatico), poi `wpeutil reboot`.
 
-**Full Microsoft Windows 11 24H2 ARM64 running at near-native JIT speed on non-jailbroken modern iOS.**  
-*Verified end-to-end on the foldable **iPhone Duo** (`iPhone19,4` · Apple A20 Pro · iOS 27 TXM) — without `Hypervisor.framework`.*
+In caso di errore la finestra resta aperta con il messaggio e il log.
 
-[![License: GPL v2+](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](LICENSE)
-[![Guest OS](https://img.shields.io/badge/Guest-Windows_11_24H2_ARM64_(Build_26100)-0078D4.svg)](#visual-showcase)
-[![Engine](https://img.shields.io/badge/Engine-ARM64→ARM64_TXM_JIT_%2B_4KB_ASID_MMU-10B981.svg)](#what-was-original--hard--built-here-with-gemini-4-carbon)
-[![Built With](https://img.shields.io/badge/Built_With-Gemini_4_Carbon-7C3AED.svg)](#what-was-original--hard--built-here-with-gemini-4-carbon)
+### 5.5 Primo avvio (`unattend.xml`)
+Lingua e tastiera sono quelle dell'ESD scelto (`it-IT`, …). Il fuso orario viene convertito da quello
+dell'iPhone (`Europe/Rome` → `W. Europe Standard Time`, …). Il nome del PC deriva dal modello
+(`IPHONE14PRO`). Account locale amministratore senza password, con accesso automatico. Al primo accesso:
+ibernazione e sospensione disattivate, niente ripristino automatico, **`pnputil` installa NetKVM**, poi
+Windows si spegne da solo. È così che l'app capisce che l'installazione è finita.
 
-</div>
+## 6. Il disco "WindowsiOS X Tools"
 
----
+A ogni avvio di Windows l'app collega un piccolo secondo disco NVMe in sola lettura, `winios-tools.img`
+(FAT32, etichetta **WINIOSTOOLS**). Windows lo vede come **D:**. Contiene:
 
-## Visual Showcase
+- `drivers\NetKVM\` — driver di rete VirtIO WHQL di Red Hat per Windows 11 ARM64;
+- **`Installa-driver.cmd`** — chiede i permessi di amministratore ed esegue
+  `pnputil /add-driver drivers\*.inf /subdirs /install`;
+- `LEGGIMI.txt`.
+
+Il disco viene ricreato quando cambia la build dell'app, quindi contiene sempre i driver della versione
+installata. È il modo per dare la rete a un Windows **già installato**, senza reinstallarlo e senza internet.
+
+## 7. Impostazioni: memoria, vCPU, Lite
+
+**Memoria e vCPU:** tocca la riga del dispositivo nella scheda iniziale. *Automatico* usa la tabella della
+[sezione 3](#3-dispositivi-compatibili). In manuale scegli la memoria (da 1536 MB al massimo della fascia,
+a passi di 512) e le vCPU. Le modifiche valgono **al prossimo avvio con JIT**, perché la memoria di Windows
+viene riservata mentre il debugger è collegato.
+
+**Lite** (consigliato con 4–6 GB) applica, durante l'installazione, le ottimizzazioni dello script originale
+`scripts/optimize_windows_lite.py`:
+- servizi disattivati con `opt_hive_arm64.exe` (Defender e filtri, SysMain, Windows Search, telemetria,
+  Windows Update in background, Xbox, mappe, biometria…) e gestione della memoria ottimizzata;
+- criteri: Defender, aggiornamenti automatici, contenuti cloud, widget, Copilot, telemetria,
+  SmartScreen ed Edge in background disattivati;
+- utente predefinito: trasparenze e animazioni disattivate, effetti visivi "prestazioni migliori",
+  niente Bing nella ricerca;
+- 25 app preinstallate rimosse (Clipchamp, Teams, Bing News/Weather, Solitaire, Xbox, Your Phone…).
+
+## 8. Interfaccia: modalità Laptop e Studio
+
+- **iPhone senza cerniera** (tutti tranne il Duo): **in verticale** modalità *Laptop*, con Windows nella
+  metà superiore e tastiera e trackpad in quella inferiore; **in orizzontale** modalità *Studio*, con
+  Windows a schermo intero.
+- **iPhone Duo:** la postura viene letta dal sensore della cerniera (`UIHingeInteraction`, iOS 27.1), come
+  nell'originale. Il codice si compila solo se l'SDK di Xcode contiene quell'API; altrimenti il Duo usa la
+  stessa logica degli altri iPhone.
+- **iPad:** Studio. La modalità si può comunque cambiare a mano dalla barra.
+
+## 9. Aggiornare, reinstallare, migrare
+
+| Azione | Windows resta? | Cosa fare |
+| :--- | :--- | :--- |
+| **Aggiornare** l'IPA sopra l'app esistente (stesso bundle ID) | ✅ sì | niente; il disco Tools si aggiorna da solo |
+| **Cancellare** l'app e reinstallarla | ❌ no, iOS cancella i dati | rifai *INSTALL WINDOWS 11*; il download riparte se lo avevi eliminato |
+| Passare da una versione con **altro bundle ID** (es. `com.windowsios.universal`) a **WindowsiOS X** | ❌ per iOS è un'altra app | sposta la cartella, vedi sotto |
+
+**Migrare un Windows già installato in WindowsiOS X**, senza reinstallare:
+1. Spegni Windows nella vecchia app.
+2. Installa WindowsiOS X e aprila una volta, così crea le sue cartelle.
+3. Nell'app **File** → *Sul mio iPhone* → vecchia app → `Machines` → **sposta** la cartella `Win11` in
+   *Sul mio iPhone* → **WindowsiOS X** → `Machines`, sostituendo quella vuota.
+4. Apri WindowsiOS X con il JIT e tocca *BOOT WINDOWS 11*.
+
+## 10. Risoluzione dei problemi
+
+| Sintomo | Causa | Soluzione |
+| :--- | :--- | :--- |
+| *"The certificate for this server is invalid"* durante il download | le prime build scaricavano in HTTPS | aggiorna l'app (build dal commit `627884d` in poi): scarica in HTTP con verifica SHA-1 |
+| Windows: *"impossibile rilevare l'hardware di rete"* | driver NetKVM mancante | **D: → `Installa-driver.cmd`**; se non basta riavvia Windows; poi Gestione dispositivi → *Schede di rete* |
+| *"Windows can't run on this iPhone … A14 / M1"* | chip A13 o precedente | non risolvibile: servono le istruzioni Armv8.5 |
+| *"Waiting for JIT"* | JIT non attivo | *ENABLE JIT* (StikDebug) o `./scripts/launch_on_device.sh <UDID>` da Mac |
+| *"Not enough free space"* | servono circa 30 GB | libera spazio; il download parziale resta e riprende |
+| *"checksum mismatch"* | download danneggiato | è già stato cancellato: riprova |
+| Windows PE si ferma con *ERROR* | il messaggio indica il passaggio | annota il passaggio e il log a schermo; riprova da *Install* |
+| La VM non riparte dopo l'installazione | una sola VM per avvio dell'app (come Henge) | chiudi l'app scorrendo e riaprila |
+| iOS chiude l'app durante l'uso | memoria | abbassa la memoria nelle impostazioni o usa Lite |
+
+## 11. Compilare l'app
+
+### Su GitHub Actions (consigliato, non serve un Mac)
+`.github/workflows/build-ipa.yml` parte a ogni push su `main`, `universal` e `claude/**` e su ogni tag `v*`.
+Su `macos-26` esegue questi passaggi:
+1. **Xcode più recente** del runner (`latest`, beta comprese; la variabile `WINIOS_XCODE` lo fissa);
+2. dipendenze iOS compilate da sorgente e messe in cache: libffi, glib, libslirp (con la patch iOS in
+   `patches/`) e **wimlib**;
+3. `make ios-lib` → `build/ios/libwinvm.a` (motore, dispositivi, `win_installer.c`, FatFs);
+4. **risorse per l'installazione su iPhone**, in `ios/Sources/Resources/generated/`: catalogo Microsoft,
+   firmware EDK2 (`code.fd`, `vars.fd` dal QEMU di Homebrew), NetKVM (dall'ISO `virtio-win`, risolvendo i
+   suoi hard link) e `opt_hive_arm64.exe` (`scripts/build_opt_hive.sh`, LLVM senza Windows SDK);
+5. **prova del sensore cerniera**: compila un file Swift di una riga contro l'SDK e, se riesce, aggiunge
+   `-D WINIOS_HINGE`;
+6. app non firmata (`CODE_SIGNING_ALLOWED=NO`), firma ad hoc con gli entitlement (`ldid`) →
+   **`WindowsiOS-X.ipa`**;
+7. artifact `WindowsiOS-X-<versione>`; con un tag `v*` (o *release* manuale) anche una GitHub Release.
+
+Il pulsante *Run workflow* compare solo se il workflow si trova sul branch predefinito del repository.
+
+### Su un Mac (Apple Silicon)
+```sh
+brew install meson ninja pkg-config xcodegen qemu cabextract llvm lld
+./scripts/build_ios_deps.sh            # libffi, glib, libslirp, wimlib per arm64-apple-ios
+make -j8 ios-lib                        # build/ios/libwinvm.a
+# risorse opzionali per l'installazione su iPhone (come in CI)
+G=ios/Sources/Resources/generated; mkdir -p $G/firmware $G/install
+python3 scripts/make_windows_catalog.py $G/windows-catalog.json
+cp "$(brew --prefix qemu)/share/qemu/edk2-aarch64-code.fd" $G/firmware/code.fd
+cp "$(brew --prefix qemu)/share/qemu/edk2-arm-vars.fd" $G/firmware/vars.fd
+./scripts/build_opt_hive.sh $G/install/opt_hive_arm64.exe
+WINIOS_TEAM_ID=XXXXXXXXXX xcodegen generate --spec ios/project.yml
+open ios/WindowsiOS.xcodeproj
+```
+Per firmare con il tuo account imposta `WINIOS_TEAM_ID`. Il bundle ID è `com.iamgasgass.windowsiosx`.
+Gli entitlement sono `get-task-allow` (per il JIT) e `increased-memory-limit` (consigliato, facoltativo).
+
+**Lancio con JIT da Mac:** `./scripts/launch_on_device.sh <UDID>` (elenco con `xcrun devicectl list devices`).
+Il vecchio percorso dell'originale funziona ancora: `make all` → `scripts/provision_windows_arm64.py` →
+`scripts/optimize_windows_lite.py` → `hvsparse pack`, poi copia `code.fd`, `vars.fd` e `windows11.hvsparse`
+in *File → WindowsiOS X → Machines → Win11*.
+
+### Test del codice d'installazione su Linux
+`host/win_installer.c` è C portabile. Con `libwim-dev`:
+```sh
+gcc -Ihost test.c host/win_installer.c third_party/fatfs/ff.c third_party/fatfs/ffunicode.c -lwim -lz
+```
+Il risultato si controlla con `sgdisk -v`, `fsck.fat`, `fsck.exfat` e `wimlib-imagex`. È stato provato così
+con un ESD sintetico, con la stessa struttura di quello Microsoft.
+
+## 12. Struttura del repository
+
+```text
+WindowsiOS X/
+├── core/                 motore JIT ARM64→ARM64, MMU 4 KB, registri di sistema (dall'originale)
+├── devices/              UEFI pflash, ACPI, GICv3, PCIe, NVMe, xHCI, HDA, VirtIO-Net, display Metal
+├── host/
+│   ├── win_installer.c/h   ★ disco d'installazione: GPT + FatFs + wimlib; disco Tools
+│   └── …                   VM, rete slirp, audio, condivisione WebDAV, hvsparse
+├── ios/
+│   ├── project.yml          progetto XcodeGen (nome, bundle ID, risorse, entitlement)
+│   ├── WindowsiOS.entitlements
+│   └── Sources/
+│       ├── WindowsInstaller.swift   ★ catalogo, download, verifica, preparazione, VM, ripresa, disco Tools
+│       ├── InstallView.swift        ★ schermata "Install Windows 11" (come Henge)
+│       ├── DeviceSupport.swift      ★ nomi dei modelli, impostazioni memoria/vCPU
+│       ├── VMViewModel.swift, SessionView.swift, LaptopDeckView.swift, HingeSensorView.swift, …
+│       ├── Native/winios_device.c/h ★ profilo del dispositivo (RAM, chip, FEAT_*, vCPU, JIT)
+│       ├── Native/winios_jit.c      allocatore JIT TXM + memoria per Windows (dimensionata per dispositivo)
+│       ├── Native/winios_bridge.m/h ponte Objective-C (avvio VM, installazione, disco Tools)
+│       ├── Assets.xcassets/AppIcon  ★ icona (chiara, scura, tinta)
+│       └── Resources/install/       ★ startnet.cmd, unattend.xml, lite_*.reg, lite_appx.txt, tools/
+├── scripts/
+│   ├── make_windows_catalog.py      ★ catalogo ESD ARM64 da products.cab
+│   ├── build_opt_hive.sh            ★ opt_hive_arm64.exe con LLVM
+│   ├── launch_on_device.sh          ★ lancio + JIT da Mac per qualsiasi UDID (launch_on_duo.sh = alias)
+│   ├── build_ios_deps.sh            dipendenze iOS (+ wimlib)
+│   └── provision_windows_arm64.py, optimize_windows_lite.py, …   percorso Mac dell'originale
+├── third_party/fatfs/    ★ FatFs R0.16 (configurato: FAT32 + exFAT, LFN UTF-8, mkfs)
+├── patches/              ★ patch iOS per libslirp
+├── tools/
+│   ├── icon/                ★ generatore dell'icona (render_windows.py)
+│   └── opt_hive_arm64.c, winios_browser_arm64.c, hvsparse_main.c
+├── tests/                test del motore (dall'originale)
+├── docs/images/          screenshot e icona
+├── .github/workflows/build-ipa.yml  ★ build dell'IPA
+├── CHANGELOG.md          ★ cronologia delle versioni
+└── WindowsiOS-X.zip      archivio del repository
+```
+★ = aggiunto o riscritto in WindowsiOS X.
+
+## 13. Cronologia completa delle modifiche
+
+Ogni modifica fatta rispetto all'originale (`ammaarreshi/WindowsiOS`, commit `0071d69`), nell'ordine in cui
+è stata fatta.
+
+### Supporto a tutti gli iPhone (versione 1.1.0)
+1. **Profilo del dispositivo** (`winios_device.c`): legge `hw.machine`, `hw.memsize`, `hw.ncpu`,
+   `hw.perflevel0.physicalcpu` e 16 flag `hw.optional.arm.FEAT_*`. Ne ricava memoria per Windows, area
+   JIT e vCPU, e accetta gli override dell'utente. Verificato su Linux con valori simulati per tutte le
+   fasce e per A12/A13.
+2. **Controllo del chip:** se manca una funzione dichiarata alla CPU virtuale (es. `FEAT_FRINTTS`, `FEAT_SB`)
+   l'app non parte e mostra un messaggio. Se i flag non ci sono, decide dal modello (`iPhone13,x` = A14).
+3. **Memoria per Windows** (`winios_jit.c`): al posto della scala fissa del Duo (4608 MB e 2,5 GB liberi
+   obbligatori), parte dal valore del dispositivo e scende di 512 MB, lasciando sempre 1,5 GB a iOS. Così
+   funzionano anche gli iPhone da 4 GB.
+4. **Area JIT e vCPU** dal profilo, invece dei fissi 384 MB e 4 vCPU. La memoria di riserva quando non
+   c'è memoria esente dal ledger rispetta il limite Jetsam corrente.
+5. **Interfaccia senza cerniera:** verticale = Laptop, orizzontale = Studio; rotazione in verticale per
+   la modalità Laptop su ogni iPhone.
+6. **Impostazioni** (`DeviceSupport.swift`): modello, RAM, core, area JIT, memoria e vCPU manuali.
+7. **Firma:** rimossi team ID e profilo dell'autore; firma automatica; entitlement
+   `increased-memory-limit` richiesto (facoltativo, come in Henge).
+8. **Script:** `launch_on_device.sh` per qualsiasi UDID; niente UDID, bundle ID o percorsi personali
+   (`/Users/ammaar/…`, `/opt/homebrew` obbligatorio); patch libslirp inclusa nel repository.
+9. **GitHub Actions:** workflow che produce l'IPA non firmata.
+
+### Icona e compilazione
+10. **Icona:** l'icona di Husk (la mela-Android) adattata a Windows. Logo Windows con 4 quadrati a bordi
+    dritti e angoli vivi, centrato, con il morso e la foglia della mela, in stile vetro con i blu di
+    Windows 11; varianti chiara, scura e tinta. Generatore: `tools/icon/render_windows.py`.
+11. **Repository pulito:** rimossi tutti i file di Husk dal branch.
+12. **Compilazione con l'Xcode più recente:** `UIHingeInteraction` esiste solo nell'SDK iOS 27.1. Il
+    codice della cerniera ora sta sotto `#if WINIOS_HINGE`, e la CI attiva il flag solo se un file di
+    prova si compila contro l'SDK. Corregge l'errore *"cannot find 'UIHingeInteraction' in scope"*.
+
+### Installazione direttamente sull'iPhone, come Henge (versione 1.1.0)
+13. **Catalogo Microsoft** generato in CI (38 ESD ARM64).
+14. **Download** ripristinabile con verifica SHA-1, o importazione di un `.esd` dall'app File.
+15. **Disco d'installazione costruito sull'iPhone** (`win_installer.c`, wimlib + FatFs). Provato su Linux:
+    GPT valida per `sgdisk`, FAT32 ed exFAT puliti, ESD identico byte per byte, `boot.wim` con il nuovo
+    `startnet.cmd`.
+16. **Installazione automatica nella VM** in un'unica sessione (riavvio PSCI), con protezione contro la
+    reinstallazione e ripresa se l'app viene chiusa.
+17. **Lite** integrato nell'installazione (servizi, criteri, utente predefinito, app preinstallate).
+18. **Risorse in CI:** firmware EDK2, NetKVM (estratto risolvendo gli hard link dell'ISO),
+    `opt_hive_arm64.exe` compilato con LLVM senza Windows SDK.
+19. **Download in HTTP** dal CDN Microsoft (il certificato HTTPS non è valido per quel nome), con eccezione
+    ATS solo per quel dominio e verifica SHA-1; gli errori TLS non ripartono più all'infinito.
+
+### Rete e nome (versione 1.2.0)
+20. **Disco "WindowsiOS X Tools"** (unità D:) con NetKVM e `Installa-driver.cmd`, collegato a ogni avvio.
+21. **NetKVM installato due volte** nelle nuove installazioni: DISM in Windows PE (senza `/ForceUnsigned`,
+    con il risultato a schermo) e `pnputil` al primo accesso.
+22. **Nuovo nome e bundle ID:** *WindowsiOS X*, `com.iamgasgass.windowsiosx`, IPA `WindowsiOS-X.ipa`.
+23. **Questo README** e `CHANGELOG.md`.
+
+## 14. Cosa è verificato e cosa no
+
+| Parte | Stato |
+| :--- | :--- |
+| Compilazione dell'IPA su GitHub Actions (Xcode 26.6, SDK iOS 26.5) | ✅ verificato |
+| App, rilevamento del dispositivo, JIT attivo su **iPhone 14 Pro** | ✅ verificato dall'utente |
+| Download, preparazione e installazione completa di Windows 11 su **iPhone 14 Pro**, desktop avviato | ✅ verificato dall'utente |
+| Disco d'installazione (GPT/FAT32/exFAT/boot.wim) | ✅ verificato su Linux con ESD sintetico |
+| Rete in Windows tramite il disco Tools / `pnputil` | ⏳ da verificare |
+| iPhone da 4 GB, iPhone da 8/12 GB, iPad | ⏳ non ancora provati |
+| Sensore cerniera dell'iPhone Duo | ⏳ richiede l'SDK iOS 27.1 nel runner |
+
+Le segnalazioni da altri dispositivi sono benvenute: apri una issue con modello, versione di iOS e screenshot.
+
+## 15. Il motore (dall'originale)
+
+Le parti più difficili sono dell'autore originale (`ammaarreshi/WindowsiOS`) e restano invariate:
+
+- **MMU software a 4 KB** con `HvTlbStash` per ASID, che gestisce `TCR_EL1.A1 = 1` di Windows (ASID in
+  `TTBR1_EL1`) e i passaggi per `ASID 0` in `KiSwapProcess`;
+- **atomiche LSE in linea** (`LDXP/STXP → LDP + CASPAL`) e la correzione `LDXR XZR` (`rt == 31`) per
+  Chromium ed Electron;
+- **`LDAPUR`/`STLUR` non allineate** di Prism (`xtajit64.dll`), con helper fuori linea;
+- **piattaforma PC completa**: UEFI con NVRAM persistente, ACPI 6.3 + IORT, GICv3 ITS (MSI-X), NVMe 1.4,
+  xHCI conforme a `USBXHCI.SYS`, **audio HD Intel ICH6 scritto da zero** (altoparlante + microfono),
+  VirtIO-Net su libslirp;
+- **JIT TXM a doppia mappatura** (RX/RW sotto `0x7000000000`) e memoria esente dal ledger Jetsam;
+- **OAuth tramite Safari**: `WinIOSBrowser.exe` apre i login di Windows in `SFSafariViewController`
+  (passkey, Face ID).
+
+Mappa della memoria fisica del PC virtuale:
+
+| Indirizzo | Dimensione | Dispositivo |
+| :--- | :--- | :--- |
+| `0x0000_0000` | 64 MiB | pflash0 — firmware UEFI |
+| `0x0400_0000` | 64 MiB | pflash1 — NVRAM UEFI (`vars.fd`) |
+| `0x0800_0000` | 64 KiB / 128 KiB / 15 MiB | GICD / GIC ITS / GICR |
+| `0x0900_0000` | — | PL011, PL031, fw_cfg + ramfb, PL061, ACPI GED |
+| `0x1000_0000` | 752 MiB | finestra MMIO PCIe a 32 bit |
+| `0x4000_0000` | memoria scelta | RAM di Windows |
+| `0x40_1000_0000` | 256 MiB | ECAM PCIe |
+| `0x80_0000_0000` | 512 GiB | finestra MMIO PCIe a 64 bit |
+
+Dispositivi PCIe: `00:01.0` VirtIO-Net · `00:02.0` NVMe (disco di Windows) · `00:03.0` xHCI ·
+`00:04.0` audio HD · più un secondo controller NVMe per il disco d'installazione o il disco Tools.
 
 <table>
   <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/duo_antigravity_desktop.png" alt="Windows 11 24H2 ARM64 + Antigravity 2.31.0 + HD Audio + Ethernet on physical iPhone Duo" />
-      <br />
-      <sub><b>Physical iPhone Duo (<code>iPhone19,4</code>):</b> Windows 11 24H2 ARM64 Desktop with native ARM64 <b>Antigravity 2.31.0</b>, full-duplex Intel HD Audio (Speaker + Mic), and active VirtIO Ethernet.</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/mac_antigravity_welcome.png" alt="Native ARM64 Antigravity 2.31.0 running inside Windows 11 ARM64" />
-      <br />
-      <sub><b>Antigravity 2.31.0 (Native Windows ARM64):</b> Multi-process Electron/Chromium IDE running live inside the 4 KB software-MMU ARM64-to-ARM64 JIT.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/images/duo_win11_surface_net.png" alt="Microsoft Edge + Ethernet live on physical iPhone Duo" />
-      <br />
-      <sub><b>Physical iPhone Duo:</b> Unmodified ARM64 Microsoft Edge running with WHQL <code>NetKVM</code> VirtIO Ethernet over rootless <code>libslirp</code> NAT.</sub>
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/images/mac_edge_wikipedia.png" alt="Live HTTPS Wikipedia rendering in Microsoft Edge" />
-      <br />
-      <sub><b>Live TLS 1.3 / HTTPS Web Rendering:</b> Microsoft Edge rendering Wikipedia over user-mode NAT with zero host entitlements.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" colspan="2">
-      <img src="docs/images/mac_winios_default_browser.png" width="68%" alt="WinIOSBrowser UCPD.sys-verified default HTTP/HTTPS OAuth bridge" />
-      <br />
-      <sub><b>Native iOS <code>SafariSheet</code> OAuth Bridge:</b> <code>WinIOSBrowser.exe</code> registered as the <code>UCPD.sys</code>-verified default <code>HTTP</code>/<code>HTTPS</code> handler, relaying <code>localhost</code> OAuth callbacks between iOS <code>SFSafariViewController</code> (Passkeys / Face ID / Google sessions) and Windows apps.</sub>
-    </td>
+    <td align="center" width="50%"><img src="docs/images/duo_antigravity_desktop.png" alt="Windows 11 su iPhone Duo"><br><sub>Originale: Windows 11 su iPhone Duo</sub></td>
+    <td align="center" width="50%"><img src="docs/images/duo_win11_surface_net.png" alt="Edge e rete su iPhone Duo"><br><sub>Originale: Edge con rete VirtIO</sub></td>
   </tr>
 </table>
 
----
+Screenshot dell'autore originale (iPhone Duo e Mac).
 
-## What Didn't Exist Before This
+## 16. Crediti e licenze
 
-Prior to `WindowsiOS`, booting and interactively using **unmodified retail Microsoft Windows 11 24H2 ARM64** (`Build 26100`) — complete with **Microsoft Edge**, **Antigravity `2.31.0`**, **Prism x86-64 emulation (`xtajit64.dll`)**, **full-duplex Speaker + Microphone audio**, and **passkey-capable Google OAuth** — at near-native speed on **non-jailbroken modern iOS** did not publicly exist:
+- **[ammaarreshi/WindowsiOS](https://github.com/ammaarreshi/WindowsiOS)** — il progetto originale: motore,
+  dispositivi, interfaccia, script Mac (GPL-2.0-or-later).
+- **[Leviidev/Henge](https://github.com/Leviidev/Henge)** — traduttore ARM64 e JIT TXM da cui deriva
+  l'originale, e **modello per le regole sui dispositivi e per l'installazione sul telefono**.
+- **[Leviidev/Husk](https://github.com/Leviidev/Husk)** — patch iOS per libslirp e **icona di partenza**.
+- **[StikDebug](https://github.com/StephenDev0/StikDebug)**, **[idevice](https://github.com/jkcoxson/idevice)** — JIT sul dispositivo.
+- **[wimlib](https://wimlib.net)** (LGPL-3.0-or-later) — lettura degli ESD e scrittura di `boot.wim`.
+- **FatFs** (ChaN, licenza BSD a una clausola) — FAT32 ed exFAT.
+- **EDK2** (BSD-2-Clause-Patent) — firmware UEFI · **virtio-win NetKVM** (Red Hat, BSD-3-Clause) —
+  driver di rete · **libslirp** (BSD-3-Clause) — rete.
 
-1. **No Hardware Hypervisor on Stock iOS:** Apple restricted `com.apple.developer.kernel.hypervisor` (`Hypervisor.framework`) on stock iOS starting in iOS 16.4+, permanently cutting off hardware EL2 virtualization (`UTM HV`) on non-jailbroken iPhones and iPads. On iOS 26 and iOS 27 hardware (such as the A20 Pro), Apple's **Trusted Execution Monitor (TXM)** additionally enforces strict hardware page-table signing against arbitrary `MAP_JIT` execution.
-2. **Interpreter Emulators Are 5–10× Too Slow for Windows 11 24H2:** Sideloaded and App Store emulators such as **UTM SE** fall back to QEMU's **TCG threaded interpreter** (`TCI`). Under interpretation, modern Windows 11 24H2 takes tens of minutes to reach the desktop and cannot interactively drive heavy multi-process Chromium/Electron stacks like Microsoft Edge or Antigravity.
-3. **ARM64 Binary Translation Existed Only for macOS / Linux Guests — Not Windows NT:** [`Leviidev/Henge`](https://github.com/Leviidev/Henge) proved that an EL1&0 ARM64-to-ARM64 dynamic binary translator paired with a software MMU and TXM dual-mapped JIT could run macOS (`vmapple`, 16 KB pages) at near-native speed on modern iPhones. However, no open-source engine combined TXM ARM64-to-ARM64 JIT translation with everything the **Windows NT ARM64 kernel (`ntoskrnl.exe`)** demands:
-   - Strict **4 KB stage-1 translation granules** (`TG0`/`TG1`) running on a 16 KB Darwin host;
-   - Windows NT's **`TCR_EL1.A1 = 1`** ASID placement in `TTBR1_EL1[63:48]` and transient `ASID 0` transitions inside `KiSwapProcess`;
-   - Windows 11's **Prism (`xtajit64.dll`)** unaligned `FEAT_LRCPC2` (`LDAPUR`/`STLUR`) memory ordering semantics (`SCTLR_EL1.nAA = 1`);
-   - A full **UEFI + ACPI 6.3 + GICv3 LPI/ITS MSI-X + PCIe NVMe + USB 3.0 xHCI + Intel ICH6 HD Audio + WHQL VirtIO-Net** PC platform fitting comfortably inside iOS's Jetsam memory envelope.
+**Licenza:** GPL-2.0-or-later (vedi [`LICENSE`](LICENSE)). Poiché l'app include wimlib (LGPL-3.0),
+**il binario distribuito è sotto GPL-3.0**. I dettagli sono in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
----
+**Windows** viene scaricato dall'app direttamente dai server Microsoft ed è soggetto ai termini di licenza
+Microsoft. Nessun file di Windows è incluso nel repository o nell'app. Per l'uso continuativo serve una
+licenza Windows valida.
 
-## Standing on the Shoulders of Giants — Upstream Credits
-
-`WindowsiOS` would not exist without the trailblazing open-source work of the iOS virtualization, binary-translation, and firmware communities. Full license notices and attributions are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md):
-
-- **[`Leviidev/Henge`](https://github.com/Leviidev/Henge) & [`Leviidev/Henge#7`](https://github.com/Leviidev/Henge/pull/7)** (`GPL-2.0-or-later`) — Foundational ARM64-to-ARM64 dynamic binary translator (`HengeVM`), stage-1 software MMU and indirect-branch/return cache design, multi-touch trackpad concepts, `/.henge/` WebDAV guest-host transport (`host/share.c`), and the iOS 26/27 TXM dual-mapped JIT substrate (`winios_jit.c`, `winios_brk.S`, `henge-jit.js`).
-- **[`Leviidev/Husk`](https://github.com/Leviidev/Husk)** (`GPL-2.0-or-later`) — ARM64 binary translation architecture, iOS `libslirp` cross-compilation patches, and on-device JIT helper insights.
-- **[`mxhm11cr/LinuxRunner`](https://github.com/mxhm11cr/LinuxRunner)** (building on [`ish-app/ish`](https://github.com/ish-app/ish) & [`rcarmo/ios-linuxkit`](https://github.com/rcarmo/ios-linuxkit)) — Early ARM64 guest OS bring-up patterns and iOS runtime/Jetsam discipline.
-- **[`StephenDev0/StikDebug`](https://github.com/StephenDev0/StikDebug) / `StikJIT`** (`MPL-2.0` / `BSD-3-Clause`) & **[`jkcoxson/idevice`](https://github.com/jkcoxson/idevice)** (`MIT`) — On-device iOS 26/27 TXM debugger attachment, `universal.js` (`BRK #0x69` / `BRK #0xF00D`) RX/RW page-blessing, and `CS_DEBUGGED` ledger-exempt memory enablement.
-- **[`libslirp`](https://gitlab.freedesktop.org/slirp/libslirp)** (`BSD-3-Clause`) — Rootless user-mode TCP/IP, DHCP, and DNS NAT stack (`host/net_slirp.c`).
-- **[TianoCore EDK2 `ArmVirtQemu`](https://github.com/tianocore/edk2)** (`BSD-2-Clause-Patent`) — `AARCH64` UEFI firmware (`QEMU_EFI.fd`, fetched locally at provisioning time).
-- **[Red Hat `virtio-win` (`NetKVM`)](https://github.com/virtio-win/kvm-guest-drivers-windows)** (`BSD-3-Clause` / `GPL-2.0`) — WHQL-signed Windows 11 ARM64 VirtIO Ethernet driver (fetched locally at provisioning time).
-
----
-
-## System Architecture
-
-```mermaid
-flowchart TB
-    subgraph Guest["Guest OS — Microsoft Windows 11 24H2 ARM64 (Build 26100)"]
-        Apps["Antigravity 2.31.0 (ARM64) · Microsoft Edge · Win32 + Prism x86-64 (xtajit64.dll)"]
-        Bridge["WinIOSBrowser.exe (14 KB Freestanding AArch64 HTTP/HTTPS & Loopback OAuth Relay)"]
-        NT["ntoskrnl.exe (4 KB Pages · TCR_EL1.A1=1 ASIDs · StorNVMe · USBXHCI · HdAudio · NetKVM)"]
-        UEFI["EDK2 ArmVirtQemu UEFI (pflash0 Code + Persistent CFI01 pflash1 NVRAM)"]
-        Apps --> NT
-        Bridge --> NT
-        NT --> UEFI
-    end
-
-    subgraph VirtHW["Windows-Compatible Virtual Hardware Platform (devices/)"]
-        ACPI["ACPI 6.3 (FADT PSCI · GTDT · MCFG · MADT · IORT · DSDT GPEX + GED) + GICv3 LPI/ITS MSI-X"]
-        NVMe["NVMe 1.4 (WIN11IOS01) + hvsparse Block Store"]
-        XHCI["USB 3.0 xHCI (HID Boot Keyboard + Absolute Tablet)"]
-        HDA["PCIe Intel ICH6 HD Audio (8086:2668) + 6-Node Duplex Codec (Speaker + Mic)"]
-        VNET["VirtIO-Net (1af4:1000) + libslirp NAT + /.henge WebDAV & Dynamic IPv4/IPv6 Port Forwarder"]
-    end
-
-    subgraph Engine["ARM64-to-ARM64 Dynamic Binary Translator & 4 KB MMU (core/)"]
-        JIT["Block Translator · Inline LSE Atomics (CASPAL / LDXR XZR Fix) · Unaligned FEAT_LRCPC2 Helpers"]
-        MMU["4 KB Stage-1 Software MMU · ASID-Keyed HvTlbStash · 2 MB / 1 GB Bloom Filters · 16-Table IJC"]
-    end
-
-    subgraph Host["Non-Jailbroken iOS 26/27 TXM Host — Foldable iPhone Duo (iPhone19,4 · A20 Pro)"]
-        TXM["384 MiB Dual-Mapped RX/RW TXM JIT (< 0x7000000000) + 4.5 GB Ledger-Exempt Guest RAM"]
-        UI["Midnight-Sapphire Surface Laptop Ultra UI (UIHingeInteraction Clamshell / Open Studio + 120Hz Metal)"]
-        IOSIO["CoreAudio RemoteIO + AudioQueueInput · SFSafariViewController Passkey/Google OAuth Sheet"]
-    end
-
-    UEFI --> ACPI
-    NT --> NVMe & XHCI & HDA & VNET
-    Guest --> JIT
-    JIT <--> MMU
-    Engine --> TXM
-    XHCI <--> UI
-    HDA <--> IOSIO
-    VNET <--> IOSIO
-    VirtHW --> UI
-```
-
----
-
-## What Was Original & Hard — Built Here with Gemini 4 Carbon
-
-Bringing unmodified Windows 11 24H2 ARM64 to full interactive life on a non-jailbroken foldable iPhone required solving a chain of deep OS kernel, ARMv8 architecture, PCIe/USB/HDA hardware, and iOS TXM memory problems. Every piece of this bring-up and engineering was built with **Gemini 4 Carbon**:
-
-### 1. Windows NT 4 KB Software MMU & `TCR_EL1.A1 = 1` ASID-Keyed `HvTlbStash` ([`core/mmu.c`](core/mmu.c), [`core/cpu.h`](core/cpu.h), [`core/sysreg.c`](core/sysreg.c))
-- **4 KB Granule & CPU Identity:** `ntoskrnl.exe` mandates 4 KB stage-1 translation granules (`HV_TLB_PAGE_BITS = 12`) and validates CPU identification and cycle counters during `KiInitializeKernel`. `core/sysreg.c` exposes an ARM Cortex-A76 r4p1 `MIDR_EL1` (`0x414fd0b1`), calibrated `PMCCNTR_EL0`, and 4-way per-privilege software TLB tables (`[EL0, EL1, EL1+PAN]` packed into single 128-byte cache lines so kernel `PAN` toggles around user copies never flush TLB state), paired with 2 MB and 1 GB large-block Bloom filters (`large_2m_bloom`, `large_big_bloom`) for fast range `TLBI`.
-- **The `TCR_EL1.A1 = 1` & `KiSwapProcess` `ASID 0` Trap:** Unlike Linux and macOS (which store the user ASID in `TTBR0_EL1[63:48]`), **Windows 11 ARM64 sets `TCR_EL1.A1 = 1` (bit 22)**, placing the active process ASID in `TTBR1_EL1[63:48]`. Worse, during every context switch (`KiSwapProcess` — **64,800+ switches/sec** under desktop load), Windows writes the new `TTBR0_EL1` (`DirectoryTableBase`) while `TTBR1_EL1`'s ASID transiently transitions through **`ASID 0`**! Keying TLB stashes naively by `TTBR0` or stashing under `ASID 0` either thrashes every user TLB entry on every context switch or leaks stale user mappings across recycled physical `DirectoryTableBase` pages.
-- **Solution:** `hv_mmu_ukey()` synthesizes a canonical `(ASID << 48) | (TTBR0 & OA_MASK)` address-space key reading the ASID from `TTBR1` whenever `TCR.A1 == 1` and explicitly returning `0` whenever `ASID == 0`. `HvTlbStash` (`hv_tlb_switch_user`) saves and restores ~266–313 live user TLB slots across context switches in microseconds without re-walking 4-level page tables.
-
-### 2. Inline ARMv8.1 LSE Exclusive Atomics & the Clang `LDXR`/`LDAXR XZR` Bug ([`core/translate.c`](core/translate.c))
-- **128-bit `SLIST` (`LDXP`/`STXP` → `LDP` + `CASPAL`):** The Windows NT dispatcher, heap, and I/O manager execute lock-free 128-bit `SLIST` operations (`ExpInterlockedPopEntrySList`) millions of times per second via `LDXP`/`LDAXP` and `STXP`/`STLXP`. Exiting to C on every pair-exclusive crippled boot performance; `translate_excl_pair()` lowers 64-bit and 128-bit exclusives directly into inline Apple Silicon `LDP` + ARMv8.1 LSE `CASPAL` fast paths.
-- **The Subtle `rt == 31` (`LDXR XZR`) Deadlock/Corruption:** Clang-compiled C++ code inside Chromium (`msedge.dll`) and Electron (`Antigravity.exe`) frequently emits `ldxr xzr, [rn]; stlxr ws, xt, [rn]` (`rt == 31`) to arm the exclusive monitor without keeping the old value in a general-purpose register. In AArch64 machine code, register `31` encodes `XZR` in `LDXR` but encodes **`SP`** in `MOV`/`ADD` instructions — and if `HV_CPU_EXCL_VAL` is not populated with the true loaded memory word before checking `rt != 31`, either guest `SP` gets clobbered or `STLXR`'s `CASAL` compare-and-swap perpetually fails whenever `[rn] != 0`, deadlocking renderer threads. `translate_excl()` always loads into scratch `x6`, records `x6` into `HV_CPU_EXCL_VAL`, and suppresses register writeback when `rt == 31`.
-
-### 3. Windows Prism (`xtajit64.dll`) Unaligned `FEAT_LRCPC2` Emulation ([`core/translate.c`](core/translate.c), [`core/memop.c`](core/memop.c))
-- Windows 11 ARM64's **Prism** x86-64 binary translator (`xtajit64.dll`) executes with `SCTLR_EL1.nAA = 1` (non-aligned access permitted on Weakly-Ordered RCpc instructions) and emits unaligned **`LDAPUR` / `STLUR` / `LDAPR`** (`FEAT_LRCPC` / `FEAT_LRCPC2`) loads and stores to emulate x86-64 TSO memory ordering on packed x86 data structures.
-- Darwin/XNU on Apple Silicon enforces **`SCTLR_EL1.nAA = 0`** in EL0 user space — executing a native `LDAPUR` or `STLUR` on an unaligned host address immediately kills the host process with **`SIGBUS` (`EXC_ARM_DA_ALIGN`)**.
-- `translate_mem_impl()` enforces an inline alignment mask (`host_align`) on `HV_MEM_ORDERED` accesses: aligned RCpc instructions execute natively inline in 1 instruction (stripping `imm9` once `A` holds the effective host address), while unaligned accesses branch seamlessly out-of-line to acquire/release-fenced software helpers in `core/memop.c`.
-
-### 4. Full Windows-Compatible Virtual Hardware Platform ([`devices/`](devices/))
-Windows 11 24H2 refuses FDT/DeviceTree boot and demands a compliant ServerReady/PC-class UEFI + ACPI + MSI-X topology:
-- **UEFI + Persistent CFI01 NVRAM ([`devices/pflash.c`](devices/pflash.c), [`devices/fw_cfg.c`](devices/fw_cfg.c), [`devices/fb_metal.m`](devices/fb_metal.m)):** Dual 64 MB flash banks (`pflash0` read-only `HvRam` code at `0x00000000` + `pflash1` persistent Intel CFI01 NVRAM at `0x04000000` so `bcdboot` `Boot0001` entries survive reboots) plus `ramfb` double-buffered 120 Hz Metal presentation.
-- **Programmatic ACPI 6.3 + GICv3 ITS ([`devices/acpi.c`](devices/acpi.c), [`devices/gicv3.c`](devices/gicv3.c)):** Synthesizes `RSDP`, `XSDT`, `FADT` (HW-reduced ACPI + `PSCI` `HVC`), `GTDT`, `MCFG` (PCIe ECAM at `0x4010000000`), `MADT` (`GICD`, per-CPU `GICR`, and `GIC ITS` `0x0F` at `0x08080000`), **`IORT`** (mapping PCIe Root Complex RIDs `0x0000..0xFFFF` to `GICv3 ITS#0` so Windows arms MSI-X LPIs cleanly), and `DSDT` (`PNP0A08` GPEX Root Complex + `ACPI0013` GED power button).
-- **NVMe 1.4 + `USBXHCI.SYS`-Compliant USB 3.0 xHCI + WHQL `virtio-net` ([`devices/nvme.c`](devices/nvme.c), [`devices/xhci.c`](devices/xhci.c), [`devices/virtio_net.c`](devices/virtio_net.c)):**
-  - PCIe endpoints advertise **Root Complex Integrated Endpoint (`0x0092`)** capabilities so `pci.sys` accepts bus-0 devices without root ports.
-  - `nvme.c` implements admin/I/O queues, PRP lists, MSI-X, serial `WIN11IOS01`, and deferred flush synchronization (`hv_disk_sync()`) so NTFS metadata bursts don't stall iOS flash storage.
-  - `xhci.c` implements **Event Data TRB (`ED = 1`) cumulative transfer-length tracking (`EDTLA`)** and `CC_STALL` endpoint-halt recovery strictly required by Windows's `USBXHCI.SYS`, exposing Port 1 Boot Keyboard (`0627:0002`) and Port 2 Absolute Touch/Trackpad Tablet (`0627:0001`).
-
-### 5. From-Scratch PCIe Intel ICH6 Full-Duplex HD Audio ([`devices/hda.c`](devices/hda.c), [`host/audio_mac.c`](host/audio_mac.c))
-- Red Hat's `virtio-win` suite has **no** Windows `virtio-snd` driver. To achieve zero-driver-install plug-and-play audio in Windows 11 ARM64, we built a complete **Intel ICH6 High Definition Audio PCIe controller (`8086:2668`, `PCI\CC_0403`)** from scratch in `devices/hda.c` paired with a 6-node Full-Duplex HDA Codec (`1af4:0022`):
-  - `NID 0` Root → `NID 1` Audio Function Group → `NID 2` Stereo DAC + `NID 3` Speakers Pin Complex (`0x01114010`) + `NID 4` Stereo ADC + `NID 5` Microphone Pin Complex (`0x01a19020`).
-  - Full CORB/RIRB verb ring engines, 24.000 MHz `WALCLK`, DMA Position Buffer (`DPLBASE`/`DPUBASE`), `LPIB`, and scatter-gather BDL streams.
-- Windows 11 binds inbox `hdaudbus.sys` + `HdAudio.sys` automatically on first boot, streaming lock-free 48 kHz S16LE playback to iOS `RemoteIO` (`AudioUnit`) and live microphone capture from iOS `AudioQueueNewInput` (`AVAudioSessionCategoryPlayAndRecord`).
-
-### 6. 384 MiB TXM Dual-Mapped JIT + 4.5 GB Ledger-Exempt RAM + Featherweight Windows 11 ([`ios/Sources/Native/winios_jit.c`](ios/Sources/Native/winios_jit.c), [`tools/opt_hive_arm64.c`](tools/opt_hive_arm64.c), [`scripts/optimize_windows_lite.py`](scripts/optimize_windows_lite.py))
-- **TXM Low-VA Reservation & Ledger-Exempt RAM:** On iOS 26/27 TXM devices, executable JIT mappings placed above `0x7000000000` hang in hardware. `winios_jit.c` reserves a static zero-fill region in `__DATA` below `0x180000000` at Mach-O load time, releases it right before `debugserver` `_M<size>,rx` allocation to claim a **384 MiB RX/RW dual-mapped JIT**, and uses `mach_make_memory_entry_64` + `mach_memory_entry_ownership(..., LEDGER_NO_FOOTPRINT)` (`hv_alloc_no_footprint`) while `CS_DEBUGGED` is active to pre-allocate **4,608 MiB (4.5 GB) of Jetsam-exempt Guest RAM** before LLDB detaches — leaving **~2–3 GB of free iOS Jetsam headroom**.
-- **Featherweight Offline Hive Surgery (`1.46 GB` Idle RAM):** Using an offline WinPE environment plus a custom freestanding ARM64 Win32 tool (`tools/opt_hive_arm64.c`, opening `SYSTEM`/`SOFTWARE` hives with `SeBackupPrivilege` + `SeRestorePrivilege` + `REG_OPTION_BACKUP_RESTORE` to bypass `TrustedInstaller` DACLs cleanly), `optimize_windows_lite.py` strips 35+ background UWP/telemetry/Defender/indexer hogs and KVA Shadow overhead — bringing Windows 11 24H2 idle desktop memory down to **`1.46 GB / 4.5 GB` (`~31.7%`)** and **`89%` WFI idle** across 4 A20 Pro performance-core vCPUs, packed into a compact `hvsparse` block image (`host/hvsparse.c`).
-
-### 7. Foldable iPhone Duo Surface Laptop Ultra UI + Native iOS `SafariSheet` OAuth Bridge ([`ios/Sources/`](ios/Sources/), [`tools/winios_browser_arm64.c`](tools/winios_browser_arm64.c))
-- **Posture-Aware Foldable UI:** Hooks iOS 27's `UIHingeInteraction` (`HingeSensorView.swift`) on the foldable iPhone Duo to transition fluidly between:
-  - **Folded Clamshell Laptop Mode:** Top 50% razor-bezel Obsidian-Glass Metal display lid (with Studio camera indicator and coordinate-snapping XAML double-tap) + bottom 50% Midnight-Sapphire CNC deck housing a 6-row chiclet keyboard (`F1–F10`, Copilot key, stacked `Up`/`Down` arrows) and a 120 Hz haptic matte-glass multi-touch trackpad (`LaptopDeckView.swift`).
-  - **Unfolded Open Studio Mode:** Edge-to-edge full-screen Windows 11 tablet/desktop canvas with an auto-hiding frosted-sapphire command pill (`SessionView.swift`).
-- **Seamless Google / Passkey OAuth Loopback Relay:** Signing into desktop IDEs like **Antigravity `2.31.0`** opens an OAuth URL whose `redirect_uri` points to an ephemeral `http://localhost:<PORT>/oauth-callback` listener inside Windows. Clicking **"Continue with Google"** invokes `WinIOSBrowser.exe` (`tools/winios_browser_arm64.c` — a 14 KB freestanding `AArch64` Win32 executable registered as `WinIOSHTML` / `MSEdgeHTM`), which:
-  1. Parses single- or double-URL-encoded `localhost:<PORT>` / `127.0.0.1:<PORT>` redirect URIs;
-  2. Spawns a guest TCP relay (`10.0.2.15:<PORT> ↔ 127.0.0.1:<PORT>`) and calls `PUT http://10.0.2.4/.henge/expose-port` so `host/net_slirp.c` binds dual-stack iOS `127.0.0.1:<PORT>` and `[::1]:<PORT>` forwards into the guest;
-  3. Calls `PUT http://10.0.2.4/.henge/open-url` to pop up iOS's native **`SFSafariViewController`** (`SafariSheet`) — giving instant access to the user's existing iOS Safari Google session, Passkeys, and Face ID — and signals `/.henge/oauth-done` to auto-dismiss the sheet with haptic confirmation the moment the token lands back in Windows! (Includes a 1-tap `OAuth: Safari` / `OAuth: Edge` toggle in the Studio bar.)
-
----
-
-## Virtual Machine Physical Memory Map & PCIe Topology
-
-| Guest Physical Address | Size | Device / Subsystem | Implementation |
-| :--- | :--- | :--- | :--- |
-| `0x0000_0000` | `64 MiB` | `pflash0` — EDK2 `ArmVirtQemu` UEFI Code (Read-Only `HvRam`) | [`devices/pflash.c`](devices/pflash.c) |
-| `0x0400_0000` | `64 MiB` | `pflash1` — Persistent Intel CFI01 UEFI Variable Store (`vars.fd`) | [`devices/pflash.c`](devices/pflash.c) |
-| `0x0800_0000` | `64 KiB` | ARM GICv3 Distributor (`GICD`) | [`devices/gicv3.c`](devices/gicv3.c) |
-| `0x0808_0000` | `128 KiB` | ARM GICv3 Interrupt Translation Service (`GIC ITS#0`, LPI MSI-X) | [`devices/gicv3.c`](devices/gicv3.c) |
-| `0x080A_0000` | `15 MiB` | ARM GICv3 Per-vCPU Redistributors (`GICR`) | [`devices/gicv3.c`](devices/gicv3.c) |
-| `0x0900_0000` | `64 KiB` | PrimeCell `PL011` UART, `PL031` RTC (`0x09010000`), `fw_cfg` + `ramfb` (`0x09020000`), `PL061` GPIO (`0x09030000`), ACPI GED (`0x09080000`) | [`devices/winvirt.c`](devices/winvirt.c) |
-| `0x1000_0000` | `752 MiB` | PCIe 32-bit MMIO Window + PIO (`0x3EFF0000`) | [`devices/pcie.c`](devices/pcie.c) |
-| `0x4000_0000` | `4.5 GiB` | Guest System DRAM (`hv_alloc_no_footprint` on iOS) | [`devices/winvirt.c`](devices/winvirt.c) |
-| `0x40_1000_0000` | `256 MiB` | PCIe ECAM Configuration Space (`MCFG`) | [`devices/pcie.c`](devices/pcie.c) |
-| `0x80_0000_0000` | `512 GiB` | PCIe 64-bit High MMIO BAR Window | [`devices/pcie.c`](devices/pcie.c) |
-
-**PCIe GPEX Bus `00` Endpoints:**
-- `00:00.0` — Red Hat GPEX Host Bridge (`1b36:0008`)
-- `00:01.0` — VirtIO Network Adapter (`1af4:1000`, WHQL `NetKVM` over `libslirp` NAT + `/.henge/` WebDAV/OAuth)
-- `00:02.0` — NVMe 1.4 Controller (`1b36:0010`, Serial `WIN11IOS01`, MSI-X + `hvsparse` backing)
-- `00:03.0` — USB 3.0 xHCI Host Controller (`1b36:000d`, Port 1 HID Boot Keyboard + Port 2 Absolute Tablet)
-- `00:04.0` — Intel ICH6 High Definition Audio (`8086:2668`, Codec `1af4:0022` Stereo Speaker Out + Stereo Mic In)
-
----
-
-## Building, Provisioning & Deploying
-
-> **Note:** No disk images (`*.img`, `*.hvsparse`), UEFI firmware binaries (`*.fd`), or Windows/driver ISOs (`*.esd`, `*.iso`, `*.exe`) are stored in git. All large artifacts live exclusively inside `work/` and `build/` (enforced by [`.gitignore`](.gitignore)).
-
-### Prerequisites
-- macOS on Apple Silicon (`M1` or newer; developed on M5 Pro) with Xcode, `xcodegen`, `meson`, `ninja`, `pkg-config`, `libslirp`, `llvm`/`lld` (for compiling freestanding `AArch64` Win32 guest helpers), and Python 3.
-- An official Microsoft **Windows 11 24H2 ARM64** retail ESD placed at `work/downloads/Win11_24H2_ARM64_en-us.esd`, EDK2 `QEMU_EFI.fd` at `work/code.fd`, and WHQL `virtio-win` `NetKVM` (`w11/ARM64`) drivers.
-
-### 1. Build Engine, Unit Tests, macOS Runner & iOS Static Archive
-```bash
-# Cross-compile libffi + glib + libslirp for arm64-apple-ios into ios/deps/
-./scripts/build_ios_deps.sh
-
-# Build macOS host VM (build/winvm), sparse packer (build/hvsparse), iOS library (build/ios/libwinvm.a), and run core JIT/MMU tests
-make -j8 all ios-lib test-core
-```
-
-### 2. Provision & Optimize Featherweight Windows 11 24H2 ARM64 Image
-```bash
-# Unattended WinPE DISM + NetKVM injection + BCDBOOT UEFI NVRAM provisioning -> work/windows11.img + work/vars.fd
-/opt/homebrew/bin/python3 scripts/provision_windows_arm64.py
-
-# Offline WinPE DISM bloat removal + SeRestorePrivilege registry hive surgery -> work/windows11_lite.img (1.46 GB idle RAM)
-/opt/homebrew/bin/python3 scripts/optimize_windows_lite.py
-
-# Pack into fast zero-skipping sparse container for iOS transfer -> work/windows11.hvsparse
-./build/hvsparse pack work/windows11_lite.img work/windows11.hvsparse
-```
-
-### 3. Run Locally on macOS (`build/winvm`)
-```bash
-HV_OAUTH_BRIDGE=1 ./build/winvm \
-  --cpus 4 --ram 4608 \
-  --bios work/code.fd --vars work/vars.fd \
-  --disk work/windows11_lite.img
-```
-
-### 4. Build, Install & Launch on Physical iOS Hardware (any A14+/M1+ iPhone or iPad)
-```bash
-# Generate Xcode project from ios/project.yml and build Release iphoneos bundle
-xcodegen generate --spec ios/project.yml
-xcodebuild -project ios/WindowsiOS.xcodeproj -scheme WindowsiOS -configuration Release \
-  -sdk iphoneos -derivedDataPath build/DerivedData build
-
-# Install WindowsiOS.app and copy work/windows11.hvsparse + code.fd + vars.fd to Documents/Machines/Win11,
-# then launch --start-stopped, bless 384 MiB TXM JIT + 4,608 MiB ledger-exempt RAM via LLDB, and detach cleanly:
-xcrun devicectl device install app --device <DEVICE_UDID> \
-  build/DerivedData/Build/Products/Release-iphoneos/WindowsiOS.app
-./scripts/launch_on_device.sh <DEVICE_UDID>   # any supported iPhone/iPad; bundle ID com.windowsios.universal
-```
-
----
-
-## Repository Layout
-
-```text
-WindowsiOS/
-├── core/         # ARM64-to-ARM64 JIT compiler, 4 KB stage-1 software MMU, ASID HvTlbStash, LSE/LRCPC2 helpers
-├── devices/      # UEFI pflash, ACPI 6.3, GICv3 + ITS, PCIe GPEX, NVMe 1.4, USB 3.0 xHCI, Intel HDA, VirtIO-Net, 120Hz Metal fb
-├── host/         # Mach entry/exit assembly (enter.S), dual-mapped JIT allocator, CoreAudio full-duplex backend, libslirp NAT, WebDAV/OAuth share, hvsparse
-├── ios/          # SwiftUI + UIKit iPhone Duo app (UIHingeInteraction Clamshell/Studio UI, 120Hz MetalDisplayView, SafariSheet OAuth, TXM JIT bridge)
-├── scripts/      # Automated iOS dep builder, Windows 11 ARM64 ESD provisioner, Featherweight hive optimizer, and LLDB TXM launcher
-├── tools/        # hvsparse CLI, freestanding ARM64 WinPE hive surgery (opt_hive_arm64.c), and WinIOSBrowser.exe OAuth relay (winios_browser_arm64.c)
-├── tests/        # Instruction classifier, operand decoder, JIT block, exclusive/LRCPC2 memory, exception, and 4 KB MMU unit test suites
-├── docs/images/  # Verified physical iPhone Duo & macOS showcase screenshots
-├── LICENSE       # GNU General Public License v2.0 or later (GPL-2.0-or-later)
-└── THIRD_PARTY_NOTICES.md
-```
-
----
-
-## License
-
-`WindowsiOS` is free software licensed under the **GNU General Public License v2.0 or later** (`GPL-2.0-or-later`). See [`LICENSE`](LICENSE) for the full license text and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for complete upstream attributions and third-party license notices.
+Progetto non affiliato né approvato da Apple o Microsoft.

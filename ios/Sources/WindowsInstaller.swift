@@ -137,7 +137,7 @@ final class WindowsInstaller: NSObject, ObservableObject {
 
     nonisolated static var toolsDisk: URL { machine.appendingPathComponent("winios-tools.img") }
 
-    /// The "WindowsiOS Tools" drive Windows sees at every boot (D:): the drivers from this build and
+    /// The "WindowsiOS X Tools" drive Windows sees at every boot (D:): the drivers from this build and
     /// Installa-driver.cmd. Rebuilt when the app's build changes. Takes well under a second.
     static func ensureToolsDisk() {
         let fm = FileManager.default
@@ -428,7 +428,7 @@ final class WindowsInstaller: NSObject, ObservableObject {
         UserDefaults.standard.set(false, forKey: Self.installingKey)
         try? FileManager.default.removeItem(at: Self.installerDisk)
         say("The VM turned off (\(reason)): install finished")
-        phase = .done("Windows 11 is installed. Close WindowsiOS (swipe it away), open it again with JIT, and tap Boot Windows 11.")
+        phase = .done("Windows 11 is installed. Close WindowsiOS X (swipe it away), open it again with JIT, and tap Boot Windows 11.")
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 

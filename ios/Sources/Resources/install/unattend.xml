@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- SPDX-License-Identifier: GPL-2.0-or-later
-     WindowsiOS Universal: Windows' own first setup, unattended (from scripts/provision_windows_arm64.py).
+     WindowsiOS X: Windows' own first setup, unattended (from scripts/provision_windows_arm64.py).
      The app fills in {{USER}}, {{COMPUTER}}, {{LOCALE}} and {{TIMEZONE}}. -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
   <settings pass="specialize">
@@ -77,7 +77,7 @@
         <SynchronousCommand wcm:action="add">
           <Order>4</Order>
           <CommandLine>cmd /c "timeout /t 15 /nobreak &amp; shutdown /s /t 2 /f"</CommandLine>
-          <Description>Turn off once the first desktop has settled: WindowsiOS then marks the install done</Description>
+          <Description>Turn off once the first desktop has settled: WindowsiOS X then marks the install done</Description>
         </SynchronousCommand>
       </FirstLogonCommands>
     </component>

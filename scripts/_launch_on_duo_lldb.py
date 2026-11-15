@@ -25,7 +25,7 @@ import lldb  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "work"
 DEFAULT_UDID = os.environ.get("WINIOS_DEVICE_UDID", "")
-DEFAULT_BUNDLE_ID = os.environ.get("WINIOS_BUNDLE_ID", "com.windowsios.universal")
+DEFAULT_BUNDLE_ID = os.environ.get("WINIOS_BUNDLE_ID", "com.iamgasgass.windowsiosx")
 
 
 def run_cmd(debugger, cmd: str) -> str:

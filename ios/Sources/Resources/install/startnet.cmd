@@ -1,15 +1,15 @@
 @echo off
 rem SPDX-License-Identifier: GPL-2.0-or-later
-rem WindowsiOS Universal: Windows PE installer, run on the iPhone inside the VM.
+rem WindowsiOS X: Windows PE installer, run on the iPhone inside the VM.
 rem Same steps as scripts/provision_windows_arm64.py (DISM + bcdboot), plus drivers and the
 rem optional "lite" tuning, then a reboot into Windows' own unattended first setup.
 rem The app fills in {{DISK_GB}} and {{LITE}}.
 setlocal EnableDelayedExpansion
 wpeinit
-title WindowsiOS - Installing Windows 11
+title WindowsiOS X - Installing Windows 11
 echo.
 echo  ==========================================================
-echo    WindowsiOS - Installing Windows 11 on this iPhone
+echo    WindowsiOS X - Installing Windows 11 on this iPhone
 echo    Keep the app open and the iPhone plugged in.
 echo  ==========================================================
 echo.
@@ -30,7 +30,7 @@ echo [1/7] Installer found: Windows PE on %PE%, image on %SRC% (index %IDX%)
 rem --- Already installed? (the firmware booted the installer again instead of Windows) ---
 for %%L in (C D E F G H I J K L M N O P Q R T U V Y Z) do (
     if exist "%%L:\winios-installed.txt" (
-        echo Windows is already installed on %%L:. Shutting down so WindowsiOS can start it.
+        echo Windows is already installed on %%L:. Shutting down so WindowsiOS X can start it.
         ping -n 4 127.0.0.1 >nul
         wpeutil shutdown
         exit /b 0
@@ -116,7 +116,7 @@ bcdboot W:\Windows /s S: /f UEFI >> "%LOG%" 2>&1
 if errorlevel 1 goto :fail_boot
 bcdedit /store S:\EFI\Microsoft\Boot\BCD /set {default} recoveryenabled no >> "%LOG%" 2>&1
 bcdedit /store S:\EFI\Microsoft\Boot\BCD /set {default} bootmenupolicy standard >> "%LOG%" 2>&1
-echo installed by WindowsiOS > W:\winios-installed.txt
+echo installed by WindowsiOS X > W:\winios-installed.txt
 copy /y "%LOG%" W:\Windows\Panther\winios-install.log >nul 2>&1
 echo.
 echo Done. Restarting into Windows setup (it finishes on its own, then turns off).
@@ -125,14 +125,14 @@ wpeutil reboot
 exit /b 0
 
 :fail_nosrc
-echo ERROR: the installer volumes were not found. Delete the install in WindowsiOS and try again.
+echo ERROR: the installer volumes were not found. Delete the install in WindowsiOS X and try again.
 goto :stop
 :fail_disk
 echo ERROR: could not partition the system disk.
 type "%LOG%"
 goto :stop
 :fail_dism
-echo ERROR: DISM could not apply Windows. The download may be damaged: delete it in WindowsiOS and try again.
+echo ERROR: DISM could not apply Windows. The download may be damaged: delete it in WindowsiOS X and try again.
 goto :stop
 :fail_boot
 echo ERROR: bcdboot failed.
@@ -140,5 +140,5 @@ type "%LOG%"
 goto :stop
 :stop
 echo.
-echo WindowsiOS: installation stopped. This window stays open; close WindowsiOS to leave.
+echo WindowsiOS X: installation stopped. This window stays open; close WindowsiOS X to leave.
 cmd /k

@@ -92,7 +92,7 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
         /* WindowsiOS Universal: user overrides for guest RAM / vCPUs (0 = automatic per device). */
         winios_device_set_overrides((uint64_t)[ud integerForKey:@"winios.ramMB"], (int)[ud integerForKey:@"winios.cpus"]);
         dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
-        _diagQueue = dispatch_queue_create("me.ammaar.windowsios.diag", attr);
+        _diagQueue = dispatch_queue_create("com.iamgasgass.windowsiosx.diag", attr);
         NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
         [nc addObserver:self selector:@selector(onAppBackgroundOrTerminate:) name:UIApplicationDidEnterBackgroundNotification object:nil];
         [nc addObserver:self selector:@selector(onAppBackgroundOrTerminate:) name:UIApplicationWillTerminateNotification object:nil];

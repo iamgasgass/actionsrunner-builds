@@ -100,7 +100,7 @@ struct DeviceSettingsSheet: View {
                 } header: {
                     Text("Windows")
                 } footer: {
-                    Text("Recommended for this device: \(bridge.recommendedRamMB) MB, \(bridge.recommendedCPUs) vCPU. Changes apply the next time WindowsiOS starts with JIT enabled.")
+                    Text("Recommended for this device: \(bridge.recommendedRamMB) MB, \(bridge.recommendedCPUs) vCPU. Changes apply the next time WindowsiOS X starts with JIT enabled.")
                 }
             }
             .navigationTitle("Device")

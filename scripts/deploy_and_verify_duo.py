@@ -20,7 +20,7 @@ HVSPARSE = ROOT / "build" / "hvsparse"
 LAUNCH_DUO = ROOT / "scripts" / "launch_on_device.sh"
 
 UDID = os.environ.get("WINIOS_DEVICE_UDID", "")
-BUNDLE_ID = os.environ.get("WINIOS_BUNDLE_ID", "com.windowsios.universal")
+BUNDLE_ID = os.environ.get("WINIOS_BUNDLE_ID", "com.iamgasgass.windowsiosx")
 
 CODE_FD = WORK / "code.fd"
 VARS_CLEAN = WORK / "vars_clean.fd"

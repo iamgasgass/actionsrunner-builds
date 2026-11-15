@@ -91,7 +91,7 @@ static NSString *const kFbShaderSource =
         else dispatch_async(dispatch_get_main_queue(), cfg);
 
         if (!timer) {
-            dispatch_queue_t q = dispatch_queue_create("me.ammaar.windowsios.fbmetal", DISPATCH_QUEUE_SERIAL);
+            dispatch_queue_t q = dispatch_queue_create("com.iamgasgass.windowsiosx.fbmetal", DISPATCH_QUEUE_SERIAL);
             timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
             dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, NSEC_PER_SEC / 60, 2 * NSEC_PER_MSEC);
             __weak HvFbMetalPresenter *weakSelf = self;

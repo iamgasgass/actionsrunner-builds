@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# WindowsiOS Universal: build an unsigned WindowsiOS.ipa for every supported iPhone/iPad
+# WindowsiOS X: build an unsigned WindowsiOS-X.ipa for every supported iPhone/iPad
 # (A14 / M1 or newer, iOS 17+), from a clean checkout.
 #
 #   push / pull request        build and keep the IPA as a workflow artifact
-#   push of a tag like v1.1.0  build and publish WindowsiOS.ipa on that tag's release
+#   push of a tag like v1.1.0  build and publish WindowsiOS-X.ipa on that tag's release
 #   Run workflow (manual)      build; "release" also publishes
 #
 # "Unsigned" as sideloaders mean it: ad hoc signed with WindowsiOS.entitlements embedded,
@@ -115,22 +115,22 @@ jobs:
             SWIFT_ACTIVE_COMPILATION_CONDITIONS="$CONDITIONS" \
             build
 
-      - name: Package WindowsiOS.ipa
+      - name: Package WindowsiOS-X.ipa
         run: |
           APP=build/DerivedData/Build/Products/Release-iphoneos/WindowsiOS.app
           ldid -h >/dev/null 2>&1 || brew install ldid
           ldid -Sios/WindowsiOS.entitlements "$APP/WindowsiOS" || codesign -f -s - --entitlements ios/WindowsiOS.entitlements "$APP"
           rm -rf build/Payload && mkdir -p build/Payload
           cp -R "$APP" build/Payload/
-          (cd build && zip -qry WindowsiOS.ipa Payload)
-          ls -lh build/WindowsiOS.ipa
+          (cd build && rm -f WindowsiOS-X.ipa && zip -qry WindowsiOS-X.ipa Payload)
+          ls -lh build/WindowsiOS-X.ipa
           VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: WindowsiOS-${{ env.VERSION }}
-          path: build/WindowsiOS.ipa
+          name: WindowsiOS-X-${{ env.VERSION }}
+          path: build/WindowsiOS-X.ipa
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release
@@ -141,6 +141,6 @@ jobs:
           if [ -z "$TAG" ]; then
             if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="v$VERSION"; fi
           fi
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "WindowsiOS Universal $TAG" \
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "WindowsiOS X $TAG" \
             --notes "Unsigned IPA for iPhone 12 and later (A14+), iPhone Duo, and M1+ iPads. Sideload with SideStore / AltStore / TrollStore, then enable JIT with StikDebug."
-          gh release upload "$TAG" build/WindowsiOS.ipa --clobber
+          gh release upload "$TAG" build/WindowsiOS-X.ipa --clobber

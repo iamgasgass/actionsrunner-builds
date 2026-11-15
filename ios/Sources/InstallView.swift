@@ -135,7 +135,7 @@ struct InstallView: View {
         let need = ByteCountFormatter.string(fromByteCount: WindowsInstaller.spaceNeeded(useImported ? nil : release), countStyle: .file)
         let free = ByteCountFormatter.string(fromByteCount: WindowsInstaller.freeSpace, countStyle: .file)
         let jit = bridge.isJITLive ? "" : " JIT is needed for the last step (the app asks then)."
-        return "Keep WindowsiOS open and the \(DeviceSupport.isPad ? "iPad" : "iPhone") plugged in. Needs about \(need) free (\(free) free now).\(jit) The install takes 1–2 hours."
+        return "Keep WindowsiOS X open and the \(DeviceSupport.isPad ? "iPad" : "iPhone") plugged in. Needs about \(need) free (\(free) free now).\(jit) The install takes 1–2 hours."
     }
 
     private func downloadNote(_ r: WindowsRelease) -> String {
@@ -193,7 +193,7 @@ struct InstallView: View {
             }
             .padding(.vertical, 4)
         } footer: {
-            Text("Keep WindowsiOS open and the device plugged in.")
+            Text("Keep WindowsiOS X open and the device plugged in.")
         }
 
         Section("Steps") {
