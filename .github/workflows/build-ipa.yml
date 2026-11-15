@@ -16,7 +16,7 @@ name: Build IPA
 
 on:
   push:
-    branches: [main, universal]
+    branches: [main, universal, 'claude/**']
     tags: ['v[0-9]+.[0-9]+*']
     paths-ignore: ['**.md', 'docs/**']
   pull_request:

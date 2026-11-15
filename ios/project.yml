@@ -66,6 +66,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.windowsios.universal
         PRODUCT_NAME: WindowsiOS
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
         TARGETED_DEVICE_FAMILY: "1,2"
