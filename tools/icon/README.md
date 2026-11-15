@@ -1,7 +1,7 @@
 # App icon
 
 WindowsiOS Universal's icon is Husk's icon (Husk's branch, `tools/icon/`) adapted to Windows: Husk drew
-Android's head as Apple's apple; here the apple is cut into Windows' four panes. Same glass look, same
+Android's head as Apple's apple; here Windows' four square panes (straight edges, sharp corners, centred) get Apple's bite and leaf. Same glass look, same
 rounded square and the same leaf, in Windows 11 blues.
 
     python3 tools/icon/render_windows.py tools/icon/husk_leaf.json tools/icon/squircle.png ios/Sources/Assets.xcassets/AppIcon.appiconset

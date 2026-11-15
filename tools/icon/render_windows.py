@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # WindowsiOS Universal app icon, in the style of Husk's icon (tools/icon/render.py on Husk's branch):
-# Husk drew Android's head as an Apple apple (with the bite and the leaf); here the apple is cut into
-# Windows' four panes. Same glass look, same rounded square, same leaf, Windows 11 blues.
+# Husk drew Android's head as an Apple apple (with the bite and the leaf); here Windows' four square
+# panes get Apple's bite and leaf. Same glass look, same rounded square, same leaf, Windows 11 blues.
 #
 #   python3 tools/icon/render_windows.py tools/icon/husk_leaf.json tools/icon/squircle.png <out-dir>
 #
@@ -21,45 +21,47 @@ os.makedirs(outdir, exist_ok=True)
 
 yy, xx = np.mgrid[0:S, 0:S].astype(float)
 
-# ---- the glyph, in "apple units": the body spans x -0.5..0.5, y 0..1 ----
-U = S * 0.50                         # body width in pixels (Husk's glyph spans ~0.70 with its leaf)
-CX, CY = S * 0.5 - U * 0.03, S * 0.385  # top of the body; a touch left, the bite takes the right side
-ux, uy = (xx - CX) / U, (yy - CY) / U
+# ---- the glyph: Windows' logo, exactly: four square panes with straight edges and sharp corners,
+# with Apple's bite out of the right side and Husk's leaf on top (as Husk did to Android's head).
+# The whole glyph (panes + leaf) is centred in the icon.
+P = S * 0.225                 # one pane's side
+GAP = S * 0.022               # the gap between panes (Windows 11 proportions)
+W = 2 * P + GAP               # the four panes' square
+LEAF_H = W * 0.36             # leaf height
+LEAF_GAP = W * 0.035          # between the leaf's foot and the panes
+gh = LEAF_H + LEAF_GAP + W    # glyph height
+X0 = (S - W) / 2              # panes centred horizontally
+Y0 = (S - gh) / 2 + LEAF_H + LEAF_GAP   # and the glyph centred vertically
 
-def disc(cx, cy, r):
-    return np.clip((r - np.hypot(ux - cx, uy - cy)) * U + 0.5, 0, 1)
-def ell(cx, cy, rx, ry):
-    d = np.hypot((ux - cx) / rx, (uy - cy) / ry)
-    return np.clip((1 - d) * min(rx, ry) * U + 0.5, 0, 1)
+def box(x0, y0, x1, y1):      # anti-aliased rectangle, sharp corners
+    return (np.clip(xx - x0 + 0.5, 0, 1) * np.clip(x1 - xx + 0.5, 0, 1) *
+            np.clip(yy - y0 + 0.5, 0, 1) * np.clip(y1 - yy + 0.5, 0, 1))
+def disc_px(cx, cy, r):
+    return np.clip(r - np.hypot(xx - cx, yy - cy) + 0.5, 0, 1)
 
-body = np.maximum.reduce([
-    disc(-0.22, 0.28, 0.29), disc(0.22, 0.28, 0.29),     # shoulders
-    ell(0.0, 0.56, 0.51, 0.40),                          # belly
-    disc(-0.19, 0.80, 0.21), disc(0.19, 0.80, 0.21),      # lower lobes
-])
-# close the waists between the circles: blur wide, keep a low threshold
-body = np.clip((ndimage.gaussian_filter(body, S * 0.02) - 0.42) * 8 + 0.5, 0, 1)
-body = np.minimum(body, 1 - disc(0.0, -0.035, 0.115))   # dip where the stem goes
-body = np.minimum(body, 1 - disc(0.0, 1.06, 0.09))     # dip at the bottom
-body = np.minimum(body, 1 - disc(0.60, 0.47, 0.185))    # the bite
-body = np.clip((ndimage.gaussian_filter(body, S * 0.004) - 0.5) * 6 + 0.5, 0, 1)  # round the joins
+panes = np.zeros((S, S))
+for i in range(2):
+    for j in range(2):
+        x = X0 + i * (P + GAP); y = Y0 + j * (P + GAP)
+        panes = np.maximum(panes, box(x, y, x + P, y + P))
+# the bite: a circle eating into the right edge, across the horizontal gap
+panes = np.minimum(panes, 1 - disc_px(X0 + W + P * 0.30, Y0 + W * 0.50, P * 0.50))
 
-# Windows' four panes: a cross-shaped gap through the body's centre.
-GX, GY, GAP = -0.03, 0.52, 0.05
-cross = np.maximum(np.clip((GAP / 2 - np.abs(ux - GX)) * U + 0.5, 0, 1),
-                   np.clip((GAP / 2 - np.abs(uy - GY)) * U + 0.5, 0, 1))
-panes = np.clip(body - cross, 0, 1)
-
-# Husk's leaf, scaled and set above the stem dip.
+# Husk's leaf, standing on the panes' top edge, just right of centre (where Apple's stem is).
 lp = leaf_pts - leaf_pts.min(0)
-lp = lp / lp[:, 1].max() * (0.36 * U)                    # 0.36 body units tall
-lp = lp + np.array([CX + U * 0.01 - lp[:, 0].min(), CY + U * 0.005 - lp[:, 1].max()])
+lp = lp / lp[:, 1].max() * LEAF_H
+lp = lp + np.array([S / 2 - lp[:, 0].min() + W * 0.01, Y0 - LEAF_GAP - lp[:, 1].max()])
 img = Image.new('L', (S * 2, S * 2), 0)
 ImageDraw.Draw(img).polygon([tuple(q) for q in lp * 2], fill=255)
 leaf = np.array(img.resize((S, S), Image.LANCZOS)).astype(float) / 255
 
+# centre the glyph horizontally including the leaf (the leaf leans right)
+gx0 = min(X0, lp[:, 0].min()); gx1 = max(X0 + W, lp[:, 0].max())
+dx = int(round(S / 2 - (gx0 + gx1) / 2))
+panes = np.roll(panes, dx, axis=1); leaf = np.roll(leaf, dx, axis=1)
+
 glyph = np.maximum(panes, leaf)
-gy0, gy1 = (lp[:, 1].min()) / S, (CY + U * 1.02) / S
+gy0, gy1 = (Y0 - LEAF_GAP - LEAF_H) / S, (Y0 + W) / S
 Y, X = yy / S, xx / S
 gyn = np.clip((Y - gy0) / (gy1 - gy0), 0, 1)
 
