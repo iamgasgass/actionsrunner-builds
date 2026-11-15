@@ -168,6 +168,10 @@ final class HingeObserverViewController: UIViewController {
         guard !didInstallHinge else { return }
         didInstallHinge = true
         guard NSClassFromString("UIHingeInteraction") != nil else { return }
+        // WindowsiOS Universal: UIHingeInteraction is only in the iOS 27.1 SDK. The build passes
+        // -D WINIOS_HINGE when the SDK has it (see .github/workflows/build-ipa.yml); with an older
+        // SDK the app builds without the hinge sensor and every device uses the no-hinge layout.
+        #if WINIOS_HINGE
         if #available(iOS 27.1, *) {
             let interaction = UIHingeInteraction { [weak self] _, update in
                 guard let self else { return }
@@ -183,6 +187,7 @@ final class HingeObserverViewController: UIViewController {
             }
             view.addInteraction(interaction)
         }
+        #endif
     }
 }
 
