@@ -41,3 +41,4 @@ ios/DerivedData/
 __pycache__/
 *.pyc
 .DS_Store
+ios/Sources/Resources/generated/

@@ -73,13 +73,14 @@ $(B):
 IOS_SDK = $(shell xcrun --sdk iphoneos --show-sdk-path)
 IOS_CC = xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=17.0 -isysroot $(IOS_SDK)
 IOS_SLIRP_INC ?= ios/deps/include/slirp
-IOS_CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -I$(IOS_SLIRP_INC)
+IOS_CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -I$(IOS_SLIRP_INC) -Iios/deps/include
 IOS_OBJCFLAGS = -fobjc-arc -Wall -Wextra -O2 -g -Icore -Ihost -Idevices
 IB = build/ios
 
 IOS_C_SRC = $(wildcard core/*.c) \
             host/jit_region.c host/disk.c host/winvm.c host/net_slirp.c host/share.c \
-            host/audio_mac.c host/hvsparse.c host/prof_ios.c \
+            host/audio_mac.c host/hvsparse.c host/prof_ios.c host/win_installer.c \
+            third_party/fatfs/ff.c third_party/fatfs/ffunicode.c \
             $(wildcard devices/*.c)
 IOS_OBJ = $(patsubst %.c,$(IB)/%.o,$(IOS_C_SRC)) $(IB)/host/enter.o $(IB)/devices/fb_metal.o
 

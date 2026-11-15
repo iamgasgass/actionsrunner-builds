@@ -30,6 +30,16 @@ targets:
           - "Resources/**"
       - path: Sources/Resources/henge-jit.js
         buildPhase: resources
+      # On-device install (like Henge): WinPE scripts, unattend.xml, lite tuning
+      - path: Sources/Resources/install
+        type: folder
+        buildPhase: resources
+      # Made by CI (.github/workflows/build-ipa.yml): windows-catalog.json, EDK2 firmware,
+      # NetKVM driver, opt_hive_arm64.exe. Missing in a plain checkout: the app then asks for files.
+      - path: Sources/Resources/generated
+        type: folder
+        buildPhase: resources
+        optional: true
     info:
       path: Sources/Info.plist
       properties:
@@ -45,6 +55,12 @@ targets:
         CFBundleVersion: "2"
         UIBackgroundModes:
           - audio
+        # Microsoft's ESD catalog still lists some files as http://: allow that one CDN.
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            dl.delivery.mp.microsoft.com:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
@@ -92,6 +108,8 @@ targets:
           - -lffi
           - -lresolv
           - -liconv
+          - -lwim
+          - -lz
     dependencies:
       - sdk: AVFoundation.framework
       - sdk: SafariServices.framework

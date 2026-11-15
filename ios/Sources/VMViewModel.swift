@@ -89,6 +89,8 @@ final class VMViewModel: ObservableObject {
     @Published var activeSafariURL: IdentifiableURL? = nil
     @Published var useSafariForOAuth: Bool = WinIOSBridge.shared.useSafariForGuestLinks
     @Published var showDeviceSettings: Bool = false
+    @Published var showInstaller: Bool = false
+    @Published var hasMachine: Bool = false
     @Published var deviceSummary: String = ""
     @Published var isChipTooOld: Bool = false
 
@@ -98,6 +100,7 @@ final class VMViewModel: ObservableObject {
     init() {
         let bridge = WinIOSBridge.shared
         bridge.installTrapGuard()
+        WindowsInstaller.shared.restore() // an install that was running when the app closed goes on
         bridge.onStateChanged = { [weak self] in
             Task { @MainActor in
                 self?.syncFromBridge()
@@ -247,6 +250,7 @@ final class VMViewModel: ObservableObject {
         usbEventsDelivered = b.usbEventsDelivered
         deviceSummary = DeviceSupport.summaryLine
         isChipTooOld = b.isChipTooOld
+        hasMachine = b.hasProvisionedMachine()
     }
 
     func onAppBecameActive() {
@@ -273,6 +277,11 @@ final class VMViewModel: ObservableObject {
     }
 
     func requestStikDebugJIT() {
+        Self.openStikDebug()
+    }
+
+    /// Opens StikDebug to enable JIT for this app, with the bundled henge-jit.js trap script.
+    static func openStikDebug() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
         var urlStr = "stikjit://enable-jit?bundle-id=\(bundleID)&pid=\(getpid())"
         if let scriptPath = Bundle.main.path(forResource: "henge-jit", ofType: "js"),

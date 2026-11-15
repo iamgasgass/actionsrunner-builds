@@ -31,12 +31,17 @@ The tier is chosen from the RAM the device reports, not from the model name, so 
 - **Scripts**: `scripts/launch_on_device.sh <UDID>` works for any device (`launch_on_duo.sh` kept as an alias); no hard-coded UDIDs, bundle ID or personal paths in the launch / dependency scripts; the libslirp iOS patch is vendored in `patches/`.
 - **CI**: `.github/workflows/build-ipa.yml` builds an unsigned `WindowsiOS.ipa` on GitHub Actions (artifact, or release on a `v*` tag).
 
-### Install / Installazione
+### Install / Installazione — like Henge, all on the iPhone
 
-1. Build `WindowsiOS.ipa` (GitHub Actions → *Build IPA*, or on a Mac as described below) and sideload it with SideStore, AltStore or TrollStore.
-2. Prepare `code.fd`, `vars.fd` and `windows11.hvsparse` on a Mac (steps 2 below) and copy them with the Files app / Finder into **WindowsiOS › Machines › Win11**. On 4–6 GB iPhones use the *lite* image (`scripts/optimize_windows_lite.py`).
-3. Open the app and tap **ENABLE JIT** (StikDebug), or from a Mac run `./scripts/launch_on_device.sh <UDID>`.
-4. Tap **BOOT WINDOWS 11**.
+1. Sideload `WindowsiOS.ipa` (GitHub Actions → *Build IPA* → artifact) with SideStore, AltStore or TrollStore.
+2. Open it, tap **INSTALL WINDOWS 11**, pick the language, the account name and Lite (recommended on 4–6 GB iPhones), tap **Install Windows 11**.
+3. The app downloads Windows 11 Pro ARM64 from Microsoft's servers (resumable, checksum verified), builds the installer disk on the iPhone, and asks for JIT (StikDebug).
+4. Windows PE installs Windows in the VM (DISM, VirtIO network driver, Lite tuning, bcdboot), reboots into Windows' unattended setup, which signs in and turns off by itself. Keep the app open and the iPhone plugged in: 1–2 hours, about 30 GB free needed.
+5. Close the app (swipe it away), open it again with JIT, tap **BOOT WINDOWS 11**.
+
+No Mac is needed. The old route still works: put `code.fd`, `vars.fd` and `windows11.hvsparse` from `scripts/provision_windows_arm64.py` in **WindowsiOS › Machines › Win11**.
+
+How it works: `host/win_installer.c` reads the ESD with wimlib and writes a GPT disk image with a FAT32 Windows PE partition and an exFAT partition holding the ESD, with FatFs (no mounting: iOS apps can't). `ios/Sources/Resources/install/startnet.cmd` and `unattend.xml` are the scripts that run in the VM. CI adds Microsoft's download list (`scripts/make_windows_catalog.py`), EDK2's UEFI firmware, Red Hat's NetKVM driver and `opt_hive_arm64.exe`.
 
 > Not tested on hardware by this fork. The device-profile C code was syntax-checked and unit-tested on Linux with mocked `sysctl` values for every RAM tier and for A13/A12 devices; the Swift / Objective-C changes and the CI workflow have not been built yet (that needs Xcode 27.1+ on macOS). Upstream's engine itself was verified only on an iPhone Duo. Reports from other iPhones are welcome.
 

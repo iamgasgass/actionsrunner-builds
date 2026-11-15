@@ -43,6 +43,10 @@ struct SessionView: View {
             .onChange(of: size) { _, newSize in
                 WinIOSBridge.shared.updateScreenSize(newSize, scale: UIScreen.main.scale)
             }
+            .sheet(isPresented: $vm.showInstaller, onDismiss: { vm.syncFromBridge() }) {
+                InstallView(onStartVM: { vm.syncFromBridge() })
+                    .preferredColorScheme(.dark)
+            }
             .sheet(isPresented: $vm.showDeviceSettings) {
                 DeviceSettingsSheet()
                     .preferredColorScheme(.dark)
@@ -627,6 +631,22 @@ struct SessionView: View {
                 Text("\(vm.availableMemoryMB) MB HEADROOM")
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.60))
+            }
+
+            if !vm.isUnpacking && !vm.isChipTooOld && (!vm.hasMachine || WindowsInstaller.installPending) {
+                // WindowsiOS Universal: no Windows yet -> install it here, as Henge installs macOS.
+                Button {
+                    vm.showInstaller = true
+                } label: {
+                    Text(WindowsInstaller.installPending ? "INSTALLING WINDOWS 11…" : "INSTALL WINDOWS 11")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .tracking(1.1)
+                        .foregroundStyle(Color(red: 0.04, green: 0.05, blue: 0.09))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 9)
+                        .background(Color(red: 0.55, green: 0.80, blue: 1.0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
 
             if !vm.isUnpacking && !vm.isChipTooOld {

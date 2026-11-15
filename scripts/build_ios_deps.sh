@@ -47,6 +47,8 @@ unset PKG_CONFIG_PATH
 FFI_URL="https://github.com/libffi/libffi/releases/download/v3.5.0/libffi-3.5.0.tar.gz"
 GLIB_URL="https://download.gnome.org/sources/glib/2.83/glib-2.83.0.tar.xz"
 SLIRP_URL="https://github.com/utmapp/libslirp/releases/download/v4.9.1-release-mirror/libslirp-v4.9.1.tar.gz"
+# WindowsiOS Universal: wimlib reads Microsoft's ESD on the iPhone (on-device install, host/win_installer.c)
+WIMLIB_URL="https://wimlib.net/downloads/wimlib-1.14.4.tar.gz"
 
 fetch_unpack() {
     local url="$1"
@@ -67,6 +69,7 @@ fetch_unpack() {
 fetch_unpack "$FFI_URL"
 fetch_unpack "$GLIB_URL"
 fetch_unpack "$SLIRP_URL"
+fetch_unpack "$WIMLIB_URL"
 
 meson_quote() { echo "'$(echo $* | sed "s/ /','/g")'"; }
 
@@ -156,10 +159,23 @@ if [ ! -f "$STAMPS/libslirp" ]; then
     touch "$STAMPS/libslirp"
 fi
 
+# 4. wimlib (library only: no FUSE, no NTFS-3G, no command-line tool)
+if [ ! -f "$STAMPS/wimlib" ]; then
+    echo "[build] wimlib-1.14.4"
+    ( cd "$SRC/wimlib-1.14.4" \
+      && ./configure --host=aarch64-apple-darwin --prefix="$PREFIX" --enable-static --disable-shared \
+            --without-fuse --without-ntfs-3g \
+      && make -j"$NCPU" libwim.la \
+      && make install-libLTLIBRARIES install-includeHEADERS ) > "$WORK_DEPS/wimlib.log" 2>&1 \
+      || { tail -60 "$WORK_DEPS/wimlib.log"; exit 1; }
+    touch "$STAMPS/wimlib"
+fi
+
 # Stage headers & static archives into ios/deps/
 rm -rf "$OUT_DEPS/include/slirp"
 cp -R "$PREFIX/include/slirp" "$OUT_DEPS/include/slirp"
-for lib in libslirp.a libglib-2.0.a libintl.a libpcre2-8.a libffi.a; do
+cp "$PREFIX/include/wimlib.h" "$OUT_DEPS/include/wimlib.h"
+for lib in libslirp.a libglib-2.0.a libintl.a libpcre2-8.a libffi.a libwim.a; do
     if [ -f "$PREFIX/lib/$lib" ]; then
         cp "$PREFIX/lib/$lib" "$OUT_DEPS/lib/$lib"
     fi

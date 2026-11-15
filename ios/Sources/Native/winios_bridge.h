@@ -43,6 +43,28 @@ typedef void (^WinIOSStateCallback)(void);
 /* 0 = automatic. Takes effect at the next launch (guest RAM is reserved while JIT is enabled). */
 - (void)setRamOverrideMB:(uint64_t)ramMB cpus:(NSInteger)cpus;
 
+/* WindowsiOS Universal: on-device install, as Henge installs macOS (host/win_installer.c). */
+/* When set, the VM gets this installer disk as its second NVMe disk. */
+@property (nonatomic, copy, nullable) NSString *installerDiskPath;
+/* Called on the main queue when the VM stops (reason as in vmStatusText). */
+@property (nonatomic, copy, nullable) void (^onVMExit)(NSString *reason);
+/* Documents/Machines/Win11 */
+@property (nonatomic, readonly) NSString *machinePath;
+- (nullable NSDictionary<NSString *, id> *)inspectWindowsImage:(NSString *)esdPath error:(NSString * _Nullable * _Nullable)error
+    NS_SWIFT_NAME(inspectWindowsImage(_:error:));
+/* Blocking (minutes): call it off the main thread. progress is called on that thread. */
+- (BOOL)buildInstallerDiskFromImage:(NSString *)esdPath
+                            startnet:(NSString *)startnetPath
+                             payload:(nullable NSString *)payloadDir
+                              output:(NSString *)outputPath
+                             workDir:(NSString *)workDir
+                           deleteESD:(BOOL)deleteESD
+                            progress:(void (^)(double fraction, NSString *stage))progress
+                               error:(NSString * _Nullable * _Nullable)error
+    NS_SWIFT_NAME(buildInstallerDisk(image:startnet:payload:output:workDir:deleteESD:progress:error:));
+- (BOOL)createSystemDiskAt:(NSString *)path gigabytes:(NSInteger)gigabytes error:(NSString * _Nullable * _Nullable)error
+    NS_SWIFT_NAME(createSystemDisk(path:gigabytes:error:));
+
 - (nullable NSString *)takeGuestOpenURL;
 - (BOOL)takeGuestOAuthDone;
 

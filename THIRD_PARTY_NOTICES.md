@@ -198,3 +198,11 @@ The following proprietary operating system and application packages are **never*
 
 - **Microsoft Windows 11 24H2 ARM64** (`Build 26100`) — Property of Microsoft Corporation, governed by the Microsoft Software License Terms. Users supply their own official Microsoft retail ARM64 ESD/ISO (`work/downloads/Win11_24H2_ARM64_en-us.esd`).
 - **Google Antigravity (`2.31.0` Windows ARM64)** — Property of Google LLC, governed by its respective terms of service.
+
+## Added by WindowsiOS Universal (on-device install)
+
+- **FatFs** R0.16 (ChaN) — `third_party/fatfs/`, BSD-style one-clause license (`third_party/fatfs/LICENSE.txt`). Formats and fills the installer disk's FAT32 / exFAT partitions.
+- **wimlib** 1.14.4 (Eric Biggers) — LGPL-3.0-or-later, built from source by `scripts/build_ios_deps.sh`. Reads Microsoft's ESD and writes Windows PE's boot.wim. As GPL-2.0-or-later code linked with LGPL-3.0 code, the app binary is distributed under GPL-3.0.
+- **EDK2 ArmVirtQemu UEFI** (`edk2-aarch64-code.fd`, `edk2-arm-vars.fd`) — BSD-2-Clause-Patent, taken from Homebrew's QEMU at build time.
+- **virtio-win NetKVM** (Red Hat) — BSD-3-Clause, downloaded at build time.
+- Windows itself is downloaded by the app from Microsoft's servers and is subject to Microsoft's license terms; nothing from Windows is included in this repository or the app.

@@ -50,7 +50,7 @@ jobs:
 
       - name: Tools
         run: |
-          brew install meson ninja pkg-config xcodegen libslirp glib || true
+          brew install meson ninja pkg-config xcodegen libslirp glib qemu cabextract llvm lld || true
           xcodebuild -version
 
       - name: Cache iOS dependencies
@@ -67,6 +67,29 @@ jobs:
 
       - name: Build libwinvm.a (engine + devices) for iOS
         run: make -j"$(sysctl -n hw.ncpu)" ios-lib
+
+      - name: On-device install resources (catalog, firmware, network driver, lite tool)
+        run: |
+          G=ios/Sources/Resources/generated
+          mkdir -p "$G/firmware" "$G/install/drivers"
+          # Microsoft's Windows 11 ARM64 ESDs, one per language (Media Creation Tool catalog)
+          python3 scripts/make_windows_catalog.py "$G/windows-catalog.json" \
+            || echo "::warning::Windows catalog unavailable: the app will only offer importing an ESD"
+          # EDK2 UEFI for the virtual ARM64 PC (BSD-2-Clause-Patent), from Homebrew's QEMU
+          Q="$(brew --prefix qemu)/share/qemu"
+          cp "$Q/edk2-aarch64-code.fd" "$G/firmware/code.fd"
+          cp "$Q/edk2-arm-vars.fd" "$G/firmware/vars.fd"
+          ls -l "$G/firmware"
+          # Red Hat's WHQL VirtIO network driver (NetKVM) for Windows 11 ARM64
+          curl -fL --retry 3 -o /tmp/virtio-win.iso \
+            https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso \
+            && mkdir -p /tmp/vw && bsdtar -xf /tmp/virtio-win.iso -C /tmp/vw NetKVM/w11/ARM64 \
+            && cp -R /tmp/vw/NetKVM/w11/ARM64 "$G/install/drivers/NetKVM" \
+            || echo "::warning::NetKVM driver unavailable: Windows will install without network"
+          # Offline registry tool for the "lite" option (tools/opt_hive_arm64.c)
+          ./scripts/build_opt_hive.sh "$G/install/opt_hive_arm64.exe" \
+            || echo "::warning::opt_hive_arm64.exe not built: lite install skips service tuning"
+          find "$G" -maxdepth 3 | head -40
 
       - name: Build the app (unsigned)
         run: |

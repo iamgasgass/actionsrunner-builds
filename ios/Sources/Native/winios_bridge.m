@@ -3,6 +3,7 @@
 
 #include "hvsparse.h"
 #include "share.h"
+#include "win_installer.h"
 #include "winios_device.h"
 #include "winios_jit.h"
 #include "winvm.h"
@@ -390,7 +391,7 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
     }
 
     if (![self hasProvisionedMachine]) {
-        _vmStatus = @"Place code.fd, vars.fd, and windows11.hvsparse in Documents/Machines/Win11";
+        _vmStatus = @"Windows is not installed yet: tap Install Windows 11 (or place code.fd, vars.fd and windows11.hvsparse in Machines/Win11).";
         dispatch_async(_diagQueue, ^{ [self writeDiagnosticsSnapshot]; });
         [self notifyChanged];
         return;
@@ -473,6 +474,9 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
     NSString *codePath = [dir stringByAppendingPathComponent:@"code.fd"];
     NSString *varsPath = [dir stringByAppendingPathComponent:@"vars.fd"];
     NSString *diskPath = [dir stringByAppendingPathComponent:@"windows11.img"];
+    /* WindowsiOS Universal: during the on-device install the installer disk is the second NVMe disk. */
+    NSString *installerDisk = self.installerDiskPath;
+    if (installerDisk.length && ![[NSFileManager defaultManager] fileExistsAtPath:installerDisk]) installerDisk = nil;
 
     _configuredRamMB = ramMB;
     _configuredCPUs = winios_device_effective_cpus();
@@ -481,7 +485,7 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
         .code_fd = codePath.fileSystemRepresentation,
         .vars_fd = varsPath.fileSystemRepresentation,
         .disk0 = diskPath.fileSystemRepresentation,
-        .disk1 = NULL,
+        .disk1 = installerDisk.length ? installerDisk.fileSystemRepresentation : NULL,
         .share_dir = sharedDir.fileSystemRepresentation,
         .share_sock = shareSock.fileSystemRepresentation,
         .ncpus = _configuredCPUs,
@@ -659,6 +663,71 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
     _vmStatus = [NSString stringWithFormat:@"Stopped (%@)", reason];
     dispatch_async(_diagQueue, ^{ [self writeDiagnosticsSnapshot]; });
     [self notifyChanged];
+    if (self.onVMExit) self.onVMExit(reason);
+}
+
+/* ---- WindowsiOS Universal: on-device install (host/win_installer.c) ---- */
+
+typedef struct InstallProgressCtx {
+    __unsafe_unretained void (^cb)(double, NSString *);
+    CFAbsoluteTime last;
+} InstallProgressCtx;
+
+static void install_progress_cb(double frac, const char *stage, void *opaque) {
+    InstallProgressCtx *c = opaque;
+    CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+    if (frac < 1.0 && now - c->last < 0.25) return;
+    c->last = now;
+    if (c->cb) c->cb(frac, [NSString stringWithUTF8String:stage ? stage : ""]);
+}
+
+- (nullable NSDictionary<NSString *, id> *)inspectWindowsImage:(NSString *)esdPath error:(NSString * _Nullable * _Nullable)error {
+    HvWinInstEsdInfo info;
+    char err[512] = {0};
+    if (hv_wininst_inspect(esdPath.fileSystemRepresentation, &info, err, sizeof err) != 0) {
+        if (error) *error = [NSString stringWithUTF8String:err];
+        return nil;
+    }
+    return @{@"proIndex": @(info.pro_index), @"name": [NSString stringWithUTF8String:info.pro_name],
+             @"build": [NSString stringWithUTF8String:info.build], @"images": @(info.image_count)};
+}
+
+- (BOOL)buildInstallerDiskFromImage:(NSString *)esdPath
+                            startnet:(NSString *)startnetPath
+                             payload:(nullable NSString *)payloadDir
+                              output:(NSString *)outputPath
+                             workDir:(NSString *)workDir
+                           deleteESD:(BOOL)deleteESD
+                            progress:(void (^)(double fraction, NSString *stage))progress
+                               error:(NSString * _Nullable * _Nullable)error {
+    HvWinInstOpts o = {
+        .esd_path = esdPath.fileSystemRepresentation,
+        .out_img = outputPath.fileSystemRepresentation,
+        .work_dir = workDir.fileSystemRepresentation,
+        .startnet_cmd = startnetPath.fileSystemRepresentation,
+        .payload_dir = payloadDir.length ? payloadDir.fileSystemRepresentation : NULL,
+        .delete_esd = deleteESD ? 1 : 0,
+    };
+    InstallProgressCtx ctx = {progress, 0};
+    char err[512] = {0};
+    if (hv_wininst_build(&o, install_progress_cb, &ctx, err, sizeof err) != 0) {
+        if (error) *error = [NSString stringWithUTF8String:err];
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)createSystemDiskAt:(NSString *)path gigabytes:(NSInteger)gigabytes error:(NSString * _Nullable * _Nullable)error {
+    char err[512] = {0};
+    if (hv_wininst_create_disk(path.fileSystemRepresentation, (uint64_t)gigabytes << 30, err, sizeof err) != 0) {
+        if (error) *error = [NSString stringWithUTF8String:err];
+        return NO;
+    }
+    return YES;
+}
+
+- (NSString *)machinePath {
+    return [self machineDirectory];
 }
 
 - (void)sendTabletNormalizedX:(double)x y:(double)y buttons:(uint8_t)buttons wheel:(int8_t)wheel {
