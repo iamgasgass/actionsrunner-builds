@@ -77,7 +77,9 @@ def main():
                 "language": text(el, "Language") or code,
                 "code": code,
                 "file": name,
-                "url": re.sub(r"^http://", "https://", url),
+                # As Microsoft lists it: dl.delivery.mp.microsoft.com has no valid HTTPS certificate for its
+                # own name. The app allows plain HTTP for that host only and checks the SHA-1 below.
+                "url": url,
                 "size": int(text(el, "Size") or 0),
                 "sha1": text(el, "Sha1").lower(),
                 "build": m.group(1) if m else "",

@@ -205,7 +205,7 @@ final class WindowsInstaller: NSObject, ObservableObject {
         phase = .downloading
         stage = "Downloading \(r.title), \(r.language)"
         say(stage)
-        guard let url = URL(string: r.url) else { throw InstallError("Bad download address") }
+        guard let url = Self.downloadURL(r.url) else { throw InstallError("Bad download address") }
         let part = Self.partPath(r)
         if !FileManager.default.fileExists(atPath: part.path) { FileManager.default.createFile(atPath: part.path, contents: nil) }
         var have = Self.partSize(r)
@@ -228,6 +228,10 @@ final class WindowsInstaller: NSObject, ObservableObject {
                 throw CancellationError()
             } catch let e as InstallError where e.fatal {
                 throw e
+            } catch let e as URLError where [.serverCertificateUntrusted, .serverCertificateHasBadDate,
+                                              .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+                                              .secureConnectionFailed, .appTransportSecurityRequiresSecureConnection].contains(e.code) {
+                throw InstallError("Secure connection to Microsoft's server failed: \(e.localizedDescription)")
             } catch {
                 attempts += 1
                 have = Self.partSize(r)
@@ -240,6 +244,15 @@ final class WindowsInstaller: NSObject, ObservableObject {
         try? FileManager.default.removeItem(at: Self.esdPath(r))
         try FileManager.default.moveItem(at: part, to: Self.esdPath(r))
         say("Downloaded \(ByteCountFormatter.string(fromByteCount: have, countStyle: .file))")
+    }
+
+    /// Microsoft's ESD CDN (dl.delivery.mp.microsoft.com) answers HTTPS with a certificate for another name, so
+    /// iOS rejects it: download over HTTP as Microsoft's own Media Creation Tool does (Info.plist allows that one
+    /// host) and rely on the SHA-1 from Microsoft's catalog, checked before anything is installed.
+    nonisolated static func downloadURL(_ string: String) -> URL? {
+        guard var c = URLComponents(string: string) else { return nil }
+        if let host = c.host?.lowercased(), host.hasSuffix("delivery.mp.microsoft.com") { c.scheme = "http" }
+        return c.url
     }
 
     private func verify(_ file: URL, sha1 expectedHash: String) async throws {
