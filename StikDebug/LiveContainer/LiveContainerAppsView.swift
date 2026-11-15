@@ -21,6 +21,9 @@ struct LiveContainerAppsView: View {
     @State private var apps: [LiveContainerGuestApp] = []
     @State private var searchText = ""
     @State private var showHelp = false
+    @State private var scriptPickerApp: LiveContainerGuestApp?
+    /// Bumped when a script choice changes so rows re-read it.
+    @State private var scriptChoicesVersion = 0
 
     private static let maxFavorites = 4
     private static let maxRecents = 3
@@ -68,25 +71,27 @@ struct LiveContainerAppsView: View {
                     }
                 }
         }
-        .overlay(alignment: .bottom) { feedbackCapsule }
         .onAppear {
             reload()
+            // The JIT status capsule lives in its own window so it stays above Multitask windows.
+            if LiveContainerBridge.isRunningInLiveContainer {
+                LiveContainerOverlayWindow.shared.install()
+            }
             // Warm up the device connection so tapping an app is instant.
             if !tunnel.isConnected { startTunnelInBackground(showErrorUI: false) }
         }
         .onChange(of: showHidden) { _, _ in reload() }
-        .sheet(item: $controller.presentedScriptModel) { model in
-            NavigationStack {
-                RunJSView(model: model)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button("Done") { controller.presentedScriptModel = nil }
-                        }
-                    }
-                    .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showHelp) { helpSheet }
+        .sheet(item: $scriptPickerApp) { app in
+            ScriptListView { url in
+                if let url {
+                    LiveContainerJITScript.setChoice(url.lastPathComponent, for: app)
+                    Haptics.light()
+                }
+                scriptPickerApp = nil
+                scriptChoicesVersion += 1
             }
         }
-        .sheet(isPresented: $showHelp) { helpSheet }
     }
 
     // MARK: - List
@@ -194,6 +199,7 @@ struct LiveContainerAppsView: View {
             } label: {
                 Label("Copy Bundle ID", systemImage: "doc.on.doc")
             }
+            scriptMenu(for: app)
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button {
@@ -208,8 +214,55 @@ struct LiveContainerAppsView: View {
             } label: {
                 Label("Copy ID", systemImage: "doc.on.doc")
             }
+
+            Button {
+                scriptPickerApp = app
+            } label: {
+                Label("Script", systemImage: "chevron.left.slash.chevron.right")
+            }
+            .tint(.indigo)
         }
         .accessibilityLabel(String(format: "Enable JIT for %@".localized, app.displayName))
+    }
+
+    /// Same idea as "Assign Script" in the JIT tab. Without a choice the default order applies:
+    /// LiveContainer script → script assigned in the JIT tab → automatic → universal.js (TXM).
+    @ViewBuilder
+    private func scriptMenu(for app: LiveContainerGuestApp) -> some View {
+        let _ = scriptChoicesVersion
+        let choice = LiveContainerJITScript.choice(for: app)
+        let fallback = LiveContainerJITScript.defaultScript(for: app)
+        let defaultTitle = "Default Order (\(fallback.script?.name ?? "No Script"))"
+
+        Menu {
+            Button {
+                LiveContainerJITScript.setChoice(nil, for: app)
+                scriptChoicesVersion += 1
+            } label: {
+                Label(defaultTitle, systemImage: choice == nil ? "checkmark" : "arrow.uturn.left")
+            }
+            Button {
+                scriptPickerApp = app
+            } label: {
+                let chosenName = choice.flatMap { $0 == LiveContainerJITScript.noScriptChoice ? nil : $0 }
+                Label(chosenName.map { "Assigned: \($0)" } ?? "Assign Script…",
+                      systemImage: chosenName == nil ? "chevron.left.slash.chevron.right" : "checkmark")
+            }
+            Button {
+                LiveContainerJITScript.setChoice(LiveContainerJITScript.noScriptChoice, for: app)
+                scriptChoicesVersion += 1
+            } label: {
+                Label("No Script", systemImage: choice == LiveContainerJITScript.noScriptChoice ? "checkmark" : "nosign")
+            }
+        } label: {
+            Label("Script: \(scriptSummary(for: app))", systemImage: "chevron.left.slash.chevron.right")
+        }
+    }
+
+    private func scriptSummary(for app: LiveContainerGuestApp) -> String {
+        let resolved = LiveContainerJITScript.resolve(for: app)
+        guard let script = resolved.script else { return "None" }
+        return "\(script.name) (\(resolved.source.label))"
     }
 
     private func emptyState(systemImage: String, title: String, message: String) -> some View {
@@ -230,41 +283,6 @@ struct LiveContainerAppsView: View {
         }
     }
 
-    // MARK: - Feedback (same capsule as the JIT tab)
-
-    @ViewBuilder
-    private var feedbackCapsule: some View {
-        if let feedback = controller.feedback {
-            Button {
-                if controller.activeScriptModel != nil { controller.showScriptLog() }
-            } label: {
-                HStack(spacing: 10) {
-                    if feedback.kind == .working {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text(feedback.message)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-                    if controller.activeScriptModel != nil {
-                        Image(systemName: "text.alignleft")
-                            .font(.footnote.weight(.semibold))
-                            .accessibilityLabel("Show script log")
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(.ultraThinMaterial))
-                .foregroundStyle(feedback.kind == .failure ? .red : (feedback.kind == .success ? .green : .primary))
-                .shadow(radius: 4)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 100)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
-    }
-
     private var helpSheet: some View {
         NavigationStack {
             List {
@@ -275,7 +293,7 @@ struct LiveContainerAppsView: View {
                     3. In LiveContainer settings, enable Multitask and keep the LiveProcess extension installed.
                     4. Tap an app here: it opens in a Multitask window with JIT enabled.
 
-                    StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app runs in a separate LiveContainer process and StikDebug attaches to it. On devices that need a JIT script, the app's LiveContainer script, your assigned script or universal.js runs in the background; tap the status capsule to see its log.
+                    StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app runs in a separate LiveContainer process and StikDebug attaches to it. On devices that need a JIT script, the app's LiveContainer script, your assigned script or universal.js runs in the background; tap the Liquid Glass status pill to see its log. Long-press an app to choose its script (default order: LiveContainer script → script assigned in the JIT tab → automatic → universal.js).
                     """)
                     .font(.callout)
                 }

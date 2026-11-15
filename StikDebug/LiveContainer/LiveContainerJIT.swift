@@ -18,27 +18,75 @@ private let lcCsops: CsopsFunction? = dlsym(UnsafeMutableRawPointer(bitPattern: 
     .map { unsafeBitCast($0, to: CsopsFunction.self) }
 
 enum LiveContainerJITScript {
-    /// Script for a LiveContainer guest app, in order of preference:
+    enum Source: Equatable {
+        case chosen          // picked for this app in the LiveContainer tab
+        case liveContainer   // LiveContainer's per-app "JIT launch script"
+        case assigned        // assigned to the bundle ID in the JIT tab
+        case automatic       // StikDebug's automatic assignment (by app name)
+        case universal       // universal.js fallback on TXM devices
+        case none
+
+        var label: String {
+            switch self {
+            case .chosen: return "Chosen"
+            case .liveContainer: return "LiveContainer"
+            case .assigned: return "Assigned in JIT tab"
+            case .automatic: return "Automatic"
+            case .universal: return "Default"
+            case .none: return "None"
+            }
+        }
+    }
+
+    private static let choiceKey = "lcScriptChoices"
+    /// Stored choice meaning "attach without any script".
+    static let noScriptChoice = "__none__"
+
+    /// Script explicitly chosen for this app in the LiveContainer tab (file name, or `noScriptChoice`).
+    static func choice(for app: LiveContainerGuestApp) -> String? {
+        (UserDefaults.standard.dictionary(forKey: choiceKey) as? [String: String])?[app.id]
+    }
+
+    static func setChoice(_ value: String?, for app: LiveContainerGuestApp) {
+        var map = (UserDefaults.standard.dictionary(forKey: choiceKey) as? [String: String]) ?? [:]
+        map[app.id] = value
+        UserDefaults.standard.set(map, forKey: choiceKey)
+    }
+
+    /// Script for a LiveContainer guest app. A script chosen in the LiveContainer tab wins;
+    /// otherwise the default order is:
     /// 1. the per-app JIT script configured in LiveContainer,
-    /// 2. a script the user assigned to the bundle ID in StikDebug,
+    /// 2. a script assigned to the bundle ID in the JIT tab,
     /// 3. StikDebug's automatic assignment, matched by the guest's *name*
     ///    (upstream matches names from the device app list, where LiveContainer guests never appear),
     /// 4. on TXM devices, universal.js for every other app (attaching without a script does not
     ///    enable JIT there) — the same handling that makes Henge and Husk work.
     static func script(for app: LiveContainerGuestApp) -> (data: Data, name: String)? {
+        resolve(for: app).script
+    }
+
+    static func resolve(for app: LiveContainerGuestApp) -> (script: (data: Data, name: String)?, source: Source) {
+        if let choice = choice(for: app) {
+            if choice == noScriptChoice { return (nil, .none) }
+            if let chosen = ScriptStore.script(named: choice) { return (chosen, .chosen) }
+        }
+        return defaultScript(for: app)
+    }
+
+    static func defaultScript(for app: LiveContainerGuestApp) -> (script: (data: Data, name: String)?, source: Source) {
         if let data = app.jitLaunchScript {
-            return (data, "\(app.displayName) (LiveContainer).js")
+            return ((data, "\(app.displayName) (LiveContainer).js"), .liveContainer)
         }
         if let name = ScriptStore.assignedScriptName(for: app.bundleIdentifier),
            let assigned = ScriptStore.script(named: name) {
-            return assigned
+            return (assigned, .assigned)
         }
-        guard ProcessInfo.processInfo.hasTXM else { return nil }
+        guard ProcessInfo.processInfo.hasTXM else { return (nil, .none) }
         if let resource = ScriptStore.autoScriptResource(for: app.displayName),
            let auto = bundledScript(resource) {
-            return auto
+            return (auto, .automatic)
         }
-        return bundledScript(universal)
+        return (bundledScript(universal), .universal)
     }
 
     static let universal = ScriptResource(resourceName: "universal", fileName: "universal.js")
@@ -78,20 +126,47 @@ struct LiveContainerJITFeedback: Identifiable, Equatable {
     let kind: Kind
 }
 
+/// A JIT script session that stays attached to a LiveContainer app (universal.js keeps serving
+/// the app's JIT requests until the app detaches or closes, e.g. Husk never detaches).
+final class LiveContainerJITSession: ObservableObject, Identifiable {
+    enum State: Equatable {
+        case attaching
+        case serving        // JIT on; the script waits for the app's next JIT request
+        case finished       // the app detached itself (e.g. Henge) or the script ended
+        case appClosed
+    }
+
+    let id = UUID()
+    let app: LiveContainerGuestApp
+    let pid: Int32
+    let scriptName: String
+    @Published var state: State = .attaching
+    @Published var model: RunJSViewModel?
+
+    init(app: LiveContainerGuestApp, pid: Int32, scriptName: String) {
+        self.app = app
+        self.pid = pid
+        self.scriptName = scriptName
+    }
+
+    var isRunning: Bool { state == .attaching || state == .serving }
+}
+
 @MainActor
 final class LiveContainerJITController: ObservableObject {
     static let shared = LiveContainerJITController()
 
     @Published private(set) var busyAppID: String?
     @Published private(set) var feedback: LiveContainerJITFeedback?
-    /// Script session kept alive in the background (universal.js keeps serving the app's JIT requests).
-    @Published private(set) var activeScriptModel: RunJSViewModel?
-    /// Set to show the running script's log in a sheet.
-    @Published var presentedScriptModel: RunJSViewModel?
+    /// Script sessions that are still attached (shown as a Liquid Glass pill above every window).
+    @Published private(set) var sessions: [LiveContainerJITSession] = []
+    /// Set to show a session's script log in a sheet.
+    @Published var presentedSession: LiveContainerJITSession?
 
     private init() {}
 
     var isBusy: Bool { busyAppID != nil }
+    var runningSessions: [LiveContainerJITSession] { sessions.filter(\.isRunning) }
 
     /// Finds the LiveContainer guest app with this bundle identifier (used for stikjit:// requests).
     static func guestApp(bundleID: String) -> LiveContainerGuestApp? {
@@ -102,14 +177,15 @@ final class LiveContainerJITController: ObservableObject {
         }
     }
 
-    func showScriptLog() {
-        presentedScriptModel = activeScriptModel
+    func showLog(_ session: LiveContainerJITSession? = nil) {
+        presentedSession = session ?? runningSessions.last ?? sessions.last
     }
 
     func enableJIT(for app: LiveContainerGuestApp, scriptOverride: (data: Data, name: String)? = nil) {
         guard busyAppID == nil else { return }
         busyAppID = app.id
         Haptics.medium()
+        LiveContainerOverlayWindow.shared.install()
         show(String(format: "Starting JIT for %@".localized, app.displayName), .working)
         LogManager.shared.addInfoLog("[LiveContainer] Launching \(app.displayName) (\(app.relativeBundlePath)) with JIT in the same LiveContainer")
 
@@ -152,20 +228,25 @@ final class LiveContainerJITController: ObservableObject {
 
     private func attach(pid: Int32, app: LiveContainerGuestApp, script: (data: Data, name: String)?) {
         let hasTXM = ProcessInfo.processInfo.hasTXM
-        let usesScript = hasTXM && script != nil
         var callback: DebugAppCallback?
+        var session: LiveContainerJITSession?
 
         if hasTXM, let script {
             LogManager.shared.addInfoLog("[LiveContainer] Running \(script.name) for \(app.displayName)")
+            // A new launch replaces older sessions of the same app (LiveContainer restarted it).
+            sessions.removeAll { $0.app.id == app.id && !$0.isRunning }
+            let newSession = LiveContainerJITSession(app: app, pid: pid, scriptName: script.name)
+            sessions.append(newSession)
+            session = newSession
+
             callback = { pid, debugProxy, remoteServer, semaphore in
                 // No resumeBundleID: the target lives in this LiveContainer and relaunching
                 // the host bundle would terminate StikDebug.
                 let model = RunJSViewModel(pid: Int(pid), debugProxy: debugProxy,
                                            remoteServer: remoteServer, semaphore: semaphore,
                                            resumeBundleID: nil)
-                DispatchQueue.main.async {
-                    LiveContainerJITController.shared.activeScriptModel = model
-                }
+                DispatchQueue.main.async { newSession.model = model }
+                LiveContainerJITController.watchProcessExit(pid: pid, session: newSession, model: model)
                 do {
                     try model.runScript(data: script.data, name: script.name)
                 } catch {
@@ -176,14 +257,11 @@ final class LiveContainerJITController: ObservableObject {
                     }
                 }
             }
+            // The debug session lasts as long as the app keeps it attached, so report success
+            // as soon as the target becomes debuggable instead of waiting for the session to end.
+            watchForJIT(pid: pid, app: app, session: newSession)
         } else if hasTXM {
-            LogManager.shared.addWarningLog("[LiveContainer] No JIT script found for \(app.displayName); on this device JIT usually needs one.")
-        }
-
-        // With a script the debug session lasts as long as the app runs, so report success as
-        // soon as the target becomes debuggable instead of waiting for the session to end.
-        if usesScript {
-            watchForJIT(pid: pid, app: app)
+            LogManager.shared.addWarningLog("[LiveContainer] No JIT script selected for \(app.displayName); on this device JIT usually needs one.")
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -202,8 +280,11 @@ final class LiveContainerJITController: ObservableObject {
 
             DispatchQueue.main.async {
                 let controller = LiveContainerJITController.shared
-                controller.activeScriptModel = nil
-                if usesScript, controller.busyAppID == nil {
+                if let session {
+                    if session.state != .appClosed { session.state = .finished }
+                    controller.scheduleSessionCleanup(session)
+                }
+                if session != nil, controller.busyAppID != app.id {
                     // Success was already reported while the script was running.
                     return
                 }
@@ -216,7 +297,7 @@ final class LiveContainerJITController: ObservableObject {
                     controller.finish(success: app)
                 case .notEnabled:
                     let hint = hasTXM
-                        ? "This device needs a JIT script: set one for \(app.displayName) in LiveContainer (JIT launch script) or assign one in StikDebug → Scripts."
+                        ? "This device needs a JIT script: choose one for \(app.displayName) in the LiveContainer tab (long-press the app)."
                         : "Close the app's Multitask window and try again."
                     controller.finish(error: "StikDebug attached to \(app.displayName) (PID \(pid)), but JIT is still off. \(hint)")
                 }
@@ -224,11 +305,13 @@ final class LiveContainerJITController: ObservableObject {
         }
     }
 
-    private func watchForJIT(pid: Int32, app: LiveContainerGuestApp) {
+    /// Reports success as soon as the target is debuggable and marks the session as serving.
+    private func watchForJIT(pid: Int32, app: LiveContainerGuestApp, session: LiveContainerJITSession) {
         Task.detached(priority: .userInitiated) {
             for _ in 0..<120 {   // up to ~30 s
                 if LiveContainerJITVerification.check(pid: pid) == .enabled {
                     await MainActor.run {
+                        if session.state == .attaching { session.state = .serving }
                         let controller = LiveContainerJITController.shared
                         if controller.busyAppID == app.id {
                             controller.finish(success: app)
@@ -238,6 +321,33 @@ final class LiveContainerJITController: ObservableObject {
                 }
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
+        }
+    }
+
+    /// When the app's Multitask window is closed the process exits; stop the script so it does
+    /// not keep polling a dead process and the session ends cleanly.
+    nonisolated private static func watchProcessExit(pid: Int32, session: LiveContainerJITSession, model: RunJSViewModel) {
+        DispatchQueue.global(qos: .utility).async {
+            while true {
+                usleep(500_000)
+                let finished = DispatchQueue.main.sync { !session.isRunning }
+                if finished { return }
+                if kill(pid, 0) != 0 && errno == ESRCH {
+                    DispatchQueue.main.async {
+                        session.state = .appClosed
+                        model.executionInterrupted = true
+                        model.logs.append("\(session.app.displayName) was closed. JIT session ended.")
+                    }
+                    return
+                }
+            }
+        }
+    }
+
+    private func scheduleSessionCleanup(_ session: LiveContainerJITSession) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+            guard let self, self.presentedSession?.id != session.id else { return }
+            withAnimation { self.sessions.removeAll { $0.id == session.id } }
         }
     }
 

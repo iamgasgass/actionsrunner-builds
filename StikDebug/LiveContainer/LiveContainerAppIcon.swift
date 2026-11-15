@@ -83,10 +83,12 @@ enum LiveContainerAppIconStore {
 /// Same look as the icons in the JIT tab (54 pt, continuous corners, soft shadow).
 struct LiveContainerAppIconView: View {
     let app: LiveContainerGuestApp
+    var size: CGFloat = 54
     @State private var image: UIImage?
 
-    init(app: LiveContainerGuestApp) {
+    init(app: LiveContainerGuestApp, size: CGFloat = 54) {
         self.app = app
+        self.size = size
         _image = State(initialValue: LiveContainerAppIconStore.cachedIcon(for: app))
     }
 
@@ -96,17 +98,17 @@ struct LiveContainerAppIconView: View {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 54, height: 54)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(width: size, height: size)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
                     .shadow(color: .black.opacity(0.18), radius: 3, x: 0, y: 1.5)
                     .transition(.opacity.combined(with: .scale))
             } else {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
                     .fill(Color(UIColor.systemGray5))
-                    .frame(width: 54, height: 54)
+                    .frame(width: size, height: size)
                     .overlay {
                         Image(systemName: "app")
-                            .font(.system(size: 24, weight: .regular))
+                            .font(.system(size: size * 0.44, weight: .regular))
                             .foregroundStyle(.gray)
                     }
             }
