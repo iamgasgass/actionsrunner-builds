@@ -19,9 +19,9 @@ jobs:
       github.ref_type == 'tag' ||
       github.repository != 'StikDebug/StikDebug' ||
       github.ref == 'refs/heads/main'
-    # The project uses the classic project.pbxproj, so any Xcode 26+ image works.
-    # Override with the repository variables RUNNER_LABEL / XCODE_VERSION if needed.
-    runs-on: ${{ vars.RUNNER_LABEL || 'macos-26' }}
+    # Same GitHub-hosted image as upstream StikDebug: macOS 27 + Xcode 27 (Apple Silicon),
+    # needed for the Xcode 27 project.xcproj format. Override with the RUNNER_LABEL variable.
+    runs-on: ${{ vars.RUNNER_LABEL || 'xcode-27' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -38,6 +38,7 @@ jobs:
 
       - name: 3. Compile Project Archive
         run: |
+          xcodebuild -version
           xcodebuild clean archive \
             -project StikDebug.xcodeproj \
             -scheme "StikDebug" \

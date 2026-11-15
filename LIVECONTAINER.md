@@ -64,10 +64,10 @@ LiveContainer sends `stikjit://enable-jit?…&pid=…` to StikDebug-LC, which at
 
 ## Building
 
-Upstream 3.2.2 ships only the new Xcode 27 `project.xcproj`; this fork uses the classic `project.pbxproj`
-(restored from upstream 3.2.0 with synchronized folders, updated to 3.2.2), so it builds with Xcode 26.x and newer.
-CI (`.github/workflows/build_ipa.yml`) builds an unsigned `StikDebug-LC-<sha>.ipa` on every push on `macos-26`
-(override with the repository variables `RUNNER_LABEL` and `XCODE_VERSION`).
+The project keeps upstream's Xcode 27 `project.xcproj` format, so it needs **Xcode 27 or newer**.
+CI (`.github/workflows/build_ipa.yml`) runs on GitHub's hosted `xcode-27` image with the latest stable Xcode and
+builds an unsigned `StikDebug-LC-<sha>.ipa` on every push (override with the repository variables `RUNNER_LABEL`
+and `XCODE_VERSION`).
 
 Locally:
 
