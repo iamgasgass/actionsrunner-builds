@@ -135,8 +135,40 @@ final class WindowsInstaller: NSObject, ObservableObject {
 
     // MARK: Start
 
+    nonisolated static var toolsDisk: URL { machine.appendingPathComponent("winios-tools.img") }
+
+    /// The "WindowsiOS Tools" drive Windows sees at every boot (D:): the drivers from this build and
+    /// Installa-driver.cmd. Rebuilt when the app's build changes. Takes well under a second.
+    static func ensureToolsDisk() {
+        let fm = FileManager.default
+        guard let res = Bundle.main.resourceURL else { return }
+        let drivers = res.appendingPathComponent("generated/install/drivers", isDirectory: true)
+        let scripts = res.appendingPathComponent("install/tools", isDirectory: true)
+        guard fm.fileExists(atPath: drivers.path) else { return }
+        let stamp = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "") + "-" +
+            String((try? fm.attributesOfItem(atPath: Bundle.main.bundlePath)[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0)
+        let key = "winios.toolsDiskStamp"
+        if fm.fileExists(atPath: toolsDisk.path) && UserDefaults.standard.string(forKey: key) == stamp { return }
+        let tmp = fm.temporaryDirectory.appendingPathComponent("winios-tools", isDirectory: true)
+        try? fm.removeItem(at: tmp)
+        do {
+            try fm.createDirectory(at: machine, withIntermediateDirectories: true)
+            try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
+            try fm.copyItem(at: drivers, to: tmp.appendingPathComponent("drivers"))
+            for item in (try? fm.contentsOfDirectory(at: scripts, includingPropertiesForKeys: nil)) ?? [] {
+                try fm.copyItem(at: item, to: tmp.appendingPathComponent(item.lastPathComponent))
+            }
+            var err: NSString?
+            if WinIOSBridge.shared.buildDataDisk(source: tmp.path, output: toolsDisk.path, label: "WINIOSTOOLS", error: &err) {
+                UserDefaults.standard.set(stamp, forKey: key)
+            }
+        } catch {}
+        try? fm.removeItem(at: tmp)
+    }
+
     /// Called at launch: an install interrupted after it reached the VM goes on with the installer disk attached.
     func restore() {
+        Self.ensureToolsDisk()
         guard Self.installPending else { return }
         WinIOSBridge.shared.installerDiskPath = Self.installerDisk.path
         hookExit()

@@ -1,0 +1,11 @@
+WindowsiOS Tools
+================
+
+This drive is attached by the WindowsiOS app at every start.
+
+Installa-driver.cmd  installs the drivers in \drivers (VirtIO network: NetKVM).
+                     Use it if Windows says it cannot find network hardware.
+
+Questo disco viene collegato dall'app WindowsiOS a ogni avvio.
+Installa-driver.cmd installa i driver (rete VirtIO, NetKVM): usalo se Windows
+dice "impossibile rilevare l'hardware di rete".

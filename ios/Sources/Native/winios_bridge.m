@@ -477,6 +477,11 @@ static void unpack_progress_cb(uint64_t done, uint64_t total, void *opaque) {
     /* WindowsiOS Universal: during the on-device install the installer disk is the second NVMe disk. */
     NSString *installerDisk = self.installerDiskPath;
     if (installerDisk.length && ![[NSFileManager defaultManager] fileExistsAtPath:installerDisk]) installerDisk = nil;
+    /* Otherwise the "WindowsiOS Tools" drive (drivers, Installa-driver.cmd) is the second disk. */
+    if (!installerDisk.length) {
+        NSString *tools = [dir stringByAppendingPathComponent:@"winios-tools.img"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:tools]) installerDisk = tools;
+    }
 
     _configuredRamMB = ramMB;
     _configuredCPUs = winios_device_effective_cpus();
@@ -711,6 +716,16 @@ static void install_progress_cb(double frac, const char *stage, void *opaque) {
     InstallProgressCtx ctx = {progress, 0};
     char err[512] = {0};
     if (hv_wininst_build(&o, install_progress_cb, &ctx, err, sizeof err) != 0) {
+        if (error) *error = [NSString stringWithUTF8String:err];
+        return NO;
+    }
+    return YES;
+}
+
+- (BOOL)buildDataDiskFrom:(NSString *)sourceDir output:(NSString *)outputPath label:(NSString *)label error:(NSString * _Nullable * _Nullable)error {
+    char err[512] = {0};
+    if (hv_wininst_build_data_disk(sourceDir.fileSystemRepresentation, outputPath.fileSystemRepresentation,
+                                   label.UTF8String, err, sizeof err) != 0) {
         if (error) *error = [NSString stringWithUTF8String:err];
         return NO;
     }

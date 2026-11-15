@@ -71,6 +71,11 @@
         </SynchronousCommand>
         <SynchronousCommand wcm:action="add">
           <Order>3</Order>
+          <CommandLine>cmd /c "if exist C:\Windows\WinIOS\drivers pnputil /add-driver C:\Windows\WinIOS\drivers\*.inf /subdirs /install"</CommandLine>
+          <Description>VirtIO network driver (NetKVM), in case Windows PE could not add it</Description>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>4</Order>
           <CommandLine>cmd /c "timeout /t 15 /nobreak &amp; shutdown /s /t 2 /f"</CommandLine>
           <Description>Turn off once the first desktop has settled: WindowsiOS then marks the install done</Description>
         </SynchronousCommand>

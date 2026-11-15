@@ -467,6 +467,56 @@ int hv_wininst_create_disk(const char *path, uint64_t bytes, char *err, size_t e
     return 0;
 }
 
+/* A small GPT disk with one FAT32 volume holding src_dir: the "WindowsiOS Tools" drive Windows sees
+   at every boot (drivers and scripts), the way VM tools discs work elsewhere. */
+int hv_wininst_build_data_disk(const char *src_dir, const char *out_img, const char *label, char *err, size_t errlen) {
+    Prog prog = {NULL, NULL, 0, 0, ""};
+    int fd = -1, rc = -1;
+    uint8_t *work = NULL, *buf = NULL;
+    FATFS *fs = NULL;
+    for (int i = 0; i < FF_VOLUMES; i++) g_parts[i].fd = -1;
+    uint64_t content = tree_bytes(src_dir);
+    uint64_t part = ((content + 64 * MIB) + MIB - 1) / MIB * MIB;
+    if (part < 128 * MIB) part = 128 * MIB; /* FAT32 needs at least ~33 MB; leave room */
+    uint64_t total = MIB + part + MIB;
+    char tmp[2048];
+    snprintf(tmp, sizeof tmp, "%s.tmp", out_img);
+    fd = open(tmp, O_RDWR | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0 || ftruncate(fd, (off_t)total) != 0) { seterr(err, errlen, "Cannot create %s: %s", tmp, strerror(errno)); goto out; }
+    GptPart gp = {MIB / SECTOR, (MIB + part) / SECTOR - 1, label};
+    if (write_gpt(fd, total / SECTOR, &gp, 1)) { seterr(err, errlen, "Cannot write the partition table"); goto out; }
+    g_parts[0].fd = fd;
+    g_parts[0].first_lba = gp.first;
+    g_parts[0].sectors = gp.last - gp.first + 1;
+    work = malloc(4 * MIB);
+    buf = malloc(4 * MIB);
+    fs = calloc(1, sizeof *fs);
+    if (!work || !buf || !fs) { seterr(err, errlen, "Out of memory"); goto out; }
+    MKFS_PARM fat32 = {FM_FAT32 | FM_SFD, 0, 0, 0, 0};
+    FRESULT fr = f_mkfs("0:", &fat32, work, (UINT)(4 * MIB));
+    if (fr != FR_OK) { seterr(err, errlen, "Cannot format FAT32 (%s)", fr_str(fr)); goto out; }
+    if ((fr = f_mount(fs, "0:", 1)) != FR_OK) { seterr(err, errlen, "Cannot mount (%s)", fr_str(fr)); goto out; }
+    char lbl[40];
+    snprintf(lbl, sizeof lbl, "0:%.11s", label);
+    f_setlabel(lbl);
+    CopyCtx cc = {&prog, 0, content, buf, 4 * MIB, err, errlen};
+    if (copy_tree_in(&cc, src_dir, "0:")) goto out;
+    f_unmount("0:");
+    if (fsync(fd) != 0) { seterr(err, errlen, "Cannot flush %s", tmp); goto out; }
+    close(fd);
+    fd = -1;
+    if (rename(tmp, out_img) != 0) { seterr(err, errlen, "Cannot rename %s: %s", tmp, strerror(errno)); goto out; }
+    rc = 0;
+out:
+    g_parts[0].fd = -1;
+    if (fd >= 0) close(fd);
+    if (rc) unlink(tmp);
+    free(work);
+    free(buf);
+    free(fs);
+    return rc;
+}
+
 #define P1_BYTES (1536ull * MIB) /* FAT32: WinPE (~600 MB boot.wim) + boot files + payload */
 
 int hv_wininst_build(const HvWinInstOpts *o, HvWinInstProgress progress, void *opaque, char *err, size_t errlen) {

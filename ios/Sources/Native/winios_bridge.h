@@ -62,6 +62,8 @@ typedef void (^WinIOSStateCallback)(void);
                             progress:(void (^)(double fraction, NSString *stage))progress
                                error:(NSString * _Nullable * _Nullable)error
     NS_SWIFT_NAME(buildInstallerDisk(image:startnet:payload:output:workDir:deleteESD:progress:error:));
+- (BOOL)buildDataDiskFrom:(NSString *)sourceDir output:(NSString *)outputPath label:(NSString *)label error:(NSString * _Nullable * _Nullable)error
+    NS_SWIFT_NAME(buildDataDisk(source:output:label:error:));
 - (BOOL)createSystemDiskAt:(NSString *)path gigabytes:(NSInteger)gigabytes error:(NSString * _Nullable * _Nullable)error
     NS_SWIFT_NAME(createSystemDisk(path:gigabytes:error:));
 

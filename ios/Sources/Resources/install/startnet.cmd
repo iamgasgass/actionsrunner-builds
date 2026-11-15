@@ -66,7 +66,15 @@ dism /Apply-Image /ImageFile:"%SRC%\sources\install.esd" /Index:%IDX% /ApplyDir:
 if errorlevel 1 goto :fail_dism
 
 echo [4/7] Adding drivers (VirtIO network)...
-if exist "%PE%\winios\drivers" dism /Image:W:\ /Add-Driver /Driver:"%PE%\winios\drivers" /Recurse /ForceUnsigned >> "%LOG%" 2>&1
+if exist "%PE%\winios\drivers" (
+    dism /Image:W:\ /Add-Driver /Driver:"%PE%\winios\drivers" /Recurse >> "%LOG%" 2>&1
+    if errorlevel 1 (echo     DISM could not add the drivers: Windows installs them at first sign-in) else (echo     drivers added)
+    rem A copy for Windows' first sign-in (pnputil, see unattend.xml), in case DISM could not add them.
+    mkdir W:\Windows\WinIOS\drivers >nul 2>&1
+    xcopy /e /i /y /q "%PE%\winios\drivers" W:\Windows\WinIOS\drivers >nul
+) else (
+    echo     no drivers in this build
+)
 
 echo [5/7] Setup answers, TPM / Secure Boot checks off, no BitLocker...
 mkdir W:\Windows\Panther >nul 2>&1

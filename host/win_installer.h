@@ -50,6 +50,11 @@ typedef struct HvWinInstOpts {
 int hv_wininst_build(const HvWinInstOpts *opts, HvWinInstProgress progress, void *opaque,
                      char *err, size_t errlen);
 
+/* A small GPT disk image with one FAT32 volume (label, up to 11 characters) holding src_dir.
+   Written to out_img.tmp, then renamed. 0 on success. */
+int hv_wininst_build_data_disk(const char *src_dir, const char *out_img, const char *label,
+                               char *err, size_t errlen);
+
 /* Creates an empty sparse disk image of the given size (the Windows system disk). 0 on success. */
 int hv_wininst_create_disk(const char *path, uint64_t bytes, char *err, size_t errlen);
 
