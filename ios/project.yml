@@ -1,0 +1,102 @@
+name: WindowsiOS
+# WindowsiOS Universal: signing is no longer tied to the upstream author's team and
+# "WindowsiOS Duo Dev" profile. Set DEVELOPMENT_TEAM / PRODUCT_BUNDLE_IDENTIFIER in the
+# environment (xcodegen expands ${VAR}) or build unsigned and sideload with
+# SideStore / AltStore / TrollStore (see .github/workflows/build-ipa.yml).
+options:
+  bundleIdPrefix: com.windowsios
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    DEVELOPMENT_TEAM: "${WINIOS_TEAM_ID}"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+
+targets:
+  WindowsiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+        excludes:
+          - "Info.plist"
+          - "Resources/**"
+      - path: Sources/Resources/henge-jit.js
+        buildPhase: resources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Windows 11
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        NSMicrophoneUsageDescription: "Windows 11 uses your iPhone's microphone for live voice input and audio capture."
+        CFBundleShortVersionString: "1.1.0"
+        CFBundleVersion: "2"
+        UIBackgroundModes:
+          - audio
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+    entitlements:
+      path: WindowsiOS.entitlements
+      properties:
+        get-task-allow: true
+        # Recommended, not required (as in Henge): more room for the JIT region and
+        # the app on 4-6 GB iPhones. A certificate without it simply leaves it out.
+        com.apple.developer.kernel.increased-memory-limit: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.windowsios.universal
+        PRODUCT_NAME: WindowsiOS
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_OBJC_BRIDGING_HEADER: $(PROJECT_DIR)/Sources/Native/WindowsiOS-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(inherited)
+          - $(PROJECT_DIR)/../core
+          - $(PROJECT_DIR)/../host
+          - $(PROJECT_DIR)/../devices
+          - $(PROJECT_DIR)/deps/include
+          - $(PROJECT_DIR)/Sources/Native
+        LIBRARY_SEARCH_PATHS:
+          - $(inherited)
+          - $(PROJECT_DIR)/../build/ios
+          - $(PROJECT_DIR)/deps/lib
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -lwinvm
+          - -lslirp
+          - -lglib-2.0
+          - -lintl
+          - -lpcre2-8
+          - -lffi
+          - -lresolv
+          - -liconv
+    dependencies:
+      - sdk: AVFoundation.framework
+      - sdk: SafariServices.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreGraphics.framework
+      - sdk: ImageIO.framework
+      - sdk: UniformTypeIdentifiers.framework

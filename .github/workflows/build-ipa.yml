@@ -1,0 +1,106 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# WindowsiOS Universal: build an unsigned WindowsiOS.ipa for every supported iPhone/iPad
+# (A14 / M1 or newer, iOS 17+), from a clean checkout.
+#
+#   push / pull request        build and keep the IPA as a workflow artifact
+#   push of a tag like v1.1.0  build and publish WindowsiOS.ipa on that tag's release
+#   Run workflow (manual)      build; "release" also publishes
+#
+# "Unsigned" as sideloaders mean it: ad hoc signed with WindowsiOS.entitlements embedded,
+# so SideStore / AltStore re-sign it at install and TrollStore installs it as it is.
+# Xcode 27.1+ is needed (UIHingeInteraction for the iPhone Duo is in the iOS 27.1 SDK);
+# the variable WINIOS_XCODE pins a version.
+
+name: Build IPA
+
+on:
+  push:
+    branches: [main, universal]
+    tags: ['v[0-9]+.[0-9]+*']
+    paths-ignore: ['**.md', 'docs/**']
+  pull_request:
+    paths-ignore: ['**.md', 'docs/**']
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a GitHub release with the IPA
+        type: boolean
+        default: false
+      tag:
+        description: Release tag (empty = v + CFBundleShortVersionString)
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ vars.WINIOS_XCODE || 'latest-stable' }}
+
+      - name: Tools
+        run: |
+          brew install meson ninja pkg-config xcodegen libslirp glib || true
+          xcodebuild -version
+
+      - name: Cache iOS dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/deps
+            work/ios_deps_build/sysroot
+            work/ios_deps_build/stamps
+          key: ios-deps-${{ runner.os }}-${{ hashFiles('scripts/build_ios_deps.sh', 'patches/**') }}
+
+      - name: Build libffi + glib + libslirp for arm64-apple-ios
+        run: ./scripts/build_ios_deps.sh
+
+      - name: Build libwinvm.a (engine + devices) for iOS
+        run: make -j"$(sysctl -n hw.ncpu)" ios-lib
+
+      - name: Build the app (unsigned)
+        run: |
+          xcodegen generate --spec ios/project.yml
+          xcodebuild -project ios/WindowsiOS.xcodeproj -scheme WindowsiOS -configuration Release \
+            -sdk iphoneos -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
+            build
+
+      - name: Package WindowsiOS.ipa
+        run: |
+          APP=build/DerivedData/Build/Products/Release-iphoneos/WindowsiOS.app
+          ldid -h >/dev/null 2>&1 || brew install ldid
+          ldid -Sios/WindowsiOS.entitlements "$APP/WindowsiOS" || codesign -f -s - --entitlements ios/WindowsiOS.entitlements "$APP"
+          rm -rf build/Payload && mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          (cd build && zip -qry WindowsiOS.ipa Payload)
+          ls -lh build/WindowsiOS.ipa
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WindowsiOS-${{ env.VERSION }}
+          path: build/WindowsiOS.ipa
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="v$VERSION"; fi
+          fi
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "WindowsiOS Universal $TAG" \
+            --notes "Unsigned IPA for iPhone 12 and later (A14+), iPhone Duo, and M1+ iPads. Sideload with SideStore / AltStore / TrollStore, then enable JIT with StikDebug."
+          gh release upload "$TAG" build/WindowsiOS.ipa --clobber
