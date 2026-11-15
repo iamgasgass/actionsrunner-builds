@@ -31,10 +31,9 @@ Si installa direttamente sul telefono, come [Henge](https://github.com/Leviidev/
 10. [Risoluzione dei problemi](#10-risoluzione-dei-problemi)
 11. [Compilare l'app](#11-compilare-lapp)
 12. [Struttura del repository](#12-struttura-del-repository)
-13. [Cronologia completa delle modifiche](#13-cronologia-completa-delle-modifiche)
-14. [Cosa è verificato e cosa no](#14-cosa-è-verificato-e-cosa-no)
-15. [Il motore (dall'originale)](#15-il-motore-dalloriginale)
-16. [Crediti e licenze](#16-crediti-e-licenze)
+13. [Cosa è verificato e cosa no](#13-cosa-è-verificato-e-cosa-no)
+14. [Il motore (dall'originale)](#14-il-motore-dalloriginale)
+15. [Crediti e licenze](#15-crediti-e-licenze)
 
 ---
 
@@ -70,8 +69,6 @@ Il JIT richiede il debugger per abilitare la memoria eseguibile (iOS 26/27 con T
 | Xcode | iOS 27.1 SDK obbligatorio | **qualsiasi Xcode recente**: il sensore cerniera si compila solo se l'SDK lo ha |
 | Icona | — | icona dedicata (dall'icona di Husk, adattata al logo Windows) |
 | Nome | Windows 11 | **WindowsiOS X** |
-
-L'elenco dettagliato, modifica per modifica, è nella [sezione 13](#13-cronologia-completa-delle-modifiche).
 
 ## 3. Dispositivi compatibili
 
@@ -316,97 +313,40 @@ WindowsiOS X/
 ├── core/                 motore JIT ARM64→ARM64, MMU 4 KB, registri di sistema (dall'originale)
 ├── devices/              UEFI pflash, ACPI, GICv3, PCIe, NVMe, xHCI, HDA, VirtIO-Net, display Metal
 ├── host/
-│   ├── win_installer.c/h   ★ disco d'installazione: GPT + FatFs + wimlib; disco Tools
+│   ├── win_installer.c/h   disco d'installazione: GPT + FatFs + wimlib; disco Tools
 │   └── …                   VM, rete slirp, audio, condivisione WebDAV, hvsparse
 ├── ios/
 │   ├── project.yml          progetto XcodeGen (nome, bundle ID, risorse, entitlement)
 │   ├── WindowsiOS.entitlements
 │   └── Sources/
-│       ├── WindowsInstaller.swift   ★ catalogo, download, verifica, preparazione, VM, ripresa, disco Tools
-│       ├── InstallView.swift        ★ schermata "Install Windows 11" (come Henge)
-│       ├── DeviceSupport.swift      ★ nomi dei modelli, impostazioni memoria/vCPU
+│       ├── WindowsInstaller.swift   catalogo, download, verifica, preparazione, VM, ripresa, disco Tools
+│       ├── InstallView.swift        schermata "Install Windows 11" (come Henge)
+│       ├── DeviceSupport.swift      nomi dei modelli, impostazioni memoria/vCPU
 │       ├── VMViewModel.swift, SessionView.swift, LaptopDeckView.swift, HingeSensorView.swift, …
-│       ├── Native/winios_device.c/h ★ profilo del dispositivo (RAM, chip, FEAT_*, vCPU, JIT)
+│       ├── Native/winios_device.c/h profilo del dispositivo (RAM, chip, FEAT_*, vCPU, JIT)
 │       ├── Native/winios_jit.c      allocatore JIT TXM + memoria per Windows (dimensionata per dispositivo)
 │       ├── Native/winios_bridge.m/h ponte Objective-C (avvio VM, installazione, disco Tools)
-│       ├── Assets.xcassets/AppIcon  ★ icona (chiara, scura, tinta)
-│       └── Resources/install/       ★ startnet.cmd, unattend.xml, lite_*.reg, lite_appx.txt, tools/
+│       ├── Assets.xcassets/AppIcon  icona (chiara, scura, tinta)
+│       └── Resources/install/       startnet.cmd, unattend.xml, lite_*.reg, lite_appx.txt, tools/
 ├── scripts/
-│   ├── make_windows_catalog.py      ★ catalogo ESD ARM64 da products.cab
-│   ├── build_opt_hive.sh            ★ opt_hive_arm64.exe con LLVM
-│   ├── launch_on_device.sh          ★ lancio + JIT da Mac per qualsiasi UDID (launch_on_duo.sh = alias)
+│   ├── make_windows_catalog.py      catalogo ESD ARM64 da products.cab
+│   ├── build_opt_hive.sh            opt_hive_arm64.exe con LLVM
+│   ├── launch_on_device.sh          lancio + JIT da Mac per qualsiasi UDID (launch_on_duo.sh = alias)
 │   ├── build_ios_deps.sh            dipendenze iOS (+ wimlib)
 │   └── provision_windows_arm64.py, optimize_windows_lite.py, …   percorso Mac dell'originale
-├── third_party/fatfs/    ★ FatFs R0.16 (configurato: FAT32 + exFAT, LFN UTF-8, mkfs)
-├── patches/              ★ patch iOS per libslirp
+├── third_party/fatfs/    FatFs R0.16 (configurato: FAT32 + exFAT, LFN UTF-8, mkfs)
+├── patches/              patch iOS per libslirp
 ├── tools/
-│   ├── icon/                ★ generatore dell'icona (render_windows.py)
+│   ├── icon/                generatore dell'icona (render_windows.py)
 │   └── opt_hive_arm64.c, winios_browser_arm64.c, hvsparse_main.c
 ├── tests/                test del motore (dall'originale)
 ├── docs/images/          screenshot e icona
-├── .github/workflows/build-ipa.yml  ★ build dell'IPA
-├── CHANGELOG.md          ★ cronologia delle versioni
+├── .github/workflows/build-ipa.yml  build dell'IPA
+├── CHANGELOG.md          cronologia delle versioni
 └── WindowsiOS-X.zip      archivio del repository
 ```
-★ = aggiunto o riscritto in WindowsiOS X.
 
-## 13. Cronologia completa delle modifiche
-
-Ogni modifica fatta rispetto all'originale (`ammaarreshi/WindowsiOS`, commit `0071d69`), nell'ordine in cui
-è stata fatta.
-
-### Supporto a tutti gli iPhone (versione 1.1.0)
-1. **Profilo del dispositivo** (`winios_device.c`): legge `hw.machine`, `hw.memsize`, `hw.ncpu`,
-   `hw.perflevel0.physicalcpu` e 16 flag `hw.optional.arm.FEAT_*`. Ne ricava memoria per Windows, area
-   JIT e vCPU, e accetta gli override dell'utente. Verificato su Linux con valori simulati per tutte le
-   fasce e per A12/A13.
-2. **Controllo del chip:** se manca una funzione dichiarata alla CPU virtuale (es. `FEAT_FRINTTS`, `FEAT_SB`)
-   l'app non parte e mostra un messaggio. Se i flag non ci sono, decide dal modello (`iPhone13,x` = A14).
-3. **Memoria per Windows** (`winios_jit.c`): al posto della scala fissa del Duo (4608 MB e 2,5 GB liberi
-   obbligatori), parte dal valore del dispositivo e scende di 512 MB, lasciando sempre 1,5 GB a iOS. Così
-   funzionano anche gli iPhone da 4 GB.
-4. **Area JIT e vCPU** dal profilo, invece dei fissi 384 MB e 4 vCPU. La memoria di riserva quando non
-   c'è memoria esente dal ledger rispetta il limite Jetsam corrente.
-5. **Interfaccia senza cerniera:** verticale = Laptop, orizzontale = Studio; rotazione in verticale per
-   la modalità Laptop su ogni iPhone.
-6. **Impostazioni** (`DeviceSupport.swift`): modello, RAM, core, area JIT, memoria e vCPU manuali.
-7. **Firma:** rimossi team ID e profilo dell'autore; firma automatica; entitlement
-   `increased-memory-limit` richiesto (facoltativo, come in Henge).
-8. **Script:** `launch_on_device.sh` per qualsiasi UDID; niente UDID, bundle ID o percorsi personali
-   (`/Users/ammaar/…`, `/opt/homebrew` obbligatorio); patch libslirp inclusa nel repository.
-9. **GitHub Actions:** workflow che produce l'IPA non firmata.
-
-### Icona e compilazione
-10. **Icona:** l'icona di Husk (la mela-Android) adattata a Windows. Logo Windows con 4 quadrati a bordi
-    dritti e angoli vivi, centrato, con il morso e la foglia della mela, in stile vetro con i blu di
-    Windows 11; varianti chiara, scura e tinta. Generatore: `tools/icon/render_windows.py`.
-11. **Repository pulito:** rimossi tutti i file di Husk dal branch.
-12. **Compilazione con l'Xcode più recente:** `UIHingeInteraction` esiste solo nell'SDK iOS 27.1. Il
-    codice della cerniera ora sta sotto `#if WINIOS_HINGE`, e la CI attiva il flag solo se un file di
-    prova si compila contro l'SDK. Corregge l'errore *"cannot find 'UIHingeInteraction' in scope"*.
-
-### Installazione direttamente sull'iPhone, come Henge (versione 1.1.0)
-13. **Catalogo Microsoft** generato in CI (38 ESD ARM64).
-14. **Download** ripristinabile con verifica SHA-1, o importazione di un `.esd` dall'app File.
-15. **Disco d'installazione costruito sull'iPhone** (`win_installer.c`, wimlib + FatFs). Provato su Linux:
-    GPT valida per `sgdisk`, FAT32 ed exFAT puliti, ESD identico byte per byte, `boot.wim` con il nuovo
-    `startnet.cmd`.
-16. **Installazione automatica nella VM** in un'unica sessione (riavvio PSCI), con protezione contro la
-    reinstallazione e ripresa se l'app viene chiusa.
-17. **Lite** integrato nell'installazione (servizi, criteri, utente predefinito, app preinstallate).
-18. **Risorse in CI:** firmware EDK2, NetKVM (estratto risolvendo gli hard link dell'ISO),
-    `opt_hive_arm64.exe` compilato con LLVM senza Windows SDK.
-19. **Download in HTTP** dal CDN Microsoft (il certificato HTTPS non è valido per quel nome), con eccezione
-    ATS solo per quel dominio e verifica SHA-1; gli errori TLS non ripartono più all'infinito.
-
-### Rete e nome (versione 1.2.0)
-20. **Disco "WindowsiOS X Tools"** (unità D:) con NetKVM e `Installa-driver.cmd`, collegato a ogni avvio.
-21. **NetKVM installato due volte** nelle nuove installazioni: DISM in Windows PE (senza `/ForceUnsigned`,
-    con il risultato a schermo) e `pnputil` al primo accesso.
-22. **Nuovo nome e bundle ID:** *WindowsiOS X*, `com.iamgasgass.windowsiosx`, IPA `WindowsiOS-X.ipa`.
-23. **Questo README** e `CHANGELOG.md`.
-
-## 14. Cosa è verificato e cosa no
+## 13. Cosa è verificato e cosa no
 
 | Parte | Stato |
 | :--- | :--- |
@@ -420,7 +360,7 @@ Ogni modifica fatta rispetto all'originale (`ammaarreshi/WindowsiOS`, commit `00
 
 Le segnalazioni da altri dispositivi sono benvenute: apri una issue con modello, versione di iOS e screenshot.
 
-## 15. Il motore (dall'originale)
+## 14. Il motore (dall'originale)
 
 Le parti più difficili sono dell'autore originale (`ammaarreshi/WindowsiOS`) e restano invariate:
 
@@ -461,7 +401,7 @@ Dispositivi PCIe: `00:01.0` VirtIO-Net · `00:02.0` NVMe (disco di Windows) · `
 
 Screenshot dell'autore originale (iPhone Duo e Mac).
 
-## 16. Crediti e licenze
+## 15. Crediti e licenze
 
 - **[ammaarreshi/WindowsiOS](https://github.com/ammaarreshi/WindowsiOS)** — il progetto originale: motore,
   dispositivi, interfaccia, script Mac (GPL-2.0-or-later).

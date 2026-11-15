@@ -1,7 +1,7 @@
 # Changelog — WindowsiOS X
 
 Fork di [`ammaarreshi/WindowsiOS`](https://github.com/ammaarreshi/WindowsiOS) al commit `0071d69`.
-Il dettaglio di ogni modifica è nella sezione 13 del [README](README.md#13-cronologia-completa-delle-modifiche).
+Installazione, funzionamento e limiti sono descritti nel [README](README.md).
 
 ## 1.2.0 — 2026-11-15
 - Nuovo nome **WindowsiOS X**, bundle ID `com.iamgasgass.windowsiosx`, IPA `WindowsiOS-X.ipa`.
