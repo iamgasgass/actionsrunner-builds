@@ -83,11 +83,15 @@ jobs:
           # Red Hat's WHQL VirtIO network driver (NetKVM) for Windows 11 ARM64
           curl -fL --retry 3 -o /tmp/virtio-win.iso \
             https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso \
-            && mkdir -p /tmp/vw && bsdtar -xf /tmp/virtio-win.iso -C /tmp/vw NetKVM/w11/ARM64 \
-            && cp -R /tmp/vw/NetKVM/w11/ARM64 "$G/install/drivers/NetKVM" \
+            && mkdir -p /tmp/vw && bsdtar -xf /tmp/virtio-win.iso -C /tmp/vw NetKVM \
+            && cp -RL /tmp/vw/NetKVM/w11/ARM64 "$G/install/drivers/NetKVM" \
+            && ls -l "$G/install/drivers/NetKVM" \
             || echo "::warning::NetKVM driver unavailable: Windows will install without network"
           # Offline registry tool for the "lite" option (tools/opt_hive_arm64.c)
-          ./scripts/build_opt_hive.sh "$G/install/opt_hive_arm64.exe" \
+          brew install llvm lld >/dev/null 2>&1 || true
+          LLVM_BIN="$(brew --prefix lld)/bin" CLANG="$(brew --prefix llvm)/bin/clang" \
+            DLLTOOL="$(brew --prefix llvm)/bin/llvm-dlltool" \
+            ./scripts/build_opt_hive.sh "$G/install/opt_hive_arm64.exe" \
             || echo "::warning::opt_hive_arm64.exe not built: lite install skips service tuning"
           find "$G" -maxdepth 3 | head -40
 
