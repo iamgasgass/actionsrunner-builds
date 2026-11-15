@@ -75,8 +75,9 @@ jobs:
           SDK_PATH=$(xcrun --sdk iphoneos --show-sdk-path)
           echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
           CONDITIONS='$(inherited)'
-          if grep -rqs "UIHingeInteraction" "$SDK_PATH/System/Library/Frameworks/UIKit.framework/Headers" \
-             "$SDK_PATH/System/Library/Frameworks/UIKit.framework/Modules" 2>/dev/null; then
+          # Decide by compiling a one-line probe against this SDK, not by searching its headers.
+          printf 'import UIKit\n@available(iOS 27.1, *) func probe(_ v: UIView) { v.addInteraction(UIHingeInteraction { _, u in if let h = u.hinge { _ = (h.status.rawValue, Double(h.angle)) } }) }\n' > /tmp/hinge_probe.swift
+          if xcrun --sdk iphoneos swiftc -typecheck -sdk "$SDK_PATH" -target arm64-apple-ios17.0 /tmp/hinge_probe.swift 2>/dev/null; then
             CONDITIONS="$CONDITIONS WINIOS_HINGE"; echo "UIHingeInteraction: yes"
           else
             echo "UIHingeInteraction: not in this SDK, building without the hinge sensor"
