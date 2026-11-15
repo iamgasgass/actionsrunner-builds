@@ -19,8 +19,8 @@ jobs:
       github.ref_type == 'tag' ||
       github.repository != 'StikDebug/StikDebug' ||
       github.ref == 'refs/heads/main'
-    # Upstream uses a self-hosted "xcode-27" runner. Forks can set the repository
-    # variable RUNNER_LABEL (e.g. macos-26) and XCODE_VERSION to match an available image.
+    # The project uses the classic project.pbxproj, so any Xcode 26+ image works.
+    # Override with the repository variables RUNNER_LABEL / XCODE_VERSION if needed.
     runs-on: ${{ vars.RUNNER_LABEL || 'macos-26' }}
     outputs:
       version: ${{ steps.version.outputs.version }}
