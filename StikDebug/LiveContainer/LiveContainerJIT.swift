@@ -23,7 +23,8 @@ enum LiveContainerJITScript {
     /// 2. a script the user assigned to the bundle ID in StikDebug,
     /// 3. StikDebug's automatic assignment, matched by the guest's *name*
     ///    (upstream matches names from the device app list, where LiveContainer guests never appear),
-    /// 4. on TXM devices, universal.js (attaching without a script does not enable JIT there).
+    /// 4. on TXM devices, universal.js for every other app (attaching without a script does not
+    ///    enable JIT there) — the same handling that makes Henge and Husk work.
     static func script(for app: LiveContainerGuestApp) -> (data: Data, name: String)? {
         if let data = app.jitLaunchScript {
             return (data, "\(app.displayName) (LiveContainer).js")
@@ -37,8 +38,10 @@ enum LiveContainerJITScript {
            let auto = bundledScript(resource) {
             return auto
         }
-        return bundledScript(ScriptResource(resourceName: "universal", fileName: "universal.js"))
+        return bundledScript(universal)
     }
+
+    static let universal = ScriptResource(resourceName: "universal", fileName: "universal.js")
 
     static func bundledScript(_ resource: ScriptResource) -> (data: Data, name: String)? {
         if let userCopy = ScriptStore.script(named: resource.fileName) {
@@ -57,7 +60,7 @@ enum LiveContainerJITVerification {
     case notEnabled
     case unknown
 
-    /// Reads the target's code-signing flags; CS_DEBUGGED means JIT (RX mappings) is allowed.
+    /// Reads the target's code-signing flags; CS_DEBUGGED means a debugger enabled JIT for it.
     static func check(pid: Int32) -> LiveContainerJITVerification {
         guard let lcCsops else { return .unknown }
         var flags: UInt32 = 0
@@ -67,14 +70,24 @@ enum LiveContainerJITVerification {
     }
 }
 
+struct LiveContainerJITFeedback: Identifiable, Equatable {
+    enum Kind { case working, success, failure }
+
+    let id = UUID()
+    let message: String
+    let kind: Kind
+}
+
 @MainActor
 final class LiveContainerJITController: ObservableObject {
     static let shared = LiveContainerJITController()
 
     @Published private(set) var busyAppID: String?
-    @Published private(set) var statusMessage: String?
-    @Published private(set) var lastResultIsError = false
-    @Published var scriptRunModel: RunJSViewModel?
+    @Published private(set) var feedback: LiveContainerJITFeedback?
+    /// Script session kept alive in the background (universal.js keeps serving the app's JIT requests).
+    @Published private(set) var activeScriptModel: RunJSViewModel?
+    /// Set to show the running script's log in a sheet.
+    @Published var presentedScriptModel: RunJSViewModel?
 
     private init() {}
 
@@ -89,29 +102,35 @@ final class LiveContainerJITController: ObservableObject {
         }
     }
 
+    func showScriptLog() {
+        presentedScriptModel = activeScriptModel
+    }
+
     func enableJIT(for app: LiveContainerGuestApp, scriptOverride: (data: Data, name: String)? = nil) {
         guard busyAppID == nil else { return }
         busyAppID = app.id
-        lastResultIsError = false
-        statusMessage = "Waiting for device connection…"
         Haptics.medium()
+        show(String(format: "Starting JIT for %@".localized, app.displayName), .working)
         LogManager.shared.addInfoLog("[LiveContainer] Launching \(app.displayName) (\(app.relativeBundlePath)) with JIT in the same LiveContainer")
 
+        // Resolve the script now (file I/O) so nothing slows down the attach later.
+        let script = scriptOverride ?? LiveContainerJITScript.script(for: app)
+
         Task { @MainActor in
-            startTunnelInBackground(showErrorUI: false)
-            let ready = await Task.detached(priority: .userInitiated) {
+            // Start the app right away and get the device connection ready at the same time,
+            // instead of waiting for the tunnel before LiveContainer opens the window.
+            if !TunnelManager.shared.isConnected {
+                startTunnelInBackground(showErrorUI: false)
+            }
+            let prerequisites = Task.detached(priority: .userInitiated) {
                 Self.waitForJITPrerequisites()
-            }.value
-            guard ready else {
-                finish(error: "The device connection or Developer Disk Image wasn't ready in time. Make sure LocalDevVPN is on and the pairing file is imported, then try again.")
-                return
             }
 
-            statusMessage = "Starting \(app.displayName) in Multitask…"
             let pid: Int32
             do {
                 pid = try await LiveContainerBridge.launchInMultitask(app)
             } catch {
+                prerequisites.cancel()
                 finish(error: error.localizedDescription)
                 return
             }
@@ -120,15 +139,20 @@ final class LiveContainerJITController: ObservableObject {
                 finish(error: "LiveContainer returned StikDebug's own process. Enable Multitask in LiveContainer settings and try again.")
                 return
             }
-
-            statusMessage = "Attaching to \(app.displayName) (PID \(pid))…"
             LogManager.shared.addInfoLog("[LiveContainer] \(app.displayName) is running as PID \(pid)")
-            attach(pid: pid, app: app, script: scriptOverride ?? LiveContainerJITScript.script(for: app))
+
+            guard await prerequisites.value else {
+                finish(error: "The device connection or Developer Disk Image wasn't ready in time. Make sure LocalDevVPN is on and the pairing file is imported, then try again.")
+                return
+            }
+
+            attach(pid: pid, app: app, script: script)
         }
     }
 
     private func attach(pid: Int32, app: LiveContainerGuestApp, script: (data: Data, name: String)?) {
         let hasTXM = ProcessInfo.processInfo.hasTXM
+        let usesScript = hasTXM && script != nil
         var callback: DebugAppCallback?
 
         if hasTXM, let script {
@@ -140,7 +164,7 @@ final class LiveContainerJITController: ObservableObject {
                                            remoteServer: remoteServer, semaphore: semaphore,
                                            resumeBundleID: nil)
                 DispatchQueue.main.async {
-                    LiveContainerJITController.shared.scriptRunModel = model
+                    LiveContainerJITController.shared.activeScriptModel = model
                 }
                 do {
                     try model.runScript(data: script.data, name: script.name)
@@ -154,6 +178,12 @@ final class LiveContainerJITController: ObservableObject {
             }
         } else if hasTXM {
             LogManager.shared.addWarningLog("[LiveContainer] No JIT script found for \(app.displayName); on this device JIT usually needs one.")
+        }
+
+        // With a script the debug session lasts as long as the app runs, so report success as
+        // soon as the target becomes debuggable instead of waiting for the session to end.
+        if usesScript {
+            watchForJIT(pid: pid, app: app)
         }
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -172,15 +202,18 @@ final class LiveContainerJITController: ObservableObject {
 
             DispatchQueue.main.async {
                 let controller = LiveContainerJITController.shared
+                controller.activeScriptModel = nil
+                if usesScript, controller.busyAppID == nil {
+                    // Success was already reported while the script was running.
+                    return
+                }
                 guard success else {
                     controller.finish(error: lastMessage ?? "StikDebug could not attach to \(app.displayName).")
                     return
                 }
                 switch verification {
-                case .enabled:
-                    controller.finish(message: "JIT enabled for \(app.displayName). Switch to its Multitask window.")
-                case .unknown:
-                    controller.finish(message: "Debug session for \(app.displayName) completed. Check JIT status in the app's Multitask window.")
+                case .enabled, .unknown:
+                    controller.finish(success: app)
                 case .notEnabled:
                     let hint = hasTXM
                         ? "This device needs a JIT script: set one for \(app.displayName) in LiveContainer (JIT launch script) or assign one in StikDebug → Scripts."
@@ -191,20 +224,47 @@ final class LiveContainerJITController: ObservableObject {
         }
     }
 
-    private func finish(message: String) {
+    private func watchForJIT(pid: Int32, app: LiveContainerGuestApp) {
+        Task.detached(priority: .userInitiated) {
+            for _ in 0..<120 {   // up to ~30 s
+                if LiveContainerJITVerification.check(pid: pid) == .enabled {
+                    await MainActor.run {
+                        let controller = LiveContainerJITController.shared
+                        if controller.busyAppID == app.id {
+                            controller.finish(success: app)
+                        }
+                    }
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+        }
+    }
+
+    private func finish(success app: LiveContainerGuestApp) {
         busyAppID = nil
-        lastResultIsError = false
-        statusMessage = message
         Haptics.light()
-        AccessibilityAnnouncer.announce(message)
+        show(String(format: "JIT enabled for %@".localized, app.displayName), .success)
     }
 
     private func finish(error: String) {
         busyAppID = nil
-        lastResultIsError = true
-        statusMessage = error
+        show(error, .failure)
         LogManager.shared.addErrorLog("[LiveContainer] \(error)")
         showAlert(title: "Failed to Enable JIT".localized, message: error, showOk: true)
+    }
+
+    private func show(_ message: String, _ kind: LiveContainerJITFeedback.Kind) {
+        let feedback = LiveContainerJITFeedback(message: message, kind: kind)
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            self.feedback = feedback
+        }
+        AccessibilityAnnouncer.announce(message)
+        guard kind != .working else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.feedback?.id == feedback.id else { return }
+            withAnimation { self.feedback = nil }
+        }
     }
 
     nonisolated private static func waitForJITPrerequisites(timeout: TimeInterval = 25) -> Bool {
@@ -213,7 +273,7 @@ final class LiveContainerJITController: ObservableObject {
             if TunnelManager.shared.isConnected && MountingProgress.shared.coolisMounted {
                 return true
             }
-            usleep(250_000)
+            usleep(100_000)
         }
         return TunnelManager.shared.isConnected && MountingProgress.shared.coolisMounted
     }

@@ -2,22 +2,28 @@
 //  LiveContainerAppsView.swift
 //  StikDebug (LiveContainer fork)
 //
-//  Lists the apps installed in the LiveContainer that is hosting StikDebug and
-//  launches one of them with JIT in a LiveContainer Multitask (LiveProcess)
-//  window, attaching StikDebug's debugger to that process.
+//  Same layout as the JIT tab (InstalledAppsListView): large title, always-visible
+//  search, Favorites / Recents / app sections with 54 pt icons, and a feedback capsule.
+//  Tapping an app enables JIT immediately: it opens in a LiveContainer Multitask
+//  window and StikDebug attaches to that process.
 //
 
 import SwiftUI
 
 struct LiveContainerAppsView: View {
     @ObservedObject private var tunnel = TunnelManager.shared
-    @ObservedObject private var mounting = MountingProgress.shared
     @ObservedObject private var controller = LiveContainerJITController.shared
+
+    @AppStorage("lcRecentApps") private var recentApps: [String] = []
+    @AppStorage("lcFavoriteApps") private var favoriteApps: [String] = []
+    @AppStorage("lcShowHiddenApps") private var showHidden = false
 
     @State private var apps: [LiveContainerGuestApp] = []
     @State private var searchText = ""
-    @State private var showHidden = false
-    @State private var pendingApp: LiveContainerGuestApp?
+    @State private var showHelp = false
+
+    private static let maxFavorites = 4
+    private static let maxRecents = 3
 
     private var filteredApps: [LiveContainerGuestApp] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -30,156 +36,296 @@ struct LiveContainerAppsView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                statusSection
-
-                if LiveContainerBridge.isRunningInLiveContainer {
-                    Section {
-                        if filteredApps.isEmpty {
-                            Text(apps.isEmpty ? "No apps found in this LiveContainer." : "No matching apps.")
-                                .foregroundStyle(.secondary)
+            list
+                .navigationTitle("LiveContainer")
+                .searchable(
+                    text: $searchText,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search apps or bundle ID".localized
+                )
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Menu {
+                            Toggle("Show Hidden Apps", isOn: $showHidden)
+                            Button("How It Works", systemImage: "questionmark.circle") { showHelp = true }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
                         }
-                        ForEach(filteredApps) { app in
-                            appRow(app)
-                        }
-                    } header: {
-                        Text("Apps in this LiveContainer")
-                    } footer: {
-                        Text("The app opens in a LiveContainer Multitask window and StikDebug attaches to it. Keep StikDebug open until the JIT request completes.")
+                        .accessibilityLabel("Options")
                     }
-
-                    Section {
-                        Toggle("Show Hidden Apps", isOn: $showHidden)
-                    }
-                }
-
-                howItWorksSection
-            }
-            .searchable(text: $searchText)
-            .navigationTitle("LiveContainer")
-            .onAppear {
-                reload()
-                startTunnelInBackground(showErrorUI: false)
-            }
-            .onChange(of: showHidden) { _, _ in reload() }
-            .refreshable { reload() }
-            .confirmationDialog(
-                "Launch with JIT?",
-                isPresented: Binding(
-                    get: { pendingApp != nil },
-                    set: { if !$0 { pendingApp = nil } }
-                ),
-                titleVisibility: .visible,
-                presenting: pendingApp
-            ) { app in
-                Button("Launch \(app.displayName) with JIT") {
-                    pendingApp = nil
-                    controller.enableJIT(for: app)
-                }
-                Button("Cancel", role: .cancel) { pendingApp = nil }
-            } message: { app in
-                Text("\(app.displayName) will open in a LiveContainer Multitask window and StikDebug will enable JIT for it. If it is already open, it will be restarted.")
-            }
-            .sheet(item: $controller.scriptRunModel) { model in
-                NavigationStack {
-                    RunJSView(model: model)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button("Done") { controller.scriptRunModel = nil }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button {
+                            reload()
+                            if !tunnel.isConnected { startTunnelInBackground() }
+                        } label: {
+                            if tunnel.isStarting {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "arrow.clockwise")
                             }
                         }
-                        .navigationBarTitleDisplayMode(.inline)
+                        .accessibilityLabel("Refresh")
+                    }
+                }
+        }
+        .overlay(alignment: .bottom) { feedbackCapsule }
+        .onAppear {
+            reload()
+            // Warm up the device connection so tapping an app is instant.
+            if !tunnel.isConnected { startTunnelInBackground(showErrorUI: false) }
+        }
+        .onChange(of: showHidden) { _, _ in reload() }
+        .sheet(item: $controller.presentedScriptModel) { model in
+            NavigationStack {
+                RunJSView(model: model)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") { controller.presentedScriptModel = nil }
+                        }
+                    }
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .sheet(isPresented: $showHelp) { helpSheet }
+    }
+
+    // MARK: - List
+
+    private var list: some View {
+        List {
+            if !tunnel.isConnected || tunnel.isStarting || tunnel.connectionNotice != nil {
+                Section {
+                    DeviceConnectionStatusView()
                 }
             }
-        }
-    }
 
-    // MARK: - Sections
+            if !LiveContainerBridge.isRunningInLiveContainer {
+                emptyState(
+                    systemImage: "shippingbox",
+                    title: "Not Running in LiveContainer",
+                    message: "Install StikDebug inside LiveContainer to enable JIT for the apps installed there."
+                )
+            } else if filteredApps.isEmpty {
+                emptyState(
+                    systemImage: searchText.isEmpty ? "magnifyingglass" : "text.magnifyingglass",
+                    title: searchText.isEmpty ? "No Apps Found" : "No matching apps".localized,
+                    message: searchText.isEmpty
+                        ? "Install apps in LiveContainer and they will appear here."
+                        : "Try a different name or bundle identifier.".localized
+                )
+            } else {
+                appSections
+            }
+        }
+        .listStyle(.insetGrouped)
+        .refreshable { reload() }
+    }
 
     @ViewBuilder
-    private var statusSection: some View {
-        Section("Environment") {
-            LabeledContent("Running in LiveContainer",
-                           value: LiveContainerBridge.isRunningInLiveContainer ? "Yes" : "No")
-            if LiveContainerBridge.isRunningInLiveContainer {
-                LabeledContent("Host", value: LiveContainerBridge.hostBundleIdentifier ?? "Unknown")
-                LabeledContent("StikDebug process",
-                               value: LiveContainerBridge.isRunningInLiveProcess ? "Multitask (LiveProcess)" : "Main LiveContainer process")
-            }
-            LabeledContent("Device connection", value: tunnel.isConnected ? "Connected" : "Not connected")
-            LabeledContent("Developer Disk Image", value: mounting.coolisMounted ? "Mounted" : "Not mounted")
-            LabeledContent("JIT script required", value: ProcessInfo.processInfo.hasTXM ? "Yes (TXM)" : "No")
-            if let message = controller.statusMessage {
-                Label(message, systemImage: controller.lastResultIsError ? "exclamationmark.triangle.fill" : "info.circle")
-                    .font(.footnote)
-                    .foregroundStyle(controller.lastResultIsError ? .red : .secondary)
+    private var appSections: some View {
+        let visible = filteredApps
+        let byID = Dictionary(visible.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let favorites = favoriteApps.compactMap { byID[$0] }
+        let recents = recentApps.filter { !favoriteApps.contains($0) }.compactMap { byID[$0] }
+
+        if !favorites.isEmpty {
+            Section(String(format: "Favorites (%d/4)".localized, favorites.count)) {
+                ForEach(favorites) { appRow($0) }
             }
         }
-    }
-
-    private var howItWorksSection: some View {
-        Section("How it works") {
-            Text("""
-            1. Install StikDebug inside LiveContainer (shared or private app) and import your pairing file in StikDebug.
-            2. Turn on LocalDevVPN.
-            3. In LiveContainer settings, enable Multitask and keep the LiveProcess extension installed.
-            4. Open StikDebug from LiveContainer, choose an app here and tap it.
-
-            StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app is started in a separate LiveContainer process and StikDebug attaches to it by PID. On devices that need a JIT script, the app's LiveContainer JIT script, your assigned script or universal.js is used.
-            """)
-            .font(.footnote)
-            .foregroundStyle(.secondary)
+        if !recents.isEmpty {
+            Section("Recents".localized) {
+                ForEach(recents) { appRow($0) }
+            }
+        }
+        Section("Apps in this LiveContainer") {
+            ForEach(visible) { appRow($0) }
         }
     }
 
     private func appRow(_ app: LiveContainerGuestApp) -> some View {
-        Button {
-            pendingApp = app
+        let isFavorite = favoriteApps.contains(app.id)
+        let isBusy = controller.busyAppID == app.id
+
+        return Button {
+            select(app)
         } label: {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 16) {
+                LiveContainerAppIconView(app: app)
+
+                VStack(alignment: .leading, spacing: 3) {
                     Text(app.displayName)
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundStyle(.primary)
+                        .lineLimit(1)
+
                     Text(app.bundleIdentifier)
-                        .font(.caption)
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
-                    let tags = tags(for: app)
-                    if !tags.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(tags, id: \.self) { tag($0) }
-                        }
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if isBusy {
+                    ProgressView()
+                } else if isFavorite {
+                    Image(systemName: "star.fill")
+                        .imageScale(.medium)
+                        .foregroundStyle(.yellow)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(controller.isBusy && !isBusy)
+        .contextMenu {
+            Button {
+                toggleFavorite(app)
+            } label: {
+                Label(isFavorite ? "Remove Favorite" : "Add to Favorites",
+                      systemImage: isFavorite ? "star.slash" : "star")
+            }
+            .disabled(!isFavorite && favoriteApps.count >= Self.maxFavorites)
+            Button {
+                copyBundleID(app)
+            } label: {
+                Label("Copy Bundle ID", systemImage: "doc.on.doc")
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                toggleFavorite(app)
+            } label: {
+                Label(isFavorite ? "Unfavorite" : "Favorite", systemImage: "star")
+            }
+            .tint(.yellow)
+
+            Button {
+                copyBundleID(app)
+            } label: {
+                Label("Copy ID", systemImage: "doc.on.doc")
+            }
+        }
+        .accessibilityLabel(String(format: "Enable JIT for %@".localized, app.displayName))
+    }
+
+    private func emptyState(systemImage: String, title: String, message: String) -> some View {
+        Section {
+            VStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 36, weight: .regular))
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.headline)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+        }
+    }
+
+    // MARK: - Feedback (same capsule as the JIT tab)
+
+    @ViewBuilder
+    private var feedbackCapsule: some View {
+        if let feedback = controller.feedback {
+            Button {
+                if controller.activeScriptModel != nil { controller.showScriptLog() }
+            } label: {
+                HStack(spacing: 10) {
+                    if feedback.kind == .working {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(feedback.message)
+                        .font(.subheadline.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                    if controller.activeScriptModel != nil {
+                        Image(systemName: "text.alignleft")
+                            .font(.footnote.weight(.semibold))
+                            .accessibilityLabel("Show script log")
                     }
                 }
-                Spacer()
-                if controller.busyAppID == app.id {
-                    ProgressView()
-                } else {
-                    Image(systemName: "bolt.fill")
-                        .foregroundStyle(.tint)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Capsule().fill(.ultraThinMaterial))
+                .foregroundStyle(feedback.kind == .failure ? .red : (feedback.kind == .success ? .green : .primary))
+                .shadow(radius: 4)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 100)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private var helpSheet: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text("""
+                    1. Install StikDebug inside LiveContainer and import your pairing file.
+                    2. Turn on LocalDevVPN.
+                    3. In LiveContainer settings, enable Multitask and keep the LiveProcess extension installed.
+                    4. Tap an app here: it opens in a Multitask window with JIT enabled.
+
+                    StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app runs in a separate LiveContainer process and StikDebug attaches to it. On devices that need a JIT script, the app's LiveContainer script, your assigned script or universal.js runs in the background; tap the status capsule to see its log.
+                    """)
+                    .font(.callout)
+                }
+                Section("Environment") {
+                    LabeledContent("Host", value: LiveContainerBridge.hostBundleIdentifier ?? "—")
+                    LabeledContent("StikDebug process",
+                                   value: LiveContainerBridge.isRunningInLiveProcess ? "Multitask (LiveProcess)" : "Main LiveContainer process")
+                    LabeledContent("JIT script required", value: ProcessInfo.processInfo.hasTXM ? "Yes (TXM)" : "No")
+                }
+            }
+            .navigationTitle("How It Works")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showHelp = false }
                 }
             }
         }
-        .disabled(controller.isBusy)
     }
 
-    private func tags(for app: LiveContainerGuestApp) -> [String] {
-        var tags: [String] = []
-        if app.isShared { tags.append("Shared") }
-        if app.isJITNeeded { tags.append("Run with JIT") }
-        if app.jitLaunchScript != nil { tags.append("LC Script") }
-        return tags
-    }
-
-    private func tag(_ text: String) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(Color.accentColor.opacity(0.15)))
-    }
+    // MARK: - Actions
 
     private func reload() {
         apps = LiveContainerBridge.installedGuestApps(includeHidden: showHidden)
+    }
+
+    private func select(_ app: LiveContainerGuestApp) {
+        guard !controller.isBusy else { return }
+        Haptics.selection()
+        recentApps.removeAll { $0 == app.id }
+        recentApps.insert(app.id, at: 0)
+        if recentApps.count > Self.maxRecents {
+            recentApps = Array(recentApps.prefix(Self.maxRecents))
+        }
+        controller.enableJIT(for: app)
+    }
+
+    private func toggleFavorite(_ app: LiveContainerGuestApp) {
+        Haptics.light()
+        if favoriteApps.contains(app.id) {
+            favoriteApps.removeAll { $0 == app.id }
+        } else if favoriteApps.count < Self.maxFavorites {
+            favoriteApps.insert(app.id, at: 0)
+            recentApps.removeAll { $0 == app.id }
+        }
+    }
+
+    private func copyBundleID(_ app: LiveContainerGuestApp) {
+        UIPasteboard.general.string = app.bundleIdentifier
+        Haptics.light()
     }
 }
 

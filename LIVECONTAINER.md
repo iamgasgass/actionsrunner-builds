@@ -55,8 +55,10 @@ New URL: `stikdebug://livecontainer` opens the LiveContainer tab.
 2. Install the StikDebug-LC IPA **into LiveContainer** (shared or private).
 3. Open StikDebug from LiveContainer, import the pairing file, connect LocalDevVPN, wait for "Connected" and
    "DDI mounted".
-4. Open the **LiveContainer** tab → tap the app → *Launch with JIT*.
-5. The app appears in a Multitask window with JIT enabled. Keep StikDebug open while a TXM script is running.
+4. Open the **LiveContainer** tab (same layout as the JIT tab, with favorites and recents) → tap the app.
+5. The app opens immediately in a Multitask window; StikDebug attaches as soon as the device connection is ready.
+   On TXM devices the JIT script (LiveContainer's per-app script, your assigned script, the automatic one or
+   `universal.js` for every other app) keeps running in the background; tap the status capsule to see its log.
 
 Alternative (LiveContainer-driven): in LiveContainer settings choose JIT enabler
 **"StikDebug (Another LiveContainer/Multitask)"**, mark the app "Run with JIT", open it **in Multitask**;
@@ -120,7 +122,8 @@ separato, con un suo PID) e StikDebug si aggancia a quel PID. Tutte le operazion
 1. Installa LiveContainer con "Keep Extensions" e attiva Multitask nelle impostazioni.
 2. Installa l'IPA StikDebug-LC dentro LiveContainer.
 3. Apri StikDebug da LiveContainer, importa il pairing file, attiva LocalDevVPN e attendi "Connected" + DDI montata.
-4. Scheda **LiveContainer** → tocca l'app → *Launch with JIT*. L'app si apre in una finestra Multitask con JIT attivo.
+4. Scheda **LiveContainer** (stesso layout della scheda JIT) → tocca l'app: si apre subito in una finestra Multitask e
+   StikDebug attiva il JIT. Sugli iPhone con TXM lo script (anche `universal.js` per tutte le app) gira in background.
 
 In alternativa: in LiveContainer scegli "StikDebug (Another LiveContainer/Multitask)", attiva "Run with JIT"
 sull'app e aprila in Multitask.
