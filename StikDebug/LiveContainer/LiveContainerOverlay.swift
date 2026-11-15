@@ -2,55 +2,13 @@
 //  LiveContainerOverlay.swift
 //  StikDebug (LiveContainer fork)
 //
-//  LiveContainer draws its Multitask windows on top of the guest app's views, so a capsule
-//  placed in StikDebug's own view hierarchy ends up hidden behind them. The JIT status
-//  capsule and the running-session pills therefore live in a separate, touch-transparent
-//  UIWindow above everything, styled with the native Liquid Glass effect (iOS 26+).
+//  JIT status capsule and running-session pills shown at the bottom of the LiveContainer
+//  tab, styled with the native Liquid Glass effect (iOS 26+). They live in StikDebug's own
+//  view hierarchy, so LiveContainer's Multitask windows cover them like any other content.
 //
 
 import SwiftUI
 import UIKit
-
-// MARK: - Window
-
-@MainActor
-final class LiveContainerOverlayWindow {
-    static let shared = LiveContainerOverlayWindow()
-
-    private var window: PassthroughWindow?
-
-    private init() {}
-
-    /// Creates the overlay window once (no-op when it already exists).
-    func install() {
-        if let window, window.windowScene?.activationState != .unattached {
-            window.isHidden = false
-            return
-        }
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
-            return
-        }
-
-        let window = PassthroughWindow(windowScene: scene)
-        // Above LiveContainer's floating Multitask windows (which live in the app's main window).
-        window.windowLevel = .alert + 1
-        window.backgroundColor = .clear
-        let host = UIHostingController(rootView: LiveContainerOverlayView())
-        host.view.backgroundColor = .clear
-        window.rootViewController = host
-        window.isHidden = false
-        self.window = window
-    }
-}
-
-/// Lets touches through everywhere except on the overlay's own controls (and presented sheets).
-private final class PassthroughWindow: UIWindow {
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        guard let hit = super.hitTest(point, with: event) else { return nil }
-        return hit === rootViewController?.view ? nil : hit
-    }
-}
 
 // MARK: - Liquid Glass
 
@@ -93,13 +51,23 @@ struct LiveContainerOverlayView: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 92) // above the tab bar
+        // Same height as before: 92 pt above the home-indicator area, measured from the screen
+        // bottom (the tab bar's safe-area inset is ignored so the position doesn't change).
+        .padding(.bottom, 92 + Self.homeIndicatorInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container, edges: .bottom)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.sessions.map(\.id))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.feedback?.id)
         .sheet(item: $controller.presentedSession) { session in
             LiveContainerSessionLogSheet(session: session)
         }
+    }
+
+    private static var homeIndicatorInset: CGFloat {
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+        return (windows.first(where: \.isKeyWindow) ?? windows.first)?.safeAreaInsets.bottom ?? 34
     }
 
     @ViewBuilder

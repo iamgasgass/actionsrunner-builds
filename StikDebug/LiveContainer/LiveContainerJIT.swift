@@ -158,7 +158,7 @@ final class LiveContainerJITController: ObservableObject {
 
     @Published private(set) var busyAppID: String?
     @Published private(set) var feedback: LiveContainerJITFeedback?
-    /// Script sessions that are still attached (shown as a Liquid Glass pill above every window).
+    /// Script sessions that are still attached (shown as Liquid Glass pills in the LiveContainer tab).
     @Published private(set) var sessions: [LiveContainerJITSession] = []
     /// Set to show a session's script log in a sheet.
     @Published var presentedSession: LiveContainerJITSession?
@@ -185,7 +185,6 @@ final class LiveContainerJITController: ObservableObject {
         guard busyAppID == nil else { return }
         busyAppID = app.id
         Haptics.medium()
-        LiveContainerOverlayWindow.shared.install()
         show(String(format: "Starting JIT for %@".localized, app.displayName), .working)
         LogManager.shared.addInfoLog("[LiveContainer] Launching \(app.displayName) (\(app.relativeBundlePath)) with JIT in the same LiveContainer")
 
