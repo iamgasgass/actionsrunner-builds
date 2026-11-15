@@ -162,11 +162,33 @@ final class LiveContainerJITController: ObservableObject {
     @Published private(set) var sessions: [LiveContainerJITSession] = []
     /// Set to show a session's script log in a sheet.
     @Published var presentedSession: LiveContainerJITSession?
+    /// Sessions whose pill was swiped away; they keep running in the background.
+    @Published private(set) var dismissedSessionIDs: Set<UUID> = []
 
     private init() {}
 
     var isBusy: Bool { busyAppID != nil }
     var runningSessions: [LiveContainerJITSession] { sessions.filter(\.isRunning) }
+    /// Sessions whose pill is on screen.
+    var visibleSessions: [LiveContainerJITSession] { sessions.filter { !dismissedSessionIDs.contains($0.id) } }
+    /// Running sessions whose pill was swiped away.
+    var hiddenRunningSessions: [LiveContainerJITSession] { runningSessions.filter { dismissedSessionIDs.contains($0.id) } }
+
+    /// Hides a session's pill; the JIT script keeps running in the background.
+    func dismiss(_ session: LiveContainerJITSession) {
+        dismissedSessionIDs.insert(session.id)
+    }
+
+    /// Hides the status capsule.
+    func dismissFeedback() {
+        feedback = nil
+    }
+
+    /// Shows the pills of sessions that were swiped away.
+    func restoreDismissedSessions() {
+        dismissedSessionIDs.removeAll()
+        LiveContainerOverlayWindow.shared.install()
+    }
 
     /// Finds the LiveContainer guest app with this bundle identifier (used for stikjit:// requests).
     static func guestApp(bundleID: String) -> LiveContainerGuestApp? {
@@ -347,7 +369,10 @@ final class LiveContainerJITController: ObservableObject {
     private func scheduleSessionCleanup(_ session: LiveContainerJITSession) {
         DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
             guard let self, self.presentedSession?.id != session.id else { return }
-            withAnimation { self.sessions.removeAll { $0.id == session.id } }
+            withAnimation {
+                self.sessions.removeAll { $0.id == session.id }
+                self.dismissedSessionIDs.remove(session.id)
+            }
         }
     }
 

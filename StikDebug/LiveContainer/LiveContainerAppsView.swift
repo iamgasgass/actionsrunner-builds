@@ -50,6 +50,12 @@ struct LiveContainerAppsView: View {
                     ToolbarItem(placement: .navigationBarLeading) {
                         Menu {
                             Toggle("Show Hidden Apps", isOn: $showHidden)
+                            if !controller.hiddenRunningSessions.isEmpty {
+                                Button("Show JIT Sessions (\(controller.hiddenRunningSessions.count))",
+                                       systemImage: "bolt.badge.clock") {
+                                    controller.restoreDismissedSessions()
+                                }
+                            }
                             Button("How It Works", systemImage: "questionmark.circle") { showHelp = true }
                         } label: {
                             Image(systemName: "line.3.horizontal.decrease.circle")
@@ -293,7 +299,7 @@ struct LiveContainerAppsView: View {
                     3. In LiveContainer settings, enable Multitask and keep the LiveProcess extension installed.
                     4. Tap an app here: it opens in a Multitask window with JIT enabled.
 
-                    StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app runs in a separate LiveContainer process and StikDebug attaches to it. On devices that need a JIT script, the app's LiveContainer script, your assigned script or universal.js runs in the background; tap the Liquid Glass status pill to see its log. Long-press an app to choose its script (default order: LiveContainer script → script assigned in the JIT tab → automatic → universal.js).
+                    StikDebug can't relaunch the LiveContainer it lives in (that would close StikDebug itself), so the app runs in a separate LiveContainer process and StikDebug attaches to it. On devices that need a JIT script, the app's LiveContainer script, your assigned script or universal.js runs in the background; tap the Liquid Glass status pill to see its log, or swipe it left/right to hide it (the session keeps running; bring it back with "Show JIT Sessions" in the options menu). Long-press an app to choose its script (default order: LiveContainer script → script assigned in the JIT tab → automatic → universal.js).
                     """)
                     .font(.callout)
                 }

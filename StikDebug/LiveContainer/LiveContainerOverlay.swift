@@ -103,6 +103,60 @@ extension View {
     }
 }
 
+// MARK: - Swipe to dismiss
+
+/// Swipe left or right to hide a capsule. Follows the finger, flies off past a threshold,
+/// springs back otherwise. Taps still reach the button underneath.
+private struct LiveContainerSwipeToDismiss: ViewModifier {
+    let onDismiss: () -> Void
+
+    @State private var offset: CGFloat = 0
+    @State private var isDismissing = false
+
+    private static let threshold: CGFloat = 80
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: offset)
+            .opacity(1 - min(abs(offset) / 260, 0.7))
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 12)
+                    .onChanged { value in
+                        guard !isDismissing else { return }
+                        // Only horizontal swipes; ignore mostly vertical drags.
+                        guard abs(value.translation.width) > abs(value.translation.height) else { return }
+                        offset = value.translation.width
+                    }
+                    .onEnded { value in
+                        guard !isDismissing else { return }
+                        let projected = value.predictedEndTranslation.width
+                        if abs(offset) > Self.threshold || abs(projected) > Self.threshold * 2.5 {
+                            isDismissing = true
+                            let direction: CGFloat = (projected == 0 ? offset : projected) < 0 ? -1 : 1
+                            Haptics.light()
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                offset = direction * 600
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                onDismiss()
+                            }
+                        } else {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                                offset = 0
+                            }
+                        }
+                    }
+            )
+            .accessibilityAction(named: Text("Hide")) { onDismiss() }
+    }
+}
+
+private extension View {
+    func liveContainerSwipeToDismiss(_ onDismiss: @escaping () -> Void) -> some View {
+        modifier(LiveContainerSwipeToDismiss(onDismiss: onDismiss))
+    }
+}
+
 // MARK: - Overlay content
 
 struct LiveContainerOverlayView: View {
@@ -113,13 +167,16 @@ struct LiveContainerOverlayView: View {
             Spacer(minLength: 0)
             glassGroup {
                 VStack(spacing: 8) {
-                    ForEach(controller.sessions) { session in
+                    ForEach(controller.visibleSessions) { session in
                         LiveContainerSessionPill(session: session)
+                            .liveContainerSwipeToDismiss { controller.dismiss(session) }
                             .liveContainerHitRegion()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if let feedback = controller.feedback {
                         LiveContainerFeedbackCapsule(feedback: feedback)
+                            .id(feedback.id)
+                            .liveContainerSwipeToDismiss { controller.dismissFeedback() }
                             .liveContainerHitRegion()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
@@ -132,7 +189,7 @@ struct LiveContainerOverlayView: View {
         .onPreferenceChange(LiveContainerHitFramesKey.self) { frames in
             MainActor.assumeIsolated { LiveContainerOverlayHitRegions.frames = frames }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.sessions.map(\.id))
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.visibleSessions.map(\.id))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.feedback?.id)
         .sheet(item: $controller.presentedSession) { session in
             LiveContainerSessionLogSheet(session: session)
@@ -154,31 +211,31 @@ private struct LiveContainerFeedbackCapsule: View {
     @ObservedObject private var controller = LiveContainerJITController.shared
 
     var body: some View {
-        Button {
+        HStack(spacing: 10) {
+            switch feedback.kind {
+            case .working:
+                ProgressView().controlSize(.small)
+            case .success:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+            case .failure:
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+            }
+            Text(feedback.message)
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .contentShape(Capsule())
+        .liveContainerGlassCapsule()
+        // A tap gesture (not a Button) so a swipe never also counts as a tap.
+        .onTapGesture {
             // Opens the log of the current (or most recent) JIT session, if there is one.
             if !controller.sessions.isEmpty { controller.showLog() }
-        } label: {
-            HStack(spacing: 10) {
-                switch feedback.kind {
-                case .working:
-                    ProgressView().controlSize(.small)
-                case .success:
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                case .failure:
-                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
-                }
-                Text(feedback.message)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .liveContainerGlassCapsule()
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -187,32 +244,31 @@ private struct LiveContainerSessionPill: View {
     @ObservedObject private var controller = LiveContainerJITController.shared
 
     var body: some View {
-        Button {
-            controller.showLog(session)
-        } label: {
-            HStack(spacing: 10) {
-                LiveContainerAppIconView(app: session.app, size: 28)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 4)
-                Image(systemName: "text.alignleft")
-                    .font(.footnote.weight(.semibold))
+        HStack(spacing: 10) {
+            LiveContainerAppIconView(app: session.app, size: 28)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 16)
-            .padding(.vertical, 8)
-            .contentShape(Capsule())
+            Spacer(minLength: 4)
+            Image(systemName: "text.alignleft")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.plain)
+        .padding(.leading, 8)
+        .padding(.trailing, 16)
+        .padding(.vertical, 8)
+        .contentShape(Capsule())
         .liveContainerGlassCapsule(tint: tint)
+        // A tap gesture (not a Button) so a swipe never also counts as a tap.
+        .onTapGesture { controller.showLog(session) }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel("\(title). \(subtitle). Show script log")
     }
 
@@ -280,7 +336,7 @@ private struct LiveContainerSessionLogSheet: View {
     private var note: String? {
         switch session.state {
         case .serving:
-            return "JIT is on. \(session.app.displayName) keeps the script attached to request JIT memory while it runs, so the log stays on \"Handling signal\" — that's expected. Closing this log does not stop it; the session ends when you close the app."
+            return "JIT is on. \(session.app.displayName) keeps the script attached to request JIT memory while it runs, so the log stays on \"Handling signal\" — that's expected. Closing this log or swiping the pill away does not stop it; the session ends when you close the app."
         case .attaching:
             return "Attaching to \(session.app.displayName)…"
         case .finished:
