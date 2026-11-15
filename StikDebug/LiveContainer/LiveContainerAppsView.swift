@@ -71,9 +71,12 @@ struct LiveContainerAppsView: View {
                     }
                 }
         }
-        .overlay { LiveContainerOverlayView() }
         .onAppear {
             reload()
+            // The JIT status capsule lives in its own window so Multitask windows don't hide it.
+            if LiveContainerBridge.isRunningInLiveContainer {
+                LiveContainerOverlayWindow.shared.install()
+            }
             // Warm up the device connection so tapping an app is instant.
             if !tunnel.isConnected { startTunnelInBackground(showErrorUI: false) }
         }

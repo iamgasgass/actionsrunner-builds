@@ -2,13 +2,87 @@
 //  LiveContainerOverlay.swift
 //  StikDebug (LiveContainer fork)
 //
-//  JIT status capsule and running-session pills shown at the bottom of the LiveContainer
-//  tab, styled with the native Liquid Glass effect (iOS 26+). They live in StikDebug's own
-//  view hierarchy, so LiveContainer's Multitask windows cover them like any other content.
+//  LiveContainer draws its floating Multitask windows on top of the guest app's views, so a
+//  capsule placed in StikDebug's own view hierarchy is hidden behind them. The JIT status
+//  capsule and the running-session pills therefore live in a separate UIWindow above
+//  everything, styled with the native Liquid Glass effect (iOS 26+).
+//
+//  That window only accepts touches inside the capsule/pill frames (measured by SwiftUI and
+//  stored in `LiveContainerOverlayHitRegions`) or while the script log sheet is presented;
+//  every other touch falls through to StikDebug and to the Multitask windows below.
 //
 
 import SwiftUI
 import UIKit
+
+// MARK: - Window
+
+@MainActor
+final class LiveContainerOverlayWindow {
+    static let shared = LiveContainerOverlayWindow()
+
+    private var window: LiveContainerPassthroughWindow?
+
+    private init() {}
+
+    /// Creates the overlay window once and keeps it visible.
+    func install() {
+        if let window, window.windowScene != nil {
+            window.isHidden = false
+            return
+        }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        guard let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first else {
+            return
+        }
+
+        let window = LiveContainerPassthroughWindow(windowScene: scene)
+        // Above LiveContainer's floating Multitask windows (they live inside the app's main window).
+        window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
+        window.backgroundColor = .clear
+        let host = UIHostingController(rootView: LiveContainerOverlayView())
+        host.view.backgroundColor = .clear
+        window.rootViewController = host
+        window.isHidden = false
+        self.window = window
+    }
+}
+
+/// Frames (window coordinates) of the overlay's tappable capsules.
+@MainActor
+enum LiveContainerOverlayHitRegions {
+    static var frames: [CGRect] = []
+}
+
+final class LiveContainerPassthroughWindow: UIWindow {
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        // While the log sheet (or anything else) is presented from this window, take all touches.
+        if rootViewController?.presentedViewController != nil {
+            return super.point(inside: point, with: event)
+        }
+        let frames = MainActor.assumeIsolated { LiveContainerOverlayHitRegions.frames }
+        return frames.contains { $0.insetBy(dx: -4, dy: -4).contains(point) }
+    }
+}
+
+private struct LiveContainerHitFramesKey: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+private extension View {
+    /// Reports this view's frame so the overlay window accepts touches on it.
+    func liveContainerHitRegion() -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: LiveContainerHitFramesKey.self,
+                                       value: [proxy.frame(in: .global)])
+            }
+        )
+    }
+}
 
 // MARK: - Liquid Glass
 
@@ -41,33 +115,28 @@ struct LiveContainerOverlayView: View {
                 VStack(spacing: 8) {
                     ForEach(controller.sessions) { session in
                         LiveContainerSessionPill(session: session)
+                            .liveContainerHitRegion()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                     if let feedback = controller.feedback {
                         LiveContainerFeedbackCapsule(feedback: feedback)
+                            .liveContainerHitRegion()
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
         }
         .padding(.horizontal, 20)
-        // Same height as before: 92 pt above the home-indicator area, measured from the screen
-        // bottom (the tab bar's safe-area inset is ignored so the position doesn't change).
-        .padding(.bottom, 92 + Self.homeIndicatorInset)
+        .padding(.bottom, 92) // above the tab bar (the window's safe area covers the home indicator)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .ignoresSafeArea(.container, edges: .bottom)
+        .onPreferenceChange(LiveContainerHitFramesKey.self) { frames in
+            MainActor.assumeIsolated { LiveContainerOverlayHitRegions.frames = frames }
+        }
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.sessions.map(\.id))
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: controller.feedback?.id)
         .sheet(item: $controller.presentedSession) { session in
             LiveContainerSessionLogSheet(session: session)
         }
-    }
-
-    private static var homeIndicatorInset: CGFloat {
-        let windows = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap(\.windows)
-        return (windows.first(where: \.isKeyWindow) ?? windows.first)?.safeAreaInsets.bottom ?? 34
     }
 
     @ViewBuilder
@@ -82,24 +151,32 @@ struct LiveContainerOverlayView: View {
 
 private struct LiveContainerFeedbackCapsule: View {
     let feedback: LiveContainerJITFeedback
+    @ObservedObject private var controller = LiveContainerJITController.shared
 
     var body: some View {
-        HStack(spacing: 10) {
-            switch feedback.kind {
-            case .working:
-                ProgressView().controlSize(.small)
-            case .success:
-                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            case .failure:
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+        Button {
+            // Opens the log of the current (or most recent) JIT session, if there is one.
+            if !controller.sessions.isEmpty { controller.showLog() }
+        } label: {
+            HStack(spacing: 10) {
+                switch feedback.kind {
+                case .working:
+                    ProgressView().controlSize(.small)
+                case .success:
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                case .failure:
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
+                Text(feedback.message)
+                    .font(.subheadline.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
             }
-            Text(feedback.message)
-                .font(.subheadline.weight(.semibold))
-                .multilineTextAlignment(.leading)
-                .lineLimit(3)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .contentShape(Capsule())
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
+        .buttonStyle(.plain)
         .liveContainerGlassCapsule()
         .accessibilityElement(children: .combine)
     }
