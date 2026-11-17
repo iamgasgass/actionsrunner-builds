@@ -55,3 +55,22 @@ Ogni voce: file, sintomo, causa, correzione.
 Non è possibile compilare l'app iOS fuori da macOS/Xcode: i file C modificati sono stati verificati con
 `clang -fsyntax-only -Wall -Wextra` e con l'analizzatore statico di clang (`--analyze`), che non segnala più i
 difetti sopra. Va fatta una build (Xcode o la tua GitHub Action) e un'installazione di prova su dispositivo.
+
+## Ottimizzazioni (dal profilo dispositivo di WindowsiOS X)
+
+18. **vCPU limitate ai core del dispositivo** (`Device.maxCPUs`, Hardware.swift): mai più dei core meno uno
+    (uno resta a interfaccia, audio e display), al massimo 6. Su iPhone (6 core) l'impostazione arriva a 5;
+    il valore salvato viene applicato così all'avvio, alla ripresa istantanea e all'installazione.
+19. **Nuovo tentativo con meno RAM** quando la memoria del guest non si riesce a mappare
+    ("not enough memory for the guest's RAM", #11): avvio e installazione riprovano scendendo di 512 MB
+    alla volta (minimo 1 GB per l'avvio, 2 GB per l'installazione) invece di fallire.
+20. **API facoltative compilate solo se l'SDK le ha**: `ios/scripts/package_ipa.sh` compila un probe contro
+    l'SDK e attiva `HENGE_SCENE_ACCESSORY` solo se c'è l'accessorio di scena di iOS 27
+    (`ExternalNonInteractiveAccessory`). Con Xcode 26 l'app ora compila, e il display esterno usa il percorso
+    del scene delegate su ogni versione di iOS.
+21. Avviso Swift 6 in Machines.swift (`packedDisk` isolato al main actor) eliminato.
+
+## Build
+
+22. **Makefile / tl/Makefile**: gli esempi Mac del translation layer (`tl-samples.dmg`) venivano compilati con l'SDK
+    di iOS quando li lanciava Xcode (`'Foundation/NSURLHandle.h' file not found`). Ora usano sempre l'SDK macOS.

@@ -180,7 +180,7 @@ private struct MacHero: View {
                     }
                     .padding(.top, 15)
                     .padding(.horizontal, 5)
-                    Text("\(mac.summary) · \(cpus) CPUs")
+                    Text("\(mac.summary) · \(Device.effectiveCPUs(cpus)) CPUs")
                         .font(.system(size: 15))
                         .foregroundStyle(Desk.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -22,6 +22,8 @@ struct SessionView: View {
     @State private var thermalState = ProcessInfo.processInfo.thermalState
     @State private var bootRAM: UInt64 = 0 /* what the Mac was started with, which a save is for */
     @AppStorage("henge.cpus") private var cpus = 4
+    /// The CPU setting as this device can run it (Device.maxCPUs).
+    private var vcpus: Int { Device.effectiveCPUs(cpus) }
     @AppStorage("henge.matchScreenColors") private var matchScreenColors = true
     @AppStorage("henge.display.brightness") private var screenBrightness = 1.0
     @AppStorage("henge.cursor.scale") private var cursorScale = Device.isPad ? 1 : 3
@@ -185,7 +187,7 @@ struct SessionView: View {
             HardwareMouse.shared.releaseButtons()
             VolumeClicks.shared.releaseButtons()
             if phase == .inactive { InstantResume.pause() }
-            if phase == .background && bootRAM > 0 { InstantResume.suspend(mac, ramMB: bootRAM, cpus: cpus) }
+            if phase == .background && bootRAM > 0 { InstantResume.suspend(mac, ramMB: bootRAM, cpus: vcpus) }
         }
         .onChange(of: showDetails) { showing in
             if showing { HardwareKeys.releaseAll(); StickyKeys.shared.releaseAll() }
@@ -483,7 +485,7 @@ struct SessionView: View {
         NavigationStack {
             List {
                 Section(phase) {
-                    LabeledContent("CPUs on", value: "\(cpusOn) of \(cpus)")
+                    LabeledContent("CPUs on", value: "\(cpusOn) of \(vcpus)")
                     LabeledContent("Temperature", value: Self.thermalLabel(thermalState))
                     LabeledContent("Translated blocks", value: String(format: "%.1f M/s", blocksPerSecond / 1e6))
                     LabeledContent("Network frames", value: "\(framesOut) out, \(framesIn) in")
@@ -588,7 +590,7 @@ struct SessionView: View {
         guard !Task.isCancelled else { return }
         UIApplication.shared.isIdleTimerDisabled = true
         HardwareMouse.shared.start()
-        let ram = GuestMemory.prepare(mac)
+        var ram = GuestMemory.prepare(mac)
         HengeLog.log("session", "available memory \(henge_available_memory() >> 20) MB")
         guard ram >= 1024 else {
             error = "There is not room for this Mac's memory: it needs a few GB of free storage."
@@ -615,11 +617,11 @@ struct SessionView: View {
             henge_vm_set_identity(nil, nil, nil)
         }
         var rc: Int32 = -1
-        if InstantResume.enabled, let at = InstantResume.saved(for: mac, ramMB: ram, cpus: cpus) {
+        if InstantResume.enabled, let at = InstantResume.saved(for: mac, ramMB: ram, cpus: vcpus) {
             HengeLog.log("resume", "picking up the Mac saved \(Int(Date().timeIntervalSince(at))) s ago")
             let t0 = Date()
-            rc = henge_vm_resume(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, mac.seed, ram, Int32(cpus),
-                                 InstantResume.file(for: mac).path, InstantResume.ident(for: mac, ramMB: ram, cpus: cpus), &buffer, buffer.count)
+            rc = henge_vm_resume(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, mac.seed, ram, Int32(vcpus),
+                                 InstantResume.file(for: mac).path, InstantResume.ident(for: mac, ramMB: ram, cpus: vcpus), &buffer, buffer.count)
             if rc == 0 {
                 HengeLog.log("resume", String(format: "resumed in %.1f s", Date().timeIntervalSince(t0)))
             } else {
@@ -629,7 +631,15 @@ struct SessionView: View {
         }
         InstantResume.discard(for: mac) /* used or out of date: the disk moves on from here */
         if rc != 0 {
-            rc = henge_vm_boot(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, mac.seed, ram, Int32(cpus), &buffer, buffer.count)
+            rc = henge_vm_boot(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, mac.seed, ram, Int32(vcpus), &buffer, buffer.count)
+            // As WindowsiOS X does: when the guest's RAM cannot be mapped, try again 512 MB smaller rather than give up
+            // (#11: a 4 GB Mac next to a 1 GB code cache did not fit an app without extended addressing).
+            while rc != 0, String(cString: buffer).contains("not enough memory"), ram >= 1024 + 512 {
+                HengeLog.log("session", "no room for \(ram) MB of guest RAM: trying \(ram - 512) MB")
+                ram -= 512
+                buffer = [CChar](repeating: 0, count: 256)
+                rc = henge_vm_boot(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, mac.seed, ram, Int32(vcpus), &buffer, buffer.count)
+            }
         }
         if rc != 0 {
             error = String(cString: buffer)

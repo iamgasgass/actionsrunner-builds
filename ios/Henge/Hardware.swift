@@ -34,6 +34,14 @@ enum Device {
         return (Int((Double(s.width) / 264 * 25.4).rounded()), Int((Double(s.height) / 264 * 25.4).rounded()))
     }
 
+    /// The most virtual CPUs worth giving a Mac here: one host core stays free for the UI, audio and the
+    /// display (as WindowsiOS X's device profile does), and never more than the engine's 6. An iPhone has 6
+    /// cores, so 5; an iPad with 8 or 10 cores, 6. More vCPUs than free cores only makes them take turns.
+    static var maxCPUs: Int { max(1, min(6, ProcessInfo.processInfo.activeProcessorCount - 1)) }
+
+    /// The CPU setting as it applies on this device.
+    static func effectiveCPUs(_ requested: Int) -> Int { min(max(requested, 1), maxCPUs) }
+
     /// How much memory to suggest for a new Mac: what leaves this device room for iOS.
     static var suggestedRAMGB: Int {
         let mb = ProcessInfo.processInfo.physicalMemory >> 20

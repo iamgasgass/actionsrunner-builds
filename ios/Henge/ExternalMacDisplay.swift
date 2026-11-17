@@ -33,6 +33,10 @@ struct ExternalMacDisplayModifier: ViewModifier {
         let session = content
             .onAppear { LegacyExternalDisplay.shared.begin(presentation) }
             .onDisappear { LegacyExternalDisplay.shared.end(presentation) }
+        // HENGE_SCENE_ACCESSORY: set by ios/scripts/package_ipa.sh when the iOS SDK has the iOS 27 scene
+        // accessory API (it compiles a probe against the SDK). With an older SDK (Xcode 26) the app still builds,
+        // and every iOS version uses the scene delegate path (LegacyExternalDisplay).
+#if HENGE_SCENE_ACCESSORY
         if #available(iOS 27.0, *) { // the compiler requires this to call the iOS 27 sceneAccessory API
             session.sceneAccessory {
                 ExternalNonInteractiveAccessory {
@@ -42,5 +46,8 @@ struct ExternalMacDisplayModifier: ViewModifier {
         } else {
             session
         }
+#else
+        session
+#endif
     }
 }

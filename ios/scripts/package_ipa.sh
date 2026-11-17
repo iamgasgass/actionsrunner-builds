@@ -16,8 +16,22 @@ cd "$IOS"
 xcodegen generate >/dev/null
 DD="$IOS/build/DerivedData"
 mkdir -p "$IOS/build"
+# Optional APIs newer than some SDKs: compiled in only when this SDK has them. Decided by type-checking a
+# one-line probe against the SDK (not by searching headers), as WindowsiOS X does for UIHingeInteraction.
+CONDITIONS='$(inherited)'
+SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+PROBE="$IOS/build/probe_scene_accessory.swift"
+printf 'import SwiftUI\n@available(iOS 27.0, *) func probe(_ v: some View) -> some View { v.sceneAccessory { ExternalNonInteractiveAccessory { Color.black } } }\n' > "$PROBE"
+if xcrun --sdk iphoneos swiftc -typecheck -sdk "$SDK_PATH" -target arm64-apple-ios17.0 "$PROBE" >/dev/null 2>&1; then
+    CONDITIONS="$CONDITIONS HENGE_SCENE_ACCESSORY"
+    echo "iOS SDK $(xcrun --sdk iphoneos --show-sdk-version): external display scene accessory (iOS 27) compiled in"
+else
+    echo "iOS SDK $(xcrun --sdk iphoneos --show-sdk-version): no scene accessory API; external displays use the scene delegate on every iOS"
+fi
+rm -f "$PROBE"
 xcodebuild -project Henge.xcodeproj -scheme Henge -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-    -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > "$DD.buildlog" 2>&1 || {
+    -derivedDataPath "$DD" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS="$CONDITIONS" build > "$DD.buildlog" 2>&1 || {
     # Never package what an older build left behind.
     grep -E "error:|BUILD" "$DD.buildlog" | sort -u
     echo "==> the build failed; nothing packaged" >&2

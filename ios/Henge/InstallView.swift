@@ -119,7 +119,7 @@ struct InstallView: View {
         .deskCard()
 
         Button(Installer.haveImage(release) ? "Install" : "Download and Install") {
-            installer.start(release, name: name.isEmpty ? "Mac" : name, ramMB: ramGB * 1024, cpus: cpus, keepImage: !deleteAfter)
+            installer.start(release, name: name.isEmpty ? "Mac" : name, ramMB: ramGB * 1024, cpus: Device.effectiveCPUs(cpus), keepImage: !deleteAfter)
         }
         .buttonStyle(DeskButtonStyle(enabled: jitReady && !Device.chipTooOld))
         .disabled(!jitReady || Device.chipTooOld)

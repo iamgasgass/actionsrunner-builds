@@ -233,8 +233,17 @@ final class Installer: NSObject, ObservableObject {
         let work = mac.directory.appendingPathComponent("restore", isDirectory: true)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
         var buffer = [CChar](repeating: 0, count: 256)
-        let rc = henge_vm_install(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, ipsw.path, work.path, ram, Int32(cpus),
+        var installRAM = ram
+        var rc = henge_vm_install(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, ipsw.path, work.path, installRAM, Int32(cpus),
                                   &buffer, buffer.count)
+        // No room to map that much guest RAM: 512 MB less, down to the 2 GB the restore system needs.
+        while rc != 0, String(cString: buffer).contains("not enough memory"), installRAM >= 2048 + 512 {
+            HengeLog.log("install", "no room for \(installRAM) MB of guest RAM: trying \(installRAM - 512) MB")
+            installRAM -= 512
+            buffer = [CChar](repeating: 0, count: 256)
+            rc = henge_vm_install(mac.rom.path, mac.disk.path, mac.aux.path, mac.ecid, ipsw.path, work.path, installRAM, Int32(cpus),
+                                  &buffer, buffer.count)
+        }
         if rc != 0 { throw message(String(cString: buffer)) }
         while true {
             try await Task.sleep(nanoseconds: 1_000_000_000)

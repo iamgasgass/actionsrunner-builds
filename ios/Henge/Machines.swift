@@ -70,7 +70,7 @@ final class Machines: ObservableObject {
 
     /// The files an exported machine folder holds; its disk is disk.img, or disk.img.hvsparse (tools/export_ios.sh packs it).
     static let required = ["AVPBooter.vmapple2.bin", "auxiliary.bin", "machine.json"]
-    static let packedDisk = "disk.img.hvsparse"
+    nonisolated static let packedDisk = "disk.img.hvsparse"
 
     nonisolated static func hasDisk(_ folder: URL) -> Bool {
         let fm = FileManager.default

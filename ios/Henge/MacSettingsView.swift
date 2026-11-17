@@ -41,11 +41,11 @@ struct MacSettingsView: View {
                 .deskCard()
 
                 DeskHeading("Processors")
-                Stepper(value: $cpus, in: 1...6) {
+                Stepper(value: $cpus, in: 1...Device.maxCPUs) {
                     HStack {
                         Text("CPUs").font(.system(size: 16))
                         Spacer()
-                        Text("\(cpus)").font(.system(size: 16, weight: .semibold))
+                        Text("\(Device.effectiveCPUs(cpus))").font(.system(size: 16, weight: .semibold))
                     }
                 }
                 .padding(.horizontal, 17)
