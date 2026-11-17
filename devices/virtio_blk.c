@@ -1,5 +1,6 @@
 #include "virtio_blk.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
@@ -62,6 +63,14 @@ static int handle(HvVirtioBlk *b, HvVirtqElem *e, uint32_t *written) {
     if (wlen < 1 || hv_virtq_read(v, e, 0, &hdr, sizeof hdr) != sizeof hdr) return -1;
     uint32_t data = wlen - 1; /* the status byte is the last writable one */
     uint8_t status = S_OK;
+    /* A sector number this large would wrap sector * 512 round to an offset inside the disk. */
+    if ((hdr.type == T_IN || hdr.type == T_OUT) && hdr.sector > UINT64_MAX / 512) {
+        status = S_IOERR;
+        hv_virtq_write(v, e, data, &status, 1);
+        *written = 1;
+        __atomic_fetch_add(&b->errors, 1, __ATOMIC_RELAXED);
+        return 0;
+    }
     switch (hdr.type) {
     case T_IN:
         if (seg_io(b, e, 1, 0, hdr.sector * 512, data) != 0) status = S_IOERR;

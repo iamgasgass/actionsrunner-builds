@@ -15,6 +15,7 @@ final class RangedDownload: NSObject, URLSessionDataDelegate {
     private var continuation: CheckedContinuation<Void, Error>?
     private var task: URLSessionDataTask?
     private var session: URLSession?
+    private var cancelled = false
 
     init(url: URL, part: URL, progress: @escaping (Int64, Int64) -> Void) {
         self.url = url
@@ -54,11 +55,12 @@ final class RangedDownload: NSObject, URLSessionDataDelegate {
                     self.continuation = c
                     let t = s.dataTask(with: request)
                     self.task = t
+                    if self.cancelled { t.cancel() } // the cancel came before the task existed
                     t.resume()
                 }
             }
         } onCancel: {
-            queue.addOperation { self.task?.cancel() }
+            queue.addOperation { self.cancelled = true; self.task?.cancel() }
         }
     }
 
@@ -100,6 +102,14 @@ final class RangedDownload: NSObject, URLSessionDataDelegate {
                 }
                 if total == 0 { total = have }
                 completionHandler(.cancel)
+                if have < total {
+                    // The server says nothing is past the end, but the file is shorter than it says the whole is:
+                    // the part file does not belong to this download. Start it again rather than install half an image.
+                    if let h = try? FileHandle(forWritingTo: part) { try? h.truncate(atOffset: 0); try? h.close() }
+                    have = 0
+                    finish(NSError(domain: "Henge", code: 6, userInfo: [NSLocalizedDescriptionKey: "The partial download did not match Apple's file; starting it again."]))
+                    return
+                }
                 progress(have, total)
                 finish(nil)
                 return

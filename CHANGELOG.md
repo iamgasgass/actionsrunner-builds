@@ -6,6 +6,13 @@ Every change keeps its original author in the git history.
 
 ## Unreleased
 
+### Bug fixes (audit)
+- Install no longer killed by iOS in *Write macOS* on 6–8 GB devices: the restore machine's memory now scales with
+  the device (2/3/4 GB). Progress values are sanitised (a NaN crashed the Install screen), and a failed restore stops
+  its machine. Truncated downloads are restarted instead of installed. Fixes a NULL dereference in the xHCI trackpad,
+  a use-after-free and out-of-bounds reads in the libusb shim, a sector overflow in virtio-blk and more: see
+  BUGFIX-AUDIT.md.
+
 ### The screen is a Magic Trackpad 2
 - The session's trackpad is no longer a relative mouse: the engine presents it to the Mac as
   a Magic Trackpad 2 (Apple's vendor multitouch format) on the xHCI USB bus, so the guest's

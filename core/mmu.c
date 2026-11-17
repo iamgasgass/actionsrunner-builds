@@ -281,10 +281,8 @@ void hv_ijc_reset(HvCpu *cpu, int kernel) {
     if (cpu->pc_state) cpu->pc_state->last_fill[0] = cpu->pc_state->last_fill[1] = 0;
     /* Every entry of the half is dead now (new ids or kernel generation): so are their hints. */
     if (cpu->pc_state) memset(cpu->pc_state->ijc_hint[kernel], 0, sizeof cpu->pc_state->ijc_hint[kernel]);
-    if (cpu->m) {
-        cpu->m->stats.ijc_resets++;
-        memset(cpu->pc_state->ijc_pages[kernel], 0, sizeof cpu->pc_state->ijc_pages[kernel]);
-    }
+    if (cpu->m) cpu->m->stats.ijc_resets++;
+    if (cpu->pc_state) memset(cpu->pc_state->ijc_pages[kernel], 0, sizeof cpu->pc_state->ijc_pages[kernel]);
     if (kernel) {
         /* Kernel VAs have 0xffff in bits 63..48, so the salt must not make that 0 (the empty tag). */
         if (++cpu->kernel_gen >= 0xffff) {

@@ -84,6 +84,7 @@ static struct libusb_device *enumerate(uint32_t session) {
         uint8_t head[9];
         if (hv_usb_control(g_usb, 0x80, 6, (uint16_t)(0x200 | i), 0, head, 9, 2000) < 4) goto fail;
         uint16_t total = (uint16_t)(head[2] | head[3] << 8);
+        if (total < 9) goto fail; /* not even a configuration header */
         d->configs[i] = malloc(total);
         if (!d->configs[i] || hv_usb_control(g_usb, 0x80, 6, (uint16_t)(0x200 | i), 0, d->configs[i], total, 2000) != total)
             goto fail;
@@ -112,13 +113,15 @@ static int g_hotplug_next = 1;
 static pthread_mutex_t g_cb_mu = PTHREAD_MUTEX_INITIALIZER; /* callbacks run one at a time */
 
 static void fire(struct libusb_device *d, int event) {
-    Hotplug *list[16];
+    /* Copy the callbacks, not the list entries: a deregister on another thread frees its entry as soon
+       as the lock is released, and calling through it afterwards was a use-after-free. */
+    struct { libusb_hotplug_callback_fn cb; void *user; } list[16];
     int n = 0;
     pthread_mutex_lock(&g_mu);
     for (Hotplug *h = g_hotplug; h && n < 16; h = h->next)
-        if (h->events & event) list[n++] = h;
+        if (h->events & event) list[n].cb = h->cb, list[n].user = h->user, n++;
     pthread_mutex_unlock(&g_mu);
-    for (int i = 0; i < n; i++) list[i]->cb(NULL, d, (libusb_hotplug_event)event, list[i]->user);
+    for (int i = 0; i < n; i++) list[i].cb(NULL, d, (libusb_hotplug_event)event, list[i].user);
 }
 
 /* Bring g_dev up to date with the guest: called from the device list and the
@@ -519,6 +522,10 @@ int libusb_control_transfer(libusb_device_handle *h, uint8_t rt, uint8_t req, ui
     libusb_fill_control_setup(buf, rt, req, val, idx, len);
     if (!(rt & 0x80) && len) memcpy(buf + 8, data, len);
     struct libusb_transfer *t = libusb_alloc_transfer(0);
+    if (!t) {
+        free(buf);
+        return LIBUSB_ERROR_NO_MEM;
+    }
     libusb_fill_control_transfer(t, h, buf, NULL, NULL, timeout);
     int r = sync_xfer(t);
     int n = t->actual_length;
@@ -531,6 +538,10 @@ int libusb_control_transfer(libusb_device_handle *h, uint8_t rt, uint8_t req, ui
 static int bulkish(libusb_device_handle *h, unsigned char ep, unsigned char *data, int len, int *done,
                    unsigned int timeout, unsigned char type) {
     struct libusb_transfer *t = libusb_alloc_transfer(0);
+    if (!t) {
+        if (done) *done = 0;
+        return LIBUSB_ERROR_NO_MEM;
+    }
     libusb_fill_bulk_transfer(t, h, ep, data, len, NULL, NULL, timeout);
     t->type = type;
     int r = sync_xfer(t);
@@ -656,9 +667,14 @@ static int parse_config(const uint8_t *raw, int len, struct libusb_config_descri
     c->bmAttributes = raw[7];
     c->MaxPower = raw[8];
     struct libusb_interface *ifs = calloc(c->bNumInterfaces ? c->bNumInterfaces : 1, sizeof *ifs);
+    if (!ifs) {
+        free(c);
+        return LIBUSB_ERROR_NO_MEM;
+    }
     c->interface = ifs;
     struct libusb_interface_descriptor *cur = NULL;
-    for (int p = raw[0]; p + 2 <= len && raw[p] >= 2; p += raw[p]) {
+    /* Each descriptor must lie wholly inside the buffer: a short or lying bLength read past its end. */
+    for (int p = raw[0]; p + 2 <= len && raw[p] >= 2 && p + raw[p] <= len; p += raw[p]) {
         const uint8_t *q = raw + p;
         if (q[1] == LIBUSB_DT_INTERFACE && q[0] >= 9) {
             int n = q[2];
@@ -777,11 +793,12 @@ int libusb_reset_device(libusb_device_handle *h) {
 }
 
 int libusb_get_string_descriptor_ascii(libusb_device_handle *h, uint8_t idx, unsigned char *data, int length) {
-    uint8_t buf[256];
-    if (!idx) return LIBUSB_ERROR_INVALID_PARAM;
+    uint8_t buf[256] = {0};
+    if (!idx || !data || length <= 0) return LIBUSB_ERROR_INVALID_PARAM;
     int r = libusb_control_transfer(h, 0x80, LIBUSB_REQUEST_GET_DESCRIPTOR, (uint16_t)(LIBUSB_DT_STRING << 8 | idx),
                                     0x409, buf, 255, 2000);
     if (r < 2) return r < 0 ? r : LIBUSB_ERROR_IO;
+    if (r > buf[0]) r = buf[0]; /* only the descriptor's own length is string data */
     int k = 0;
     for (int i = 2; i + 1 < r && k < length - 1; i += 2) data[k++] = buf[i + 1] ? '?' : buf[i];
     data[k] = 0;

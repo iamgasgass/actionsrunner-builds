@@ -412,7 +412,7 @@ static int rmw_target(HvCpu *cpu, uint64_t va, uint32_t bytes, int el, uint64_t 
         return 0;
     }
     *host = hv_phys_ptr(cpu->m, pa, bytes);
-    if (*host) {
+    if (*host && ram) {
         /* Same rule as other writes: drop translations made from this page. */
         uint64_t pg = (pa - ram->pa) >> HV_TLB_PAGE_BITS;
         if (ram->code_pages[pg]) hv_invalidate_code(cpu->m, pa);

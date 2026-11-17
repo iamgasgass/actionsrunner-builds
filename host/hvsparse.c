@@ -106,7 +106,7 @@ int hv_sparse_unpack(const char *src, const char *dst, void (*progress)(uint64_t
         uint64_t rec[2];
         if (read_all(in, rec, 16)) goto done;
         if (!rec[1]) break;
-        if (rec[1] > CHUNK || rec[0] + rec[1] > size) goto done;
+        if (rec[1] > CHUNK || rec[0] > size || rec[1] > size - rec[0]) goto done; /* no wrap-around */
         if (read_all(in, buf, rec[1]) || pwrite(out, buf, rec[1], (off_t)rec[0]) != (ssize_t)rec[1]) goto done;
         if (progress) progress(rec[0] + rec[1], size, opaque);
     }

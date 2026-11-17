@@ -344,7 +344,9 @@ static int control(HvXhci *x, int slot, const uint8_t setup[8], uint8_t *out, in
                 src = tmp, len = 4;
             } else if (idx < 4) {
                 const char *s = d->strings[idx];
+                if (!s) return -1;
                 int n = (int)strlen(s);
+                if (2 + 2 * n > (int)sizeof tmp) n = ((int)sizeof tmp - 2) / 2; /* fit the buffer */
                 tmp[0] = (uint8_t)(2 + 2 * n), tmp[1] = 3;
                 for (int i = 0; i < n; i++) tmp[2 + 2 * i] = (uint8_t)s[i], tmp[3 + 2 * i] = 0;
                 src = tmp, len = 2 + 2 * n;
@@ -398,6 +400,7 @@ static int control(HvXhci *x, int slot, const uint8_t setup[8], uint8_t *out, in
                 src = tmp;
             } else if (rid == 0x3f) { /* the vendor data channel: nothing on it */
                 memset(tmp, 0, 16);
+                src = tmp; /* was left NULL: the memcpy below then read address 0 and Henge crashed */
                 len = 16;
             } else { /* 0x44 is a constant report: zeros, as far as we are concerned */
                 memset(out, 0, (size_t)max);
@@ -420,6 +423,8 @@ static int control(HvXhci *x, int slot, const uint8_t setup[8], uint8_t *out, in
         return -1;
     }
     if (len > max) len = max;
+    if (len <= 0) return 0;
+    if (!src) return -1;
     memcpy(out, src, (size_t)len);
     return len;
 }

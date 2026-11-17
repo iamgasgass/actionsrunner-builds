@@ -19,15 +19,24 @@ struct MacApp: Identifiable, Hashable {
     let kind: Int32
     var id: String { url.path }
 
+    /// A C `char[N]` field as a String, reading no further than the field even when it is not NUL-terminated
+    /// (String(cString:) ran on past the end into whatever followed).
+    private static func fixedString<T>(_ field: T) -> String {
+        withUnsafeBytes(of: field) { raw in
+            let bytes = raw.prefix { $0 != 0 }
+            return String(decoding: bytes, as: UTF8.self)
+        }
+    }
+
     init?(url: URL) {
         var info = HengeTlInfo()
         var err = [CChar](repeating: 0, count: 256)
         guard henge_tl_info(url.path, &info, &err, err.count) == 0 else { return nil }
         self.url = url
-        name = withUnsafeBytes(of: info.name) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
-        identifier = withUnsafeBytes(of: info.identifier) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
-        minMacOS = withUnsafeBytes(of: info.min_macos) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
-        executable = withUnsafeBytes(of: info.executable) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
+        name = Self.fixedString(info.name)
+        identifier = Self.fixedString(info.identifier)
+        minMacOS = Self.fixedString(info.min_macos)
+        executable = Self.fixedString(info.executable)
         arm64 = info.arm64 != 0
         intel = info.x86_64 != 0
         kind = info.kind

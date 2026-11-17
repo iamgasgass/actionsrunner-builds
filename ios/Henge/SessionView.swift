@@ -592,6 +592,7 @@ struct SessionView: View {
         HengeLog.log("session", "available memory \(henge_available_memory() >> 20) MB")
         guard ram >= 1024 else {
             error = "There is not room for this Mac's memory: it needs a few GB of free storage."
+            UIApplication.shared.isIdleTimerDisabled = false // no Mac runs: let the screen lock again
             return
         }
         var buffer = [CChar](repeating: 0, count: 256)
@@ -632,6 +633,7 @@ struct SessionView: View {
         }
         if rc != 0 {
             error = String(cString: buffer)
+            UIApplication.shared.isIdleTimerDisabled = false // no Mac runs: let the screen lock again
             return
         }
         bootRAM = ram

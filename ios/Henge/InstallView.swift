@@ -178,18 +178,25 @@ struct InstallView: View {
         }
     }
 
+    /// Always a finite number in 0...1: `Int(fraction * 100)` below traps on NaN or infinity, which crashed the
+    /// app during a step whose progress came back as 0/0 or past the expected size.
     private var fraction: Double {
+        let f: Double
         if case .downloading = installer.phase {
-            return installer.expected > 0 ? Double(installer.received) / Double(installer.expected) : 0
+            f = installer.expected > 0 ? Double(installer.received) / Double(installer.expected) : 0
+        } else {
+            f = installer.stepProgress
         }
-        return installer.stepProgress
+        return f.isFinite ? min(max(f, 0), 1) : 0
     }
 
     /// From how this step has gone so far; nothing until there is enough to go on.
     private var timeLeft: String? {
         let elapsed = Date().timeIntervalSince(stageStarted)
         guard stageSeen == stage, fraction > 0.03, fraction < 1, elapsed > 10 else { return nil }
-        let minutes = Int((elapsed / fraction * (1 - fraction) / 60).rounded(.up))
+        let estimate = (elapsed / fraction * (1 - fraction) / 60).rounded(.up)
+        guard estimate.isFinite, estimate < 100_000 else { return nil }
+        let minutes = Int(estimate)
         return minutes <= 1 ? "About a minute left in this step" : "About \(minutes) minutes left in this step"
     }
 

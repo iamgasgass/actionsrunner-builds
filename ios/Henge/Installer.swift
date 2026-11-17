@@ -135,6 +135,9 @@ final class Installer: NSObject, ObservableObject {
                 phase = .done("\(release.name) is installed on \(name). Quit Henge (swipe it away) and open it again, then tap Start.")
             } catch {
                 HengeLog.log("install", "failed: \(error.localizedDescription)")
+                // A restore that failed while the machine still runs would go on using the guest's memory and CPUs
+                // (and writing its disk) in the background: stop it first.
+                if henge_vm_state() == 1 { henge_vm_stop() }
                 // A half-installed Mac is no use, and its disk can be many gigabytes. The download stays.
                 if let made, henge_vm_state() != 1 { try? FileManager.default.removeItem(at: made.directory) }
                 phase = .failed(error.localizedDescription)
@@ -223,7 +226,7 @@ final class Installer: NSObject, ObservableObject {
         // caches the ~15 GB it writes, so it fills all the memory it is given, and 10 GB of a 12 GB iPhone's RAM in use
         // (it is outside Henge's footprint, so iOS does not stop it) stalls the whole phone two thirds of the way through.
         var restoring = mac
-        restoring.ramMB = min(max(mac.ramMB, 2048), 4096)
+        restoring.ramMB = min(max(mac.ramMB, 2048), Self.restoreRAMCapMB)
         let ram = GuestMemory.prepare(restoring)
         guard ram >= 2048 else { throw message("Installing needs a few more GB of free storage for the Mac's memory.") }
         setenv("HV_WRITE_CACHE", "0", 1) // the ~15 GB the restore writes goes straight to storage (host/disk.c); this process runs no other Mac
@@ -236,7 +239,8 @@ final class Installer: NSObject, ObservableObject {
         while true {
             try await Task.sleep(nanoseconds: 1_000_000_000)
             step = Int(henge_install_step())
-            stepProgress = henge_install_progress()
+            let p = henge_install_progress()
+            stepProgress = p.isFinite ? min(max(p, 0), 1) : 0
             if step == 100 { break }
             if step == 101 { throw message("The restore failed. The log (Settings, or Documents/henge.log) says why.") }
             if henge_vm_state() == 2 && step < 100 {
@@ -254,6 +258,16 @@ final class Installer: NSObject, ObservableObject {
         HengeLog.log("install", "\(mac.name): restore finished, added to the Macs")
         if henge_vm_state() == 1 { henge_vm_stop() }
         try? FileManager.default.removeItem(at: work)
+    }
+
+    /// The most memory the restore machine gets on this device. The restore OS fills all it is given with the
+    /// ~15 GB it writes, and that memory lies outside Henge's footprint, so iOS cannot account for it: on a 6 GB
+    /// iPhone or iPad a 4 GB restore machine leaves iOS ~1.5 GB for itself and Henge, and the phone runs out of
+    /// pages ("vm-pageshortage" / "fc-thrashing" jetsam) in the Write macOS step (#13, #59). 2 GB is the least the
+    /// restore system needs.
+    nonisolated static var restoreRAMCapMB: Int {
+        let mb = Int(ProcessInfo.processInfo.physicalMemory >> 20)
+        return mb >= 10_000 ? 4096 : mb >= 7_000 ? 3072 : 2048
     }
 
     static func stepName(_ step: Int) -> String {
