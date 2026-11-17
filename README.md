@@ -1,72 +1,73 @@
-<p align="center">
-  <img src="src/app/Husk/Assets.xcassets/AppIcon.appiconset/Icon-Default.png" width="120" height="120" alt="Husk">
+<div align="center">
+
+<img src="docs/icon.png" alt="GestAltX app icon" width="128" height="128">
+
+# GestAltX
+
+**A MobileGestalt utility that runs directly on iPhone and iPad — with a native Liquid Glass interface**
+
+<p>
+  <img src="https://img.shields.io/badge/iOS%20%7C%20iPadOS-27-000000?style=flat-square&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/bundle-com.iamgasgass.gestaltx-6E56CF?style=flat-square" alt="Bundle identifier">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-6E56CF?style=flat-square" alt="GPL-3.0-or-later"></a>
 </p>
 
-<h1 align="center">Husk</h1>
+<a href="../../releases/latest"><b>Download IPA</b></a> ·
+<a href="#requirements">Requirements</a> ·
+<a href="#install">Install</a> ·
+<a href="README.zh-CN.md">简体中文</a>
 
-<p align="center">Android apps and games on your iPhone.</p>
+</div>
 
-<p align="center">
-  <a href="https://itslevii.dev/docs/install">Install</a>
-  ·
-  <a href="https://itslevii.dev/husk">Compatibility</a>
-  ·
-  <a href="https://itslevii.dev">Website</a>
-  ·
-  <a href="https://github.com/Leviidev/Husk/releases">Releases</a>
-</p>
+> GestAltX is a rebranded fork of [GestaltEdit](https://github.com/frs0n/GestaltEdit) by SUSS ([@frs0n](https://github.com/frs0n)), distributed under the same GPL-3.0-or-later license.
 
-<p align="center">
-  <a href="https://github.com/Leviidev/Husk/releases"><img src="https://img.shields.io/github/downloads/Leviidev/Husk/total?style=flat-square&color=5B49EB&labelColor=111111" alt="Downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Leviidev/Husk?style=flat-square&color=5B49EB&labelColor=111111" alt="GPL-2.0-or-later"></a>
-</p>
+Edit `com.apple.MobileGestalt.plist` on-device. Capability presets, a full field editor, and backup/restore.
 
-Add an APK, tap it, and it opens full-screen.
+> [!WARNING]
+> This app uses private APIs and modifies system cache data. Bad MobileGestalt values can break system features and may require restoring the device. Use only on devices you own.
 
-- **Translation layer** — the game’s own 64-bit Android code runs on the iPhone. Husk stands in for Android around it (C library, Java, GL, Vulkan, audio, input). No Android boot; a game starts in seconds.
-- **Emulation** — a full LineageOS guest under QEMU, for apps the translation layer cannot run yet.
-- **PS4** — fake packages and game folders on iOS 17.4+.
+> [!IMPORTANT]
+> GestAltX is free and its source is public. Without authorization, you may not sell it.
+
+## Features
+
+**Presets** — Organized by purpose: Siri AI, Dynamic Island, display, iPad features and everyday device features. iPadOS Mode includes multitasking, Stage Manager and iPad app support in one selection. Liquid Glass uses a single effects selector. Extended presets include HDR photos, AOD widgets/brightness, Audio Mix, FaceTime spatial audio, seven device regions. Options are filtered by system version. Siri AI retains supported device regions and adjusts known restricted device regions when needed; it does not change Apple Account region. Settings-page options and internal experiments are collapsed under Advanced; tap ⓘ for limitations where available. Capability overrides do not guarantee hardware or service support. Selections stage changes until Apply; removing a selection does not undo an already applied preset. Use Backups to restore prior values.
+
+On unsupported iOS 27 devices, Siri AI setup temporarily spoofs an eligible model. Face ID and dictation may be unavailable while spoofed. Finish downloading Siri AI models in Settings, then use **After Model Download · Remove Device Spoof** in Restore. After removing the spoof and restarting, Face ID and dictation work again; SiriMode = 2 and AI settings are retained. The ordinary pre-write backup keeps its original timestamp-based name and performs a full restore.
+
+**Field editor** — Search and edit any MobileGestalt key by hand when a preset doesn't cover it.
+
+**Backups** — Every write is backed up automatically. Back up, import, export, and restore at any time.
+
+## Requirements
+
+- iOS / iPadOS 27.0 or later (iOS / iPadOS 26 is not supported for on-device MobileGestalt access)
+- Developer Mode enabled
+- A signing tool such as [iLoader](https://github.com/nab138/iloader)
 
 ## Install
 
-Sideload with SideStore, AltStore, or TrollStore. iOS 15.5 or later.
+1. Download `GestAltX.ipa` from [Releases](../../releases/latest).
+2. Install [iLoader](https://iloader.app/), connect your device, and sign in with your Apple ID (used only for local signing).
+3. Import the IPA to sign and install it, then trust the certificate under Settings → General → VPN & Device Management.
 
-**Guide:** [itslevii.dev/docs/install](https://itslevii.dev/docs/install)
+## Apple Watch
 
-Add this source in SideStore or AltStore (Sources › +). It also lists AetherPS4, Utsuro, Podium and Fathom:
+watchOS 26 is not supported.
 
-```
-https://itslevii.dev/repo.json
-```
+Expand the device connection row at the top of Tools and select the active Apple Watch paired with your iPhone.
 
-Or download `Husk.ipa` from [Releases](https://github.com/Leviidev/Husk/releases).
+For Apple Watch support, we recommend signing with [WatchBridge](https://github.com/AdminZachary/WatchBridge). This community tool can enable Developer Mode and install an IPA containing both the iPhone app and the Watch app. It is not affiliated with this project.
 
-Games need [JIT](https://itslevii.dev/docs/jit), or they can run from [Play without JIT](https://itslevii.dev/docs/play-without-jit) after you import the certificate that installed Husk.
+## Credits
 
-## Screenshots
+- [Nugget](https://github.com/leminlimez/Nugget) — presets and iPadOS support
+- [MGKeys](https://github.com/PoomSmart/MGKeys), [Erosion](https://github.com/jailbreakdotparty/Erosion), [mond](https://github.com/rooootdev/mond), [GestaltX](https://github.com/huamidev/GestaltX) — capability mapping and preset references; see [catalog sources](docs/PRESET_SOURCES.md)
+- [FilzaSlop](https://github.com/0xjohnnydev/FilzaSlop), [worse_query](https://github.com/forcequitOS/worse_query), [0xJohnny](https://x.com/0xjohnny) — file access research
+- [neospring](https://github.com/rooootdev/neospring) — respring implementation
 
-<table>
-  <tr>
-    <td align="center"><img src="Screenshots/gta-san-andreas.jpeg" alt="GTA: San Andreas"><br><sub>GTA: San Andreas</sub></td>
-    <td align="center"><img src="Screenshots/minecraft-dungeons.jpeg" alt="Minecraft Dungeons"><br><sub>Minecraft Dungeons</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="33%"><img src="Screenshots/library.png" alt="Library"><br><sub>Library</sub></td>
-    <td align="center" width="33%"><img src="Screenshots/game-settings.png" alt="Game Settings"><br><sub>Game Settings</sub></td>
-    <td align="center" width="33%"><img src="Screenshots/settings.png" alt="Settings"><br><sub>Settings</sub></td>
-  </tr>
-</table>
+Not affiliated with Apple or the projects above.
 
-## Building
+## License
 
-On a Mac with Xcode, plus `meson`, `ninja`, `pkg-config`, `python3`, `xcodegen`, `qemu-img`, and a Rust toolchain with `aarch64-apple-ios`:
-
-```sh
-./scripts/ci_build.sh
-```
-
-That produces `build/Husk.ipa`. Later app-only rebuilds: `./scripts/package_ipa.sh` → `~/Desktop/Husk.ipa`.
-
-## Licence
-
-GPL-2.0-or-later. Husk links QEMU (GPLv2), so the shipped binary is a combined GPLv2 work. It cannot go on the App Store. See [docs/01-licensing.md](docs/01-licensing.md).
+[GNU General Public License v3.0 or later](LICENSE).

@@ -1,0 +1,71 @@
+<div align="center">
+
+<img src="docs/icon.png" alt="GestAltX 应用图标" width="128" height="128">
+
+# GestAltX
+
+**直接在 iPhone 和 iPad 上运行的 MobileGestalt 工具 —— 原生 Liquid Glass 界面**
+
+<p>
+  <img src="https://img.shields.io/badge/iOS%20%7C%20iPadOS-27-000000?style=flat-square&logo=apple&logoColor=white" alt="Platform">
+  <img src="https://img.shields.io/badge/bundle-com.iamgasgass.gestaltx-6E56CF?style=flat-square" alt="Bundle identifier">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-6E56CF?style=flat-square" alt="GPL-3.0-or-later"></a>
+</p>
+
+<a href="../../releases/latest"><b>下载 IPA</b></a> ·
+<a href="README.md">English</a>
+
+</div>
+
+> GestAltX 是 SUSS（[@frs0n](https://github.com/frs0n)）的 [GestaltEdit](https://github.com/frs0n/GestaltEdit) 的更名分支，沿用 GPL-3.0-or-later 许可证。
+
+在设备上直接编辑 `com.apple.MobileGestalt.plist`，提供功能预设、完整字段编辑器与备份 / 恢复。
+
+> [!WARNING]
+> 本项目使用私有 API 并修改系统缓存数据。错误的取值可能破坏系统功能，严重时需要刷机恢复。请仅在你本人拥有的设备上使用。
+
+> [!IMPORTANT]
+> 本项目免费、源码公开；未经授权，不得以任何形式出售本 App。
+
+## 功能
+
+**预设** —— 按用途整理为 Siri AI、灵动岛、显示、iPad 功能与日常设备功能。iPad 模式一并开启多任务、台前调度和 iPad App 支持；液态玻璃使用单个效果选择器。补充 HDR 照片、息屏小组件与高亮、音频混音、FaceTime 空间音频、七个设备地区选项，并按系统版本筛选。Siri AI 保留受支持的设备地区，仅在已知受限地区按需调整，不更改 Apple 账户地区。硬件设置入口和内部实验功能收在「高级选项」中，有实际限制的项目可点 ⓘ 查看详情。能力开关不保证硬件或服务支持。选择后点「应用」才会写入；取消勾选不会撤销已经应用的修改，需要还原时请使用备份。
+
+iOS 27 旧设备开启 Siri AI 时会先临时伪装为支持的机型。伪装期间面容 ID 和听写可能失效。请在设置中完成 Siri AI 模型下载，再到「恢复」使用「模型下载后 · 撤销机型伪装」，只恢复原设备身份，重启后面容 ID 和听写会恢复，并保留 SiriMode = 2 和 AI 配置。普通写入前备份继续按原来的时间格式命名，用于完整还原。
+
+**字段编辑器** —— 预设没覆盖到的，可以自己搜索并编辑任意 MobileGestalt 键值。
+
+**备份** —— 每次写入都会自动备份，也可随时手动备份、导入、导出与恢复。
+
+## 系统要求
+
+- iOS / iPadOS 27.0 或更高版本（不支持 iOS / iPadOS 26 的设备端 MobileGestalt 访问）
+- 设备已开启开发者模式
+- 一种签名安装方式，例如 [iLoader](https://github.com/nab138/iloader)
+
+## 安装
+
+1. 从 [Releases](../../releases/latest) 下载 `GestAltX.ipa`。
+2. 安装 [iLoader](https://iloader.app/)，连接设备并登录 Apple ID（仅用于本地签名）。
+3. 导入 IPA 完成签名安装，然后在「设置」→「通用」→「VPN 与设备管理」中信任证书。
+
+## Apple Watch
+
+暂不支持 watchOS 26。
+
+在 Tools 顶部展开设备连接栏，选择当前与 iPhone 配对且启用的 Apple Watch。
+
+如果需要使用 Apple Watch，签名建议使用 [WatchBridge](https://github.com/AdminZachary/WatchBridge)。这是一个社区工具，可以开启开发者模式，并安装包含 iPhone 端程序和 Watch 端程序的 IPA。它与此项目无关。
+
+## 致谢
+
+- [Nugget](https://github.com/leminlimez/Nugget) —— 预设与 iPadOS 支持
+- [MGKeys](https://github.com/PoomSmart/MGKeys)、[Erosion](https://github.com/jailbreakdotparty/Erosion)、[mond](https://github.com/rooootdev/mond)、[GestaltX](https://github.com/huamidev/GestaltX) —— 能力键值与预设参考，见[预设来源](docs/PRESET_SOURCES.md)
+- [FilzaSlop](https://github.com/0xjohnnydev/FilzaSlop)、[worse_query](https://github.com/forcequitOS/worse_query)、[0xJohnny](https://x.com/0xjohnny) —— 文件访问研究
+- [neospring](https://github.com/rooootdev/neospring) —— 注销实现
+
+与 Apple 及上述项目均无隶属关系。
+
+## 许可证
+
+[GNU 通用公共许可证第 3 版或更高版本](LICENSE)。

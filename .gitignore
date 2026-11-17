@@ -1,28 +1,30 @@
-# Build outputs
-build/
-# On-device pairing crate (scripts/build_rppairing_ios.sh)
-src/rppairing-ios/target/
-third_party/build/
-third_party/sources/
-third_party/qemu-upstream/
-third_party/utm/
-third_party/utm-qemu/
-
-# Guest images (large, redistributable only from upstream)
-guests/
-
 # Xcode
-*.xcuserdatad
 DerivedData/
+build/
+*.xcarchive
+*.ipa
+*.ipa.zip
+*.dSYM
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+
+# Signing and local configuration
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.p8
+*.cer
+*.key
+*.pem
+Signing.xcconfig
+Local.xcconfig
+
+# macOS
 .DS_Store
 
-# stray ar(1) extraction artifact
-__.SYMDEF*
-third_party/gpu/
-.build/
-*.ipa
-.freebuff/
-
-# local notes and editor rules, never part of the repo
-/Husk_*.MD
-/.cursor/
+# Editors
+.idea/
+.vscode/
+*.swp
