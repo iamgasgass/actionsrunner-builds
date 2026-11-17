@@ -146,8 +146,15 @@ private struct TweakWorkbench: View {
             GlassRows {
                 if category == .ipad {
                     tweakRow(.iPadOS)
+                    if isPhone {
+                        stageManagerOnPhoneNote
+                    }
                     GlassDisclosure(title: String(localized: "Individual iPad Options"), symbol: "square.split.2x1") {
-                        tweakRow(.stageManager)
+                        // On iPhone the standalone key does nothing (Nugget hides it there):
+                        // it is only listed when already written, so it can be removed.
+                        if !isPhone || (viewModel.isApplied(.stageManager) && !viewModel.isIncludedInIPadOS(.stageManager)) {
+                            tweakRow(.stageManager)
+                        }
                         tweakRow(.iPadApps)
                     }
                 } else {
@@ -156,8 +163,8 @@ private struct TweakWorkbench: View {
                 if category == .display {
                     GlassPickerRow(String(localized: "Liquid Glass"), selection: Binding<Int>(
                         get: {
-                            if viewModel.selectedTweaks.contains(.enableLiquidGlassLowPerformance) { return 1 }
-                            if viewModel.selectedTweaks.contains(.disableLiquidGlassLowPerformance) { return 0 }
+                            if viewModel.isTweakOn(.enableLiquidGlassLowPerformance) { return 1 }
+                            if viewModel.isTweakOn(.disableLiquidGlassLowPerformance) { return 0 }
                             return -1
                         },
                         set: { value in
@@ -168,7 +175,7 @@ private struct TweakWorkbench: View {
                             }
                         }
                     )) {
-                        Text("No Change").tag(-1)
+                        Text("Default").tag(-1)
                         Text("Reduced Effects").tag(1)
                         Text("Full Effects").tag(0)
                     }
@@ -225,16 +232,42 @@ private struct TweakWorkbench: View {
     @ViewBuilder
     private func tweakRow(_ id: GestaltTweakID) -> some View {
         if let definition = GestaltTweakCatalog.definition(for: id), definition.isAvailable() {
-            let included = (viewModel.selectedTweaks.contains(.iPadOS)
-                && GestaltTweakCatalog.iPadIncludedTweaks.contains(id))
+            let included = viewModel.isIncludedInIPadOS(id)
             TweakToggle(
                 definition: definition,
                 isOn: Binding(
-                    get: { included || viewModel.selectedTweaks.contains(id) },
+                    get: { viewModel.isTweakOn(id) },
                     set: { viewModel.setTweak(id, enabled: $0) }
                 ),
-                included: included
+                included: included,
+                state: tweakState(id, included: included),
+                warning: definition.requiresIPad && isPhone
+                    ? String(localized: "No effect on iPhone: use iPadOS Mode.")
+                    : nil
             )
+        }
+    }
+
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+
+    private func tweakState(_ id: GestaltTweakID, included: Bool) -> TweakState {
+        if viewModel.revertedTweaks.contains(id) { return .willRemove }
+        if included { return viewModel.isActive(.iPadOS) ? .active : .willApply }
+        if viewModel.selectedTweaks.contains(id) { return .willApply }
+        if viewModel.isApplied(id) { return viewModel.isOriginalValue(id) ? .original : .active }
+        return .off
+    }
+
+    private var stageManagerOnPhoneNote: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "rectangle.3.group")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+            Text("On iPhone, Stage Manager works only with iPadOS Mode. After applying, restart the iPhone and turn on Stage Manager in Control Center or Settings › Multitasking & Gestures.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -266,7 +299,7 @@ private struct TweakWorkbench: View {
             GlassSectionHeading(title: String(localized: "Dynamic Island"), symbol: "capsule.fill")
             GlassRows {
                 tweakRow(.supportsDynamicIsland)
-                if viewModel.selectedTweaks.contains(.supportsDynamicIsland) || viewModel.dynamicIslandSubtype != nil {
+                if viewModel.isTweakOn(.supportsDynamicIsland) || viewModel.dynamicIslandSubtype != nil {
                     GlassPickerRow(String(localized: "Island Layout"), selection: $viewModel.dynamicIslandSubtype) {
                         Text("Keep Current Layout").tag(Int?.none)
                         ForEach(DynamicIslandOption.all) { option in
@@ -277,7 +310,7 @@ private struct TweakWorkbench: View {
             }
         }
         .glassSection()
-        .onChange(of: viewModel.selectedTweaks.contains(.supportsDynamicIsland)) { _, enabled in
+        .onChange(of: viewModel.isTweakOn(.supportsDynamicIsland)) { _, enabled in
             if !enabled { viewModel.dynamicIslandSubtype = nil }
         }
     }
@@ -320,19 +353,61 @@ private struct TweakWorkbench: View {
     }
 }
 
+enum TweakState {
+    case off, active, original, willApply, willRemove
+
+    var label: String? {
+        switch self {
+        case .off: nil
+        case .active: String(localized: "Applied")
+        case .original: String(localized: "Original value")
+        case .willApply: String(localized: "Will be applied")
+        case .willRemove: String(localized: "Will be removed")
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .active: .green
+        case .willApply: .blue
+        case .willRemove: .orange
+        case .off, .original: .secondary
+        }
+    }
+}
+
 private struct TweakToggle: View {
     let definition: GestaltTweakDefinition
     @Binding var isOn: Bool
 
     var included = false
+    var state: TweakState = .off
+    var warning: String? = nil
     @State private var showsDetails = false
 
     var body: some View {
         HStack(spacing: 10) {
             Toggle(isOn: $isOn) {
-                HStack(spacing: 6) {
-                    Text(definition.title)
-                    if definition.isRisky { GlassRiskBadge() }
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(definition.title)
+                        if definition.isRisky { GlassRiskBadge() }
+                    }
+                    if included {
+                        Text("Included in iPadOS Mode")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let label = state.label {
+                        Text(label)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(state.color)
+                    }
+                    if let warning {
+                        Label(warning, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
             .glassToggle()
@@ -350,8 +425,9 @@ private struct TweakToggle: View {
                 .accessibilityLabel(Text("About \(definition.title)"))
             }
         }
-        .onChange(of: isOn) { _, enabled in
-            if enabled && definition.isRisky && !included { showsDetails = true }
+        .onChange(of: isOn) { old, enabled in
+            // Only a new selection asks for confirmation, not the state read from the device.
+            if enabled && !old && state == .willApply && definition.isRisky && !included { showsDetails = true }
         }
         .alert(definition.title, isPresented: $showsDetails) {
             Button("OK", role: .cancel) { }

@@ -3,13 +3,30 @@ import Foundation
 
 @MainActor
 final class GestaltViewModel: ObservableObject {
-    @Published var plist: GestaltPlist?
+    @Published var plist: GestaltPlist? {
+        didSet { appliedTweaks = Self.appliedTweaks(in: plist) }
+    }
+    /// Presets currently written in `plist` (cached: iPadOS Mode needs a CacheData scan).
+    @Published private(set) var appliedTweaks: Set<GestaltTweakID> = []
+    /// Presets already present in the oldest backup, i.e. values of the device itself.
+    @Published private(set) var originalTweaks: Set<GestaltTweakID> = []
     @Published var isDirty = false
     @Published var isBusy = false
     @Published var notice: GestaltNotice?
     @Published private(set) var hasAttemptedLoad = false
     @Published private(set) var backups: [GestaltBackup] = []
+    /// MobileGestalt as it was in the oldest local backup (taken before the first write).
+    @Published private(set) var originalBaseline: GestaltPlist? {
+        didSet { originalTweaks = Self.appliedTweaks(in: originalBaseline) }
+    }
+
+    private static func appliedTweaks(in plist: GestaltPlist?) -> Set<GestaltTweakID> {
+        guard let plist else { return [] }
+        return Set(GestaltTweakCatalog.definitions.filter { plist.isApplied($0) }.map(\.id))
+    }
     @Published var selectedTweaks: Set<GestaltTweakID> = []
+    /// Presets already written in MobileGestalt that the user switched off: removed on Apply.
+    @Published var revertedTweaks: Set<GestaltTweakID> = []
     @Published var dynamicIslandSubtype: Int?
     @Published var changesModelName = false
     @Published var modelName = ""
@@ -57,6 +74,7 @@ final class GestaltViewModel: ObservableObject {
 
     private func clearStagedChanges() {
         selectedTweaks.removeAll()
+        revertedTweaks.removeAll()
         dynamicIslandSubtype = nil
         changesModelName = false
         modelName = ""
@@ -107,6 +125,7 @@ final class GestaltViewModel: ObservableObject {
     var hasStagedTweaks: Bool {
         if selectedDevice == .appleWatch { return stagedChangeCount > 0 }
         return !selectedTweaks.isEmpty
+            || !revertedTweaks.isEmpty
             || dynamicIslandSubtype != nil
             || (changesModelName && !modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             || stagesAIRegion
@@ -119,6 +138,7 @@ final class GestaltViewModel: ObservableObject {
                 + (watchSalesRegion.isEmpty ? 0 : 1) + (watchResolution >= 0 ? 1 : 0)
         }
         return selectedTweaks.count
+            + revertedTweaks.count
             + (dynamicIslandSubtype == nil || selectedTweaks.contains(.supportsDynamicIsland) ? 0 : 1)
             + (changesModelName ? 1 : 0)
             + (stagesAIRegion ? 1 : 0)
@@ -157,8 +177,58 @@ final class GestaltViewModel: ObservableObject {
         regionPresetID = id
     }
 
+    /// The preset is written in the current MobileGestalt.
+    func isApplied(_ id: GestaltTweakID) -> Bool {
+        appliedTweaks.contains(id)
+    }
+
+    /// Written and not scheduled for removal.
+    func isActive(_ id: GestaltTweakID) -> Bool {
+        isApplied(id) && !revertedTweaks.contains(id)
+    }
+
+    /// Stage Manager and iPad apps are part of iPadOS Mode while it is selected or active.
+    func isIncludedInIPadOS(_ id: GestaltTweakID) -> Bool {
+        GestaltTweakCatalog.iPadIncludedTweaks.contains(id)
+            && (selectedTweaks.contains(.iPadOS) || isActive(.iPadOS))
+    }
+
+    /// The toggle state shown in Tools: what MobileGestalt will contain after Apply.
+    func isTweakOn(_ id: GestaltTweakID) -> Bool {
+        isIncludedInIPadOS(id) || selectedTweaks.contains(id) || isActive(id)
+    }
+
     func setTweak(_ id: GestaltTweakID, enabled: Bool) {
-        selectedTweaks = GestaltTweakCatalog.selecting(id, enabled: enabled, in: selectedTweaks)
+        if enabled {
+            if revertedTweaks.contains(id) {
+                // Undo a pending removal instead of rewriting the same values.
+                revertedTweaks.remove(id)
+                if id == .iPadOS { revertedTweaks.subtract(GestaltTweakCatalog.iPadIncludedTweaks) }
+                if id == .enableLiquidGlassLowPerformance { setTweak(.disableLiquidGlassLowPerformance, enabled: false) }
+                if id == .disableLiquidGlassLowPerformance { setTweak(.enableLiquidGlassLowPerformance, enabled: false) }
+                return
+            }
+            guard !isApplied(id) else { return }
+            selectedTweaks = GestaltTweakCatalog.selecting(id, enabled: true, in: selectedTweaks)
+            if id == .iPadOS { revertedTweaks.subtract(GestaltTweakCatalog.iPadIncludedTweaks) }
+            if id == .enableLiquidGlassLowPerformance, isApplied(.disableLiquidGlassLowPerformance) {
+                revertedTweaks.insert(.disableLiquidGlassLowPerformance)
+            }
+            if id == .disableLiquidGlassLowPerformance, isApplied(.enableLiquidGlassLowPerformance) {
+                revertedTweaks.insert(.enableLiquidGlassLowPerformance)
+            }
+        } else {
+            selectedTweaks = GestaltTweakCatalog.selecting(id, enabled: false, in: selectedTweaks)
+            if isApplied(id) {
+                revertedTweaks.insert(id)
+                if id == .iPadOS {
+                    // Its keys include Stage Manager and iPad apps: turning iPadOS Mode off removes them too.
+                    for included in GestaltTweakCatalog.iPadIncludedTweaks where isApplied(included) {
+                        revertedTweaks.insert(included)
+                    }
+                }
+            }
+        }
     }
 
     func setAIRegion(enabled: Bool) {
@@ -186,6 +256,8 @@ final class GestaltViewModel: ObservableObject {
             if WatchTweakCatalog.resolutions.indices.contains(watchResolution) { actions.append(String(localized: "Resolution")) }
         } else {
             actions = GestaltTweakCatalog.definitions.filter { selectedTweaks.contains($0.id) }.map(\.title)
+            actions += GestaltTweakCatalog.definitions.filter { revertedTweaks.contains($0.id) }
+                .map { String(localized: "Remove") + ": " + $0.title }
             if dynamicIslandSubtype != nil { actions.append(String(localized: "Dynamic Island")) }
             if changesModelName { actions.append(String(localized: "Model Name")) }
             if let regionPresetID { actions.append(String(localized: "Region") + ": " + regionPresetID) }
@@ -198,6 +270,17 @@ final class GestaltViewModel: ObservableObject {
         if selectedDevice == .appleWatch { applyWatchTweaks(); return }
         guard !isBusy, var pending = plist else { return }
         do {
+            if !revertedTweaks.isEmpty {
+                // Keys shared with presets that stay on (e.g. Stage Manager inside iPadOS Mode) are kept.
+                let staying = GestaltTweakCatalog.definitions.filter {
+                    !revertedTweaks.contains($0.id) && (selectedTweaks.contains($0.id) || isApplied($0.id))
+                }
+                let keptKeys = Set(staying.flatMap { $0.values.keys })
+                let original = originalBaseline
+                for definition in GestaltTweakCatalog.definitions where revertedTweaks.contains(definition.id) {
+                    try pending.revert(definition: definition, original: original, keeping: keptKeys)
+                }
+            }
             for id in selectedTweaks {
                 guard let definition = GestaltTweakCatalog.definition(for: id) else { continue }
                 try pending.apply(definition: definition)
@@ -222,6 +305,7 @@ final class GestaltViewModel: ObservableObject {
             }
             save(pending, expectedAIRegion: expectedConfiguration, actions: selectedBackupActions) { [weak self] in
                 self?.selectedTweaks.removeAll()
+                self?.revertedTweaks.removeAll()
                 self?.dynamicIslandSubtype = nil
                 self?.changesModelName = false
                 self?.modelName = ""
@@ -346,10 +430,26 @@ final class GestaltViewModel: ObservableObject {
         }
     }
 
+    /// The value comes from the device itself (already present before the first backup).
+    func isOriginalValue(_ id: GestaltTweakID) -> Bool {
+        originalTweaks.contains(id)
+    }
+
+    /// The oldest local backup: the closest thing to the device's untouched MobileGestalt.
+    private func originalDevicePlist() -> GestaltPlist? {
+        guard let oldest = backups.filter({ $0.purpose == .standard }).min(by: { $0.createdAt < $1.createdAt }),
+              let data = try? GestaltBackupStore.data(for: oldest),
+              let dictionary = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any] else {
+            return nil
+        }
+        return GestaltPlist(dict: dictionary)
+    }
+
     func refreshBackups() {
         do {
             if selectedDevice == .appleWatch && watchDeviceID == nil { backups = []; return }
             backups = try GestaltBackupStore.list(deviceID: selectedDevice == .appleWatch ? watchDeviceID : nil)
+            originalBaseline = selectedDevice == .iPhone ? originalDevicePlist() : nil
         } catch {
             report(error)
         }

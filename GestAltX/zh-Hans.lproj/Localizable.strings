@@ -113,7 +113,7 @@
 "Collision SOS" = "碰撞检测 SOS";
 "Shows collision detection in SOS settings." = "在 SOS 设置中显示碰撞检测。";
 "Stage Manager Support" = "台前调度支持";
-"Marks the device as supporting Stage Manager." = "标记设备支持台前调度。";
+"Marks an iPad as supporting Stage Manager (DeviceSupportsEnhancedMultitasking). On iPhone this key alone has no effect: Stage Manager requires iPadOS Mode. After applying, restart the device and turn on Stage Manager in Control Center or Settings › Multitasking & Gestures." = "将 iPad 标记为支持台前调度（DeviceSupportsEnhancedMultitasking）。在 iPhone 上单独开启此项无效：台前调度需要 iPadOS 模式。写入后请重启设备，再在控制中心或“设置 › 多任务与手势”中打开台前调度。";
 "Allow iPad Apps" = "允许安装 iPad App";
 "Enables iPad app compatibility types on iPhone." = "在 iPhone 上开放 iPad App 兼容类型。";
 "Enable iPadOS Mode" = "启用 iPadOS 模式";
@@ -279,7 +279,7 @@
 "About %@" = "关于%@";
 "Camera Control Settings" = "相机控制设置";
 "Enables Dynamic Island. Choose a layout only if its position needs adjusting." = "开启灵动岛。仅在需要调整位置时选择布局。";
-"Includes multitasking, Stage Manager and iPad app support. Experimental: may cause instability or boot loops. Do not use with an alphanumeric passcode or turn off Show Dock in Stage Manager." = "一并开启多任务、台前调度与 iPad App 支持。实验功能，可能导致系统不稳定或无限重启。请勿在使用字母数字密码时启用，也不要关闭台前调度中的“显示程序坞”。";
+"Includes multitasking, Stage Manager and iPad app support. This is the only way to get Stage Manager on iPhone. After applying, restart the iPhone, then turn on Stage Manager in Control Center or Settings › Multitasking & Gestures. Experimental: may cause instability or boot loops. Do not use with an alphanumeric passcode or turn off Show Dock in Stage Manager." = "一并开启多任务、台前调度与 iPad App 支持。这是在 iPhone 上使用台前调度的唯一方式。写入后请重启 iPhone，再在控制中心或“设置 › 多任务与手势”中打开台前调度。实验功能，可能导致系统不稳定或无限重启。请勿在使用字母数字密码时启用，也不要关闭台前调度中的“显示程序坞”。";
 "Individual iPad Options" = "单独调整 iPad 功能";
 "Audio" = "音频";
 "Device Region" = "设备地区";
@@ -334,3 +334,14 @@
 "Devices" = "设备";
 "iOS 26 Is Not Supported" = "不支持 iOS 26";
 "On-device MobileGestalt editing requires iOS / iPadOS 27 or later. iOS / iPadOS 26 is not supported." = "设备端 MobileGestalt 编辑需要 iOS / iPadOS 27 或更高版本，不支持 iOS / iPadOS 26。";
+
+/* GestAltX */
+"On iPhone, Stage Manager works only with iPadOS Mode. After applying, restart the iPhone and turn on Stage Manager in Control Center or Settings › Multitasking & Gestures." = "在 iPhone 上，台前调度只能配合 iPadOS 模式使用。写入后请重启 iPhone，再在控制中心或“设置 › 多任务与手势”中打开台前调度。";
+"No effect on iPhone: use iPadOS Mode." = "在 iPhone 上无效：请使用 iPadOS 模式。";
+"Included in iPadOS Mode" = "已包含在 iPadOS 模式中";
+"Applied" = "已写入";
+"Original value" = "设备原始值";
+"Will be applied" = "将写入";
+"Will be removed" = "将移除";
+"Remove" = "移除";
+"Default" = "默认";

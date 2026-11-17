@@ -67,6 +67,8 @@ struct GestaltTweakDefinition: Identifiable {
     var showsDetails = false
     var minimumOSMajor = 26
     var minimumOSMinor = 0
+    /// The key only has an effect on iPad hardware (Nugget hides it on iPhone).
+    var requiresIPad = false
 
     func isAvailable(on version: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion) -> Bool {
         version.majorVersion > minimumOSMajor
@@ -102,9 +104,9 @@ enum GestaltTweakCatalog {
         .init(id: .actionButton, category: .settings, title: String(localized: "Action Button Settings"), detail: String(localized: "Shows the Action Button settings page."), values: ["cT44WE1EohiwRzhsZ8xEsw": 1]),
         .init(id: .collisionSOS, category: .settings, title: String(localized: "Collision SOS"), detail: String(localized: "Shows collision detection in SOS settings."), values: ["HCzWusHQwZDea6nNhaKndw": 1]),
 
-        .init(id: .stageManager, category: .ipad, title: String(localized: "Stage Manager Support"), detail: String(localized: "Marks the device as supporting Stage Manager."), values: ["qeaj75wk3HF4DwQ8qbIi7g": 1]),
+        .init(id: .stageManager, category: .ipad, title: String(localized: "Stage Manager Support"), detail: String(localized: "Marks an iPad as supporting Stage Manager (DeviceSupportsEnhancedMultitasking). On iPhone this key alone has no effect: Stage Manager requires iPadOS Mode. After applying, restart the device and turn on Stage Manager in Control Center or Settings › Multitasking & Gestures."), values: ["qeaj75wk3HF4DwQ8qbIi7g": 1], showsDetails: true, requiresIPad: true),
         .init(id: .iPadApps, category: .ipad, title: String(localized: "Allow iPad Apps"), detail: String(localized: "Enables iPad app compatibility types on iPhone."), values: ["9MZ5AdH43csAUajl/dU+IQ": [1, 2]]),
-        .init(id: .iPadOS, category: .ipad, title: String(localized: "Enable iPadOS Mode"), detail: String(localized: "Includes multitasking, Stage Manager and iPad app support. Experimental: may cause instability or boot loops. Do not use with an alphanumeric passcode or turn off Show Dock in Stage Manager."), values: ["mG0AnH/Vy1veoqoLRAIgTA": 1, "UCG5MkVahJxG1YULbbd5Bg": 1, "ZYqko/XM5zD3XBfN5RmaXA": 1, "nVh/gwNpy7Jv1NOk00CMrw": 1, "uKc7FPnEO++lVhHWHFlGbQ": 1, "qeaj75wk3HF4DwQ8qbIi7g": 1, "9MZ5AdH43csAUajl/dU+IQ": [1, 2]], isRisky: true),
+        .init(id: .iPadOS, category: .ipad, title: String(localized: "Enable iPadOS Mode"), detail: String(localized: "Includes multitasking, Stage Manager and iPad app support. This is the only way to get Stage Manager on iPhone. After applying, restart the iPhone, then turn on Stage Manager in Control Center or Settings › Multitasking & Gestures. Experimental: may cause instability or boot loops. Do not use with an alphanumeric passcode or turn off Show Dock in Stage Manager."), values: ["mG0AnH/Vy1veoqoLRAIgTA": 1, "UCG5MkVahJxG1YULbbd5Bg": 1, "ZYqko/XM5zD3XBfN5RmaXA": 1, "nVh/gwNpy7Jv1NOk00CMrw": 1, "uKc7FPnEO++lVhHWHFlGbQ": 1, "qeaj75wk3HF4DwQ8qbIi7g": 1, "9MZ5AdH43csAUajl/dU+IQ": [1, 2]], isRisky: true),
 
         .init(id: .internalInstall, category: .internalFeatures, title: String(localized: "Apple Internal Install"), detail: String(localized: "Enables internal capabilities such as Metal HUD; some services may misbehave."), values: ["EqrsVvjcYDdxHBiQmGhAWw": 1], isRisky: true),
         .init(id: .internalStorage, category: .internalFeatures, title: String(localized: "Internal Storage View"), detail: String(localized: "Shows internal files in Storage settings; high risk on some iPads."), values: ["LBJfwOEzExRxzlAnSuI7eg": 1], isRisky: true),
@@ -199,11 +201,13 @@ extension GestaltPlist {
         setCacheExtra(artwork, forKey: key)
     }
 
-    private mutating func enableIPadOSCacheData() throws {
+    /// Hex digits of CacheData and the position of the device-class digit Nugget patches
+    /// ("1" = original class, "3" = iPad class). Same search and validation as Nugget/Erosion.
+    private func iPadOSCacheDataLocation() throws -> (hex: [Character], offset: Int) {
         guard let cacheData = dict["CacheData"] as? Data else {
             throw GestaltTweakError.cacheDataMissing
         }
-        var hex = Array(cacheData.map { String(format: "%02x", $0) }.joined())
+        let hex = Array(cacheData.map { String(format: "%02x", $0) }.joined())
         let sliceStart = 1616
         let sliceLength = 200
         guard hex.count > sliceStart else { throw GestaltTweakError.cacheDataTooShort }
@@ -234,7 +238,23 @@ extension GestaltPlist {
                 throw GestaltTweakError.invalidCacheDataOffset
             }
         }
-        hex[leftOffset] = "3"
+        return (hex, leftOffset)
+    }
+
+    /// true/false when the device-class digit is found, nil when CacheData has no recognisable marker.
+    var iPadOSCacheDataEnabled: Bool? {
+        guard let location = try? iPadOSCacheDataLocation() else { return nil }
+        return location.hex[location.offset] == "3"
+    }
+
+    private mutating func enableIPadOSCacheData() throws {
+        try setIPadOSCacheData(enabled: true)
+    }
+
+    mutating func setIPadOSCacheData(enabled: Bool) throws {
+        let location = try iPadOSCacheDataLocation()
+        var hex = location.hex
+        hex[location.offset] = enabled ? "3" : "1"
         let updatedHex = String(hex)
         var updatedData = Data(capacity: updatedHex.count / 2)
         var index = updatedHex.startIndex
@@ -247,6 +267,41 @@ extension GestaltPlist {
             index = next
         }
         dict["CacheData"] = updatedData
+    }
+
+    /// Whether every value of the preset is currently written in CacheExtra
+    /// (and, for iPadOS Mode, the CacheData device class is patched).
+    func isApplied(_ definition: GestaltTweakDefinition) -> Bool {
+        let extra = cacheExtra
+        for (key, value) in definition.values {
+            guard let current = extra[key], GestaltPlist.sameValue(current, value) else { return false }
+        }
+        if definition.id == .iPadOS {
+            return iPadOSCacheDataEnabled == true
+        }
+        return true
+    }
+
+    /// Undo a preset: each key goes back to the value in `original` (the device's oldest backup)
+    /// or is removed so MobileGestalt recomputes it. Keys still needed by another active preset are kept.
+    mutating func revert(definition: GestaltTweakDefinition, original: GestaltPlist?, keeping keptKeys: Set<String>) throws {
+        for (key, value) in definition.values where !keptKeys.contains(key) {
+            if let originalValue = original?.cacheExtra[key], !GestaltPlist.sameValue(originalValue, value) {
+                setCacheExtra(originalValue, forKey: key)
+            } else {
+                removeCacheExtraValue(forKey: key)
+            }
+        }
+        if definition.id == .iPadOS, iPadOSCacheDataEnabled == true {
+            try setIPadOSCacheData(enabled: false)
+        }
+    }
+
+    static func sameValue(_ lhs: Any, _ rhs: Any) -> Bool {
+        if let l = lhs as? NSObject, let r = rhs as? NSObject, l.isEqual(r) { return true }
+        let encode = { (value: Any) in try? PropertyListSerialization.data(fromPropertyList: [value], format: .binary, options: 0) }
+        guard let l = encode(lhs), let r = encode(rhs) else { return false }
+        return l == r
     }
 }
 
