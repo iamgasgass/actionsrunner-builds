@@ -1,37 +1,16 @@
 {
-  "fill-specializations" : [
-    {
-      "value" : {
-        "linear-gradient" : [
-          "display-p3:0.49545,0.59617,0.97020,1.00000",
-          "display-p3:0.36736,0.24986,0.90309,1.00000"
-        ]
-      }
-    },
-    {
-      "appearance" : "dark",
-      "value" : "system-dark"
-    }
-  ],
+  "fill" : {
+    "solid" : "srgb:0.00000,0.00000,0.00000,1.00000"
+  },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "Image 3.svg",
-          "name" : "Image 3",
+          "glass" : false,
+          "image-name" : "Glyph.png",
+          "name" : "Glyph",
           "position" : {
-            "scale" : 3,
-            "translation-in-points" : [
-              0,
-              0
-            ]
-          }
-        },
-        {
-          "image-name" : "Image 2.svg",
-          "name" : "Image 2",
-          "position" : {
-            "scale" : 6.5,
+            "scale" : 1,
             "translation-in-points" : [
               0,
               0
@@ -41,11 +20,11 @@
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.6
+        "opacity" : 0.35
       },
       "translucency" : {
-        "enabled" : true,
-        "value" : 0.2
+        "enabled" : false,
+        "value" : 0
       }
     }
   ],
