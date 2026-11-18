@@ -20,10 +20,13 @@
 #   7. IPA               .github/ci/package-ipa.sh: ad hoc signed with Config/Andarium.entitlements embedded, which
 #                        SideStore / AltStore re-sign at install and TrollStore installs as it is
 #
-# Prebuilt inputs. Two of them cannot be built here and are required:
+# Prebuilt inputs:
 #
-#   the Android kernel bundle   android-6.18-arm64-4k-...   (a directory with kernel-artifact.json)
 #   the LineageOS 24 release    lineage24-mainline6.18-...  (release-manifest.json + guest/system.img[.zst|.xz|.gz])
+#                               required: it cannot be built here
+#   the Android kernel bundle   android-6.18-arm64-4k-...   (a directory with kernel-artifact.json)
+#                               optional: when it is missing it is built from source (Linux 6.18 + the tracked patch
+#                               series, kernel/mainline-6.18/build/build-kernel.sh --product android) and cached
 #
 # The rest is optional: the dependency prefixes (.build/dependencies/...) or the packaged .build/kernarium-xcframeworks.
 # The names the build expects are in kernel/mainline-6.18/artifacts/accepted-android-4k.env and
@@ -258,6 +261,7 @@ jobs:
           rm -rf "$RUNNER_TEMP/prebuilt"
 
       - name: Check the required inputs
+        id: inputs
         env:
           KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
           ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
@@ -275,13 +279,127 @@ jobs:
           fi
           if [ "$XCFRAMEWORKS" != true ]; then
             if [ -z "$KERNEL_DIR" ]; then
-              echo "::error::The Android kernel bundle was not among the prebuilt artifacts (expected $UML_KERNEL_ARTIFACT_DIRECTORY_NAME with kernel-artifact.json)"
-              missing=1
+              echo "::notice::The Android kernel bundle $UML_KERNEL_ARTIFACT_DIRECTORY_NAME is not among the prebuilt artifacts: it is built from source"
+              echo "build_kernel=true" >> "$GITHUB_OUTPUT"
             elif [ "$(basename "$KERNEL_DIR")" != "$UML_KERNEL_ARTIFACT_DIRECTORY_NAME" ]; then
               echo "::warning::The kernel bundle is $(basename "$KERNEL_DIR"), this commit accepts $UML_KERNEL_ARTIFACT_DIRECTORY_NAME"
             fi
           fi
+          echo "KERNEL_DIR=$KERNEL_DIR" >> "$GITHUB_ENV"
           exit "$missing"
+
+      # ------------------------------------------------------------------ 1b. the Android kernel, when it is not published
+      # kernel/mainline-6.18/README.md, "Standalone build and publication": replay the pinned Linux 6.18 stable commit and
+      # the tracked patch series on a case-sensitive volume, build the android product with BTF (pahole and libelf from the
+      # kernel-host-tools prefix) and publish the bundle. It is published under the accepted release ID plus "-ci": the
+      # kernel release string names the replay commit, which differs from the upstream builder's, so the bundle is imported
+      # by path (ABI, family, slice and series are still checked) rather than as the accepted descriptor's own bundle.
+      - name: Restore the kernel cache
+        id: kernel-cache
+        if: steps.inputs.outputs.build_kernel == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build/kernel/artifacts-ci
+            .build/dependencies/kernel-host-tools
+          key: andarium-kernel-${{ env.CACHE_VERSION }}-${{ runner.arch }}-${{ hashFiles('kernel/**', 'dependencies/manifest.tsv', 'dependencies/kernel-host-tools/**', 'dependencies/build-kernel-host-tools.sh', 'dependencies/patches/elfutils/**', 'dependencies/patches/libbpf/**', 'dependencies/patches/dwarves/**', 'dependencies/patches/musl-obstack/**') }}
+
+      - name: Kernel toolchain and case-sensitive volume
+        id: ktool
+        if: steps.inputs.outputs.build_kernel == 'true' && steps.kernel-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eu
+          brew install make lld llvm
+          # Apple's clang when it compiles Linux 6.18's __counted_by type expressions, else Homebrew's LLVM
+          probe='#define __counted_by(m) __attribute__((__counted_by__(m)))
+          struct p { int count; int values[] __counted_by(count); };
+          int f(struct p *x) { return __builtin_types_compatible_p(__typeof__(x->values), __typeof__(&(x->values)[0])); }'
+          llvm=$(brew --prefix llvm)/bin
+          if printf '%s\n' "$probe" | xcrun clang -x c -Werror -c -o /dev/null - 2>/dev/null; then
+            cc=$(xcrun --find clang)
+          else
+            cc=$llvm/clang
+          fi
+          echo "Kernel compiler: $cc ($("$cc" --version | head -n 1))"
+          {
+            echo "UML_KERNEL_CC=$cc"
+            echo "UML_KERNEL_HOST_CC=$cc"
+            echo "UML_KERNEL_LD=$(brew --prefix lld)/bin/ld.lld"
+            echo "UML_KERNEL_MAKE=$(brew --prefix make)/bin/gmake"
+            echo "KERNEL_OBJCOPY=$llvm/llvm-objcopy"
+            echo "SDKROOT=$(xcrun --sdk macosx --show-sdk-path)"
+          } >> "$GITHUB_ENV"
+          # Linux must be checked out on a case-sensitive file system; the runner's is not.
+          hdiutil create -size 60g -type SPARSE -fs 'Case-sensitive APFS' -volname KernelBuild "$RUNNER_TEMP/kernel" >/dev/null
+          hdiutil attach "$RUNNER_TEMP/kernel.sparseimage" -mountpoint /Volumes/KernelBuild -nobrowse >/dev/null
+          printf 'UML_KERNEL_SOURCE_DIR=%s\n' /Volumes/KernelBuild/linux > kernel/mainline-6.18/source-location.conf
+          echo "UML_KERNEL_CACHE_DIR=/Volumes/KernelBuild/cache" >> "$GITHUB_ENV"
+
+      - name: Build the kernel host tools (pahole, libelf)
+        if: steps.ktool.outcome == 'success'
+        run: |
+          set -eu
+          if [ -d .build/dependencies/kernel-host-tools ] &&
+            dependencies/build-kernel-host-tools.sh --verify-only >/dev/null 2>&1; then
+            echo "kernel host tools: verified"; exit 0
+          fi
+          rm -rf .build/dependencies/kernel-host-tools
+          dependencies/prepare.sh --archive-manifest dependencies/kernel-host-tools/archives.tsv
+          dependencies/prepare.sh --product kernel-host-tools
+          dependencies/build-kernel-host-tools.sh --jobs "$JOBS"
+
+      - name: Replay the Linux 6.18 source
+        if: steps.ktool.outcome == 'success'
+        run: |
+          set -eu
+          kernel/mainline-6.18/scripts/prepare-source.sh
+          git -C /Volumes/KernelBuild/linux log -1 --format='%h %s'
+
+      - name: Build the Android kernel
+        if: steps.ktool.outcome == 'success'
+        timeout-minutes: 150
+        run: |
+          set -eu
+          UML_KERNEL_JOBS=$JOBS kernel/mainline-6.18/build/build-kernel.sh \
+            --product android --build /Volumes/KernelBuild/build-android > "$RUNNER_TEMP/kernel-build.log" 2>&1 || {
+              grep -E 'error|Error' "$RUNNER_TEMP/kernel-build.log" | head -n 40 || true
+              tail -n 120 "$RUNNER_TEMP/kernel-build.log"; exit 1; }
+          tail -n 5 "$RUNNER_TEMP/kernel-build.log"
+
+      - name: Publish the kernel bundle
+        if: steps.ktool.outcome == 'success'
+        run: |
+          set -eu
+          . kernel/mainline-6.18/artifacts/accepted-android-4k.env
+          rm -rf .build/kernel/artifacts-ci
+          mkdir -p .build/kernel/artifacts-ci
+          python3 kernel/mainline-6.18/build/publish-artifact.py \
+            --source /Volumes/KernelBuild/linux --build /Volumes/KernelBuild/build-android \
+            --product android --slice arm64 \
+            --output-root "$GITHUB_WORKSPACE/.build/kernel/artifacts-ci" \
+            --release-id "$UML_KERNEL_ARTIFACT_RELEASE_ID-ci" \
+            --objcopy "$KERNEL_OBJCOPY"
+          rm -f kernel/mainline-6.18/source-location.conf
+          hdiutil detach /Volumes/KernelBuild -force >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP"/kernel.sparseimage*
+
+      - name: Save the kernel cache
+        if: steps.ktool.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .build/kernel/artifacts-ci
+            .build/dependencies/kernel-host-tools
+          key: ${{ steps.kernel-cache.outputs.cache-primary-key }}
+
+      - name: Use the built kernel
+        if: steps.inputs.outputs.build_kernel == 'true'
+        run: |
+          set -eu
+          set -- .build/kernel/artifacts-ci/android-6.18-arm64-4k-*
+          [ -f "$1/kernel-artifact.json" ] || { echo "::error::No kernel bundle was built"; exit 1; }
+          echo "KERNEL_DIR=$GITHUB_WORKSPACE/$1" >> "$GITHUB_ENV"
+          echo "Kernel bundle: $1"
 
       # ------------------------------------------------------------------ 2. dependencies
       - name: Verify the dependency prefixes
@@ -374,8 +492,6 @@ jobs:
       # ------------------------------------------------------------------ 3-4. runtime and frameworks
       - name: Build the Android runtime
         if: steps.place.outputs.xcframeworks != 'true'
-        env:
-          KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
         run: |
           set -eu
           preset=kernarium-ios-device-android
@@ -497,9 +613,9 @@ jobs:
         if: always()
         env:
           XCODE: ${{ steps.xcode.outputs.version }}
-          KERNEL_DIR: ${{ steps.place.outputs.kernel_dir }}
           ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
           XCFRAMEWORKS: ${{ steps.place.outputs.xcframeworks }}
+          BUILT_KERNEL: ${{ steps.inputs.outputs.build_kernel }}
           GPU: ${{ steps.deps.outputs.gpu }}
           NETWORK: ${{ steps.deps.outputs.network }}
           STORAGE: ${{ steps.deps.outputs.storage }}
@@ -515,7 +631,7 @@ jobs:
             echo "|---|---|"
             echo "| Configuration | $CONFIGURATION |"
             echo "| Xcode | ${XCODE:-?} |"
-            echo "| Kernel bundle | $(basename "${KERNEL_DIR:-—}") |"
+            echo "| Kernel bundle | $(basename "${KERNEL_DIR:-—}")$([ "$BUILT_KERNEL" = true ] && echo ' (built from source)') |"
             echo "| Android release | $(basename "${ANDROID_DIR:-—}") |"
             if [ "$XCFRAMEWORKS" = true ]; then
               echo "| Frameworks | prebuilt .build/kernarium-xcframeworks |"

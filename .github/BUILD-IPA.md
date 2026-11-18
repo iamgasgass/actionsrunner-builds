@@ -9,12 +9,12 @@ system image LineageOS dentro l'app), non firmata con certificato: firmata ad ho
 Un runner macOS con **Xcode 27+** (il progetto Andarium è nel formato JSON di Xcode 27 e il
 deployment target è iOS 27.0). Default `xcode-27` (immagine GitHub in preview con Xcode 27.0–27.2; `macos-26` ha solo Xcode 26). Per la versione xlarge imposta la variabile `ANDARIUM_RUNNER` a `xcode-27-xlarge`.
 
-Artifact prebuilt **obbligatori** (non si possono costruire su GitHub):
+Artifact prebuilt:
 
 | Artifact | Nome atteso (da questo commit: vedi i file `accepted-*.env`) | Contenuto |
 |---|---|---|
-| Kernel Android | `android-6.18-arm64-4k-20261118-6.18.60-kf5` | `kernel-artifact.json`, `kernel/vmlinux`, ... |
-| Release LineageOS 24 | `lineage24-mainline6.18-4k-20261115-los24-r28` | `release-manifest.json`, `guest/system.img` (anche `.zst/.xz/.gz`), ... |
+| Kernel Android (facoltativo: se manca viene compilato dal sorgente, ~1 h la prima volta, poi in cache) | `android-6.18-arm64-4k-20261118-6.18.60-kf5` | `kernel-artifact.json`, `kernel/vmlinux`, ... |
+| Release LineageOS 24 (**obbligatoria**) | `lineage24-mainline6.18-4k-20261115-los24-r28` | `release-manifest.json`, `guest/system.img` (anche `.zst/.xz/.gz`), ... |
 
 Facoltativi (se mancano vengono compilati dal sorgente e messi in cache, la prima volta 1-3 h):
 
