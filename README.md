@@ -340,7 +340,7 @@ macOSiOS X/
 | Parte | Stato |
 | :--- | :--- |
 | Motore Henge: installazione e avvio di Sequoia, Tahoe, macOS 27, Sonoma, Ventura su **iPhone 17 Pro** | ✅ verificato a monte (Henge) |
-| Compilazione dell'IPA su GitHub Actions con le modifiche di macOSiOS X | ⏳ vedi la run di *Build IPA* sull'ultimo commit |
+| Compilazione di `macOSiOS-X.ipa` e `.tipa` su GitHub Actions (`macos-26`) | ✅ verificato (run #12, commit `2ef2084`) |
 | Deck Laptop (tastiera Mac + trackpad), Studio, rotazione, riga del dispositivo | ⏳ da provare su dispositivo |
 | iPhone da 4 e 6 GB | ⏳ non ancora provati con macOS |
 | Sensore cerniera dell'iPhone Duo | ⏳ richiede l'SDK iOS 27.1 nel runner |
