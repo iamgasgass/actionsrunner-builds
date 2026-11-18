@@ -42,12 +42,12 @@ struct SettingsView: View {
                     Picker("Method", selection: $jit.method) {
                         ForEach(JITMethod.allCases) { Text($0.title).tag($0) }
                     }
-                    Text(jit.method == .automatic ? jit.automaticDescription : "Henge uses \(jit.method.title).")
+                    Text(jit.method == .automatic ? jit.automaticDescription : "macOSiOS X uses \(jit.method.title).")
                         .font(.footnote).foregroundStyle(.secondary)
                     Button("Set up JIT") { jit.showSetup = true }
-                    Toggle("Turn on JIT when Henge opens", isOn: $jitAtLaunch)
+                    Toggle("Turn on JIT when macOSiOS X opens", isOn: $jitAtLaunch)
                     if jitAtLaunch {
-                        Text("Henge connects LocalDevVPN first when it is off, and comes back.")
+                        Text("macOSiOS X connects LocalDevVPN first when it is off, and comes back.")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     LabeledContent("Code region", value: "\(JITBootstrap.jitBytes >> 20) MB, claimed once per launch")
@@ -55,11 +55,11 @@ struct SettingsView: View {
                 .listRowBackground(Desk.card)
                 Section("Memory") {
                     LabeledContent("Extra memory", value: Entitlements.increasedMemory ? "On" : "Off")
-                    LabeledContent("Henge's limit", value: ByteText.string(UInt64(Entitlements.memoryLimitAtLaunch)))
-                    LabeledContent("Free for Henge", value: ByteText.string(UInt64(henge_available_memory())))
+                    LabeledContent("macOSiOS X's limit", value: ByteText.string(UInt64(Entitlements.memoryLimitAtLaunch)))
+                    LabeledContent("Free for macOSiOS X", value: ByteText.string(UInt64(henge_available_memory())))
                     Text(Entitlements.increasedMemory
                          ? "A Mac's memory is kept out of this limit once JIT is on. If iOS refuses that, it uses free storage instead."
-                         : "This install isn't signed with the increased memory limit entitlement. Reinstall Henge with a certificate that has it. Export your Mac first if the reinstall replaces the app's data.")
+                         : "This install isn't signed with the increased memory limit entitlement. Reinstall macOSiOS X with a certificate that has it. Export your Mac first if the reinstall replaces the app's data.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)
@@ -98,7 +98,7 @@ struct SettingsView: View {
                             .pickerStyle(.menu)
                             Toggle("Swap buttons", isOn: $swapButtons)
                         }
-                        Text("Henge is able to emulate a Magic Trackpad, allowing you to perform native macOS gestures using your device's touchscreen.\n\n\(inputDescription)")
+                        Text("macOSiOS X is able to emulate a Magic Trackpad, allowing you to perform native macOS gestures using your device's touchscreen.\n\n\(inputDescription)")
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                     .listRowBackground(Desk.card)
@@ -118,7 +118,7 @@ struct SettingsView: View {
                         Text("1 GB").tag(1024)
                         Text("1.5 GB").tag(1536)
                     }
-                    Text("A bigger code cache empties less often and takes more memory (about 1.75 times its size); Henge picks one by its memory limit: 1.5 GB where there is plenty, 512 MB where there is little. Applies the next time Henge opens. If JIT stops turning on, or a Mac closes Henge during setup, choose a smaller one.")
+                    Text("A bigger code cache empties less often and takes more memory (about 1.75 times its size); macOSiOS X picks one by its memory limit: 1.5 GB where there is plenty, 512 MB where there is little. Applies the next time macOSiOS X opens. If JIT stops turning on, or a Mac closes macOSiOS X during setup, choose a smaller one.")
                         .font(.footnote).foregroundStyle(.secondary)
                     Text("macOS draws a frame for every refresh: 30 Hz leaves the most of the emulated CPU to apps, at the cost of choppier animation; 60 Hz is smoother. Faster disk writes order them without waiting for a full sync; a sudden power loss could lose the last ones. Quicker wake keeps an idle CPU watching for work for 50 µs, at some battery cost. Superblocks let translated code run past conditional branches. Changes apply the next time a Mac starts.")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -126,13 +126,13 @@ struct SettingsView: View {
                 .listRowBackground(Desk.card)
                 Section("Instant Resume") {
                     Toggle("Resume where you left off", isOn: $instantResume)
-                    Text("When you leave Henge, the running Mac is saved to storage, and opening it again picks up where it was in a few seconds, even after iOS closes Henge. The save is about the size of the Mac's memory in use, compressed. The Mac pauses while Henge is in the background, so its sound stops. Experimental.")
+                    Text("When you leave macOSiOS X, the running Mac is saved to storage, and opening it again picks up where it was in a few seconds, even after iOS closes macOSiOS X. The save is about the size of the Mac's memory in use, compressed. The Mac pauses while macOSiOS X is in the background, so its sound stops. Experimental.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)
                 Section("Mac Apps") {
                     Toggle("Mac apps without macOS", isOn: $macApps)
-                    Text("Bring in a .dmg or an .app (the + button on Home) and run it inside Henge through its own translation layer, without starting a Mac. Programs without windows run today; apps with windows don't yet. Experimental.")
+                    Text("Bring in a .dmg or an .app (the + button on Home) and run it inside macOSiOS X through its own translation layer, without starting a Mac. Programs without windows run today; apps with windows don't yet. Experimental.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)
@@ -141,7 +141,7 @@ struct SettingsView: View {
                         ForEach(DeskAppearance.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.segmented)
-                    Text("System follows the \(Device.name)'s Light or Dark setting. Henge stays dark while a Mac is running.")
+                    Text("System follows the \(Device.name)'s Light or Dark setting. macOSiOS X stays dark while a Mac is running.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)

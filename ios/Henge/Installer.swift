@@ -25,7 +25,7 @@ struct MacOSRelease: Identifiable, Hashable {
                      bytes: 14_106 << 20, note: "A smaller download than Sequoia (and about 40 GB in all).", macBytes: 26 << 30),
         MacOSRelease(id: "24G90", name: "macOS Sequoia 15.6.1",
                      url: URL(string: "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-10809/CFD6DD38-DAF0-40DA-854F-31AAD1294C6F/UniversalMac_15.6.1_24G90_Restore.ipsw")!,
-                     bytes: 16_035 << 20, note: "Recommended: the version Henge is tested with."),
+                     bytes: 16_035 << 20, note: "Recommended: the version macOSiOS X is tested with."),
         MacOSRelease(id: "25G83", name: "macOS Tahoe 26.6.2",
                      url: URL(string: "https://updates.cdn-apple.com/2026SummerFCS/fullrestores/140-75212/A2A24B94-1FC1-45A3-93F7-C51B02AF1F4D/UniversalMac_26.6.2_25G83_Restore.ipsw")!,
                      bytes: 18_856 << 20, note: "Installs and runs on iPhone. Its first setup is slow: creating the account can take 10 minutes."),
@@ -132,7 +132,7 @@ final class Installer: NSObject, ObservableObject {
                 try await install(mac, ipsw: ipsw, cpus: cpus)
                 if !keepImage { try? FileManager.default.removeItem(at: ipsw) }
                 HengeLog.log("install", "\(name): installed \(release.name)")
-                phase = .done("\(release.name) is installed on \(name). Quit Henge (swipe it away) and open it again, then tap Start.")
+                phase = .done("\(release.name) is installed on \(name). Quit macOSiOS X (swipe it away) and open it again, then tap Start.")
             } catch {
                 HengeLog.log("install", "failed: \(error.localizedDescription)")
                 // A restore that failed while the machine still runs would go on using the guest's memory and CPUs

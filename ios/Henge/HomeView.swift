@@ -24,6 +24,7 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    deviceLine
                     notices
                     if let mac {
                         MacHero(mac: mac, jitReady: jitReady, start: { running = mac }, turnOnJIT: { jit.enable() },
@@ -42,7 +43,7 @@ struct HomeView: View {
                 .deskColumn()
             }
             .background(Desk.page)
-            .navigationTitle("Henge")
+            .navigationTitle("macOSiOS X")
             .navigationDestination(for: VirtualMac.self) { MacSettingsView(mac: $0) }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -67,6 +68,29 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    /// What this device is and what it gives a Mac, as WindowsiOS X's boot card shows it:
+    /// "IPHONE 14 PRO · 6 GB · 3 GB / 5 VCPU". Tapping it opens Settings, where both are changed.
+    private var deviceLine: some View {
+        Button { tab = .settings } label: {
+            HStack(spacing: 8) {
+                Image(systemName: Device.isPad ? "ipad.landscape" : "iphone")
+                Text(Device.summaryLine.uppercased())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+            }
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .foregroundStyle(Device.chipTooOld ? Desk.bad : Desk.dim)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .deskCard()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Device.summaryLine)
+        .accessibilityHint("Opens Settings")
     }
 
     @ViewBuilder private var notices: some View {

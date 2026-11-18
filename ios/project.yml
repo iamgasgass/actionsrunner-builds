@@ -1,6 +1,11 @@
 name: Henge
+# macOSiOS X: the project keeps Henge's internal names (target Henge, Henge.xcodeproj, henge_* in C), as
+# WindowsiOS X kept WindowsiOS's. What the user sees is macOSiOS X: the display name (Info.plist), the bundle
+# ID below, the icon (Henge/Assets.xcassets/AppIcon.appiconset, tools/icon/render_macos.py) and the IPA name.
+# Signing is not tied to anyone's team: set MACOSIOSX_TEAM_ID in the environment (xcodegen expands ${VAR})
+# or build unsigned and sideload (.github/workflows/build-ipa.yml).
 options:
-  bundleIdPrefix: com.henge
+  bundleIdPrefix: com.iamgasgass
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
@@ -8,7 +13,8 @@ options:
 settings:
   base:
     # The app and its JIT helper follow this together (the helper's id sits under the app's).
-    HENGE_BUNDLE_IDENTIFIER: com.henge.app
+    HENGE_BUNDLE_IDENTIFIER: com.iamgasgass.macosiosx
+    DEVELOPMENT_TEAM: "${MACOSIOSX_TEAM_ID}"
     # The app's entitlements file. Override on the xcodebuild command line (the JIT helper doesn't use it, so a
     # personal team can sign the app with fewer entitlements without touching the helper).
     HENGE_ENTITLEMENTS: Henge/Henge.entitlements
@@ -31,13 +37,7 @@ targets:
           - "Info.plist"
           - "Henge.entitlements"
           - "Henge.personal.entitlements"
-          - "AppIcon.icon/**"
-          - "AppIcon.icon"
       - path: Henge/Resources
-        buildPhase: resources
-      # Icon Composer's document: the app icon, which iOS renders in Liquid Glass.
-      - path: Henge/AppIcon.icon
-        type: file
         buildPhase: resources
       # The messages the app and its JIT helper exchange.
       - path: HengeJITHelper/HengeJITMessages.swift

@@ -1,7 +1,8 @@
 import SwiftUI
 import GameController
 
-/// A running Mac. Upright, its screen sits above a trackpad; on its side the screen fills the device
+/// A running Mac. Upright (Laptop), its screen sits above a MacBook's deck: keyboard and trackpad
+/// (MacKeyboardDeck), or the trackpad alone; on its side (Studio) the screen fills the device
 /// and is its own trackpad. Zoomed in, the screen fills the device either way and follows the pointer.
 /// A keyboard, trackpad or mouse attached to an iPad works throughout.
 struct SessionView: View {
@@ -31,6 +32,8 @@ struct SessionView: View {
     @AppStorage(HardwareMouse.scrollSpeedKey) private var scrollSpeed = 0.3
 
     @State private var typing = false
+    /// What the deck under the screen shows, upright (MacKeyboardDeck.swift).
+    @AppStorage(DeckLayout.key) private var deckLayout = DeckLayout.laptop
     @State private var zoomed = false
     @State private var showDetails = false
     @State private var controlsHidden = false
@@ -103,7 +106,7 @@ struct SessionView: View {
                         floatingControls(layout)
                     }
                     if pointerRefused && !showRevealHint {
-                        Label("Make Henge full screen to use the trackpad or mouse as the Mac's", systemImage: "cursorarrow.rays")
+                        Label("Make macOSiOS X full screen to use the trackpad or mouse as the Mac's", systemImage: "cursorarrow.rays")
                             .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 18).padding(.vertical, 12)
@@ -143,6 +146,13 @@ struct SessionView: View {
                 }
                 if let error { errorCard(error, layout) }
                 KeyboardCatcher(active: $typing).frame(width: 0, height: 0)
+                // iPhone Duo: folded like a laptop, the session turns upright (HingeSensor.swift).
+                HingeSensorView { status, degrees in
+                    if HingePosture.wantsLaptop(status: status, degrees: degrees) && landscape && !zoomed {
+                        SceneOrientation.laptop()
+                    }
+                }
+                .frame(width: 0, height: 0)
             }
             .frame(width: full.width, height: full.height)
             .ignoresSafeArea()
@@ -298,6 +308,10 @@ struct SessionView: View {
                 Spacer()
                 tool("plus.magnifyingglass", "Zoom in") { zoomed = true }
                 Spacer()
+                tool(deckLayout.next.symbol, "Show \(deckLayout.next.title.lowercased())") {
+                    withAnimation(.snappy(duration: 0.2)) { deckLayout = deckLayout.next }
+                }
+                Spacer()
                 tool("info.circle", "Details") { showDetails = true }
                 Spacer()
                 tool("power", "Shut down", tint: Desk.bad) { stopTapped() }
@@ -309,7 +323,13 @@ struct SessionView: View {
             .position(x: layout.pad.midX, y: layout.toolsY + 27)
             .transition(.opacity)
         }
-        trackpadPanel(layout)
+        if typing || deckLayout == .trackpad {
+            trackpadPanel(layout)
+        } else {
+            MacKeyboardDeck(layout: $deckLayout)
+                .frame(width: layout.pad.width, height: layout.pad.height)
+                .position(x: layout.pad.midX, y: layout.pad.midY)
+        }
     }
 
     private func trackpadPanel(_ layout: Layout) -> some View {
@@ -390,6 +410,10 @@ struct SessionView: View {
             tool("keyboard", "Keyboard", tint: .white) { typing.toggle() }
             pasteTool
             tool(zoomed ? "minus.magnifyingglass" : "plus.magnifyingglass", zoomed ? "Zoom out" : "Zoom in", tint: zoomed ? Desk.accentLight : .white) { zoomed.toggle() }
+            if landscape && !Device.isPad {
+                // Back to Laptop: upright, with the keyboard and trackpad under the Mac.
+                tool("laptopcomputer", "Laptop", tint: .white) { zoomed = false; SceneOrientation.laptop() }
+            }
             tool("info.circle", "Details", tint: .white) { showDetails = true }
             Rectangle().fill(Color.white.opacity(0.3)).frame(width: 1, height: 22).padding(.horizontal, 4)
             tool("power", "Shut down", tint: Desk.bad) { stopTapped() }
@@ -523,7 +547,7 @@ struct SessionView: View {
                         }
                     }
                     Text(helperRunning
-                         ? "Put files in Files, Henge, Shared to see them in the Henge folder in this Mac's home folder. What you copy on the Mac is copied here too, and the paste button pastes from here into the Mac."
+                         ? "Put files in Files, macOSiOS X, Shared to see them in the Henge folder in this Mac's home folder. What you copy on the Mac is copied here too, and the paste button pastes from here into the Mac."
                          : "Once for each Mac: open Terminal on the Mac, tap this, then press Return. When macOS asks about henge-agent and local networks, choose Allow. It types \(Sharing.setUpCommand) and needs the Mac's keyboard layout to be U.S.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }

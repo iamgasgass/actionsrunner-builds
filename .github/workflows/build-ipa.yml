@@ -1,20 +1,26 @@
-# .github/workflows/build-henge.yml
+# .github/workflows/build-ipa.yml
 #
-# Builds Henge.ipa (SideStore / AltStore) and Henge.tipa (TrollStore) on a GitHub-hosted macOS runner.
+# macOSiOS X: builds macOSiOS-X.ipa (SideStore / AltStore) and macOSiOS-X.tipa (TrollStore) for every
+# supported iPhone and iPad (A14 / M1 or newer, iOS 17+), from a clean checkout, as WindowsiOS X's
+# build-ipa.yml builds WindowsiOS-X.ipa.
 #
-#   push to the "henge" or "main" branch   build, keep both files as workflow artifacts, and put them on the
-#                                          rolling pre-release "henge-latest" (Releases page)
-#   Run workflow (Actions tab, manual)     the same, from the branch you pick
+#   push to main or claude/**                build, keep both files as workflow artifacts
+#   push of a tag like macosiosx-v1.0.0      the same, and publish them on that tag's release
+#   Run workflow (Actions tab, manual)       the same from the branch you pick; "release" also publishes
 #
-# The IPA is ad-hoc signed (ios/scripts/package_ipa.sh): the sideloader re-signs it with your certificate.
-# Henge links a few iOS libraries built from Leviidev/Husk (glib, libslirp, the pairing library, StikJIT):
-# they are built here and cached, so only the first run is slow.
+# "Unsigned" as sideloaders mean it: ad hoc signed with the entitlements embedded (ios/scripts/package_ipa.sh),
+# so SideStore / AltStore re-sign it at install and TrollStore installs the .tipa as it is.
+# Builds with the newest Xcode on the runner, betas included (26 or later; the variable MACOSIOSX_XCODE pins
+# one). The iPhone Duo's hinge sensor (UIHingeInteraction) is compiled in only when that SDK has it.
+# The engine links a few iOS libraries built from Leviidev/Husk (glib, libslirp, the pairing library,
+# StikJIT): they are built here and cached, so only the first run is slow.
 
-name: Build Henge IPA
+name: Build IPA
 
 on:
   push:
-    branches: [henge, main]
+    branches: [main, 'claude/**']
+    tags: ['macosiosx-v[0-9]+.[0-9]+*']
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -22,15 +28,19 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: Also update the "henge-latest" pre-release
+        description: Publish a GitHub release with the IPA and the TIPA
         type: boolean
-        default: true
+        default: false
+      tag:
+        description: Release tag (empty = macosiosx-v + CFBundleShortVersionString)
+        type: string
+        default: ''
 
 permissions:
   contents: write
 
 concurrency:
-  group: build-henge-${{ github.ref }}
+  group: build-ipa-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -44,7 +54,7 @@ jobs:
     timeout-minutes: 150
 
     steps:
-      - name: Check out Henge
+      - name: Check out macOSiOS X
         uses: actions/checkout@v4
         with:
           path: Henge
@@ -56,17 +66,23 @@ jobs:
           path: Husk
 
       - name: Select Xcode
+        env:
+          PIN: ${{ vars.MACOSIOSX_XCODE }}
         run: |
           set -euo pipefail
           ls -d /Applications/Xcode*.app
-          # The newest released Xcode, 26 or later (the app targets the iOS 26 SDK).
-          app="$(ls -d /Applications/Xcode_[0-9]*.app | grep -viE 'beta|release_candidate|_rc' \
-                 | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
-          [ -n "$app" ] || { echo "::error::no released Xcode on this runner"; exit 1; }
+          # The newest Xcode on the runner, betas included (as WindowsiOS X), unless MACOSIOSX_XCODE pins one.
+          if [ -n "$PIN" ]; then
+            app="/Applications/Xcode_${PIN}.app"
+          else
+            app="$(ls -d /Applications/Xcode_[0-9]*.app | sed -E 's#.*/Xcode_([0-9.]+)[^/]*\.app#\1 &#' \
+                   | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+          fi
+          [ -d "$app" ] || { echo "::error::no Xcode at $app"; exit 1; }
           sudo xcode-select -s "$app/Contents/Developer"
           xcodebuild -version
           ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
-          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Henge needs the iOS 26 SDK"; exit 1; }
+          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: macOSiOS X needs the iOS 26 SDK"; exit 1; }
           echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
 
       - name: Metal toolchain
@@ -109,7 +125,7 @@ jobs:
         working-directory: Husk
         run: bash scripts/fetch_sources.sh
 
-      - name: Build the iOS libraries Henge needs (libffi, glib, libslirp)
+      - name: Build the iOS libraries the engine needs (libffi, glib, libslirp)
         if: steps.cache.outputs.cache-hit != 'true'
         working-directory: Husk
         run: bash scripts/build_ios.sh libffi glib libslirp
@@ -128,7 +144,7 @@ jobs:
           done
           test -d Husk/src/app/Frameworks/StikJIT.xcframework || { echo "::error::Husk has no StikJIT.xcframework"; exit 1; }
 
-      - name: Copy the prebuilt libraries into Henge
+      - name: Copy the prebuilt libraries into the app
         working-directory: Henge
         run: zsh ios/scripts/fetch_deps.sh
 
@@ -140,38 +156,40 @@ jobs:
         working-directory: Henge
         run: make ios-lib
 
-      - name: Package Henge.ipa
+      - name: Package macOSiOS-X.ipa
         working-directory: Henge
         run: |
           zsh ios/scripts/package_ipa.sh || { tail -n 200 ios/build/DerivedData.buildlog || true; exit 1; }
 
-      - name: Package Henge.tipa (TrollStore)
+      - name: Package macOSiOS-X.tipa (TrollStore)
         working-directory: Henge
         run: zsh ios/scripts/package_ipa.sh --trollstore
 
-      - name: Upload Henge.ipa
+      - name: Version
+        working-directory: Henge
+        run: echo "VERSION=$(plutil -extract CFBundleShortVersionString raw ios/Henge/Info.plist)" >> "$GITHUB_ENV"
+
+      - name: Upload macOSiOS-X.ipa and .tipa
         uses: actions/upload-artifact@v4
         with:
-          name: Henge-ipa-${{ github.sha }}
-          path: ~/Desktop/Henge.ipa
+          name: macOSiOS-X-${{ env.VERSION }}-${{ github.sha }}
+          path: |
+            ~/Desktop/macOSiOS-X.ipa
+            ~/Desktop/macOSiOS-X.tipa
           if-no-files-found: error
 
-      - name: Upload Henge.tipa
-        uses: actions/upload-artifact@v4
-        with:
-          name: Henge-tipa-${{ github.sha }}
-          path: ~/Desktop/Henge.tipa
-          if-no-files-found: error
-
-      - name: Update the "henge-latest" pre-release
-        if: github.event_name == 'push' || inputs.release
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/macosiosx-v') || inputs.release
         working-directory: Henge
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG_INPUT: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          tag=henge-latest
-          notes="Henge built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::12} on $(date -u +%Y-%m-%d). Henge.ipa: SideStore / AltStore. Henge.tipa: TrollStore."
-          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$tag" ~/Desktop/Henge.ipa ~/Desktop/Henge.tipa \
-            --target "$GITHUB_SHA" --prerelease --title "Henge (latest build)" --notes "$notes"
+          TAG="$TAG_INPUT"
+          if [ -z "$TAG" ]; then
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="macosiosx-v$VERSION"; fi
+          fi
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "macOSiOS X $TAG" \
+            --notes "macOS on iPhone and iPad (A14 / M1 or newer, iOS 17+). macOSiOS-X.ipa: SideStore / AltStore. macOSiOS-X.tipa: TrollStore. JIT: StikDebug, TrollStore or the built-in helper (iOS 26+)."
+          gh release upload "$TAG" ~/Desktop/macOSiOS-X.ipa ~/Desktop/macOSiOS-X.tipa --clobber

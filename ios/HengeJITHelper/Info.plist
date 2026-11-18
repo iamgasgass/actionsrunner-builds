@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Henge JIT Helper</string>
+	<string>macOSiOS X JIT Helper</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>XPC!</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.0</string>
+	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
-	<string>101</string>
+	<string>102</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remotepairing._tcp</string>
@@ -41,7 +41,7 @@
 		<string>HengeJITHelperHandler</string>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Henge's JIT helper looks up the port this device's pairing service listens on.</string>
+	<string>macOSiOS X's JIT helper looks up the port this device's pairing service listens on.</string>
 	<key>XPCService</key>
 	<dict>
 		<key>ServiceType</key>
