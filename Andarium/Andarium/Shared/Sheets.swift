@@ -25,8 +25,8 @@ struct NewGuestSheet: View {
                     if !model.canCreate {
                         NoticeCard(
                             symbol: "externaldrive.badge.exclamationmark", color: .orange,
-                            title: "Not enough free space",
-                            text: "Setting up needs \(Formats.size(bytes: model.createRequirementBytes)) free for the guest's setup. This \(model.host.name) has \(Formats.size(bytes: model.host.freeStorageBytes)). Free up space in Settings › General › \(model.host.name) Storage."
+                            title: StartSpaceWords.title,
+                            text: String(localized: "Setting up the virtual machine needs \(Formats.size(bytes: model.createRequirementBytes)) of free space. This \(model.host.name) has \(Formats.size(bytes: model.host.freeStorageBytes)). Free up space in Settings › General › \(model.host.name) Storage.")
                         )
                     }
                     StoragePanel(guest: draftBinding, host: model.host, stops: model.capacityStopsGiB)
@@ -44,7 +44,7 @@ struct NewGuestSheet: View {
                 .padding(.bottom, 24)
             }
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("New guest")
+            .navigationTitle("New virtual machine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -85,7 +85,7 @@ struct SystemSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                SystemControls(guest: draftBinding, host: model.host)
+                SystemControls(guest: draftBinding, host: model.host, cameraLive: model.cameraMode == .live)
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 24)
@@ -93,6 +93,9 @@ struct SystemSheet: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("System")
             .navigationBarTitleDisplayMode(.inline)
+            // A camera that came without a change of access is planned for
+            // before the person reads the figure.
+            .onAppear { model.refreshCameraReserve() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", role: .cancel) { dismiss() }
@@ -124,12 +127,24 @@ struct InfoSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var path: [InfoPage]
+    #if ICP_FILING
+    @State private var storefront = ICPStorefrontState()
+    #endif
 
     init(page: InfoPage?) {
         _path = State(initialValue: page?.trail ?? [])
     }
 
     var body: some View {
+        #if ICP_FILING
+        // The storefront is followed while Info is open.
+        content.task { await storefront.watch(model.icpStorefront) }
+        #else
+        content
+        #endif
+    }
+
+    private var content: some View {
         NavigationStack(path: $path) {
             List {
                 Section {
@@ -144,6 +159,7 @@ struct InfoSheet: View {
                         }
                     }
                     .padding(.vertical, 6)
+                    .accessibilityElement(children: .combine)
                     if !model.whatsNew.releases.isEmpty {
                         NavigationLink(value: InfoPage.whatsNew) {
                             HStack(spacing: 12) {
@@ -164,7 +180,7 @@ struct InfoSheet: View {
                     LabeledContent("Kernel", value: model.system.kernel)
                     LabeledContent("Architecture", value: model.system.architecture)
                     if !model.system.abis.isEmpty {
-                        LabeledContent("Supported architectures", value: model.system.abis.joined(separator: ", "))
+                        LabeledContent("Supported architectures", value: ListWords.join(model.system.abis))
                     }
                 }
                 Section {
@@ -180,6 +196,11 @@ struct InfoSheet: View {
                                 .accessibilityHidden(true)
                         }
                     }
+                    #if FOLLOW_X
+                    if let profile = model.followXProfile {
+                        FollowXRow(profile: profile)
+                    }
+                    #endif
                     NavigationLink(value: InfoPage.acknowledgements) {
                         HStack(spacing: 12) {
                             IconTile(symbol: "doc.text.fill")
@@ -188,6 +209,16 @@ struct InfoSheet: View {
                         }
                     }
                 }
+                // The last line of Info, only in mainland China's storefront.
+                #if ICP_FILING
+                if let number = model.icpNumber(), ICPFiling.isMainlandChina(countryCode: storefront.countryCode) {
+                    Section {
+                        ICPFootnote(number: number)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
+                }
+                #endif
             }
             .navigationTitle("Info")
             .navigationBarTitleDisplayMode(.inline)
@@ -204,5 +235,8 @@ struct InfoSheet: View {
                 }
             }
         }
+        // Tall enough for every row, in any language, without scrolling to
+        // the last one; the system keeps it inside a smaller window.
+        .presentationSizing(FixedSheetSizing(width: 540, height: 900))
     }
 }

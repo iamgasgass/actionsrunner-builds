@@ -155,7 +155,8 @@ pending, and its hand-back names the artifact it waits for.
 Before archiving a release build of an application:
 
 - check each artifact it embeds against the commit being archived; Andarium's
-  AppStore configuration enforces it with `scripts/check-embedded-artifacts.py`.
+  AppStore and TestFlight configurations enforce it with
+  `scripts/check-embedded-artifacts.py`.
   When an input changed after the source revision or tree that the artifact's
   descriptor records, build and accept a new artifact first. Otherwise, name
   the changes the archive will not carry and wait for the user's decision;
@@ -249,7 +250,9 @@ below apply to each of them.
   - device, simulator, app-container and CoreDevice identifiers. Tests
     synthesize their own;
   - email addresses other than the configured Git identity, which commits
-    and exported patches carry;
+    and exported patches carry (the one exception is the `From:` line of an
+    outside contributor's own patches under `dependencies/patches`, which
+    `repository-environment-portability` allows series by series);
   - the Apple Team ID and signing identities. They belong in the ignored
     `GuestHost/Config/Signing.local.xcconfig`, from its tracked `.example`;
   - private network addresses and ssh endpoints;

@@ -35,7 +35,7 @@ struct ContentView: View {
 
                 GuestDisplayView(
                     keyboardVisible: $framebufferKeyboardVisible,
-                    retinaMode: EmulatorLauncher.shared.retinaMode
+                    scale: EmulatorLauncher.shared.displayScale
                 ) { view, geometry in
                     EmulatorLauncher.shared.start(view: view, geometry: geometry)
                 }
@@ -52,7 +52,10 @@ struct ContentView: View {
                     .allowsHitTesting(guestViewMode == .serialConsole)
                     .accessibilityHidden(guestViewMode != .serialConsole)
 
-                if let shortage = launcher.startShortage {
+                if let refusal = launcher.memoryRefusal {
+                    MemoryRefusalNotice(reason: refusal)
+                        .padding()
+                } else if let shortage = launcher.startShortage {
                     StartShortageNotice(shortage: shortage) {
                         launcher.retryStart()
                     }
@@ -136,6 +139,8 @@ struct ContentView: View {
             serialConsole.stopObserving()
             GuestPersistence.shared.stopObserving()
             GuestPictureInPicture.shared.guestRunningChanged(false)
+            // The screen is going: the guest is asked to write its storage
+            // back and is then stopped, off the main actor.
             EmulatorLauncher.shared.stop()
         }
         .onReceive(
@@ -446,6 +451,26 @@ private struct GuestEndedNotice: View {
     }
 }
 
+/// Shown over the guest views when the memory the settings or the launch state
+/// is a size the runtime refuses. Nothing started. The settings never offer
+/// such a size, so only a launch's environment, or a size stored before the
+/// host's limit shrank, brings it.
+private struct MemoryRefusalNotice: View {
+    let reason: String
+
+    var body: some View {
+        GuestNoticeCard(
+            systemName: "memorychip",
+            title: "The virtual machine can\u{2019}t start",
+            message: reason + ". Choose another size in Emulator " +
+                "settings and relaunch Kernarium.",
+            messageStyle: .primary
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("memoryRefusalNotice")
+    }
+}
+
 /// Shown over the guest views when the device has too little free space for
 /// the guest to start. Nothing started; Check again tries once more.
 private struct StartShortageNotice: View {
@@ -490,7 +515,7 @@ private struct GuestRestartingBadge: View {
 }
 
 /// The warning shown at launch when the application's memory limit leaves the
-/// host GPU less than its 384 MiB floor once the guest, the gadget cache and
+/// host GPU less than its 352 MiB floor once the guest, the gadget cache and
 /// the launch's allowances are counted. The guest boots anyway, with the
 /// floor, and the system is likely to end the application.
 struct GPUBudgetWarning: Equatable {
@@ -868,6 +893,9 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
     /// Nothing started: the guest starts once there is room and the person
     /// asks again.
     @Published private(set) var startShortage: StartSpace?
+    /// Set when the memory this launch states is a size the runtime refuses
+    /// (`MemoryRefusal`): nothing started, and a relaunch is what starts it.
+    @Published private(set) var memoryRefusal: String?
     private var restartIndicator = GuestRestartIndicator()
     /// The name the running guest's own settings are stored under.
     private(set) var runningGuestName: String?
@@ -876,6 +904,14 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
     /// ended ends.
     private(set) var stopRequested = false
     private var thermalObserver: NSObjectProtocol?
+    /// The host's stop of the run in hand, from when it begins until its
+    /// thread has returned (`RunStop`).
+    private var runStop: RunStop?
+    /// Delivers a host stop to the runtime: the guest's write-back, then the
+    /// stop, off the main actor (`GuestPersistence.deliverStop`). The unit
+    /// tests' launchers bring their own delivery, or the runtime's two calls
+    /// it makes.
+    private let deliverStop: @MainActor (RunStop) -> Void
     /// The view and geometry of a start the free space refused, for asking
     /// again.
     private var refusedStart: (GuestMetalView, GuestDisplayGeometry)?
@@ -884,7 +920,8 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
     /// runs; the unit tests' launchers have none.
     private let space: (() -> GuestSpacePause)?
 
-    var retinaMode: Bool { configuration.retinaMode }
+    /// Kernarium's one switch: native, or one guest pixel to a point.
+    var displayScale: GuestDisplayScale { configuration.retinaMode ? .native : .points }
 
     /// The unit tests make launchers of their own, with a job of their own.
     init(
@@ -893,12 +930,17 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         freeSpace: @escaping @Sendable () -> UInt64 = {
             SpaceHarness.current.freeSpace()
         },
-        space: (() -> GuestSpacePause)? = nil
+        space: (() -> GuestSpacePause)? = nil,
+        deliverStop: (@MainActor (RunStop) -> Void)? = nil,
+        stopRuntime: GuestStopDelivery.Runtime = .loader
     ) {
         self.configuration = configuration
         self.job = job ?? .shared
         self.freeSpace = freeSpace
         self.space = space
+        self.deliverStop = deliverStop ?? {
+            GuestPersistence.shared.deliverStop($0, runtime: stopRuntime)
+        }
     }
 
     // MARK: SpaceRun
@@ -920,6 +962,23 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         }
         guard let selection = RootfsImage.selection(named: rootfsFilename) else {
             print("Kernarium: Documents/\(rootfsFilename) is missing")
+            return
+        }
+        // The runtime refuses a size this host does not admit; the settings
+        // never offer one, so this says why rather than end on its bare result.
+        guard kernarium_runtime_loader_guest_memory_admitted(
+            UInt32(clamping: configuration.guestMemoryMiB)
+        ) != 0 else {
+            // Every layout of the guest view asks to start while the run is
+            // idle, so a refusal is said, and published, once.
+            if memoryRefusal == nil {
+                let reason = MemoryRefusal.reason(
+                    memoryMiB: configuration.guestMemoryMiB,
+                    ceilingMiB: EmulatorConfiguration.guestMemoryCeilingMiB
+                )
+                print("Kernarium: cannot start the guest: \(reason)")
+                memoryRefusal = reason
+            }
             return
         }
         if let shortage = Self.startShortage(
@@ -990,9 +1049,7 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         ) == 0 {
             gpuBudgetWarning = GPUBudgetWarning(plan: plan)
         }
-        phase = .running
-        space?().runStarted()
-        startThermalObservation()
+        let stop = runBegan()
         let size = GuestInputCoordinateSpace.boundedDisplaySize(
             geometry.pixelSize
         )
@@ -1011,23 +1068,51 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         // would otherwise block for hours. It inherits the main thread's
         // SIGALRM block, which the runtime then reasserts for itself.
         let worker = Thread {
-            let result = runGuest(
-                view: view,
-                boot: boot,
-                width: width,
-                height: height,
-                dotsPerInch: dotsPerInch,
-                guestMemoryMiB: guestMemoryMiB,
-                vCPUCount: vCPUCount,
-                autoResizeGuest: autoResizeGuest,
-                gpuBudget: gpuBudget
-            )
+            let result = Self.runThread(stop) {
+                runGuest(
+                    view: view,
+                    boot: boot,
+                    width: width,
+                    height: height,
+                    dotsPerInch: dotsPerInch,
+                    guestMemoryMiB: guestMemoryMiB,
+                    vCPUCount: vCPUCount,
+                    autoResizeGuest: autoResizeGuest,
+                    gpuBudget: gpuBudget
+                )
+            }
             Task { @MainActor in
                 EmulatorLauncher.shared.finished(result: result)
             }
         }
         worker.name = "uml-launcher"
         worker.start()
+    }
+
+    /// The run begins: the guest is running as far as the application can
+    /// say, and its thread is about to start. Returns the latch of the host's
+    /// stop that the thread keeps (`runThread`).
+    func runBegan() -> RunStop {
+        phase = .running
+        let stop = RunStop()
+        runStop = stop
+        space?().runStarted()
+        startThermalObservation()
+        return stop
+    }
+
+    /// What the run's thread does around the runtime. A stop asked for since
+    /// the run began keeps it out of the runtime, which drops a stop from
+    /// before its own run begins: the run ends with the stop's status. The
+    /// latch ends when the runtime returns, however it ended, after any
+    /// delivery under way.
+    nonisolated static func runThread(_ stop: RunStop, _ run: () -> Int32) -> Int32 {
+        guard stop.enter() else {
+            stop.end()
+            return 0
+        }
+        defer { stop.end() }
+        return run()
     }
 
     /// A plain image boots read-only under a disposable overlay disk, which is
@@ -1085,6 +1170,7 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
     }
 
     func finished(result: Int32) {
+        runStop = nil
         space?().runEnded()
         stopThermalObservation()
         restartIndicator.runEnded()
@@ -1098,9 +1184,16 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         job.guestRunEnded(result: result)
     }
 
+    /// The application ends the run, as the screen closing does and Shut down
+    /// over a paused guest. It states the intent at once and asks nothing of
+    /// the runtime on the main actor: the guest is asked to write its storage
+    /// back and is then stopped, on the queue of the runtime's other waiting
+    /// calls, and the stop is made again until the run ends (`RunStop`). With
+    /// no run in hand there is nothing to end.
     func stop() {
         stopRequested = true
-        kernarium_runtime_loader_request_stop()
+        guard let stop = runStop else { return }
+        if stop.request() { deliverStop(stop) }
     }
 
     /// What a start lacks in free space, nil when there is enough. A guest's

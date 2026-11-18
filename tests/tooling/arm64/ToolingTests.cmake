@@ -80,6 +80,22 @@ uml_add_tooling_test(
     TIMEOUT 300)
 
 uml_add_tooling_test(
+    NAME arm64-instruction-corpus-control-target
+    COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_arm64_instruction_corpus_control_target.py
+        ${UML_ARM64_INSTRUCTION_CORPUS}
+    LABELS cpu
+    TIMEOUT 300)
+
+uml_add_tooling_test(
+    NAME arm64-instruction-corpus-exclusive-mismatch
+    COMMAND ${Python3_EXECUTABLE}
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_arm64_instruction_corpus_exclusive_mismatch.py
+        ${UML_ARM64_INSTRUCTION_CORPUS}
+    LABELS cpu
+    TIMEOUT 300)
+
+uml_add_tooling_test(
     NAME arm64-instruction-corpus-invalid-encoding
     COMMAND ${Python3_EXECUTABLE}
         ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_arm64_instruction_corpus_invalid_encoding.py
@@ -241,3 +257,21 @@ if(_uml_gadget_engine_objects)
         LABELS cpu
         TIMEOUT 60)
 endif()
+
+# x25 carries the same-base family's translation through a block execution
+# (darwin/cpu/arm64/gadgets/engine/same_base.inc), so no other source of the
+# arm64 gadget engine names it, and where the engine object is built, no
+# other instruction of it but the host frame's save and restore.
+set(_uml_same_base_object)
+if(TARGET uml_arm64_gadgets AND CMAKE_OBJDUMP)
+    set(_uml_same_base_object --objdump ${CMAKE_OBJDUMP} --object
+        uml_arm64_gadgets
+        "$<FILTER:$<TARGET_OBJECTS:uml_arm64_gadgets>,INCLUDE,/engine[.]S[.]o$>")
+endif()
+uml_add_tooling_test(
+    NAME arm64-gadget-same-base-register
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_gadget_same_base_register.py
+        ${PROJECT_SOURCE_DIR} ${_uml_same_base_object}
+    LABELS cpu
+    TIMEOUT 60)

@@ -1,0 +1,11 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Copy to TipJar.local.xcconfig, which Git ignores, and name the four
+// consumable In-App Purchase products of Buy me tokens. Only an AppStore build
+// made with this file has the sheet; every other build carries none of it and
+// no identifier.
+
+TIP_PRODUCT_LITE = com.example.andarium.tip.lite
+TIP_PRODUCT_PRO = com.example.andarium.tip.pro
+TIP_PRODUCT_MAX = com.example.andarium.tip.max
+TIP_PRODUCT_ULTRA = com.example.andarium.tip.ultra

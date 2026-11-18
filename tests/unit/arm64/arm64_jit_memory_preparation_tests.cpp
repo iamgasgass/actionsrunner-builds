@@ -72,6 +72,14 @@ void the_region_fits_the_gadget_budget_of_every_device_setting()
 					arm64::derive_jit_cache_geometry(budget, vcpus);
 				require(region <= geometry.total_bytes() * vcpus,
 					"the region exceeds what the geometry charges");
+				/* The device's budget is too small for a shared tier, so
+				 * the executors' private caches take all of it. */
+				require(arm64::derive_shared_translation_cache_budget(
+						budget, vcpus) == 0 &&
+						budget - geometry.total_bytes() * vcpus <
+							vcpus * 64U * kib,
+					"a device setting funded a shared tier or left budget "
+					"unspent");
 			}
 		}
 	}

@@ -15,7 +15,7 @@ nonisolated enum GuestFileKind: Hashable, Sendable {
         case "txt", "md", "log", "json", "xml", "csv", "doc", "docx", "odt", "rtf", "ppt", "pptx", "odp": self = .text
         case "xls", "xlsx", "ods": self = .sheet
         case "zip", "7z", "rar", "tar", "gz", "xz", "bz2", "zst", "iso", "obb": self = .archive
-        case "apk", "apks", "xapk": self = .app
+        case "apk", "apks", "xapk", "apkm": self = .app
         default: self = .other
         }
     }

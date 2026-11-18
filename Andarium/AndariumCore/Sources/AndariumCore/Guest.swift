@@ -24,10 +24,19 @@ public struct Guest: Equatable, Codable, Sendable {
     /// (`applyPendingGrowth`).
     public var pendingCapacityGiB: Int?
     public var microphone: Bool
-    /// The person's choice to share the device's accelerometer and gyroscope
-    /// with the guest; nil until they choose, and then it follows the device
-    /// (`motionSensorsOn(available:)`). Stored under `motionSensors`.
-    public var motionChoice: Bool?
+    /// The person's choice to share this device's cameras with the guest, read
+    /// when the guest starts and never during a run (`CameraSession`). Off for
+    /// a new guest and for one stored before the switch existed.
+    public var camera: Bool
+    /// The person's choice to share this device's location with the guest's
+    /// GNSS receiver. Off for a new guest and for one stored before the
+    /// switch existed.
+    public var location: Bool
+    /// The person's choice to let the guest play its haptics (Android's
+    /// vibrator and haptic feedback) on this device's Taptic Engine. On for
+    /// a new guest and for one stored before the switch existed. A game
+    /// controller's rumble is the controller's and not governed by it.
+    public var haptics: Bool
     /// Whether iCloud and computer backups include the guest's files. Off by
     /// default: the guest is several GiB that Android can set up again.
     public var includeInBackups: Bool
@@ -39,21 +48,22 @@ public struct Guest: Equatable, Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case cores, memoryMiB, capacityGiB, pendingCapacityGiB, microphone
-        case includeInBackups
-        case motionChoice = "motionSensors"
+        case includeInBackups, location, haptics, camera
     }
 
     public init(
         cores: Int, memoryMiB: Int, capacityGiB: Int, pendingCapacityGiB: Int? = nil,
-        microphone: Bool = false, includeInBackups: Bool = false, motionChoice: Bool? = nil,
-        usedBytes: UInt64 = 0
+        microphone: Bool = false, includeInBackups: Bool = false,
+        location: Bool = false, haptics: Bool = true, camera: Bool = false, usedBytes: UInt64 = 0
     ) {
         self.cores = cores
         self.memoryMiB = memoryMiB
         self.capacityGiB = capacityGiB
         self.pendingCapacityGiB = pendingCapacityGiB
         self.microphone = microphone
-        self.motionChoice = motionChoice
+        self.location = location
+        self.haptics = haptics
+        self.camera = camera
         self.includeInBackups = includeInBackups
         self.usedBytes = usedBytes
     }
@@ -65,17 +75,10 @@ public struct Guest: Equatable, Codable, Sendable {
         capacityGiB = try values.decode(Int.self, forKey: .capacityGiB)
         pendingCapacityGiB = try values.decodeIfPresent(Int.self, forKey: .pendingCapacityGiB)
         microphone = try values.decode(Bool.self, forKey: .microphone)
+        location = try values.decodeIfPresent(Bool.self, forKey: .location) ?? false
         includeInBackups = try values.decode(Bool.self, forKey: .includeInBackups)
-        motionChoice = try values.decodeIfPresent(Bool.self, forKey: .motionChoice)
-    }
-
-    /// Whether the guest gets the device's motion: the person's choice, else
-    /// on, wherever the device has the sensors to share. It needs no iOS
-    /// permission, and nothing is read until an application in the guest
-    /// uses a sensor (`MotionSampling`). Without sensors it is off, whatever
-    /// was chosen.
-    public func motionSensorsOn(available: Bool) -> Bool {
-        available && (motionChoice ?? true)
+        haptics = try values.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
+        camera = try values.decodeIfPresent(Bool.self, forKey: .camera) ?? false
     }
 
     public var usedGiB: Double { Double(usedBytes) / Double(Limits.bytesPerGiB) }

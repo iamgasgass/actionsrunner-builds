@@ -83,21 +83,22 @@ struct WhatsNewNotesList: View {
     }
 }
 
-/// "Version 1.0 (9)" and the day it came out, when the notes give one, side
-/// by side, or stacked when the text is too large for one line.
+/// "Version 1.0 (12)" and the day it came out, when the notes give one, side
+/// by side, or stacked when the text is too large for one line. Stacked, each
+/// may take as many lines as it needs, so no size cuts it short.
 struct WhatsNewReleaseHeading: View {
     let release: WhatsNewRelease
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline) {
-                version
+                version(lines: 1)
                 Spacer(minLength: 12)
-                day
+                day(lines: 1)
             }
             VStack(alignment: .leading, spacing: 2) {
-                version
-                day
+                version(lines: nil)
+                day(lines: nil)
             }
         }
         .padding(.horizontal, 18)
@@ -105,19 +106,19 @@ struct WhatsNewReleaseHeading: View {
         .accessibilityAddTraits(.isHeader)
     }
 
-    private var version: some View {
+    private func version(lines: Int?) -> some View {
         Text("Version \(release.version)")
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(.secondary)
-            .lineLimit(1)
+            .lineLimit(lines)
     }
 
-    @ViewBuilder private var day: some View {
+    @ViewBuilder private func day(lines: Int?) -> some View {
         if let day = release.day {
             Text(day, format: .dateTime.day().month(.wide).year())
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
-                .lineLimit(1)
+                .lineLimit(lines)
         }
     }
 }
@@ -132,10 +133,10 @@ struct WhatsNewEntryRow: View {
             IconTile(symbol: entry.symbol)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry.title)
+                Text(WhatsNewWords.localized(entry.title))
                     .font(.body.weight(.semibold))
                 if let text = entry.text {
-                    Text(text)
+                    Text(WhatsNewWords.localized(text))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -172,12 +173,21 @@ struct WhatsNewPoints: View {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\u{2022}")
                         .accessibilityHidden(true)
-                    Text(point)
+                    Text(WhatsNewWords.localized(point))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
         .font(.subheadline)
         .foregroundStyle(.secondary)
+    }
+}
+
+/// The notes are written in English in `WhatsNew.json` and translated in
+/// `WhatsNew.xcstrings`, which holds each note under its English text; a note
+/// with no entry is shown as written. A new build's notes are added to both.
+enum WhatsNewWords {
+    static func localized(_ note: String) -> String {
+        String(localized: String.LocalizationValue(note), table: "WhatsNew")
     }
 }

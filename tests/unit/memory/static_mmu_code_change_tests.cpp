@@ -9,6 +9,9 @@
  * from retranslating its working set; every change that can leave a
  * translation wrong publishes a range covering exactly the pages it can, so a
  * reader that retires only those ranges runs no stale code. */
+#if DARWIN_UML_X86_64_GUEST
+#include "frame_accounting.hpp"
+#endif
 #include "uml_darwin_guest.h"
 #include "uml_darwin_static_mmu.h"
 #include "require.hpp"
@@ -538,12 +541,42 @@ void test_a_kernel_write_publishes_once_x86_code_may_run()
 	darwin_uml_static_vm_require_coherent_kernel_code_writes();
 	darwin_uml_static_vm_require_coherent_kernel_code_writes();
 	const std::uint32_t third = 0xd65f'03c0U;
+#if DARWIN_UML_X86_64_GUEST
+	/* The kernel reaches the page through its alias of the backing, which
+	 * the host knows: the write names the page's own frame and publishes it
+	 * once. */
+	void *alias = mmap(nullptr, page, PROT_READ | PROT_WRITE, MAP_SHARED,
+		backing.descriptor(), 0);
+	require(alias != MAP_FAILED);
+	uml::memory::FrameAccounting::note_direct_map(
+		alias, page, backing.descriptor(), 0);
+	std::memcpy(static_cast<unsigned char *>(alias) + 8, &third, sizeof third);
+	require(darwin_uml_static_vm_copy_kernel_write(base + 8,
+		static_cast<unsigned char *>(alias) + 8, sizeof third) == 0);
+#else
 	require(darwin_uml_static_vm_copy_kernel_write(base + 8, &third,
 		sizeof third) == 0);
+#endif
 	require(holds(base + 8, third));
 	seen.consume();
 	require_code(seen, base, 1);
 	require(moved());
+
+#if DARWIN_UML_X86_64_GUEST
+	/* A buffer that is no alias the host knows names no frame, whether or
+	 * not the page's own word is present: every translation is read
+	 * again. */
+	const std::uint32_t fourth = 0xd503'201fU;
+	require(darwin_uml_static_vm_copy_kernel_write(base + 8, &fourth,
+		sizeof fourth) == 0);
+	seen.consume();
+	bool everything = seen.code_untracked;
+	for (const auto &range : seen.code)
+		everything = everything || range.length == 0;
+	require(everything, "a write through no alias did not publish everything");
+	uml::memory::FrameAccounting::note_direct_unmap(alias, page);
+	munmap(alias, page);
+#endif
 	require(darwin_uml_static_vm_destroy(generation) == 0);
 }
 

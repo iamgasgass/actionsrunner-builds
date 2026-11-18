@@ -48,8 +48,12 @@ guest restarted, or by `uml_emulator_release_guest` after a clean power-off or
 halt. A failed or host-stopped guest cannot be released and requires a fresh
 process. `uml_emulator_get_run_end` says how a run ended: the guest's own report
 (see [guest lifecycle](#guest-lifecycle)), the host's stop request ahead of it,
-or a failure when the kernel said nothing. Every run of a process uses the same
-JIT cache budget and guest CPU count.
+or a failure when the kernel said nothing; it also says whether the guest's
+console reported that an Android guest finished booting (`boot_completed`) and
+whether init's output reached the host's reading of it at all (`init_observed`),
+both read from the console where the kernel writes it
+(`runtime/console_boot_signal.hpp`). Every run of a process uses the same JIT
+cache budget and guest CPU count.
 
 The hand-back refuses with `UML_EMULATOR_RUNTIME_ERROR` while a host service
 borrows guest RAM or a kernel thread runs, and a refusal changes nothing.
@@ -82,9 +86,51 @@ and releases what it frees (`darwin_uml_physmem_commit`/`_release`,
 `memory/guest_ram_commitment.cpp`), and released pages leave the process
 footprint. Physical iOS also wires a page while it is committed; the one window
 with a held page unwired is a [hibernation](#hibernation). The kernel trims its
-page cache only at the host's request (`uml_emulator_trim_page_cache()`, every
-quiesce). The host GPU's memory is not carved out of the guest's RAM, and the
-host provides no Virtio balloon device.
+page cache only at the host's request (`uml_emulator_trim_page_cache()` and
+every quiesce) and, in small passes, while its periodic trimmer runs (the
+system's memory pressure below, or the application's request). The host GPU's
+memory is not carved out of the guest's RAM, and the host provides no Virtio
+balloon device.
+
+**Memory pressure.** Only a critical level responds
+(`runtime/memory_pressure_response.hpp`): it turns the guest's own page-cache
+trimmer on, which trims the cold file cache in small passes (the request is one
+short message that waits for nothing), and frees the host GPU's cached driver
+allocations, each time. No level asks for one trim of all the cold cache, which
+stalls frames, and a warning starts no response: the system's levels describe
+the device, not this process's headroom, and a warning is frequent. The trimmer
+is on, for the pressure, exactly while the level held is critical; a warning,
+the normal level and the quiet period's return turn it off at once. What the
+application asked of it (`uml_emulator_set_page_cache_trimming`) is kept apart
+and survives each of these. A response does not start while another runs. The
+emulator keeps what the application and the response want of the trimmer and
+what the guest last took, and a request the guest did not take (a failed send,
+or a quiesced guest) is sent by the next call or by the resume, which replays it
+after the wake. A request skipped for a guest the host has quiesced is not
+retried; one that could not be written, or meets another lifecycle call of the
+guest or a console request in flight, is retried up to four times, a second
+apart, until a response of its own or a level that no longer asks for it takes
+its place. A lifecycle call (quiesce, resume, stop) goes before a pressure
+request, which gives way and is retried. A quiesce counts its trim's reply wait
+from its call. A request wakes a guest that suspended itself. macOS and iOS, and
+both applications, get it through the runtime. Each notification the system
+delivers is also reported to the application (the level, and whether a response
+starts or is already running), once and before that notification's work, the
+normal level included (`set_pressure_observer`, and the runtime API's
+`set_memory_pressure_callback`). The source's handler only records the delivery
+and a second serial queue handles the deliveries one at a time, in the order
+they arrived: a level raised during a response is reported and answered after
+it, and a notification the system itself merged reads as its most serious flag.
+At most 64 deliveries wait, and the oldest is dropped beyond that. An iPad's
+source never delivers the normal level, so the level held returns to normal
+itself, the same way and with a report, after 240 s of device awake time (the
+clock stops while the device sleeps) in which the source delivered no level but
+normal (the policy's timer, no thread of its own); a process suspended for
+longer meets the return at its resume, which only asks the trimmer off. The
+observer lives for the process. Each level change and each response is one
+rate-limited line: the footprint, the failed guest-RAM wiring operations and, on
+a response line, the state of the trimmer and, for a critical level, the bytes
+of graphics the GPU release freed.
 
 **Budgets.** The process's memory limit, L, is the figure the memory budgets
 derive from. iOS enforces one per application
@@ -96,7 +142,7 @@ host GPU's budget, B, is computed once at launch and fixed for the run
 (`platform/gpu_budget.hpp`, planned by `emulator/src/gpu_budget_plan.*`):
 
 ```text
-B = max(L - A - G - E - S, 384 MiB)
+B = max(L - A - G - E - S, 352 MiB)
 ```
 
 G is the guest's RAM, E the guest side's host memory, A the application's
@@ -106,17 +152,30 @@ of E and S are launch parameters defaulting to the conservative launch set in
 `runtime/guest_memory_budget.hpp`. L is the limit the system advertises to the
 process; shortage elsewhere in the system is not counted. A launch under the
 floor is never refused: B is the floor and the launch says the process is likely
-to be ended. [`graphics.md`](graphics.md) owns what B bounds.
+to be ended. [`graphics.md`](graphics.md) owns what B bounds. A live camera
+session holds host memory outside the GPU (the camera device's reserve,
+`device/camera/camera_tiers.hpp`), and the GPU's pool is B less it
+(`gpu_pool_bytes`), taken after the clamp; blocked cameras and none take
+nothing, a reserve that takes all of B refuses the launch (a pool of zero is no
+limit to the renderer), and the applications show the pool. The reserve is the
+use the host's cameras compose, which the runtime answers before the boot
+(`plan_camera_reserve`, the next boot's figure while the cameras, the source
+and the calibration data are unchanged); the loader's ceiling, which bounds the
+system cameras, is the figure only where no runtime can say.
 
 The guest side's memory follows the vCPU count, v, and that header is the one
 place that says how; every caller evaluates it:
 
 ```text
-E(v, G) = c(v, G) + 4 MiB * v + E_rest
+E(v, G) = c(v, G) + x(v) + 4 MiB * v + E_rest
 c(v, G) = min(derive_budget(G, L), cap(v))      where L is set; derive_budget(G, L) alone otherwise
 ```
 
-`cap(v)` is a table of the gadget cache's ceiling per vCPU count. The largest
+`cap(v)` is a table of the gadget cache's ceiling per vCPU count, and `x(v)` a
+table of the most the cache's charge (open accounts plus those asked to shed)
+exceeds its budget in an Android guest's burst: the cache sheds to `c(v, G)`,
+and `x(v)` is what the guest side holds beyond that while shed accounts wait
+for their last holders. The largest
 guest RAM a limit leaves, `G_max(v)`, is the largest G (in 64 MiB steps, from
 512 MiB) that keeps B at its floor or above, up to the host's ceiling, C
 (`guest_memory_ceiling_mib`): the RAM the product's native kernel window holds
@@ -127,8 +186,14 @@ signed 14 GiB envelope (`device_window_guest_memory_maximum_mib`, pinned by the
 layout tests against `runtime/native_kernel_layout.hpp`), and the host's RAM
 (at most 1 TiB, the largest limit a launch states) in a macOS window, which a
 Mac and an iOS application on a Mac use; where the host sets no limit `G_max`
-is C. The settings of Kernarium and Andarium offer no more than `G_max(v)`
-under a set that counts none of A, E_rest and S (`maximum_memory_set`). The
+is C. A run starts exactly the sizes from 512 MiB through C in 64 MiB steps
+(`guest_memory_admitted`, with `process_guest_memory_ceiling_mib` for a
+process): the runtime refuses any other, and the loader answers both
+applications with the same two functions. The settings of Kernarium and
+Andarium offer no more than `G_max(v)` under a set that counts none of A,
+E_rest and S (`maximum_memory_set`), so every size they offer is one a run
+starts; each application's own copy of the range is held to the loader's by a
+hosted test. The
 conservative size is `G_max(v)` under the conservative launch set, in 0.5 GiB
 steps from 1.5 GiB and never above that maximum
 (`conservative_guest_memory_mib`); a guest with more is likely to be ended by
@@ -166,12 +231,87 @@ one aligned run of a single backing (`arch_vmap_group_order()`).
 
 The default malloc zone returns what a restarted guest freed on its own
 schedule, so a guest's metadata (the MMU's indexes, the native address space's
-state, the engines' program and record tables, batch plans) stays out of it.
+state, the engines' program and record tables, batch plans) stays out of it,
+except for the holder words' roots and leaves of a mapped backing
+([Translation caches](#translation-caches-and-guest-debugging)).
 `memory/domain_heap.hpp` provides per-domain heaps carved from one reserved
 region and released whole when their owner retires, and thread-local scratch for
 one operation's temporaries. The GPU stack, Metal, system frameworks, devices and
 the process's own objects stay in the default zone, whose residue is what
 remains.
+
+### x86-64 frame accounting
+
+An x86 guest sees a store through any alias of a frame at once, so a code
+change must reach every address at which some executor holds a translation of
+the frame. The memory layer (`memory/mmu/frame_accounting.hpp`) keeps, for each
+4 KiB frame of a backing:
+
+- the writer locations: the {generation, page} pairs whose mapping is writable.
+  A location exists for as long as its writable mapping: the four mapping
+  primitives add it before the mapping is installed and take it back after the
+  mapping is gone, and a change that fails or is abandoned takes back only
+  what it added;
+- the holders: the locations at which an x86 translator registered the frame
+  before reading a byte of it, each with a translatable word (guest code with
+  execute) naming the frame. Registration also returns the writer locations
+  whose write translations may predate it; the translator retires them and
+  waits for the participants inside the engine before it caches anything. A
+  debt larger than the translator's buffer is asked for again with room for it;
+  when the room cannot be had, or the frame's writers are not known, the
+  translator retires every write translation of every participant instead; and
+- one flush serial per generation, which every walk of the generation moves
+  after removing its holders, so that a translation recorded before the walk
+  never stamp-hits after it.
+
+A write fill tags a store for publication when the frame has a holder other
+than the writer's own location, and a tagged store, a kernel write through the
+kernel's own alias of the frame, and `invalidate_code` publish at every holder.
+A kernel write publishes at the frame its user word names and at the frame the
+host's table of the kernel's direct ranges (32 of them, split on a partial unmap
+and counted when full) resolves its buffer to; a buffer the table does not
+resolve, or resolves to a descriptor with no backing alive, is counted and makes
+every generation read every translation again. Once the process runs x86 code,
+the kernel's call after it wrote another process's page
+(`darwin_uml_vm_invalidate_code_frame()`, which names the frame written)
+publishes at that frame's holders, whatever the target maps at the address now,
+whatever its view of the frame permits and whatever the arm64 holder word
+names. A write that names no frame is an unknown frame, which moves every
+generation's flush serial and publishes a whole-space code change (the range
+{0, 0}) in each, and so does a page `invalidate_code` (an AArch32
+`cacheflush()`, by address) meets that the target has no entry for yet; for the
+pages the target does map, `invalidate_code` publishes their frames. A kernel
+write into a page-cache, memfd or anonymous frame (a write(2), a UBD read, or a
+copy into a buffer-vector destination such as a loop device's read or an io_uring
+fixed-buffer read of a file, into a page a process pinned and runs) ends in the
+x86_64 kernel's `flush_dcache_folio()` or `flush_dcache_page()`, which names the
+frames (`darwin_uml_vm_invalidate_code_frames()`, called only for a folio queued
+for the host with guest-code permission, which is a page of a `VM_EXEC` mapping)
+and publishes at their holders, or returns without work when no x86 code has
+run or the frame has no record. Three limits remain. The kernel's stores into
+an executed io_uring ring whose pages the program supplied itself
+(`IORING_SETUP_NO_MMAP`) are not announced. A loop device's zero fill of a read
+past the end of its file is warned about once and not announced when its
+completion runs in a softirq, as it does on a guest with more than one vCPU. The
+announcement follows the write, so a second vCPU may finish instructions it had
+already begun after the bytes changed.
+When a run of the emulator ends it appends the process's counts so far, which
+nothing resets (unresolved kernel writes, dropped direct ranges, global holds,
+registrations that reached the address space and their failures, refusals,
+lost stamp hits and the frames a kernel write named), to the file
+`UML_X86_ACCOUNTING_LOG` names; the unresolved writes and global holds stay
+near zero in an ordinary guest.
+
+Every change of a frame's locations happens under that frame's stripe lock, and
+nothing under it allocates, makes a record or takes another lock: the index
+leaf, the frame's record and the room a list needs are made before the lock,
+and a lookup under it only finds. The alias ids that name a generation in a
+location resolve through a per-domain table that readers need no lock for. All
+of the accounting's metadata (the writer index, the records and their lists,
+the alias table, and a plan's entries in thread scratch) comes from the domain
+heap, so a guest's frames never grow the default zone: about 2 MiB per GiB of
+guest memory mapped writable, and about 230 bytes for each frame with two or
+more writers. The x86-64 guest alone compiles it.
 
 ### Executable code
 
@@ -287,9 +427,11 @@ fatal internal error. Each engine's internals are in its README
 for both by `darwin/cpu/arm64/detail/floating_exception.hpp`.
 
 The arm64 gadget code is one region in `darwin/cpu/arm64/gadgets/engine.S`: the
-bank, the sections its gadgets push variants and cold paths into, and an island
-of veneers. Every image that carries it links `UML::GadgetRegionLayout`, which
-orders it first in `__TEXT,__text`, so the region starts on a 16 KiB page, each
+bank, the sections its gadgets push variants and cold paths into, an island of
+veneers, and last the run part, whose entries branch into the bank and call
+only helpers the bank already reaches through the island. Every image
+that carries it links `UML::GadgetRegionLayout`, which orders it first in
+`__TEXT,__text`, so the region starts on a 16 KiB page, each
 part starts on its boundary plus the phase `engine.S` defines, and its bytes
 depend on `engine.S` alone. Private labels take the Mach-O assembler-temporary
 prefix `L`, and a branch to one in another part encodes its distance past the
@@ -311,18 +453,27 @@ inside one 16-byte block is single-copy atomic, one that crosses a block faults,
 and without host LSE2 every such access faults.
 
 **Exclusive monitor.** A load/store-exclusive loop makes progress whatever the
-TLB holds, and nothing an engine does between the pair without an exception
-fails the store. An exclusive load fills the write TLB entry and records the host
+TLB holds, and nothing an engine does between the pair without an exception fails
+the store. An exclusive load fills the write TLB entry and records the host
 address and loaded values in the `CpuState` exclusive fields
 (`engine/exclusive.inc`, reused by the AArch32 exclusives), and a store-exclusive
 that still misses completes in software with one host compare-and-swap of the
 recorded values. The JIT's semantic path keeps a software reservation (versions
 of 16-byte host granules), so a store to the reserved granule, including the
-kernel's futex and SWP emulation, fails the store-exclusive. The monitor ends at
-a store-exclusive, a CLREX, an exception and a store to the reserved granule; a
-store of the guest's own to another granule leaves it standing, as on hardware
-(`arm64-exclusive-progress`, `arm64-exclusive-events`,
-`arm64-jit-exclusive_completion`, `guest-exclusive-progress-gadgets`/`-jit`).
+kernel's futex and SWP emulation, fails the store-exclusive. The JIT runs an
+A64 or AArch32 pair it fuses on the host's own monitor, and a side exit of a
+fused run rolls back to the guest state at the load-exclusive, which then
+executes on the software reservation; no exit clears the monitor and continues.
+Only a host interruption of a natively fused pair fails its store-exclusive,
+never systematically, so a loop that meets the architecture's progress
+conditions makes progress. The monitor ends at a store-exclusive, a CLREX, an exception and a
+store to the reserved granule; a store of the guest's own to another granule
+leaves it standing, as on hardware (`arm64-exclusive-progress`,
+`arm64-exclusive-events`, `arm64-jit-exclusive_completion`,
+`arm64-jit-reservation_alias`, `arm64-jit-exclusive_run_fetch`,
+`arm64-jit-exclusive_run_runtime`, `arm64-jit-exclusive_run_contention`,
+`arm64-jit-a32-exclusive`,
+`guest-exclusive-progress-gadgets`/`-jit`).
 
 Both engines complete WFE and WFI at once and treat SEV and SEVL as no-ops, so
 no wait depends on an event. Completing WFI deliberately deviates from arm64
@@ -433,8 +584,41 @@ registers (arm64 PSTATE.SS, x86 RFLAGS.TF); every engine then retires exactly
 one instruction and reports a single-step exit, which Linux delivers as
 `SIGTRAP`. Linux writes another process's memory (ptrace, `/proc/pid/mem`,
 `process_vm_writev()`) through its own view of the frame, so no translated store
-publishes the change: those paths call `darwin_uml_vm_invalidate_code()` for the
-target mm's generation.
+publishes the change: those paths call `darwin_uml_vm_invalidate_code_frame()`
+for the target mm's generation and the page written, naming the frame (`(fd,
+offset)`, as for a mapping) they hold, so the change reaches that frame's
+holders even when the target maps another frame at the address by then. An
+AArch32 `cacheflush()` writes nothing and calls
+`darwin_uml_vm_invalidate_code()`, which names an address.
+
+An arm64 guest that rewrites code and synchronizes it (`IC IVAU`, broadcast on
+hardware and keyed by the physical address) changes what every process running
+the frame executes, but a store or a publication reaches only its own address
+space's generation. So each frame of a mapped backing has a holder word
+(`darwin/memory/mmu/code_holders.hpp`): the arm64 instruction-fetch path
+registers the fetching generation in it before it reads the frame's bytes, and
+a guest code synchronization or the kernel's remote-write paths take the
+word and publish a whole-space code change in every generation it named. A
+publication consumes the word, so a reader registers again at its next fetch;
+a publisher that has emptied a word stays counted until its publication
+finishes, and one that meets such a count publishes to every generation, so an
+empty word never hides a reader another publisher has yet to tell. A remote
+write takes the word of the frame it names, whatever the target maps at the
+address, and publishes to every generation, the target included, for a frame it
+cannot name or when it meets an unfinished take. `invalidate_code()` takes the
+word of every page the target maps, whatever its permission, and does the same
+for a page the target has not mapped yet (its software page table fills at
+faults, so the frame is unknown). The words
+live in 4 KiB leaves made on a frame's first registration (a leaf per 512
+frames), and the leaves and their roots (4 KiB per GiB of backing, made with
+the backing in every build) come from the ordinary allocator, sized by the
+backing and freed with it, not from a domain heap. A backing whose leaf cannot
+be made, or a word that names more generations than it holds, publishes to
+every live generation instead.
+The x86 engines neither register nor consult it: they hold their frames in the
+[frame accounting](#x86-64-frame-accounting), which the arm64 engines never
+consult, and the kernel's remote-write and flush paths run both publications,
+each on its own condition.
 
 ## Kernel and Android ownership
 
@@ -467,8 +651,63 @@ the GPU provider depends on `UML_BUILD_GPU`; the others build on the transport
 alone. A disabled ring is given no new data: a buffer the backend only fills (a
 virtio-input event) stays in the ring until it is enabled again, and a buffer
 that carries a request is consumed and dropped, because its sender may be
-waiting with interrupts off; only the GPU, whose requests are asynchronous, asks
-to keep them.
+waiting with interrupts off; only the GPU, whose requests are asynchronous, the
+vsock and GNSS devices, whose requests the guest never waits on, and the video
+devices, whose streams outlive a suspend, ask to keep them. A ring disable also
+resets a device that holds a deferred request, and says so on stderr, unless the
+device asks to keep it
+(`keepsDeferredRequestsWhileDisabled()`, which the GPU, video and camera
+devices do): the transport then leaves the device alone, keeps what it
+completes while a ring is disabled and writes it to the ring at its enable, in
+the order the device finished it. A fenced GPU command still on the host when
+the guest suspends so keeps its contexts and resources, and its answer reaches
+the guest after the enable. A message that changes the memory, the
+features, a ring's layout or base, or ends the driver (the `GET_FEATURES` that
+follows a teardown's disables included) resets such a device first. While the
+transport waits for the front-end to acknowledge a backend request (a
+shared-memory map or unmap, a configuration change, a call), that
+`GET_FEATURES` is answered after the wait and behind every message already
+queued, rather than inside it, since a reset sends unmaps of its own; so a
+device with a shared-memory region may keep its requests too. The wait ends with
+the acknowledgement, the end of the backend-request channel, the end of the main
+socket, which aborts the operation before it writes anything the acknowledgement
+would have released, even while the acknowledgement is being received, or a
+service stop. Once a reply the front-end waits for depends on the wait, because
+a query or a request that asks for an acknowledgement is queued behind it or
+because the connection has ended and a reset's unmaps are all that is left, the
+wait has a budget of ten seconds (`backendAcknowledgementBound`). Its own polls
+spend it, each at most the interval it asked for plus 25 ms, not the clock: an
+interval in which the whole process could not run, as for an application the
+system suspended, costs one poll. An awake front-end that stays silent gets ten
+seconds of charged poll time; real time is longer by the work between polls and
+by an overrun beyond a poll's cap. A frame received during such a wait, from
+either socket, has the same time from its first byte, within the wait's budget
+when it has one; ordinary request reception is not timed. Past that the wait
+fails, says so on stderr, and closes the backend-request channel: nothing a late
+acknowledgement would release is written, the reset or the connection ends
+without the unmaps it can no longer wait for, and the guest's driver drops the
+device. A wait that nothing waits behind, such as a notification a suspended
+guest has not yet read, has no budget. A reset whose unmap is refused or whose
+channel has ended also drops every range the backend published from the host
+index. That `GET_FEATURES` also retires every ring still disabled, which the
+guest then frees: the transport reads it no more until its next `SET_VRING_KICK`
+or in-band `VRING_KICK`, whereas an enabled ring, and a disabled one no teardown
+followed, stay read and are refused when their available flags are reserved. A
+write to the control or backend-request socket that fails because the front-end
+closed its end (`EPIPE`, `ECONNRESET`, `ENOTCONN`) ends the connection without a
+failure report; a write to a queue's call descriptor that fails still reports. A
+`VRING_KICK` is accepted whatever the state of the rings: a kick on a disabled
+ring is handled as that ring's buffers are, and a kick that asks for no
+acknowledgement gets none.
+
+**Idle transport.** An in-process transport blocks while it is idle: its thread
+wakes for a message from the guest, for its device's event descriptor, for the
+request gate and for `stop()`, which shuts the connection down, and for nothing
+else; a queue in polling mode adds a 1 ms wake. A device must signal its event
+descriptor whenever it produces work that no guest message starts: a
+completion, a config change, an event for a buffer the guest queued, a timer. A
+config change that `claimConfigChange()` withholds, or that a claim leaves
+partly pending, is asked for again every 100 ms until it is claimed in full.
 
 **Request gate.** A service can be given a request gate, which another thread
 closes to hold the device's requests back: a closed gate lets no request reach
@@ -485,19 +724,35 @@ plain hold for the next guest.
 
 The [Virtio video devices](../darwin/device/video/README.md) bridge the shared
 V4L2 drivers to the platform VideoToolbox decoder and encoder over their own
-vhost-user connections and need no GPU context. The
+vhost-user connections and need no GPU context. Their event queues never defer,
+and the devices keep the buffers a stream has queued, so a stream and an idle
+device alike survive a guest suspend without a reset, and the platform
+sessions the system invalidates are rebuilt without a word to the guest. The
 [Virtio vsock device](../darwin/device/vsock/README.md) carries a byte stream
 from the host application to a service in the guest (adbd) with no listening
-socket on the host; the guest cannot open a connection to the host.
+socket on the host; the guest cannot open a connection to the host. The
+[Virtio GNSS device](../darwin/device/gnss/README.md) is the guest's
+`/dev/gnssN`: it carries the host's fixes as an NMEA stream while the guest has
+the receiver open, and nothing else of the host's location. The
+[Virtio camera device](../darwin/device/camera/README.md) serves the host's cameras
+through the video wire, on a platform camera the caller supplies; a blocked
+session never opens a capture session.
 
 **Lost backend.** A virtqueue call or kick descriptor, or the backend request
 stream, that reports end of file or an error other than would-block means the
 backend is gone. The guest stops that interrupt source at once, reports it once
 per queue, and hands the device to the connection-broken path, which breaks its
 virtqueues and unregisters it so that pending and later requests fail instead of
-waiting (`guest-vhost-user-backend-gone`). Recovery ends there: a lost GPU
-backend kills the guest's Vulkan client within seconds, but a client waiting on
-a full control queue stays blocked until Mesa's own ring timeout.
+waiting (`guest-vhost-user-backend-gone`). A backend lost while the device is
+being removed, as at power off, leaves the removal to the path that began it:
+the exit call stops the connection-broken work before it removes a device, so
+that a device is unregistered once (`guest-vhost-user-power-off`). The work is
+queued by one loss report per device and holds the platform device's lock
+around its lookup of the virtio device, so an unbind cannot free what it
+breaks. Recovery
+ends there: a lost GPU backend kills the guest's Vulkan client within seconds,
+but a client waiting on a full control queue stays blocked until Mesa's own
+ring timeout.
 
 **Control socket.** A queue is kicked by a request on the control socket. Only a
 console kick asks for an answer, which the backend sends after it has run the
@@ -571,16 +826,20 @@ first, which is safe.
 ## Guest lifecycle
 
 The platform layer tracks every writable host descriptor opened for the guest.
-`uml_emulator_sync()` asks the guest to write back through its management
-console, then flushes those descriptors. `uml_emulator_quiesce()` has the guest
-trim its cold page cache and hand its free memory to the host, enters full Linux
-system suspend and waits for the platform sleep boundary before flushing the
-host. `uml_emulator_quiesce_resident()` does the same and keeps the guest's RAM
+`uml_emulator_sync()` has the guest write back through the management console's
+`sync` command, then flushes those descriptors. The command runs `sync(2)` in
+the guest's process context and replies only after it returns, whatever the
+magic SysRq mask is. `uml_emulator_quiesce()` has the guest write back first,
+so that what it dirtied becomes reclaimable, then trim its cold page cache and
+hand its free memory to the host, enters full Linux system suspend and waits
+for the platform sleep boundary before flushing the host.
+`uml_emulator_quiesce_resident()` does the same and keeps the guest's RAM
 in the process where a quiesce would [hibernate](#hibernation) it, for a host
 short of the space an image takes. `uml_emulator_resume()` sends the console
 wake edge, and
 `uml_emulator_wake()` sends it to a guest that is not quiesced, as a phone's
-power key does. Every console request ends the suspend; the
+power key does. Every console request ends the suspend, and a wake also ends
+a suspend still queued behind another request; the
 [shared kernel README](../kernel/common/README.md) gives the kernel's side.
 
 The suspend request has one bounded deadline; a refusal, or a guest that stays
@@ -588,9 +847,42 @@ busy, is not frozen and the host treats it as not suspended. A request with no
 reply at the deadline is aborted: only a "suspended" reply that arrived before
 the wake edge counts, otherwise the suspension is unconfirmed, never
 hibernated, and woken at the resume. The management console's own stop is no
-fallback, because it halts only one vCPU. Guests that need write-back boot with
-magic SysRq enabled; if the physical iOS sandbox cannot bind the console,
-host-file flushing still runs but guest write-back and freeze are unavailable.
+fallback, because it halts only one vCPU. If the physical iOS sandbox cannot
+bind the console, host-file flushing still runs but guest write-back and freeze
+are unavailable.
+
+Each of the three calls reports what the guest confirmed through a nullable
+`uml_emulator_settle`, and whether it sleeps. The guest's storage is confirmed
+only by an explicit statement of its own in that call: its reply to a `sync`
+request, or a suspend reply that states the suspend's own sync returned
+(`suspended, synced`). A suspend reply without the statement, as every older
+kernel's, confirms nothing: the kernel syncs on the way to suspend only while
+the guest's `sync_on_suspend` is set. Otherwise there
+was no guest, or the storage is unconfirmed (no reply in time, a busy lifecycle
+call or console, or a kernel that only started a writeback), refused, or
+unreachable (its console could not be bound). Only confirmed and no-guest are
+settled: an application never logs "settled" for another outcome (`GuestSettle`
+in `GuestHostCore`, filled from the runtime's `kernarium_runtime_settle`), and
+the session record counts them. The zero value of the storage report claims
+nothing, so a report the call never wrote is no confirmation.
+
+A reply confirms only as "synced in <n> ms" whole, in one well-formed datagram
+per part; text that starts alike, a truncated datagram and an error flagged in
+any part of the reply are refusals. A kernel without the `sync` command answers
+exactly "Unknown command", and the host then asks for `sysrq s`, which only
+starts a writeback and needs SysRq enabled (the Kernarium runtime boots its
+guests with it for that case): the result is unconfirmed. One deadline, from the
+call, covers a writeback request in full: the console's lock, every part of the
+reply, the fallback and its settling period. The header
+([`darwin/api/include/uml/emulator.h`](../darwin/api/include/uml/emulator.h))
+states each call's bounds. A quiesced guest the host holds is reported again by a later call; a
+guest whose threads could not be held, or whose suspension is unconfirmed, may
+have run and written since, so a later call asks it again. The guest runs each
+`sync` on a work item of its own, so the console's dispatcher is never blocked
+behind one, and a reply that comes after the host stopped waiting finds the
+request's own socket closed. The runtime's `sync` pins the handle instead of
+holding the lifecycle mutex, which a quiesce keeps for as long as it takes, so
+the library's own bounded wait is the only one.
 
 The kernel says how the guest ends before it shuts its drivers down, with the
 bridge import `darwin_uml_guest_shutdown()`: power-off, halt, or restart with the
@@ -607,17 +899,139 @@ A launch that passes `--session-record=PATH` gets a record of how its session
 ended (`runtime/session_record`): "running" from the boot on, overwritten by
 every end that runs code, a panic with its message and the kernel's last
 output included. A record still "running" at the next launch means the process
-was ended from outside without running, as a memory-limit end is. Its first
-4 KiB are a memory checkpoint that a thread of its own rewrites every 2 s
+was ended from outside without running, as a memory-limit end is. For an
+Android guest the state also says whether the boot finished (`boot completed`;
+`boot unfinished` once init's output was seen without it; `boot unobserved`
+when the record saw none of init's output) and how many times the guest
+restarted before the session (`restarts N`); until the boot completes the
+checkpoint thread rewrites the state with the console's last output whenever
+that grew, so a process ended mid-boot leaves where the boot had got, and a
+stop, restart or power-off before the boot completed quotes that output too.
+The output a record quotes is its own boot's, never an earlier boot's of the
+same process. It is quoted without what identifies the installation: the
+values of the launch's `androidboot.serialno`, `androidboot.kernarium.adb_key`
+and `androidboot.kernarium.timezone` arguments wherever they stand (also a
+write that ends inside one), the assignments of those names and any hardware
+address in its colon spelling are replaced by `<masked>`, `<time zone>` and
+`<address>`, the words the application's start log uses, so no reader of the
+file has them. An end is the last state on disk unless the process dies between
+a delayed checkpoint's write and its repair: the end formats its record before
+it writes it, and a checkpoint whose write lands after it writes that record
+again at once. The file is text of a fixed layout (`uml-session 8`) of 19200
+bytes (`session_record_max_bytes`) from a session's begin: an 8 KiB memory slot,
+a 4 KiB stall slot, a 512-byte network slot, a 256-byte storage slot, a 1 KiB
+camera slot and the state with the kernel output it quotes, 5 KiB. Each part is
+rewritten in place by its own writer, so nothing grows with the session, and
+each state is one write of its whole area, padded with newlines that the
+readers ignore, so a reader never sees two states mixed; layouts 1 to 7, which
+lack the camera slot or the storage slot or the figures of the run or the
+network slot or the stall slot, still parse.
+The storage slot counts the session's settles and those that were not
+confirmed, and names the last one's call, outcome and time: words and numbers
+only, blank until the first. The camera slot says how the platform presented
+each of the guest's cameras (its mounting, the angles of its connections, the
+photo output's orientation compensation and when it was read, its aspect ratio:
+the camera device reports each change through `onCameraPresentation`), what the
+platform found of the front devices (how many, whether any has a square format
+or lists ratios, how many formats it did not offer) in a line of its own that
+stays whichever camera was used, counts the stills of the
+guest's cameras that did not end in a picture and names why for the newest two
+that fit beside the front camera's lines (the camera, the stage it stopped at,
+the sizes asked for, resolved and encoded, the photo's Exif orientation, and the
+framework's error as a domain word and a code; the camera device reports each
+one through `onStillFailure`), and drops other cameras' lines, then older
+failures, when it is full. Andarium's bug report spells the slot out in words,
+in an entry of its own. The
+first 8 KiB are a memory checkpoint that a thread of its own rewrites every 2 s
 (`memory_checkpoint_interval_ms`): the footprint, its peak and what the
 process's memory limit still allows, the large terms of the footprint (guest
 RAM, the host GPU's use against its budget, graphics, the gadget cache, the
 domain heaps and malloc) now and at the peak, and a bounded history of them.
+Each history row also says how the run went in the time it covers: the
+scanout flushes (the device counts each) and the longest gap between two, the
+host's thermal state and memory pressure as the stall watch observed them, the
+gadget cache's reliefs, shed accounts, renewals and largest open account, the
+CPU time of the process and of the vCPU carriers, the performance-core share
+and energy from the task's power information (`TASK_POWER_INFO_V2`) and, on
+macOS only, the cycles from `proc_pid_rusage`; a row of the older history
+sums the checkpoints it stands for, and the checkpoint reads them all without a
+lock, a thread or a timer of its own (`RunFigures`).
 Reading malloc's term stalls every thread that allocates, so it is read only at
 the first checkpoint and when the footprint climbs 64 MiB past the highest
 reading's (`memory_malloc_reading_due`); every checkpoint also writes the
 footprint less the other terms. Andarium names the file in its boot request and
 reads it at launch.
+
+The stall slot records why the vCPUs stopped running. In every build a thread
+of the process, `uml-stall-watch`, looks every 50 ms while a carrier is outside
+its idle wait (`runtime/stall_watch`) at each vCPU carrier's run state and CPU
+time, and the loader's wrappers mark the
+host waits a carrier sits in (`platform/host_wait.hpp`). A carrier that for
+100 ms or more is runnable but gets under a fifth of the time, sits in an
+uninterruptible wait, or sits in one host wait while it is not using the CPU is
+stalled; a carrier that is busy is never held to a wait it was merely sampled
+in. A late tick of the watch itself, measured against its own deadline and not
+against the work it did, is a stall of the whole process. Stalls form events
+that carry the host's thermal, power, memory and main-queue state
+(`runtime/stall_record`). The slot is bounded: the newest events that fit in
+4 KiB, at most 32, the last 8 changes of each host state, and counts of the idle
+and unmarked waits the watch saw, which show whether the markers reach the
+wrappers. Times are milliseconds after a base wall time on the system's
+continuous clock, which runs through a sleep.
+
+The watch looks only while a carrier is outside its idle wait, and sleeps with
+no wake-up of its own while all are inside one: a guest at rest, with the screen
+on or off, suspended or quiesced, costs it none. Each carrier reports its idle
+waits (`runtime/carrier_activity`, through the loader's wrappers; the kernel's
+other threads report nothing). The watch wakes when a carrier has stayed outside
+its wait for a short fixed time, when one that was due to wake from a timed wait
+has not run that long after its deadline, and when the host wakes the guest (a
+wake, a resume, or a console request that ends a suspend); a carrier that
+returns within that time never wakes it. The deadlines run on the absolute
+clock, which the carriers' waits run on, and the record's times on the
+continuous one. The watch sleeps again after two looks with every carrier idle
+and nothing suspected, counted afresh after each sleep; its first look after a
+sleep starts the measurement over, so the sleep is nobody's starvation. A stall
+that starts as a carrier leaves its idle wait is recorded about 150 ms later.
+While some carrier is outside its idle wait, or does not report, the watch looks
+every 50 ms.
+
+What the sleeping watch cannot see. A carrier woken before the limit of its
+wait by a guest wake source (another vCPU's IPI, or the kernel's notification
+thread, which alone wakes CPU0 for a host descriptor), while every other
+carrier is idle, is seen from its first instruction on, not while the system
+keeps it from running. The notification thread's fallback, which wakes an idle
+secondary when CPU0 is late for a device, arms the watch, so a device wake that
+stalls is still recorded, later and shorter; the case stays open for a guest of
+one vCPU, a suspended guest, a carrier woken by an IPI from one that goes idle
+again within that time, and a stall shorter than the fallback needs. A carrier
+that stays blocked past its limit is looked at once and then left alone, and one
+that is due, starved, and runs before the watch has collected its wake-up is not
+seen.
+
+The watch reads no guest memory, takes no lock a carrier takes, suspends
+nothing and calls no framework from its own thread, which the kernel-thread
+fence can hold; it waits in a system call of `libsystem_kernel` alone. The
+host's state is observed on a serial queue of system threads: the system's
+notices of a change of the thermal state or Low Power Mode and the
+memory-pressure source publish it and wake the watch to record the change, and
+the main queue is asked, and the thermal source read for the core count, every
+250 ms only while a stall is open or being confirmed. A hold of the kernel's
+threads is not recorded as a stall. Andarium adds the previous and current
+records, the stalls in words and the guest's `/proc` counters to its bug
+report.
+
+The network slot holds the guest's user network in numbers: DNS queries
+answered, refused by the system (policy denied), timed out or failed; DHCP
+discovers, requests and acknowledgements; TCP connection attempts and how many
+were established, unreachable (`connect()` failed at once), reset (refused,
+timed out on the host after 75 s, or failed after it started) or unanswered
+(the rest), not counting DNS over TCP to the name server or the gateway (the
+provider counts them, [`darwin/README.md`](../darwin/README.md)). They are the
+share since the session began, rewritten at each checkpoint and at the end, and
+hold no address, port or name. The slot also holds `denials`, how many denials
+of the network by iOS began during the session (the application's notice goes up
+for each; runtime API 36, `set_network_notice`), and the one in force.
 
 A guest that restarts itself boots again in the same process, because iOS can
 neither re-exec nor respawn an application. The macOS launchers
@@ -626,19 +1040,45 @@ provider, the GPU service with its display) and make the services and command
 line of each boot afresh; after a restart they reset the SLiRP link, ask the GPU
 service for its next connection and run the handle again, and the exit status
 is the last guest's. A guest that does not boot is not restarted for ever
-(`emulator/src/restart_loop_guard.hpp`), and a stop request ends the loop at
-once. Android's boot control block is part of the loop: every restart reads the
-misc partition again (see the
+(`emulator/src/restart_loop_guard.hpp`): five restarts in a row within 15 s of
+their boot end the loop, and so do eight in a row that came within 15 s or, for
+an Android guest whose init output the console showed (`init_observed`), before
+the boot had finished (`boot_completed`), however long it ran. The higher limit
+leaves Android's own boot-loop rescue its turn. A restart after a finished boot
+that lasted 15 s or more never counts, so a reboot suite is not limited; a
+Linux guest, or an Android console that shows nothing of init, keeps the 15 s
+rule alone. A stop request ends the loop at once. Android's boot control block
+is part of the loop: every restart reads the misc partition again (see the
 [Android boot contract](../android/lineage-24/README.md)). The Kernarium runtime
 runs the same loop inside its one `run` call
 (`Kernarium/Runtime/KernariumRestartLoop.hpp`, `kernarium-restart-loop`): a stop
 that arrives as the guest restarts wins, the next boot waits while the guest is
-paused or the GPU request gate is held, and a restart is reported twice so the
-application can re-apply what belongs to a kernel. After Android powers off
-cleanly the runtime releases the guest through `uml_emulator_release_guest` and
-returns success only once another run can start. An application that can be
-backgrounded holds the guest's GPU requests (`set_gpu_hold`) before it quiesces
-and releases them before it resumes.
+paused or from the moment the application asks for its GPU requests to be held
+(`set_gpu_hold`, before the hold's camera wait, whether or not the gate has
+closed yet) until it gives them back (and again once the boot is built, so a hold
+that arrives meanwhile also keeps the guest from running), and a restart is
+reported twice so the application can re-apply what belongs to a kernel. After
+Android powers off cleanly the runtime releases the guest through
+`uml_emulator_release_guest` and returns success only once another run can
+start. An application that can be backgrounded holds the guest's GPU requests (`set_gpu_hold`) before it quiesces
+and releases them before it resumes. On an Android guest the hold is preceded by
+the camera's end of the guest's running video: the camera device ends it as the
+platform's notice of the departure would and the hold waits (two seconds at most,
+inside the edge's budget, never added to it) until the guest has stopped its
+video streams, so a recording that runs ends before the guest's GPU requests
+stop (`uml::camera::BackgroundVideo`, the camera device's README). A caller
+that has a deadline passes what it leaves (`set_gpu_hold` of 3 or more, the
+milliseconds): the camera wait then takes what is left after the hold's own wait
+of one second for a request that is running, and nothing when less is left. The
+deadline bounds the camera wait and not that second, which the drain always has.
+The hold of a caller with none (Andarium, at the edge) is held three
+seconds after the edge at the latest, the wait and then the drain; the main path
+of a kept-running job, which waits for the screen to go off first, gets what its
+four-second edge leaves. The bound that holds that job's GPU 1.5 s after the edge
+takes the plain hold without the camera's wait (`set_gpu_hold` with 2), so the gate
+is closed at 1.5 s after the edge and drained 2.5 s after it at the latest; a bound
+that fires while the other caller waits for the camera holds at once and ends that
+wait, and two holds that meet wait for a request that is running once.
 
 The kernel's whole-file disk locks pass through the host's guest-file registry
 (`platform/guest_files`). On iOS, iPadOS, the Simulator and in Designed for

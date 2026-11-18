@@ -7,3 +7,6 @@
 
 # Applies the host's time zone once the system is up.
 /(system_ext|system/system_ext)/bin/kernarium_time_zone\.sh  u:object_r:kernarium_time_zone_exec:s0
+
+# Moves a guest that started with an older release to the on-screen keyboard default, once.
+/(system_ext|system/system_ext)/bin/kernarium_keyboard_default\.sh  u:object_r:kernarium_keyboard_default_exec:s0

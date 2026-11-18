@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# KernariumSms (overlay/sms) hands a text message the host sends to Android, and listens for it on a
+# vsock port itself, reading a request only from the host's CID. It keeps its system uid and platform
+# signature, which the protected SMS broadcasts and the inbox need, and runs in a domain of its own that
+# holds the vsock rights, so that neither an adb shell nor an installed application can make a vsock
+# socket, listen on one, or reach this service's sockets and data.
+type kernarium_sms, domain;
+typeattribute kernarium_sms coredomain;
+app_domain(kernarium_sms)
+
+# Its own data: the record of the messages it has handed over, which no other system application's
+# grants reach. The type carries the attributes of the platform's own application data types, so that
+# installd, vold and zygote handle it through their attribute rules.
+type kernarium_sms_data_file, file_type, data_file_type, core_data_file_type, app_data_file_type;
+allow kernarium_sms kernarium_sms_data_file:dir create_dir_perms;
+allow kernarium_sms kernarium_sms_data_file:file create_file_perms;
+
+# Only the services a delivery uses: broadcasts, the current user and the inbox's provider (activity),
+# the SMS role holder (role) and the Messaging lookup (package).
+allow kernarium_sms { activity_service package_service role_service }:service_manager find;
+
+# The host's requests arrive on vsock. The service accepts only host CID 2 and never connects out.
+typeattribute kernarium_sms unconstrained_vsock_violators;
+allow kernarium_sms self:vsock_socket { create bind listen accept read write shutdown getattr getopt };
+
+# The shell and the other application domains never gain a vsock socket of their own.
+neverallow { shell system_app platform_app priv_app untrusted_app_all } self:vsock_socket { create bind listen accept connect };

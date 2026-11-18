@@ -24,9 +24,9 @@ enum FileSort: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .name: "Name"
-        case .date: "Date Modified"
-        case .size: "Size"
+        case .name: String(localized: "Name")
+        case .date: String(localized: "Date Modified")
+        case .size: String(localized: "Size")
         }
     }
 }
@@ -118,37 +118,43 @@ final class FileTransfer: Identifiable {
     /// "Clip.mov", "3 files" or "2 items" when a folder is among them.
     private func what(_ items: [Item]) -> String {
         if items.count == 1, let only = items.first { return only.name }
-        return "\(items.count) \(items.contains(where: \.isFolder) ? "items" : "files")"
+        return items.contains(where: \.isFolder)
+            ? String(localized: "\(items.count) items") : String(localized: "\(items.count) files")
     }
-
-    private var verb: String { direction == .importing ? "Importing" : "Exporting" }
-    private var done: String { direction == .importing ? "imported" : "exported" }
 
     /// Short where buttons share the line: the name of a single file moves to
     /// the detail line.
     var title: String {
         let single = items.count == 1
+        let importing = direction == .importing
         switch stage {
-        case .running: return "\(verb) \(what(items))"
-        case .ready: return single ? "Ready to share" : "\(what(items)) ready"
-        case .finished: return "\(what(items)) \(done)"
-        case .failed: return single ? "Not \(done)" : "\(failures.count) of \(items.count) not \(done)"
+        case .running:
+            return importing ? String(localized: "Importing \(what(items))") : String(localized: "Exporting \(what(items))")
+        case .ready:
+            return single ? String(localized: "Ready to share") : String(localized: "\(what(items)) ready")
+        case .finished:
+            return importing ? String(localized: "\(what(items)) imported") : String(localized: "\(what(items)) exported")
+        case .failed:
+            if single { return importing ? String(localized: "Not imported") : String(localized: "Not exported") }
+            return importing
+                ? String(localized: "\(failures.count) of \(items.count) not imported")
+                : String(localized: "\(failures.count) of \(items.count) not exported")
         }
     }
 
     var detail: String {
         switch stage {
         case .running:
-            if measuring { return "Counting files\u{2026}" }
-            let moved = "\(Formats.size(bytes: movedBytes)) of \(Formats.size(bytes: totalBytes))"
+            if measuring { return String(localized: "Counting files\u{2026}") }
+            let moved = MeterWords.of(Formats.size(bytes: movedBytes), Formats.size(bytes: totalBytes))
             guard items.count > 1, let index = items.firstIndex(where: { $0.state == .moving }) else { return moved }
-            return "\(index + 1) of \(items.count) \u{00B7} \(moved)"
+            return String(localized: "\(index + 1) of \(items.count) \u{00B7} \(moved)")
         case .ready:
             let size = Formats.size(bytes: totalBytes)
             if items.count == 1, let only = items.first { return "\(only.name) \u{00B7} \(size)" }
             return size
         case .finished:
-            return direction == .importing ? "In \(GuestPath.name(of: folder))" : Formats.size(bytes: totalBytes)
+            return direction == .importing ? String(localized: "In \(GuestPath.name(of: folder))") : Formats.size(bytes: totalBytes)
         case .failed:
             if case let .failed(reason)? = failures.first?.state { return reason }
             return ""
@@ -162,7 +168,7 @@ final class FileTransfer: Identifiable {
 @Observable
 final class FileBrowserModel {
     /// What a transfer's files say when iOS stopped the guest under it.
-    static let leftForegroundReason = "Stopped when Andarium left the foreground."
+    static let leftForegroundReason = String(localized: "Stopped when Andarium left the foreground.")
 
     @ObservationIgnored let backend: any GuestFilesBackend
     /// Whether the guest can be browsed now (its storage is up). Nothing is
@@ -308,9 +314,9 @@ final class FileBrowserModel {
         let bytes = selection.filter { !$0.isFolder }.reduce(0) { $0 + $1.size }
         let hasFolders = selection.contains(where: \.isFolder)
         guard bytes > 0, !hasFolders else {
-            return "\(selection.count) selected"
+            return String(localized: "\(selection.count) selected")
         }
-        return "\(selection.count) selected \u{00B7} \(Formats.size(bytes: bytes))"
+        return String(localized: "\(selection.count) selected \u{00B7} \(Formats.size(bytes: bytes))")
     }
 
     // MARK: Import
@@ -358,7 +364,10 @@ final class FileBrowserModel {
             var replacing = false
             if clashing.contains(name) {
                 switch choice {
-                case .skip: continue
+                case .skip:
+                    // The file stays where it was; its copy goes now.
+                    if let url = pick.url { pick.staged?.release(url) }
+                    continue
                 case .replace:
                     // A folder is never replaced: the file goes beside it.
                     if conflict.folders.contains(name) {
@@ -490,7 +499,7 @@ final class FileBrowserModel {
                 if transfer.directory == nil { transfer.directory = try GuestFileStaging.makeTransferDirectory() }
             } catch {
                 for index in indices {
-                    transfer.items[index].state = .failed("Andarium couldn\u{2019}t make room for the copy.")
+                    transfer.items[index].state = .failed(String(localized: "Andarium couldn\u{2019}t make room for the copy."))
                 }
                 self.exportEnded(transfer, rerun: again)
                 return

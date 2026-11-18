@@ -66,7 +66,11 @@ struct ConsoleReply final {
 		ready = ::poll(&waiting, 1, milliseconds);
 	} while (ready < 0 && errno == EINTR);
 	require(ready >= 0);
-	return ready > 0;
+	/* A descriptor that another thread closed polls as invalid, and is no
+	 * request. */
+	require((waiting.revents & POLLNVAL) == 0,
+		"the console socket was closed while it was polled");
+	return (waiting.revents & POLLIN) != 0;
 }
 
 /* The command of the next request, and where to send its reply. */
@@ -74,11 +78,18 @@ inline std::string receiveRequest(int descriptor, sockaddr_un &client,
 	socklen_t &clientLength)
 {
 	ConsoleRequest request {};
-	clientLength = sizeof(client);
-	const auto received = ::recvfrom(descriptor, &request, sizeof(request), 0,
-		reinterpret_cast<sockaddr *>(&client), &clientLength);
+	ssize_t received;
+	int error;
+	do {
+		clientLength = sizeof(client);
+		received = ::recvfrom(descriptor, &request, sizeof(request), 0,
+			reinterpret_cast<sockaddr *>(&client), &clientLength);
+		error = errno;
+	} while (received < 0 && error == EINTR);
 	require(received >= static_cast<ssize_t>(sizeof(request) -
-		maximumConsoleData));
+		maximumConsoleData),
+		"the console request: recvfrom returned " + std::to_string(received) +
+		" (errno " + std::to_string(received < 0 ? error : 0) + ")");
 	const auto length = std::min(static_cast<std::size_t>(request.length),
 		maximumConsoleData);
 	return std::string(request.data.data(), length);

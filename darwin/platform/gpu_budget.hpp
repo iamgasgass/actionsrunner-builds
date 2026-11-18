@@ -7,9 +7,10 @@
 
 namespace uml::platform {
 
-/* The smallest budget the host GPU is given under a known limit: 384 MiB,
- * which every application of the launch set fits in. */
-inline constexpr std::uint64_t gpu_budget_floor_bytes = 384ULL << 20;
+/* The smallest budget the host GPU is given under a known limit: 352 MiB, the
+ * 384 MiB every application of the launch set fits in less the 32 MiB the
+ * gadget cache's cap gained (runtime/guest_memory_budget.hpp). */
+inline constexpr std::uint64_t gpu_budget_floor_bytes = 352ULL << 20;
 
 /* What the fixed GPU budget derives from, all in bytes. A, E and S are the
  * launch parameters (runtime/guest_memory_budget.hpp states the sets a launch
@@ -45,7 +46,7 @@ struct GpuBudget final {
 
 /* The host GPU's budget, evaluated once at launch:
  *
- *     B = max(L - A - G - E - S, 384 MiB)
+ *     B = max(L - A - G - E - S, 352 MiB)
  *
  * What the limit leaves is the whole of it: the guest's size does not bound
  * the GPU. Without a limit there is nothing to derive a budget from, so the
@@ -74,6 +75,26 @@ struct GpuBudget final {
 		.available = available,
 		.short_of_floor = available < gpu_budget_floor_bytes,
 	};
+}
+
+/* The device memory pool the GPU service gets while `reserved` bytes of the
+ * process's memory are held for another device outside the GPU (the camera's
+ * host-side memory, while its session is live): B less the reserve. The
+ * reserve is taken after B has been clamped to the floor, so a budget at the
+ * floor gives a pool smaller than the floor; it is never negative. */
+[[nodiscard]] constexpr std::uint64_t gpu_pool_bytes(
+	const GpuBudget &budget, std::uint64_t reserved) noexcept
+{
+	return budget.bytes > reserved ? budget.bytes - reserved : 0;
+}
+
+/* Whether `reserved` leaves the GPU no pool. A pool of zero means no limit to
+ * the renderer, so a launch whose reserve takes the whole budget is refused
+ * rather than given none. */
+[[nodiscard]] constexpr bool gpu_pool_exhausted(
+	const GpuBudget &budget, std::uint64_t reserved) noexcept
+{
+	return reserved != 0 && reserved >= budget.bytes;
 }
 
 } // namespace uml::platform

@@ -47,7 +47,7 @@ struct ModelLifetimeTests {
     func motionSensorsReleasedWhileTheirSessionHasWorkDoNotCrash() async throws {
         for round in 0..<100 {
             let sensors = MotionSensors()
-            sensors.update(enabled: true, foreground: true, axes: .portrait)
+            sensors.update(foreground: true, axes: .portrait)
             sensors.restart()
             if round % 3 == 0 { try await Task.sleep(for: .milliseconds(20)) }
             sensors.stop()

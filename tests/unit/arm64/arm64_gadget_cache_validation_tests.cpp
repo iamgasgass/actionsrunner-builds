@@ -116,9 +116,11 @@ void changed_words_rebuild_and_republish_links()
 
 /* Linux writes a traced process's text through its own view of the frame --
  * ptrace inserting a breakpoint -- so no translated store publishes it. The
- * kernel then names the process's generation and the written range through
- * darwin_uml_vm_invalidate_code(); the page
- * stamp must move and the next run must execute the new instruction. */
+ * kernel then names the process's generation, the written range and, for a
+ * ptrace or process_vm_writev(), the frame, or only the range, for a flush by
+ * address (an AArch32 cacheflush()), through darwin_uml_vm_invalidate_code()
+ * or darwin_uml_vm_invalidate_code_frame(); the page stamp must move and the
+ * next run must execute the new instruction. */
 void a_kernel_text_write_republishes_through_the_bridge()
 {
 	constexpr unsigned long generation = 922;
@@ -167,6 +169,23 @@ void a_kernel_text_write_republishes_through_the_bridge()
 	require(darwin_uml_static_vm_invalidate_code_generation(
 		generation, code_base, 4) == 0);
 	require(darwin_uml_static_vm_code_changes(generation) != code_changes);
+
+	/* The same two writes with the frame named, as ptrace and
+	 * process_vm_writev() make them: the data page publishes nothing, and
+	 * the code page changes. */
+	const auto named_changes = darwin_uml_static_vm_code_changes(generation);
+	require(darwin_uml_static_vm_invalidate_code_frame(generation, data_base,
+		DARWIN_UML_GUEST_PAGE_SIZE, data.descriptor(), 0) == 0);
+	require(darwin_uml_static_vm_code_changes(generation) == named_changes);
+	backing.put32(0, move_immediate(0, 3));
+	require(darwin_uml_static_vm_invalidate_code_frame(generation, code_base, 4,
+		backing.descriptor(), 0) == 0);
+	require(darwin_uml_static_vm_code_changes(generation) != named_changes);
+	cpu = {};
+	cpu.pc = code_base;
+	require(run_once(executor, memory, generation, cpu).event ==
+		::uml::cpu::EngineEvent::system_call);
+	require(cpu.registers[0] == 3);
 }
 
 /* A code change resets every activation, not only the ones it touched.

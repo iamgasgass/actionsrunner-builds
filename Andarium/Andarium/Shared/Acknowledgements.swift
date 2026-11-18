@@ -108,6 +108,22 @@ nonisolated struct Acknowledgements: Decodable, Sendable {
     }
 }
 
+extension Acknowledgements.Group {
+    /// The group's heading in the person's language. The JSON's own title is
+    /// English and stays for a group this build has no translation for.
+    var heading: String {
+        switch id {
+        case "system":
+            String(localized: "Operating system", comment: "Heading of the group of Acknowledgements with Android, LineageOS and Linux.")
+        case "graphics":
+            String(localized: "Graphics", comment: "Heading of the group of Acknowledgements with the graphics software.")
+        case "libraries":
+            String(localized: "Libraries", comment: "Heading of the group of Acknowledgements with the software libraries Andarium uses.")
+        default: title
+        }
+    }
+}
+
 /// The list of projects, grouped, ending with the line about names and marks.
 struct AcknowledgementsView: View {
     private let acknowledgements = Acknowledgements.bundled
@@ -129,7 +145,7 @@ struct AcknowledgementsView: View {
                         }
                     }
                 } header: {
-                    Text(group.title)
+                    Text(group.heading)
                 } footer: {
                     if group.id == acknowledgements.groups.last?.id {
                         Text("Android, LineageOS, Linux and the other names and marks here belong to their owners. They identify the software built into Andarium and imply no endorsement.")
@@ -157,6 +173,7 @@ struct LicenseView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             if let title = block.title {
                                 Text(title).font(.headline)
+                                    .accessibilityAddTraits(.isHeader)
                             }
                             ForEach(Array(paragraphs(block.text).enumerated()), id: \.offset) { _, paragraph in
                                 Text(verbatim: paragraph)
@@ -175,14 +192,14 @@ struct LicenseView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle(acknowledgements.project(projectID)?.name ?? "License")
+        .navigationTitle(acknowledgements.project(projectID)?.name ?? String(localized: "License"))
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func summary(_ project: Acknowledgements.Project) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            field("Copyright", "© \(project.copyright)")
-            field("License", project.license)
+            field(String(localized: "Copyright"), "© \(project.copyright)")
+            field(String(localized: "License"), project.license)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -197,6 +214,7 @@ struct LicenseView: View {
             Text(value)
                 .font(.subheadline)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private func paragraphs(_ text: String) -> [String] {

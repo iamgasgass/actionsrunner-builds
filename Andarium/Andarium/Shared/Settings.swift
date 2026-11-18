@@ -6,10 +6,11 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// Settings while the guest runs, opened from the side keys. It slides up over
-/// the guest, which keeps running behind it: watch the stats, install an app
-/// from Files, connect a computer with adb and make a bug report. An
-/// operation on the guest dismisses Settings and shows the full-screen
-/// progress, and then how it ended.
+/// the guest, which keeps running behind it: install an app from Files and
+/// browse the guest's files (the first sections, where the side keys' tip
+/// points), watch the stats, connect a computer with adb, make a bug report
+/// and, last, turn Android's screen reader (TalkBack) on and off. An operation on the guest dismisses
+/// Settings and shows the full-screen progress, and then how it ended.
 struct SessionSettingsSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +20,8 @@ struct SessionSettingsSheet: View {
     @State private var filesBarInset: CGFloat = 0
     @State private var filesBarHeight: CGFloat = 0
     @State private var detent: PresentationDetent
+    /// The Old app compatibility page is pushed.
+    @State private var oldAppsOpen = false
 
     init(large: Bool) {
         _detent = State(initialValue: large ? .large : .medium)
@@ -29,16 +32,31 @@ struct SessionSettingsSheet: View {
         NavigationStack(path: fileRoute) {
             ScrollViewReader { proxy in
                 List {
-                    if model.capabilities.statistics { stats(session) }
-                    if normalSession, model.capabilities.apkInstall { apps }
+                    if offersInstall { apps }
                     if normalSession, model.capabilities.guestFiles, model.fileBrowser != nil { files }
-                    if normalSession, model.capabilities.adbOverNetwork { developer(session) }
+                    if model.capabilities.statistics { stats(session) }
+                    // The thermal session runs in a normal run; Recovery has no HAL.
+                    if normalSession { PerformanceSection() }
+                    if model.host.supportsPointer { pointer }
+                    #if !APP_STORE
+                    if let probe = model.inputProbe { inputProbe(probe) }
+                    #endif
+                    if normalSession, model.capabilities.adbOverNetwork || model.capabilities.textMessages {
+                        developer(session)
+                    }
                     if normalSession, model.capabilities.bugReport { diagnostics }
+                    if normalSession, model.capabilities.screenReader { accessibility(session) }
                 }
                 .task {
                     guard let target = model.sessionPreset.settingsScroll else { return }
                     try? await Task.sleep(for: .milliseconds(500))
                     proxy.scrollTo(target, anchor: .top)
+                }
+                .task {
+                    // A launch argument of the preview opens the page directly.
+                    guard model.sessionPreset.oldAppsPage else { return }
+                    try? await Task.sleep(for: .milliseconds(400))
+                    oldAppsOpen = true
                 }
             }
             .listSectionSpacing(.compact)
@@ -55,6 +73,27 @@ struct SessionSettingsSheet: View {
                     FolderPage(browser: browser, route: route, close: close)
                 }
             }
+            .navigationDestination(isPresented: $oldAppsOpen) { OldAppsPage() }
+        }
+        #if FEEDBACK_MAIL
+        .sendFeedbackSheet(model)
+        #endif
+        // A picker that failed (Install APK and the file browser's Import are
+        // here): the alert is the sheet's own, which keeps the sheet open.
+        .background {
+            Color.clear
+                .accessibilityHidden(true)
+                .alert(
+                    model.documentPickerProblem?.title ?? "",
+                    isPresented: Binding(
+                        get: { model.documentPickerProblem != nil },
+                        set: { if !$0 { model.documentPickerProblem = nil } }),
+                    presenting: model.documentPickerProblem
+                ) { _ in
+                    Button("OK", role: .cancel) {}
+                } message: { problem in
+                    Text(problem.message.keepingTogether)
+                }
         }
         .environment(\.filesBarHeight, filesBarHeight)
         // The bar is outside the pages, so folders slide under it.
@@ -81,17 +120,38 @@ struct SessionSettingsSheet: View {
             if browsing == true { detent = .large }
         }
         .task { await model.watchSettings() }
-        .onDisappear { model.fileBrowser?.sheetClosed() }
+        .onDisappear {
+            model.fileBrowser?.sheetClosed()
+            model.documentPickerProblem = nil
+        }
         .presentationDetents([.medium, .large], selection: $detent)
         .presentationBackground(Color(.systemGroupedBackground))
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-        .fileImporter(isPresented: $importing, allowedContentTypes: [InstallRefusal.pickerType]) { result in
-            guard case .success(let url) = result else { return }
-            // Settings goes; the install, or the refusal of a file that is not
-            // one .apk, is on the full-screen overlay.
-            model.installPicked(url)
-            dismiss()
+        #if APP_STORE
+        .fileImporter(isPresented: $importing, allowedContentTypes: InstallRefusal.pickerTypes) { result in
+            switch result {
+            case .success(let url):
+                // Settings goes; the install, or the refusal of a file that is not
+                // an .apk, .apks, .xapk or .apkm, is on the full-screen overlay.
+                model.installPicked(url)
+                dismiss()
+            case .failure(let error):
+                model.documentPickerFailed(error, title: AppModel.installFailure)
+            }
         }
+        #else
+        // Every other build takes a copy of the file (`CopyDocumentPicker`).
+        .documentCopyPicker(isPresented: $importing, types: InstallRefusal.pickerTypes) { result in
+            switch result {
+            case .success(let picked):
+                guard let url = picked.urls.first else { return }
+                model.installPicked(url, staged: picked.folder)
+                dismiss()
+            case .failure(let error):
+                model.documentPickerFailed(error, title: AppModel.installFailure)
+            }
+        }
+        #endif
     }
 
     private var fileRoute: Binding<[FolderRoute]> {
@@ -114,6 +174,77 @@ struct SessionSettingsSheet: View {
         return false
     }
 
+    /// Whether this session has Install APK: the rule the side keys' tip
+    /// reads to point here, one function for both.
+    private var offersInstall: Bool {
+        guard case .running(let mode) = model.phase else { return false }
+        return model.capabilities.offersApkInstall(in: mode)
+    }
+
+    // MARK: Accessibility
+
+    /// TalkBack, Android's screen reader, and Android's own Accessibility
+    /// page. The switch follows what Android reports, read while Settings is
+    /// open (`AppModel.watchSettings`), and the line under it says every state
+    /// the switch cannot: not read yet, no answer, no screen reader in the
+    /// image, a change under way or failed, a transfer that holds the channel.
+    private func accessibility(_ session: SessionState) -> some View {
+        let reader = session.reader
+        let row = model.screenReaderRow
+        let unavailable = row == .unavailable
+        return Section {
+            Toggle(isOn: Binding(get: { reader.isOn }, set: { model.setScreenReader($0) })) {
+                HStack(spacing: 12) {
+                    IconTile(symbol: "accessibility", color: unavailable ? .gray : .accentColor)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(ScreenReaderWords.name)
+                        if let line = row.line {
+                            Text(line)
+                                .font(.footnote)
+                                .foregroundStyle(row.isFailure ? Color.red : Color.secondary)
+                        }
+                        if case .failed(_, let reason) = row {
+                            Text(reason)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .disabled(!model.screenReaderCanChange)
+            .accessibilityIdentifier("settings-talkback")
+            if row.offersTryAgain {
+                Button(ScreenReaderWords.tryAgain) {
+                    switch row {
+                    case .failed(let on, _): model.setScreenReader(on)
+                    default: Task { await model.refreshScreenReader() }
+                    }
+                }
+                .accessibilityIdentifier("settings-talkback-try-again")
+            }
+            Button {
+                // Android's page opens on the virtual machine's screen, behind the sheet.
+                dismiss()
+                model.openAccessibilitySettings()
+            } label: {
+                HStack(spacing: 12) {
+                    IconTile(symbol: "slider.horizontal.3", color: reader.isOn ? .accentColor : .gray)
+                    Text(ScreenReaderWords.androidSettings)
+                        .foregroundStyle(reader.isOn ? Color.accentColor : Color.secondary)
+                    Spacer()
+                }
+            }
+            // VoiceOver can read Android's page only while the screen reader is on.
+            .disabled(!reader.isOn)
+            .accessibilityIdentifier("settings-accessibility-settings")
+        } header: {
+            Text(ScreenReaderWords.section)
+        } footer: {
+            Text(unavailable ? ScreenReaderWords.footerUnavailable : ScreenReaderWords.footer(session.keysEdge))
+        }
+        .id("accessibility")
+    }
+
     // MARK: File browser
 
     private var files: some View {
@@ -132,6 +263,9 @@ struct SessionSettingsSheet: View {
     /// Tapping the row starts at once.
     private var diagnostics: some View {
         Section("Diagnostics") {
+            #if FEEDBACK_MAIL
+            if model.feedbackAddress != nil { SendFeedbackEntrance() }
+            #endif
             Button {
                 dismiss()
                 model.createBugReport()
@@ -146,6 +280,7 @@ struct SessionSettingsSheet: View {
             // The guest's one adb channel is busy with the transfer.
             .disabled(model.fileBrowser?.busy == true)
         }
+        .id("diagnostics")
     }
 
     // MARK: Apps
@@ -157,21 +292,46 @@ struct SessionSettingsSheet: View {
             } label: {
                 HStack(spacing: 12) {
                     IconTile(symbol: "square.and.arrow.down.fill")
+                    // The name gets its width first: it wraps only when the
+                    // line is too narrow for it alone, and the hint beside
+                    // it gives way.
                     Text("Install APK\u{2026}")
                         .foregroundStyle(Color.accentColor)
-                    Spacer()
+                        .layoutPriority(1)
+                    Spacer(minLength: 0)
                     Text("From Files")
                         .font(.subheadline)
                         .foregroundStyle(Color(.secondaryLabel))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
             }
             .disabled(model.fileBrowser?.busy == true)
+            // Offered only when the last listing found an app it can apply to.
+            if model.session.oldApps.offered { OldAppsRow { oldAppsOpen = true } }
         }
     }
 
     // MARK: Developer
 
+    /// ADB over network with its footer, and, as a group of its own under that
+    /// footer, the entrance to the text message bar, so the footer describes
+    /// the toggle alone.
+    @ViewBuilder
     private func developer(_ session: SessionState) -> some View {
+        if model.capabilities.adbOverNetwork { adbOverNetwork(session) }
+        if model.offersTextMessage {
+            Section {
+                textMessageRow
+            } header: {
+                // The group stands alone only where there is no ADB section above it.
+                if !model.capabilities.adbOverNetwork { Text("Developer") }
+            }
+            .id(model.capabilities.adbOverNetwork ? "text-message" : "developer")
+        }
+    }
+
+    private func adbOverNetwork(_ session: SessionState) -> some View {
         Section {
             Toggle(isOn: Binding(get: { session.adb }, set: { model.setAdbOverNetwork($0) })) {
                 HStack(spacing: 12) {
@@ -196,13 +356,33 @@ struct SessionSettingsSheet: View {
             if let problem = session.adbProblem {
                 Text(problem).foregroundStyle(.red)
             } else if session.adb {
-                Text("The guest asks to allow the computer the first time it connects. ADB turns off when the guest stops or USB debugging is turned off.")
+                Text("The virtual machine asks to allow the computer the first time it connects. ADB turns off when the virtual machine stops or USB debugging is turned off.")
             } else if !model.adbOverNetworkAvailable {
-                Text("Turn on USB debugging in the guest\u{2019}s Developer options to use ADB over network.")
+                Text("Turn on USB debugging in the virtual machine\u{2019}s Developer options to use ADB over network.")
             } else {
-                Text("Lets a computer on the same network connect to the guest with adb.")
+                Text("Lets a computer on the same network connect to the virtual machine with adb.")
             }
         }
+        .id("developer")
+    }
+
+    /// The entrance to the text message bar: Settings closes, as Install APK
+    /// does, and the bar comes up over Android.
+    private var textMessageRow: some View {
+        Button {
+            dismiss()
+            model.presentTextMessage()
+        } label: {
+            HStack(spacing: 12) {
+                IconTile(symbol: "message.fill")
+                Text(SmsMessages.row)
+                    .foregroundStyle(Color.accentColor)
+                Spacer(minLength: 0)
+            }
+        }
+        // The guest's one adb channel is busy with the transfer.
+        .disabled(model.fileBrowser?.busy == true)
+        .accessibilityIdentifier("settings-text-message")
     }
 
     /// The command to type on the computer, with a button that copies it.
@@ -241,6 +421,32 @@ struct SessionSettingsSheet: View {
         }
         .padding(.vertical, 4)
     }
+
+    // MARK: Pointer
+
+    /// Off, Android sees a mouse with its own cursor; on, the pointer's clicks
+    /// are touches, as a game that only understands touch needs.
+    private var pointer: some View {
+        Section {
+            Toggle(isOn: Binding(get: { model.pointerAsTouch }, set: { model.setPointerAsTouch($0) })) {
+                rowLabel("Use the pointer as touch", symbol: "cursorarrow.click")
+            }
+            .accessibilityIdentifier("pointerAsTouch")
+        }
+    }
+
+    #if !APP_STORE
+    /// The text field a UI test types into while Settings is open.
+    private func inputProbe(_ probe: InputProbe) -> some View {
+        @Bindable var probe = probe
+        return Section {
+            TextField(text: $probe.fieldText) { Text(verbatim: "Input probe") }
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .accessibilityIdentifier("inputProbeField")
+        }
+    }
+    #endif
 
     // MARK: Stats
 
@@ -295,12 +501,11 @@ struct SessionSettingsSheet: View {
         }
     }
 
-    private func rowLabel(_ title: String, symbol: String) -> some View {
+    private func rowLabel(_ title: LocalizedStringKey, symbol: String) -> some View {
         HStack(spacing: 12) {
             IconTile(symbol: symbol)
             Text(title)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -325,6 +530,9 @@ extension View {
             SessionSettingsSheet(large: large)
                 .environment(model)
                 .statusBarHidden(true)
+                // On a turned inner display the sheet rises to the fold and
+                // lets touches through to the guest above it.
+                .foldSheet(model, reachesBehind: true)
         }
     }
 }

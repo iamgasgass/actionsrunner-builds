@@ -59,6 +59,17 @@ public:
 			Entry{found->second.backing.get(), found->second.fd};
 	}
 
+	/* The owner of the backing the word of `page`, which names `slot`, maps
+	 * into: for a caller that needs it beyond an overwrite of the entry. */
+	[[nodiscard]] std::shared_ptr<MappedBacking> owner(
+		unsigned slot, std::uint64_t page) const
+	{
+		if (slot < slot_count)
+			return slots_[slot].backing;
+		const auto found = overflow_.find(page);
+		return found == overflow_.end() ? nullptr : found->second.backing;
+	}
+
 	/* The slot of the pair, taking a free one with no pages yet if it has
 	 * none; `overflow` when all are taken. */
 	[[nodiscard]] unsigned claim(

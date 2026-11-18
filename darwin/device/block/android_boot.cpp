@@ -216,6 +216,52 @@ void validateUbdPath(const std::filesystem::path &path, std::string_view label)
 			" path is unusable as a UBD device");
 }
 
+std::string withoutQuotes(std::string_view text)
+{
+	std::string plain;
+	plain.reserve(text.size());
+	for (const char character : text)
+		if (character != '"' && character != '\'')
+			plain.push_back(character);
+	return plain;
+}
+
+bool carriesPrefix(std::string_view text, std::string_view prefix)
+{
+	constexpr std::string_view separators{" \n\t"};
+	std::size_t cursor = 0;
+	while (cursor < text.size()) {
+		const auto begin = text.find_first_not_of(separators, cursor);
+		if (begin == std::string_view::npos)
+			break;
+		const auto end = std::min(text.find_first_of(separators, begin),
+					  text.size());
+		if (withoutQuotes(text.substr(begin, end - begin))
+			    .starts_with(prefix))
+			return true;
+		cursor = end;
+	}
+	return false;
+}
+
+/* Android's reader groups words that stand between two `"` and removes
+ * the quotes, so a group that spans white space, or a quote that never
+ * closes, is one argument there but several (or a different one) in the
+ * words read below: dropping the word that closes it would leave the
+ * quote open over every argument the launcher appends. */
+static bool hasQuotedGroup(std::string_view text)
+{
+	bool open = false;
+	for (const char character : text) {
+		if (character == '"')
+			open = !open;
+		else if (open && (character == ' ' || character == '\n' ||
+				  character == '\t'))
+			return true;
+	}
+	return open;
+}
+
 std::vector<std::string> readKernelCommandLine(
 	const std::filesystem::path &path,
 	std::span<const std::string_view> launcherPrefixes)
@@ -236,6 +282,12 @@ std::vector<std::string> readKernelCommandLine(
 	if (read != text.size() || closed != 0)
 		throw std::runtime_error("cannot read " + path.string());
 
+	/* Before any word is dropped or the launcher appends its own. */
+	if (hasQuotedGroup(text))
+		throw std::invalid_argument(
+			"the release kernel command line has a quoted group that "
+			"spans words or a quote that never closes");
+
 	std::vector<std::string> arguments;
 	bool bootDevices = false;
 	constexpr std::string_view separators{" \n\t"};
@@ -246,13 +298,22 @@ std::vector<std::string> readKernelCommandLine(
 			break;
 		cursor = std::min(text.find_first_of(separators, begin),
 			text.size());
-		const std::string_view argument{text.data() + begin,
+		const std::string_view written{text.data() + begin,
 			cursor - begin};
+		/* What Android's reader makes of the word, which is what the
+		 * checks look at; the word itself stays as the release wrote it. */
+		const std::string argument = withoutQuotes(written);
 		/* A launcher that sets the multiplier gets the legacy one dropped
-		 * rather than refused: every release before it carries it. */
+		 * rather than refused: every release before it carries it. The
+		 * serial number is the same: a launcher that sets it drops the
+		 * release's fixed one, quoted or not. */
 		if (argument == legacyHwTimeoutMultiplierArgument &&
 		    std::ranges::find(launcherPrefixes,
 				      hwTimeoutMultiplierPrefix) !=
+			    launcherPrefixes.end())
+			continue;
+		if (argument == legacySerialArgument &&
+		    std::ranges::find(launcherPrefixes, serialPrefix) !=
 			    launcherPrefixes.end())
 			continue;
 		for (const auto prefix : launcherPrefixes)
@@ -264,7 +325,7 @@ std::vector<std::string> readKernelCommandLine(
 		if (startsWithAny(argument, storagePrefixes))
 			throw std::invalid_argument(
 				"the release kernel command line sets " +
-				std::string{argument} +
+				argument +
 				", which names a block device or ramdisk the launcher fixes");
 		if (argument.starts_with(bootDevicesPrefix)) {
 			if (argument != bootDevicesArgument || bootDevices)
@@ -273,7 +334,7 @@ std::vector<std::string> readKernelCommandLine(
 					std::string{bootDevicesArgument} + " once");
 			bootDevices = true;
 		}
-		arguments.emplace_back(argument);
+		arguments.emplace_back(written);
 	}
 	if (arguments.empty())
 		throw std::invalid_argument(

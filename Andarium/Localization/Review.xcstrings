@@ -1,0 +1,36 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Review on the App Store": {
+      "comment": "The menu item that opens this app's page in the App Store, where a person can write a review. 'App Store' stays as it is in every language.",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review on the App Store"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Storeでレビューを書く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在App Store中撰写评论"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在App Store中撰寫評論"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

@@ -104,7 +104,7 @@ index be9abd3f2a1e755b19d1c17f3cbd0b8bf013f6ad..28ded7fd9fa1a0ebe1bf7606d4134eaf
  
  /* base class for all objects */
 diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
-index 12ba65bda639525be12e247abbea5a784b640036..82acbc43a7c0a465a1f6050dc46869889cfa883a 100644
+index 4ef34d957d06476b5d5457e5b85358ce4bb987cf..74088a8d857b0df0e83137f4a814bc25cde1a341 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
 @@ -254,11 +254,16 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,

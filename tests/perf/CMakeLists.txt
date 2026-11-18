@@ -32,9 +32,15 @@ foreach(_uml_performance_probe_row IN LISTS _uml_performance_probe_rows)
     set(_uml_performance_probe_output
         "${CMAKE_CURRENT_BINARY_DIR}/probes/${_uml_performance_probe_name}")
     if(_uml_performance_probe_feature STREQUAL "base")
+        set(_uml_performance_probe_target aarch64-unknown-linux-gnu)
         set(_uml_performance_probe_architecture armv8-a)
     elseif(_uml_performance_probe_feature STREQUAL "lse")
+        set(_uml_performance_probe_target aarch64-unknown-linux-gnu)
         set(_uml_performance_probe_architecture armv8.1-a+lse)
+    elseif(_uml_performance_probe_feature STREQUAL "x86-64")
+        # An x86-64 probe runs in an x86-64 guest.
+        set(_uml_performance_probe_target x86_64-unknown-linux-gnu)
+        set(_uml_performance_probe_architecture x86-64)
     else()
         message(FATAL_ERROR
             "Unknown performance probe feature: ${_uml_performance_probe_feature}")
@@ -59,7 +65,7 @@ foreach(_uml_performance_probe_row IN LISTS _uml_performance_probe_rows)
         COMMAND "${CMAKE_COMMAND}" -E make_directory
             "${CMAKE_CURRENT_BINARY_DIR}/probes"
         COMMAND "${CMAKE_CXX_COMPILER}"
-            --target=aarch64-unknown-linux-gnu
+            --target=${_uml_performance_probe_target}
             -march=${_uml_performance_probe_architecture}
             -nostdlib
             -static

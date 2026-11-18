@@ -2,6 +2,8 @@
 
 #include "launcher.hpp"
 #include "block/android_boot.hpp"
+#include "block/android_identity.hpp"
+#include "camera/camera_layout.hpp"
 #include "options.hpp"
 
 #include <array>
@@ -10,6 +12,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -30,9 +33,33 @@ constexpr std::string_view data_disk_option{"--android-data-disk="};
 constexpr std::string_view data_gib_option{"--android-data-gib="};
 constexpr std::string_view renamed_disk_option{"--android-disk="};
 constexpr std::string_view boot_mode_option{"--android-boot-mode="};
+constexpr std::string_view identity_option{"--android-identity="};
+constexpr std::string_view serial_option{"--android-serialno="};
+constexpr std::string_view net_mac_option{"--net-mac="};
 constexpr std::string_view dpi_option{"--gpu-dpi="};
 constexpr std::string_view adb_authorization_prefix{
 	"androidboot.kernarium.adb_auth="};
+/* The hardware SKU that tells the guest what the host has (the iOS runtime's
+ * KernariumHostFeatures.hpp states it from the boot request). A Mac has no
+ * Taptic Engine, so this launcher states none itself; a run that wants the
+ * guest's vibrator for a CTS, VTS or protocol check passes the argument, which
+ * is forwarded as given. A release's own command line may not carry it, nor
+ * the camera layout (the vendor SKU), which a run passes itself or has
+ * composed (--camera-layout=auto). */
+constexpr std::string_view hardware_sku_prefix{
+	"androidboot.product.hardware.sku="};
+/* Makes the guest list a device-orientation sensor, which Android's window
+ * manager then follows in place of the accelerometer (the iOS runtime's
+ * KernariumHostFeatures.hpp states it too). Only a run that feeds the sensor
+ * passes it, as the orientation check does; a release's own command line may
+ * not carry it. */
+constexpr std::string_view orientation_prefix{
+	"androidboot.kernarium.orientation="};
+/* Makes the guest list a magnetometer and declare the compass feature (the iOS
+ * runtime's KernariumHostFeatures.hpp states it too). Only a run that feeds
+ * the field passes it; a release's own command line may not carry it. */
+constexpr std::string_view compass_prefix{
+	"androidboot.kernarium.compass="};
 
 struct AndroidOptions {
 	std::filesystem::path release;
@@ -44,6 +71,14 @@ struct AndroidOptions {
 	bool boot_mode_set = false;
 	/* The EDID density the GPU device advertises; 0 advertises none. */
 	std::uint32_t dots_per_inch = 0;
+	/* --android-identity=: the file that holds this installation's serial
+	 * number and eth0 address, made when absent. Empty keeps the guest's
+	 * fixed values. */
+	std::filesystem::path identity_file;
+	/* --android-serialno= and --net-mac=: values a run states for itself, which
+	 * exclude the identity file. */
+	std::optional<std::string> serial;
+	bool net_mac_stated = false;
 	std::vector<std::string> forwarded;
 };
 
@@ -85,20 +120,51 @@ AndroidOptions parse_options(int argc, char *const argv[])
 	bool has_gpu_display = false;
 	bool has_audio = false;
 	bool has_battery = false;
+	bool has_gnss = false;
 	bool has_video = false;
 	bool has_video_encoder = false;
 	for (int index = 1; index < argc; ++index) {
 		const std::string_view argument =
 			argv[index] == nullptr ? std::string_view{} : argv[index];
-		if (argument.starts_with(adb_authorization_prefix))
+		/* UML joins its arguments with spaces, so one that holds several
+		 * words, or quotes, carries each of them to Android. */
+		if (uml::android::carriesPrefix(argument, adb_authorization_prefix))
 			throw std::invalid_argument(
 				"macOS fixes Android ADB authorization at boot");
-		if (argument.starts_with(uml::android::lcdDensityPrefix))
+		if (uml::android::carriesPrefix(argument,
+						uml::android::lcdDensityPrefix))
 			throw std::invalid_argument(
 				"the Android density follows --gpu-dpi");
-		if (argument.starts_with(uml::android::hwTimeoutMultiplierPrefix))
+		if (uml::android::carriesPrefix(
+			    argument, uml::android::hwTimeoutMultiplierPrefix))
 			throw std::invalid_argument(
 				"the Android timeout multiplier follows ncpus=");
+		if (uml::android::carriesPrefix(argument,
+						uml::android::serialPrefix))
+			throw std::invalid_argument(
+				"the Android serial number follows --android-serialno or "
+				"--android-identity");
+		if (argument.starts_with(identity_option)) {
+			if (!options.identity_file.empty())
+				throw std::invalid_argument(
+					"--android-identity may be specified only once");
+			options.identity_file = argument.substr(identity_option.size());
+			if (!options.identity_file.is_absolute())
+				throw std::invalid_argument(
+					"--android-identity must be an absolute path");
+			continue;
+		}
+		if (argument.starts_with(serial_option)) {
+			if (options.serial)
+				throw std::invalid_argument(
+					"--android-serialno may be specified only once");
+			options.serial = std::string{argument.substr(serial_option.size())};
+			if (!uml::android::validSerial(*options.serial))
+				throw std::invalid_argument(
+					"--android-serialno must be 6 to 20 letters and digits");
+			continue;
+		}
+		options.net_mac_stated |= argument.starts_with(net_mac_option);
 		if (argument.starts_with(dpi_option))
 			options.dots_per_inch = uml::android::parseDotsPerInch(
 				argument.substr(dpi_option.size()));
@@ -149,6 +215,7 @@ AndroidOptions parse_options(int argc, char *const argv[])
 			     argument.starts_with("--audio-output=") ||
 			     argument.starts_with("--audio-input=");
 		has_battery |= argument == "--battery";
+		has_gnss |= argument == "--gnss" || argument.starts_with("--location=");
 		has_video |= argument == "--video";
 		has_video_encoder |= argument == "--video-encoder";
 		options.forwarded.emplace_back(argument);
@@ -166,6 +233,11 @@ AndroidOptions parse_options(int argc, char *const argv[])
 		if (!environment_mode.empty())
 			options.boot_mode = parse_boot_mode(environment_mode);
 	}
+	if (!options.identity_file.empty() &&
+	    (options.serial || options.net_mac_stated))
+		throw std::invalid_argument(
+			"--android-identity excludes --android-serialno and --net-mac: "
+			"a run states its values or reads them from the file");
 	if (!has_gpu)
 		options.forwarded.emplace_back("--gpu");
 	if (!has_gpu_display)
@@ -174,6 +246,8 @@ AndroidOptions parse_options(int argc, char *const argv[])
 		options.forwarded.emplace_back("--audio");
 	if (!has_battery)
 		options.forwarded.emplace_back("--battery");
+	if (!has_gnss)
+		options.forwarded.emplace_back("--gnss");
 	if (!has_video)
 		options.forwarded.emplace_back("--video");
 	if (!has_video_encoder)
@@ -216,6 +290,14 @@ void print_usage()
 			"  --android-data-gib=N (capacity of a new data disk, or growth of an\n"
 			"      existing one; a larger disk is kept, never shrunk)\n"
 			"  --android-boot-mode=auto|normal|recovery\n"
+			"  --android-identity=/absolute/identity.json (this installation's serial\n"
+			"      number and eth0 address, made when absent or when the data disk is\n"
+			"      new; without it, or --android-serialno and --net-mac, the guest\n"
+			"      keeps its fixed values)\n"
+			"  --android-serialno=S (6 to 20 letters and digits, for a run that states\n"
+			"      its own; excludes --android-identity)\n"
+			"  --net-mac=aa:bb:cc:dd:ee:ff (eth0's unicast address; excludes\n"
+			"      --android-identity)\n"
 			"  --gpu-dpi=N (also the guest density; 213 without it)\n"
 			"  ncpus=N (also the guest's timeout multiplier: 3 from six vCPUs,\n"
 			"      5 below)\n"
@@ -236,15 +318,23 @@ void print_usage()
 std::vector<std::string> boot_command_line(
 	const std::vector<std::string> &host_arguments,
 	const uml::android::Storage &storage, const uml::android::BootSelection &boot,
-	std::uint32_t dots_per_inch)
+	std::uint32_t dots_per_inch, const std::optional<std::string> &serial)
 {
 	auto forwarded = host_arguments;
 	for (auto &argument : storage.kernelArguments(boot))
 		forwarded.push_back(std::move(argument));
-	constexpr std::array launcher_prefixes{
+	std::vector<std::string_view> launcher_prefixes{
 		adb_authorization_prefix,
+		hardware_sku_prefix,
+		uml::camera::layoutArgumentPrefix,
+		orientation_prefix,
+		compass_prefix,
 		uml::android::lcdDensityPrefix,
 		uml::android::hwTimeoutMultiplierPrefix};
+	/* A run that has a serial number of its own drops the release's fixed
+	 * one; a run with none leaves the release's command line as it is. */
+	if (serial)
+		launcher_prefixes.push_back(uml::android::serialPrefix);
 	for (auto &argument : uml::android::readKernelCommandLine(
 		     storage.release() / uml::android::releaseCommandLine,
 		     launcher_prefixes))
@@ -260,6 +350,9 @@ std::vector<std::string> boot_command_line(
 	forwarded.emplace_back(uml::android::hwTimeoutMultiplierArgument(
 		uml::emulator::launch_guest_cpu_count(host_arguments)));
 	forwarded.emplace_back(std::string{adb_authorization_prefix} + "0");
+	/* Android init imports this as ro.boot.serialno and ro.serialno. */
+	if (serial)
+		forwarded.emplace_back(uml::android::serialArgument(*serial));
 	std::fprintf(
 		stderr,
 			"Android rootfs %s, %s boot, system disk %s, data disk %s\n",
@@ -268,6 +361,30 @@ std::vector<std::string> boot_command_line(
 				? "recovery" : "normal",
 			storage.systemDisk().c_str(), storage.dataDisk().c_str());
 	return forwarded;
+}
+
+/* What the identity file did, without the values: they are the installation's
+ * own and this host message carries neither. */
+void announce_identity(uml::android::IdentityOutcome outcome)
+{
+	switch (outcome) {
+	case uml::android::IdentityOutcome::created:
+		std::fputs("Android: made the installation's identity\n", stderr);
+		break;
+	case uml::android::IdentityOutcome::replaced:
+		std::fputs("Android: replaced an identity file that was not valid\n",
+			   stderr);
+		break;
+	case uml::android::IdentityOutcome::unsaved:
+		std::fputs("Android: the identity file cannot be kept; this start "
+			   "uses values it will not keep\n",
+			   stderr);
+		break;
+	case uml::android::IdentityOutcome::fixed:
+	case uml::android::IdentityOutcome::stated:
+	case uml::android::IdentityOutcome::kept:
+		break;
+	}
 }
 
 void announce_data_disk(const uml::android::PreparedDataDisk &prepared,
@@ -315,6 +432,7 @@ int main(int argc, char *argv[], char *envp[])
 			.default_guest_memory = android_default_guest_memory,
 			.top_byte_ignore = true,
 			.input_mode = uml::app::DisplayInput::touchscreen,
+			.console_reports_boot_completion = true,
 		};
 		if (!information_only) {
 			if (options.release.empty() || options.data_disk.empty())
@@ -326,12 +444,27 @@ int main(int argc, char *argv[], char *envp[])
 			 * disk. */
 			uml::android::rejectStorageArguments(
 				std::span{options.forwarded}.subspan(1));
-			announce_data_disk(
-				uml::android::prepareDataDisk(
-					uml::android::readLayout(
-						release / uml::android::releaseLayout),
-					data_disk, options.data_gib),
-				options.data_gib);
+			/* The installation is locked from the data disk's preparation
+			 * to the identity's resolution, so that a start that creates
+			 * the disk and a start that finds it do not interleave, and
+			 * the tools' reset waits for both. A new data disk is a new
+			 * installation, whatever file lies beside it. */
+			const auto installation = uml::android::prepareInstallation(
+				uml::android::readLayout(
+					release / uml::android::releaseLayout),
+				data_disk, options.data_gib,
+				{.file = options.identity_file,
+				 .stated = {options.serial, std::nullopt}});
+			const auto &prepared_disk = installation.disk;
+			const auto &resolved = installation.identity;
+			announce_data_disk(prepared_disk, options.data_gib);
+			announce_identity(resolved.outcome);
+			if (resolved.identity.ethernetMac)
+				options.forwarded.emplace_back(
+					std::string{net_mac_option} +
+					uml::android::formatMac(
+						*resolved.identity.ethernetMac));
+			const auto serial = resolved.identity.serial;
 			const uml::android::Storage storage{release, data_disk};
 			if (storage.consumeBootloaderCommand())
 				say_bootloader_consumed();
@@ -339,18 +472,20 @@ int main(int argc, char *argv[], char *envp[])
 			const auto host_arguments = options.forwarded;
 			options.forwarded =
 				boot_command_line(
-					host_arguments, storage, boot, options.dots_per_inch);
+					host_arguments, storage, boot, options.dots_per_inch,
+					serial);
 			/* The mode the user gave picks the first boot's ramdisk only: a
 			 * guest that restarts has said what it wants in the disk's
 			 * bootloader message. */
 			configuration.restart_command_line =
-				[host_arguments, storage,
+				[host_arguments, storage, serial,
 				 dots_per_inch = options.dots_per_inch] {
 					const auto next = storage.selectRestartBoot();
 					if (next.bootloaderConsumed)
 						say_bootloader_consumed();
 					return boot_command_line(
-						host_arguments, storage, next.boot, dots_per_inch);
+						host_arguments, storage, next.boot, dots_per_inch,
+						serial);
 				};
 		}
 		return uml::app::runEmbeddedKernel(

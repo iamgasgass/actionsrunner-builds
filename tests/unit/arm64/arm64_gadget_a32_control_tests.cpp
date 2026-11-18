@@ -525,6 +525,43 @@ void an_a32_target_with_bit_one_set_is_a_pc_alignment_exit()
 	require(result.fault.access == ::uml::memory::MemoryAccess::execute);
 }
 
+/* An A32 return to the top of the address space after its site holds two
+ * other targets leaves as a cold site does: the key of no AArch32 target is
+ * the all-ones word that marks an empty cell, and the empty return record is
+ * never taken for a match. */
+void a_cached_return_to_the_top_of_memory_leaves_like_a_cold_one()
+{
+	constexpr std::uint32_t bx_lr = 0xe12f'ff1eU;
+	unsigned long generation = 1200;
+	for (const std::uint32_t target :
+	     {0xffff'ffffU, 0xffff'fffeU, 0xffff'fffcU, 0xffff'fffdU,
+	      0x0000'0001U, 0xdead'beefU}) {
+		Guest guest{generation++};
+		guest.a32(0, {bx_lr});
+		guest.a32(0x300, {bx_lr});
+		guest.a32(0x100, {a::mov_r1_7, a::svc});
+		guest.a32(0x200, {a::mov_r1_2, a::svc});
+		auto cold_cpu = a32_state(code_base + 0x300);
+		cold_cpu.registers[14] = target;
+		const auto cold = guest.run(cold_cpu);
+		require(cold.reason == ExitReason::pc_alignment ||
+			cold.reason == ExitReason::memory_fault);
+		for (const std::uint32_t training : {0x100U, 0x200U, 0x100U}) {
+			auto cpu = a32_state();
+			cpu.registers[14] = code_base + training;
+			require(guest.run(cpu).reason == ExitReason::system_call);
+		}
+		auto cpu = a32_state();
+		cpu.registers[14] = target;
+		const auto result = guest.run(cpu);
+		require(result.reason == cold.reason &&
+			result.retired_instructions == cold.retired_instructions &&
+			result.fault.address == cold.fault.address &&
+			result.fault.access == cold.fault.access &&
+			cpu.pc == cold_cpu.pc);
+	}
+}
+
 void a_fetch_fault_reports_the_unfetchable_address()
 {
 	Guest guest{954};
@@ -3082,6 +3119,7 @@ int main()
 	a_conditional_undefined_word_is_skipped_when_its_condition_fails();
 	a_breakpoint_reports_its_immediate();
 	interworking_branches_switch_state_both_ways();
+	a_cached_return_to_the_top_of_memory_leaves_like_a_cold_one();
 	an_a32_target_with_bit_one_set_is_a_pc_alignment_exit();
 	a_fetch_fault_reports_the_unfetchable_address();
 	a_t32_instruction_split_over_an_unfetchable_page_faults_at_its_second_halfword();

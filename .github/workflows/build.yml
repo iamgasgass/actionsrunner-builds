@@ -71,9 +71,9 @@ on:
         type: string
         default: ''
       configuration:
-        description: Release (sideload, JIT-capable runtime) or AppStore (App Store runtime and bundle checks)
+        description: Release (sideload, JIT-capable runtime), AppStore or TestFlight (App Store runtime and bundle checks)
         type: choice
-        options: [Release, AppStore]
+        options: [Release, AppStore, TestFlight]
         default: Release
       release:
         description: Publish a GitHub release with the IPA
@@ -126,7 +126,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
         with:
-          # the AppStore configuration compares the embedded artifacts with this commit's history
+          # the AppStore and TestFlight configurations compare the embedded artifacts with this commit's history
           fetch-depth: 0
           persist-credentials: false
 
@@ -379,7 +379,7 @@ jobs:
         run: |
           set -eu
           preset=kernarium-ios-device-android
-          [ "$CONFIGURATION" != AppStore ] || preset=kernarium-ios-device-android-app-store
+          case "$CONFIGURATION" in AppStore | TestFlight) preset=kernarium-ios-device-android-app-store ;; esac
           cmake --preset "$preset" \
             -DUML_ANDROID17_KERNEL_ARTIFACT_DIR="$KERNEL_DIR" \
             -DPython3_EXECUTABLE="$PYTHON3"
@@ -389,7 +389,7 @@ jobs:
         if: steps.place.outputs.xcframeworks != 'true'
         run: |
           set -eu
-          if [ "$CONFIGURATION" = AppStore ]; then
+          if [ "$CONFIGURATION" = AppStore ] || [ "$CONFIGURATION" = TestFlight ]; then
             Kernarium/scripts/package-ios-frameworks.sh --app-store --runtimes android
           else
             Kernarium/scripts/package-ios-frameworks.sh --runtimes android
@@ -403,7 +403,13 @@ jobs:
         run: |
           set -eu
           . android/lineage-24/metadata/accepted-release.env
-          if [ "$(basename "$ANDROID_DIR")" = "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
+          acceptance=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("acceptance", ""))' "$ANDROID_DIR/release-manifest.json")
+          if [ "$acceptance" = unsigned-proof ]; then
+            # An unsigned proof image (built from unsigned target files): only a developer build stages it.
+            [ "$CONFIGURATION" = Release ] || { echo "::error::$(basename "$ANDROID_DIR") is an unsigned proof image, which the $CONFIGURATION configuration refuses; use Release or an accepted release"; exit 1; }
+            echo "::warning::Staging the UNSIGNED PROOF image $(basename "$ANDROID_DIR"), not an accepted release"
+            python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR" --unsigned-proof
+          elif [ "$(basename "$ANDROID_DIR")" = "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
             python3 Andarium/scripts/stage-system-image.py          # checked against the accepted release too
           else
             python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR"

@@ -9,7 +9,9 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
@@ -151,7 +153,46 @@ public:
     }
     void setGuestScanoutActive(bool active) noexcept
     {
+        if (!active)
+            guestScanoutMode_.store(0, std::memory_order_release);
         guestScanoutActive_.store(active, std::memory_order_release);
+    }
+    /* The size in pixels of the guest's primary scanout, which is the area a
+     * pointer position is relative to: the device sets it whenever the guest
+     * binds a resource to the scanout, and it is gone with the scanout
+     * (setGuestScanoutActive(false)). Read from any thread. */
+    struct GuestScanoutMode {
+        std::uint32_t width {};
+        std::uint32_t height {};
+    };
+    void setGuestScanoutMode(
+        std::uint32_t width, std::uint32_t height) noexcept
+    {
+        guestScanoutMode_.store(
+            static_cast<std::uint64_t>(width) << 32U | height,
+            std::memory_order_release);
+    }
+    [[nodiscard]] std::optional<GuestScanoutMode> guestScanoutMode()
+        const noexcept
+    {
+        const auto mode = guestScanoutMode_.load(std::memory_order_acquire);
+        if (mode == 0)
+            return std::nullopt;
+        return GuestScanoutMode {
+            .width = static_cast<std::uint32_t>(mode >> 32U),
+            .height = static_cast<std::uint32_t>(mode),
+        };
+    }
+    /* Told how many clients the display has whenever that changes, on the
+     * thread that serves them: a VNC display counts its connected clients,
+     * and a display with no clients never reports. A null observer clears
+     * it. The observer must return promptly and must not call back into the
+     * display; once this returns no call to the old one is running. */
+    using ClientObserver = std::function<void(std::uint32_t clients)>;
+    void setClientObserver(ClientObserver observer)
+    {
+        std::lock_guard lock(observerMutex_);
+        clientObserver_ = std::move(observer);
     }
     virtual void update(
         std::span<const std::uint8_t> source,
@@ -268,8 +309,20 @@ public:
 protected:
     Display() = default;
 
+    /* For a display whose clients come and go. */
+    void reportClients(std::uint32_t clients) noexcept
+    {
+        std::lock_guard lock(observerMutex_);
+        if (clientObserver_)
+            clientObserver_(clients);
+    }
+
 private:
     std::atomic_bool guestScanoutActive_ {};
+    /* Width in the high word and height in the low one; zero when none. */
+    std::atomic<std::uint64_t> guestScanoutMode_ {};
+    std::mutex observerMutex_;
+    ClientObserver clientObserver_;
     std::atomic_bool guestReclaims_ {};
     std::atomic<std::uint64_t> reclaimMinimumBytes_ {};
     std::atomic<std::uint32_t> reclaimMinimumIdleMs_ {};

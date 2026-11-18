@@ -11,7 +11,13 @@ what is staged and packaged; it reads no kernel checkout and runs no build.
 Android release (--android-release):
   - the staged system (.build/andarium-system) and, with --app, the packaged
     one are the release android/lineage-24/metadata/accepted-release.env
-    selects, and the packaged system disk matches its partition layout;
+    selects. A manifest that is not marked accepted fails, an unsigned proof
+    image (Andarium/scripts/stage-system-image.py --unsigned-proof, for
+    developer builds) by name, whatever release ID it carries. The staged and
+    the packaged system disk are tied to the accepted release as installed
+    below .build/android/releases (install-release.py), whose own layout names
+    the digest: a manifest that says accepted over another disk fails. The
+    manifests and layouts are read refusing a repeated JSON key;
   - the Git object ID of every input path of the release
     (android/lineage-24/support/release/input-paths.tsv) equals the one the
     descriptor records. A changed input fails, naming the path and the commits
@@ -42,8 +48,8 @@ covers nothing, so it cannot carry over to a later release. A dirty input, a
 staged or packaged artifact that is not the accepted one and a kernel that is
 not the descriptor's are never covered.
 
-Andarium's AppStore configuration runs it as a build phase before
-check-app-store-bundle.py.
+Andarium's AppStore and TestFlight configurations run it as a build phase
+before check-app-store-bundle.py.
 """
 
 from __future__ import annotations
@@ -53,7 +59,6 @@ __import__("sys").dont_write_bytecode = True
 import argparse
 import gzip
 import hashlib
-import json
 import os
 import re
 import struct
@@ -69,7 +74,10 @@ import release_inputs  # noqa: E402
 DECISION_ENV = "PENDING_INPUTS_DECISION"
 ANDROID_DESCRIPTOR = "android/lineage-24/metadata/accepted-release.env"
 INPUT_TREES_KEY = "LINEAGE24_ACCEPTED_INPUT_TREES"
+UNSIGNED_PROOF = "unsigned-proof"
 STAGED_SYSTEM = ".build/andarium-system"
+# Where install-release.py installs a release, below the work tree.
+INSTALLED_RELEASES = ".build/android/releases"
 PACKAGED_SYSTEM = "andarium-system"
 MANIFEST = "release-manifest.json"
 LAYOUT = "guest/partition-layout.json"
@@ -244,13 +252,7 @@ def commit_lines(commits):
 
 
 def read_json(path):
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as error:
-        raise ValueError(f"cannot read {path}: {error}") from error
-    if not isinstance(value, dict):
-        raise ValueError(f"{path} is not a JSON object")
-    return value
+    return contract_checks.load_json_object(path, ValueError)
 
 
 def sha256_file(path):
@@ -282,6 +284,22 @@ def check_staged_system(report, release_id, descriptor, system, label):
     except ValueError as error:
         report.error(f"{label} has an unreadable manifest", str(error))
         return None
+    acceptance = manifest.get("acceptance")
+    if acceptance != "accepted":
+        # An accepted release's manifest says so; the proof image of a
+        # developer build says it is a proof. Neither the release ID nor any
+        # other field a proof shares with the release can stand in for it.
+        what = (
+            "an unsigned proof image, which only a developer build embeds"
+            if acceptance == UNSIGNED_PROOF
+            else f"not an accepted release (acceptance {acceptance!r})"
+        )
+        report.error(
+            f"{label} is {what}",
+            f"{system}: stage the accepted release with Andarium/scripts/stage-system-image.py, "
+            "without --unsigned-proof",
+        )
+        return manifest
     if manifest.get("release_id") != release_id:
         report.error(
             f"{label} is release {manifest.get('release_id')}, not the accepted {release_id}",
@@ -301,7 +319,9 @@ def check_staged_system(report, release_id, descriptor, system, label):
     return manifest
 
 
-def check_packaged_disk(report, staged, packaged, release_id):
+def check_packaged_disk(report, staged, packaged, release_id, expected):
+    """The packaged manifest, layout and command line are the staged ones, and
+    the packaged system disk is the accepted release's (`expected`, its digest)."""
     for relative in (MANIFEST, LAYOUT, "boot/kernel-command-line.txt"):
         theirs = packaged / relative
         ours = staged / relative
@@ -311,18 +331,98 @@ def check_packaged_disk(report, staged, packaged, release_id):
                 f"{theirs} differs from {ours}; package from the staged system in the same run",
             )
             return
+    if expected is None:
+        return
     try:
-        layout = read_json(packaged / LAYOUT)
-        recorded = layout["system_disk"]["sha256"]
+        recorded = read_json(packaged / LAYOUT)["system_disk"]["sha256"]
     except (ValueError, KeyError, TypeError) as error:
         report.error("the packaged partition layout names no system disk digest", str(error))
         return
     disk = packaged / SYSTEM_DISK
-    if not disk.is_file() or sha256_file(disk) != recorded:
+    if recorded != expected or not disk.is_file() or sha256_file(disk) != expected:
         report.error(
             f"the packaged system disk is not the one of release {release_id}",
-            f"{disk} does not match the digest in {LAYOUT}",
+            f"{disk} does not match the digest of the installed accepted release, which "
+            f"{LAYOUT} must name",
         )
+
+
+def installed_disk_digest(repo, report, descriptor, release_id):
+    """The system disk digest of the accepted release as installed below the
+    work tree, which the accepted descriptor selects by its directory name, or
+    None after reporting why there is none. The staged and the packaged disk
+    are tied to it, not to a digest their own layout names."""
+    name = descriptor.get("LINEAGE24_ACCEPTED_DIRECTORY_NAME")
+    if not name or "/" in name or name in (".", ".."):
+        report.error("the accepted descriptor names no release directory", ANDROID_DESCRIPTOR)
+        return None
+    installed = repo / INSTALLED_RELEASES / name
+    try:
+        manifest = read_json(installed / MANIFEST)
+        digest = read_json(installed / LAYOUT)["system_disk"]["sha256"]
+    except (ValueError, KeyError, TypeError) as error:
+        report.error(
+            f"the accepted Android release {release_id} is not installed here, so the system "
+            "disk cannot be tied to it",
+            f"{installed}: install it with android/lineage-24/tools/install-release.py ({error})",
+        )
+        return None
+    if manifest.get("release_id") != release_id or manifest.get("acceptance") != "accepted":
+        report.error(
+            f"the release installed as {name} is not the accepted {release_id}",
+            f"{installed / MANIFEST} names another release or is not marked accepted",
+        )
+        return None
+    # Without a digest to tie to, both disk checks would be skipped.
+    if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        report.error(
+            f"the accepted Android release {release_id} installed as {name} names no usable "
+            "system disk digest",
+            f"{installed / LAYOUT}: system_disk.sha256 must be 64 lowercase hexadecimal digits",
+        )
+        return None
+    return digest
+
+
+def check_staged_disk(report, staged, label, expected):
+    """The staged system disk is the accepted release's: its layout names the
+    digest and the disk hashes to it."""
+    try:
+        recorded = read_json(staged / LAYOUT)["system_disk"]["sha256"]
+    except (ValueError, KeyError, TypeError) as error:
+        report.error(f"{label} has a partition layout that names no system disk digest", str(error))
+        return
+    disk = staged / SYSTEM_DISK
+    if recorded != expected or not disk.is_file() or sha256_file(disk) != expected:
+        report.error(
+            f"the system disk of {label} is not the accepted release's",
+            f"{disk} does not match the digest of the installed accepted release",
+        )
+
+
+NEW_INPUT = "is an input now and was not when the release was built"
+
+
+def input_findings(recorded, paths, current):
+    """(path, what, recorded object ID or None) for each input path that
+    differs from what a release recorded. `current` maps the list's paths to
+    their object IDs here, None for a path the commit lacks. A path the list
+    gained since the release is NEW_INPUT: pending until a release carries it."""
+    findings = []
+    for path in sorted(set(recorded) | set(paths)):
+        if path not in recorded:
+            findings.append((path, NEW_INPUT, None))
+        elif path not in current:
+            findings.append((path, "is no longer an input of the list", None))
+        elif current[path] is None:
+            findings.append((path, f"was removed (recorded {short(recorded[path])})", None))
+        elif current[path] != recorded[path]:
+            findings.append((
+                path,
+                f"changed (recorded {short(recorded[path])}, now {short(current[path])})",
+                recorded[path],
+            ))
+    return findings
 
 
 def check_android(repo, report, staged_root, app):
@@ -335,9 +435,12 @@ def check_android(repo, report, staged_root, app):
         return
     label = f"the Android release {release_id}"
 
+    expected = installed_disk_digest(repo, report, descriptor, release_id)
     staged = staged_root
     staged_manifest = check_staged_system(
         report, release_id, descriptor, staged, f"the staged system ({label})")
+    if staged_manifest is not None and expected is not None:
+        check_staged_disk(report, staged, f"the staged system ({label})", expected)
     if app is not None:
         packaged = app / PACKAGED_SYSTEM
         packaged_manifest = check_staged_system(
@@ -347,7 +450,7 @@ def check_android(repo, report, staged_root, app):
             and staged_manifest.get("release_id") == release_id
             and packaged_manifest.get("release_id") == release_id
         ):
-            check_packaged_disk(report, staged, packaged, release_id)
+            check_packaged_disk(report, staged, packaged, release_id, expected)
 
     recorded_text = descriptor.get(INPUT_TREES_KEY)
     if recorded_text is None:
@@ -364,20 +467,7 @@ def check_android(repo, report, staged_root, app):
         report.error(f"the accepted descriptor's input trees are malformed: {error}")
         return
     current = object_ids_at(repo, paths)
-    findings = []
-    for path in sorted(set(recorded) | set(paths)):
-        if path not in recorded:
-            findings.append((path, "is an input now and was not when the release was built", None))
-        elif path not in current:
-            findings.append((path, "is no longer an input of the list", None))
-        elif current[path] is None:
-            findings.append((path, f"was removed (recorded {short(recorded[path])})", None))
-        elif current[path] != recorded[path]:
-            findings.append((
-                path,
-                f"changed (recorded {short(recorded[path])}, now {short(current[path])})",
-                recorded[path],
-            ))
+    findings = input_findings(recorded, paths, current)
     if not findings:
         report.note(f"{label}: its {len(recorded)} input paths are the ones on this commit")
         return

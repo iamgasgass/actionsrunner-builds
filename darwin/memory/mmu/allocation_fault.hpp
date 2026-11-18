@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <new>
 
 #ifndef UML_MEMORY_ALLOCATION_TESTING
 #define UML_MEMORY_ALLOCATION_TESTING 0
@@ -19,6 +20,8 @@ enum class AllocationSite : std::uint8_t {
 	batch_index,
 	generation,
 	history,
+	holder_leaf,
+	holder_publication,
 	reserve,
 	software_domain_registry,
 	native_after_mmap,
@@ -30,6 +33,9 @@ enum class AllocationSite : std::uint8_t {
 	native_owner_record,
 	native_owner_registry,
 	native_slot,
+	writers,
+	holders,
+	records,
 	count,
 };
 
@@ -48,6 +54,31 @@ void reset_allocation_attempt_counts() noexcept;
 using AllocationObserver = void (*)(AllocationSite site) noexcept;
 void set_allocation_observer(AllocationObserver observer) noexcept;
 
+/* The frame accounting holds a frame's stripe lock between these two calls on
+ * the thread that holds it; a checkpoint reached in between is an allocation
+ * under a stripe lock, which is counted. */
+void stripe_lock_entered() noexcept;
+void stripe_lock_left() noexcept;
+/* An allocator the frame accounting's metadata uses, or a test's replacement
+ * of the global operator new, reports here; one made under a stripe lock is
+ * counted. */
+/* A walk that ran while the address space's table of generations was locked,
+ * which a test reads (retire_walks_under_lock): the retire walk takes the
+ * state's mapping lock and the frames' stripe locks, so it must not nest in
+ * the table's. */
+void retire_walk_under_lock() noexcept;
+[[nodiscard]] std::size_t retire_walks_under_lock() noexcept;
+bool allocator_probe() noexcept;
+/* While set, every allocation the calling thread makes through a probed
+ * allocator or a checkpoint is refused and counted: a test shows that a path
+ * needs no memory by running it so. */
+void refuse_allocations(bool refuse) noexcept;
+[[nodiscard]] std::size_t refused_allocations() noexcept;
+/* The bytes the frame accounting's metadata holds now (frame_heap.hpp). */
+void frame_bytes_changed(std::ptrdiff_t delta) noexcept;
+[[nodiscard]] std::size_t frame_metadata_bytes() noexcept;
+[[nodiscard]] std::size_t allocations_under_stripe_lock() noexcept;
+
 void backing_mapping_created() noexcept;
 void backing_mapping_destroyed() noexcept;
 [[nodiscard]] std::size_t active_backing_mappings() noexcept;
@@ -56,6 +87,24 @@ void backing_mapping_destroyed() noexcept;
 
 #define UML_MEMORY_ALLOCATION_CHECKPOINT(site) \
 	::uml::memory::testing::allocation_checkpoint(site)
+#define UML_MEMORY_ALLOCATOR_PROBE() \
+	do { \
+		if (::uml::memory::testing::allocator_probe()) \
+			throw std::bad_alloc{}; \
+	} while (false)
+#define UML_MEMORY_FRAME_BYTES(delta) \
+	::uml::memory::testing::frame_bytes_changed(delta)
+#define UML_MEMORY_RETIRE_WALK_UNLOCKED(mutex) \
+	do { \
+		if ((mutex).try_lock_shared()) \
+			(mutex).unlock_shared(); \
+		else \
+			::uml::memory::testing::retire_walk_under_lock(); \
+	} while (false)
+#define UML_MEMORY_STRIPE_LOCK_ENTERED() \
+	::uml::memory::testing::stripe_lock_entered()
+#define UML_MEMORY_STRIPE_LOCK_LEFT() \
+	::uml::memory::testing::stripe_lock_left()
 #define UML_MEMORY_BACKING_MAPPING_CREATED() \
 	::uml::memory::testing::backing_mapping_created()
 #define UML_MEMORY_BACKING_MAPPING_DESTROYED() \
@@ -65,6 +114,11 @@ void backing_mapping_destroyed() noexcept;
  * allocation-site enum and test functions therefore create no ordinary
  * product symbol, load, branch, or call even in an unoptimized build. */
 #define UML_MEMORY_ALLOCATION_CHECKPOINT(...) ((void)0)
+#define UML_MEMORY_ALLOCATOR_PROBE() ((void)0)
+#define UML_MEMORY_FRAME_BYTES(...) ((void)0)
+#define UML_MEMORY_RETIRE_WALK_UNLOCKED(mutex) ((void)0)
+#define UML_MEMORY_STRIPE_LOCK_ENTERED() ((void)0)
+#define UML_MEMORY_STRIPE_LOCK_LEFT() ((void)0)
 #define UML_MEMORY_BACKING_MAPPING_CREATED() ((void)0)
 #define UML_MEMORY_BACKING_MAPPING_DESTROYED() ((void)0)
 #endif

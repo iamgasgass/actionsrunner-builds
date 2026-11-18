@@ -11,7 +11,7 @@ public struct WhatsNewRelease: Identifiable, Hashable, Decodable, Sendable {
     /// TestFlight builds share one marketing version, so the build orders
     /// releases; every archive's is above the one before.
     public let build: Int
-    /// The version as Info shows it: "1.0 (9)".
+    /// The version as Info shows it: "1.0 (12)".
     public let version: String
     /// The day the release came out, "2026-11-12"; left out where the day is
     /// not known when the notes are written.
@@ -77,7 +77,8 @@ public struct WhatsNewEntry: Identifiable, Hashable, Decodable, Sendable {
     /// The entry's name, which the ribbon lists: "File browser".
     public let title: String
     /// What it does, in a sentence or two, true on every device: an entry
-    /// a device cannot use is still listed in Info's history. Nil for an
+    /// a device cannot use is still listed in Info's history. (A feature
+    /// the build itself lacks is not: see `WhatsNewFeature`.) Nil for an
     /// entry that is only its points.
     public let text: String?
     /// Short points under the title, one line to two each, for an entry that
@@ -88,8 +89,8 @@ public struct WhatsNewEntry: Identifiable, Hashable, Decodable, Sendable {
     public let symbol: String
     /// Where the feature lives, for one the person finds outside Home.
     public var place: WhatsNewPlace?
-    /// What the device must offer for the ribbon and its notes to show the
-    /// entry at all.
+    /// What the device and the build must offer for the ribbon and its notes
+    /// to show the entry at all.
     public var requirement: WhatsNewRequirement?
 
     public init(
@@ -159,7 +160,7 @@ public enum WhatsNewPlace: String, Hashable, Decodable, Sendable {
 
     public var words: String {
         switch self {
-        case .sessionSettings: "In Settings while the guest runs"
+        case .sessionSettings: String(localized: "Found in Settings while the virtual machine runs", bundle: .module)
         }
     }
 
@@ -171,34 +172,115 @@ public enum WhatsNewPlace: String, Hashable, Decodable, Sendable {
     }
 }
 
-/// What a device must offer for an entry to be announced on it. A field the
-/// code does not know, or no field at all, is a mistake in the notes and
-/// refuses them.
+/// What a device or the build must offer for an entry to be announced. A
+/// field the code does not know, a `device` or `feature` it does not know, a
+/// field set to `null`, or no field at all is a mistake in the notes and
+/// refuses them: the notes and the code that reads them ship in one build, so
+/// such a value is caught where they are bundled and never shown without
+/// what it meant. A requirement with more than one field needs all of them.
 public struct WhatsNewRequirement: Hashable, Decodable, Sendable {
     /// The device offers a guest more RAM than this, in MiB, at its vCPU
     /// count.
     public var memoryAboveMiB: Int?
+    /// The kind of device the feature is for.
+    public var device: WhatsNewDevice?
+    /// The build has this feature.
+    public var feature: WhatsNewFeature?
+    /// `true` is an entry for a device that can give the guest a compass (an
+    /// iPhone, an iPad), which a Mac and the Simulator cannot. `false` is no
+    /// requirement and is refused.
+    public var compass: Bool?
+    /// `true` is an entry for a device that has a camera to give the guest (an
+    /// iPhone, an iPad), which the iPad app on a Mac or on an Apple Vision Pro
+    /// does not. `false` is no requirement and is refused.
+    public var camera: Bool?
 
-    public init(memoryAboveMiB: Int? = nil) {
+    public init(
+        memoryAboveMiB: Int? = nil, device: WhatsNewDevice? = nil, feature: WhatsNewFeature? = nil,
+        compass: Bool? = nil, camera: Bool? = nil
+    ) {
         self.memoryAboveMiB = memoryAboveMiB
+        self.device = device
+        self.feature = feature
+        self.compass = compass
+        self.camera = camera
     }
 
-    private enum CodingKeys: String, CodingKey, CaseIterable { case memoryAboveMiB }
+    private enum CodingKeys: String, CodingKey, CaseIterable {
+        case memoryAboveMiB, device, feature, compass, camera
+    }
 
     public init(from decoder: any Decoder) throws {
         try decoder.requireOnly(CodingKeys.self)
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        memoryAboveMiB = try values.decodeIfPresent(Int.self, forKey: .memoryAboveMiB)
-        guard memoryAboveMiB != nil else {
+        // A key that is there must hold a value: `decodeIfPresent` would take
+        // `null` for no key at all, and drop the requirement without a word.
+        memoryAboveMiB = try values.contains(.memoryAboveMiB)
+            ? values.decode(Int.self, forKey: .memoryAboveMiB) : nil
+        device = try values.contains(.device) ? values.decode(WhatsNewDevice.self, forKey: .device) : nil
+        feature = try values.contains(.feature) ? values.decode(WhatsNewFeature.self, forKey: .feature) : nil
+        compass = try values.contains(.compass) ? values.decode(Bool.self, forKey: .compass) : nil
+        camera = try values.contains(.camera) ? values.decode(Bool.self, forKey: .camera) : nil
+        guard compass != false else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "\"compass\" is true or absent"))
+        }
+        guard camera != false else {
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "\"camera\" is true or absent"))
+        }
+        guard memoryAboveMiB != nil || device != nil || feature != nil || compass != nil || camera != nil else {
             throw DecodingError.dataCorrupted(
                 .init(codingPath: decoder.codingPath, debugDescription: "a requirement states nothing"))
         }
     }
 
-    public func isMet(by host: HostDevice, vCPUs: Int) -> Bool {
+    /// Whether the device and the build offer all it asks for; `features` is
+    /// what the build has.
+    public func isMet(by host: HostDevice, vCPUs: Int, features: Set<WhatsNewFeature>) -> Bool {
+        guard isPresent(in: features) else { return false }
         if let memoryAboveMiB, host.memory.maximumMiB(vCPUs: vCPUs) <= memoryAboveMiB { return false }
+        if let device, !device.isMet(by: host) { return false }
+        if compass == true, !host.hasCompass { return false }
+        if camera == true, !host.hasCamera { return false }
         return true
     }
+
+    /// Whether the build has the feature the entry is about, true when it
+    /// names none. Unlike the device and the memory, which one install has
+    /// and another does not, this is true or false of the build wherever its
+    /// notes show.
+    public func isPresent(in features: Set<WhatsNewFeature>) -> Bool {
+        feature.map(features.contains) ?? true
+    }
+}
+
+/// The kind of device an entry is for, written in the notes as `"pad"` or
+/// `"haptics"`.
+public enum WhatsNewDevice: String, Hashable, Decodable, Sendable {
+    /// An iPad: the idiom the host reports, so a Mac running the application
+    /// as an iPad app is not one.
+    case pad
+    /// A device whose Taptic Engine can play the guest's haptics, which the
+    /// host reports (`HostDevice.hasHaptics`): an iPhone, not an iPad or a Mac.
+    case haptics
+
+    public func isMet(by host: HostDevice) -> Bool {
+        switch self {
+        case .pad: host.idiom == .pad
+        case .haptics: host.hasHaptics
+        }
+    }
+}
+
+/// A feature a build may be made without, written in the notes as
+/// `"sendFeedback"`. The build reports what it has, so an entry about a
+/// feature a build lacks is left out of the ribbon, its notes and Info's
+/// history alike (`WhatsNewCatalog.available`).
+public enum WhatsNewFeature: String, Hashable, Decodable, Sendable {
+    /// Send feedback: only a build made with a receiver for it has the sheet
+    /// and its two entrances.
+    case sendFeedback
 }
 
 private struct AnyKey: CodingKey {
@@ -222,7 +304,10 @@ extension Decoder {
     }
 }
 
-/// The bundled notes: a JSON array of releases.
+/// The bundled notes: a JSON array of releases. A build bundles one of two
+/// tracks, each its own file (`WhatsNewTrack` in the application): the beta
+/// track's notes per beta build, or the App Store track's, which is empty
+/// until the App Store version has notes.
 public enum WhatsNewCatalog {
     public enum Problem: Error, Equatable, Sendable {
         case releaseBeforeNotes(build: Int)
@@ -250,6 +335,16 @@ public enum WhatsNewCatalog {
             }
         }
         return releases
+    }
+
+    /// The notes as this build has them: without the entries about a feature
+    /// it lacks, and without a release that leaves empty. Every screen starts
+    /// from these; the device's own requirements then apply to the ribbon and
+    /// its notes only, while Info lists the rest as written.
+    public static func available(_ releases: [WhatsNewRelease], features: Set<WhatsNewFeature>) -> [WhatsNewRelease] {
+        releases
+            .map { $0.keeping { $0.requirement?.isPresent(in: features) ?? true } }
+            .filter { !$0.entries.isEmpty }
     }
 }
 

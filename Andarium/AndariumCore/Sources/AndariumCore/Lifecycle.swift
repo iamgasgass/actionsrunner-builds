@@ -135,23 +135,31 @@ public struct Lifecycle: Equatable, Sendable {
 /// How a run ended, from the runtime's result.
 public struct RunEnd: Equatable, Sendable {
     public var result: Int32
-    /// The runtime stopped a guest that kept restarting within seconds of
-    /// booting.
+    /// The runtime stopped a guest that kept restarting: five times within
+    /// seconds of booting, or eight times before the boot finished.
     public var restartedInALoop: Bool
     /// Why the run could not begin, when it did not.
     public var startFailure: String?
+    /// The person stopped the run from the boot screen's notice. The end is
+    /// still the runtime's (a host stop of an Android guest ends the process's
+    /// guest for good), so `phase` does not change; the screen that follows
+    /// says whose choice it was.
+    public var stoppedByUser: Bool
 
-    public init(result: Int32, restartedInALoop: Bool = false, startFailure: String? = nil) {
+    public init(
+        result: Int32, restartedInALoop: Bool = false, startFailure: String? = nil, stoppedByUser: Bool = false
+    ) {
         self.result = result
         self.restartedInALoop = restartedInALoop
         self.startFailure = startFailure
+        self.stoppedByUser = stoppedByUser
     }
 
     public var poweredOff: Bool { result == 0 && !restartedInALoop && startFailure == nil }
 
     public var phase: Phase { poweredOff ? .home : .failed }
 
-    /// The lines the failure screen offers to copy.
+    /// The lines the failure screen offers to copy, in the person's language.
     public func report(
         appVersion: String, system: SystemInfo, guest: Guest?, uptimeSeconds: Int?
     ) -> String {
@@ -160,16 +168,19 @@ public struct RunEnd: Equatable, Sendable {
             "\(system.kernel) · \(Formats.vcpus(guest?.cores ?? 0)) · \(Formats.size(mib: guest?.memoryMiB ?? 0))",
         ]
         let reason = if let startFailure {
-            "it could not start (\(startFailure))"
+            String(localized: "it could not start (\(startFailure))", bundle: .module)
+        } else if stoppedByUser {
+            String(localized: "it was stopped from the boot screen", bundle: .module)
         } else if restartedInALoop {
-            "the guest kept restarting"
+            String(localized: "the virtual machine kept restarting", bundle: .module)
         } else {
-            "runtime result \(result)"
+            String(localized: "runtime result \(Int(result))", bundle: .module)
         }
         if let uptimeSeconds {
-            lines.append("Guest ended: \(reason) after \(Formats.elapsed(uptimeSeconds))")
+            lines.append(String(
+                localized: "Virtual machine ended: \(reason) after \(Formats.elapsed(uptimeSeconds))", bundle: .module))
         } else {
-            lines.append("Guest ended: \(reason)")
+            lines.append(String(localized: "Virtual machine ended: \(reason)", bundle: .module))
         }
         return lines.joined(separator: "\n")
     }

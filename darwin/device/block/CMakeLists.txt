@@ -12,6 +12,7 @@ add_library(uml_android_boot STATIC
     android_boot.cpp
     android_data_disk.cpp
     android_gpt.cpp
+    android_identity.cpp
     android_layout.cpp)
 add_library(UML::AndroidBoot ALIAS uml_android_boot)
 uml_declare_architecture_target(uml_android_boot device)

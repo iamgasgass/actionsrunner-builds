@@ -15,6 +15,8 @@ from __future__ import annotations
 
 __import__("sys").dont_write_bytecode = True
 
+import contextlib
+import io
 import pathlib
 import sys
 import tempfile
@@ -194,6 +196,69 @@ class HostSideTests(unittest.TestCase):
             debugger.start_serving("device", 4242, pathlib.Path("/work/serve.log"), serve_timeout=60)
         self.assertIn("device process attach -p 4242", " ".join(popen.call_args.args[0]))
         run.assert_not_called()
+
+
+class LaunchSettingsTests(unittest.TestCase):
+    def test_an_andarium_launch_keeps_the_phone_silent_by_default(self) -> None:
+        self.assertEqual(
+            debugger.launch_settings(andarium.BUNDLE_ID, ["ANDARIUM_JIT=1"]),
+            {"ANDARIUM_JIT": "1", "ANDARIUM_HAPTICS": "0"})
+
+    def test_a_run_that_tests_haptics_states_no_haptics_setting(self) -> None:
+        self.assertEqual(
+            debugger.launch_settings(andarium.BUNDLE_ID, ["ANDARIUM_JIT=1"], haptics=True),
+            {"ANDARIUM_JIT": "1"})
+
+    def test_another_application_is_launched_as_asked(self) -> None:
+        self.assertEqual(
+            debugger.launch_settings("com.example.Orchid", ["A=b", "C=d=e"]),
+            {"A": "b", "C": "d=e"})
+        self.assertEqual(
+            debugger.launch_settings("com.example.Orchid", [], haptics=True), {})
+
+    def test_the_haptics_setting_is_the_option_s_and_not_an_env_pair(self) -> None:
+        for haptics in (False, True):
+            with self.subTest(haptics=haptics):
+                with self.assertRaisesRegex(andarium.AndariumError, "--haptics"):
+                    debugger.launch_settings(
+                        andarium.BUNDLE_ID, ["ANDARIUM_HAPTICS=1"], haptics=haptics)
+
+
+class LaunchEnvironmentTests(unittest.TestCase):
+    """The environment the launch's process is started with: `main` with the
+    device's tools replaced, and what reaches `Popen`."""
+
+    KEY = "DEVICECTL_CHILD_ANDARIUM_HAPTICS"
+
+    def launched_environment(self, *arguments: str, inherited: dict[str, str]) -> dict[str, str]:
+        with tempfile.TemporaryDirectory() as name:
+            command = [
+                "--device", "fake-device", "--bundle-id", andarium.BUNDLE_ID,
+                "--process-name", "Andarium", "--log", str(pathlib.Path(name) / "log"),
+                "--hold-seconds", "0", *arguments]
+            with mock.patch.dict(debugger.os.environ, inherited, clear=True), \
+                    mock.patch.object(debugger.ios_device_reports, "preflight"), \
+                    mock.patch.object(debugger, "application_pids", return_value=set()), \
+                    mock.patch.object(debugger, "launched_pid", return_value=123), \
+                    mock.patch.object(debugger, "start_serving"), \
+                    mock.patch.object(debugger.subprocess, "Popen") as popen, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                popen.return_value.poll.return_value = 0
+                self.assertEqual(debugger.main(command), 0)
+            return popen.call_args.kwargs["env"]
+
+    def test_the_default_launch_is_silent_whatever_the_caller_inherited(self) -> None:
+        for inherited in ({}, {self.KEY: "1"}):
+            with self.subTest(inherited=inherited):
+                environment = self.launched_environment(inherited={"KEPT": "x", **inherited})
+                self.assertEqual(environment[self.KEY], "0")
+                self.assertEqual(environment["KEPT"], "x")
+
+    def test_a_run_that_tests_haptics_does_not_forward_an_inherited_silence(self) -> None:
+        environment = self.launched_environment(
+            "--haptics", inherited={"KEPT": "x", self.KEY: "0"})
+        self.assertNotIn(self.KEY, environment)
+        self.assertEqual(environment["KEPT"], "x")
 
 
 class RunnerTests(unittest.TestCase):

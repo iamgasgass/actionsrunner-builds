@@ -60,15 +60,62 @@ final class WhatsNewModel {
     }
 }
 
+extension AppModel {
+    /// What this build has that an entry of the notes can be about: Send
+    /// feedback when the build has a receiver for it (the entrances show only
+    /// then). Nothing else is optional so far.
+    var buildFeatures: Set<WhatsNewFeature> {
+        #if FEEDBACK_MAIL
+        feedbackAddress == nil ? [] : [.sendFeedback]
+        #else
+        []
+        #endif
+    }
+}
+
+/// The two tracks of release notes, each its own file of `Shared`. A build
+/// bundles and reads one: the build setting `WHATS_NEW_TRACK` (Andarium.xcconfig)
+/// leaves the other's file out of the bundle and defines the compilation
+/// condition that picks the file read here.
+nonisolated enum WhatsNewTrack: CaseIterable, Sendable {
+    /// The notes per beta build: Debug, Release and TestFlight builds.
+    case beta
+    /// The notes per App Store build: AppStore builds. It has no release until
+    /// the App Store version has notes.
+    case appStore
+
+    /// The bundled file's name, without its extension.
+    var resource: String {
+        switch self {
+        case .beta: "WhatsNew"
+        case .appStore: "WhatsNewAppStore"
+        }
+    }
+
+    /// The track this build bundles. A build setting that names neither track
+    /// stops the compile; no track is read by default.
+    static var bundled: WhatsNewTrack {
+        #if WHATS_NEW_TRACK_APP_STORE
+        .appStore
+        #elseif WHATS_NEW_TRACK_BETA
+        .beta
+        #else
+        #error("WHATS_NEW_TRACK in Config/Andarium.xcconfig is BETA or APP_STORE")
+        #endif
+    }
+}
+
 extension WhatsNewCatalog {
-    /// The notes the application bundles, `WhatsNew.json`; none if the
-    /// resource is missing or unreadable.
-    nonisolated static func load(from bundle: Bundle = .main) -> [WhatsNewRelease] {
-        guard let url = bundle.url(forResource: "WhatsNew", withExtension: "json"),
+    /// The notes of a track as the application bundles them, this build's own
+    /// by default; none if the file is missing or unreadable.
+    nonisolated static func load(
+        _ track: WhatsNewTrack = .bundled, from bundle: Bundle = .main
+    ) -> [WhatsNewRelease] {
+        guard let url = bundle.url(forResource: track.resource, withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let releases = try? decode(data)
         else {
-            assertionFailure("WhatsNew.json is missing or unreadable")
+            assertionFailure("\(track.resource).json is missing or unreadable")
             return []
         }
         return releases

@@ -2,6 +2,7 @@
 
 #include "microphone_capture_source.hpp"
 
+#include "apple_microphone_tap.hpp"
 #include "audio_session.hpp"
 #include "protocol.hpp"
 
@@ -9,9 +10,9 @@
 #import <Foundation/Foundation.h>
 #import <TargetConditionals.h>
 
+#include <chrono>
 #include <memory>
 #include <mutex>
-#include <span>
 
 namespace uml::audio {
 namespace {
@@ -21,6 +22,8 @@ namespace {
 constexpr AVAudioFrameCount maximumConvertedFrames = 24000;
 // The shortest delivery the tap supports, which is also its lowest latency.
 constexpr double tapSeconds = 0.1;
+// How soon a microphone that lost its engine tries to open it again.
+constexpr auto reviveInterval = std::chrono::seconds(1);
 
 /* The microphone's engine. Nothing here exists until start() is called, and
  * start() is called only for a guest that records while the user's setting is
@@ -34,6 +37,7 @@ struct Capture final : std::enable_shared_from_this<Capture> {
         channels = channelCount;
         ring = &target;
         wanted = true;
+        interrupted = false;
         return open();
     }
 
@@ -44,13 +48,19 @@ struct Capture final : std::enable_shared_from_this<Capture> {
         close();
     }
 
-    /* The route changed under a running engine: build it again. */
+    /* The route changed under a running engine (a headset connected or left,
+     * the input's format changed): build the engine again. The session stays
+     * taken, so its category does not change under the route. Releasing it
+     * would return the category to playback, which moves a Bluetooth headset
+     * from the hands-free profile to A2DP and back, and every such switch is
+     * a route change of its own. Taking it again is idempotent, and activates
+     * a session the system has deactivated meanwhile. */
     void rebuild() noexcept
     {
         const std::lock_guard guard(lock);
         if (!wanted)
             return;
-        close();
+        closeEngine();
         (void)open();
     }
 
@@ -61,6 +71,7 @@ struct Capture final : std::enable_shared_from_this<Capture> {
         const std::lock_guard guard(lock);
         if (!wanted)
             return;
+        interrupted = true;
         close();
     }
 
@@ -70,13 +81,32 @@ struct Capture final : std::enable_shared_from_this<Capture> {
      * playing or recording, such as a call: the system's advice to resume
      * settles that, and without the advice another app that plays keeps it. A
      * microphone left closed then starts again with the next recommendation
-     * or the guest's next recording. */
+     * or the guest's next recording, and one whose reopen failed after the
+     * advice is opened again by revive(). */
     void resume(bool recommended) noexcept
     {
         const std::lock_guard guard(lock);
         if (!wanted || engine != nil)
             return;
         if (!recommended && session::otherAudioPlaying())
+            return;
+        // The interruption is over whether or not the engine opens now: if it
+        // does not (the route is not back yet), revive() asks again.
+        interrupted = false;
+        (void)open();
+    }
+
+    /* A rebuild that could not take the session back (the system had not
+     * given the route back yet) leaves the microphone wanted and without an
+     * engine, and nothing else would build one before the guest records
+     * again. The capture source calls this while the guest records: it opens
+     * the engine again, at most once a second. A microphone that another app
+     * interrupted waits for the system's advice instead. */
+    void revive() noexcept
+    {
+        const std::lock_guard guard(lock);
+        if (!wanted || interrupted || engine != nil ||
+            std::chrono::steady_clock::now() - lastAttempt < reviveInterval)
             return;
         (void)open();
     }
@@ -88,18 +118,20 @@ struct Capture final : std::enable_shared_from_this<Capture> {
     AVAudioEngine* __strong engine {};
     id __strong routeObserver {};
     bool sessionHeld {};
+    bool interrupted {};
 
 private:
     [[nodiscard]] bool open() noexcept
     {
         if (engine != nil)
             return true;
+        lastAttempt = std::chrono::steady_clock::now();
         @try {
-            if (!sessionHeld) {
-                if (!session::acquire(session::Client::capture))
-                    return false;
-                sessionHeld = true;
+            if (!session::acquire(session::Client::capture)) {
+                closeSession();
+                return false;
             }
+            sessionHeld = true;
             AVAudioEngine* created = [[AVAudioEngine alloc] init];
             AVAudioInputNode* input = created.inputNode;
             AVAudioFormat* inputFormat = [input outputFormatForBus:0];
@@ -124,9 +156,8 @@ private:
                 return false;
             }
             const std::weak_ptr<Capture> weak = weak_from_this();
-            CaptureRing* destination = ring;
-            const std::uint32_t frameBytes =
-                channels * protocol::bytesPerSample;
+            const auto tap = std::make_shared<MicrophoneTap>(converter, converted, *ring, channels,
+                                                             protocol::sampleRate);
             NSError* tapError = nil;
             const BOOL tapped = [input
                 installTapOnBus:0
@@ -134,37 +165,9 @@ private:
                                     inputFormat.sampleRate * tapSeconds)
                          format:inputFormat
                           error:&tapError
-                          block:^(AVAudioPCMBuffer* buffer, AVAudioTime*) {
-                               __block BOOL supplied = NO;
-                               converted.frameLength = 0;
-                               NSError* error = nil;
-                               const auto status = [converter
-                                   convertToBuffer:converted
-                                             error:&error
-                                withInputFromBlock:^AVAudioBuffer*(
-                                    AVAudioPacketCount,
-                                    AVAudioConverterInputStatus* inputStatus) {
-                                  if (supplied) {
-                                      *inputStatus =
-                                          AVAudioConverterInputStatus_NoDataNow;
-                                      return nil;
-                                  }
-                                  supplied = YES;
-                                  *inputStatus =
-                                      AVAudioConverterInputStatus_HaveData;
-                                  return buffer;
-                                }];
-                               if (status == AVAudioConverterOutputStatus_Error)
-                                   return;
-                               const auto* data = static_cast<const std::uint8_t*>(
-                                   converted.audioBufferList->mBuffers[0].mData);
-                               if (data != nullptr) {
-                                   (void)destination->write(std::span(
-                                       data,
-                                       std::size_t {converted.frameLength} *
-                                           frameBytes));
-                               }
-                             }];
+                          block:^(AVAudioPCMBuffer* buffer, AVAudioTime* when) {
+                              tap->receive(buffer, when);
+                          }];
             if (!tapped) {
                 closeSession();
                 return false;
@@ -196,6 +199,12 @@ private:
 
     void close() noexcept
     {
+        closeEngine();
+        closeSession();
+    }
+
+    void closeEngine() noexcept
+    {
         if (routeObserver != nil) {
             [NSNotificationCenter.defaultCenter removeObserver:routeObserver];
             routeObserver = nil;
@@ -208,7 +217,6 @@ private:
         } @catch (NSException*) {
         }
         engine = nil;
-        closeSession();
     }
 
     void closeSession() noexcept
@@ -218,6 +226,8 @@ private:
             sessionHeld = false;
         }
     }
+
+    std::chrono::steady_clock::time_point lastAttempt {};
 };
 
 class AppleMicrophoneInput final : public MicrophoneInput {
@@ -281,6 +291,8 @@ public:
     }
 
     void stop() noexcept override { capture_->stop(); }
+
+    void revive() noexcept override { capture_->revive(); }
 
 private:
     std::shared_ptr<Capture> capture_;

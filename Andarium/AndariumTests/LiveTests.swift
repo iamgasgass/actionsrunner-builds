@@ -61,19 +61,22 @@ struct ConsoleSinkTests {
         private let lock = NSLock()
         private var found: [BootMilestone] = []
         private var completions = 0
+        private var recoveries = 0
         var milestones: [BootMilestone] { lock.withLock { found } }
         var bootCompletions: Int { lock.withLock { completions } }
-        func add(_ more: [BootMilestone], _ completed: Bool) {
+        var recoveryStarts: Int { lock.withLock { recoveries } }
+        func add(_ more: [BootMilestone], _ completed: Bool, _ recovery: Bool) {
             lock.withLock {
                 found += more
                 if completed { completions += 1 }
+                if recovery { recoveries += 1 }
             }
         }
     }
 
     @Test func milestonesArriveFromAnyThreadInOrder() async {
         let collector = Collector()
-        let sink = ConsoleSink { collector.add($0, $1) }
+        let sink = ConsoleSink { collector.add($0, $1, $2) }
         sink.feed(Data("Linux ver".utf8))
         await Task.detached { sink.feed(Data("sion 6.18\ninit: init first stage started!\n".utf8)) }.value
         #expect(collector.milestones == [.kernelRunning, .androidStarting])
@@ -82,11 +85,13 @@ struct ConsoleSinkTests {
 
     @Test func onlyAndroidBootingIsABootCompletion() {
         let collector = Collector()
-        let sink = ConsoleSink { collector.add($0, $1) }
+        let sink = ConsoleSink { collector.add($0, $1, $2) }
         sink.feed(Data("init: starting service 'recovery'...\n".utf8))
         #expect(collector.milestones == [.ready] && collector.bootCompletions == 0)
+        // It is a recovery image's start, which the model shows as a recovery session.
+        #expect(collector.recoveryStarts == 1)
         sink.feed(Data("init: processing action (sys.boot_completed=1) from (/x:1)\n".utf8))
-        #expect(collector.bootCompletions == 1)
+        #expect(collector.bootCompletions == 1 && collector.recoveryStarts == 1)
     }
 }
 
@@ -94,7 +99,10 @@ struct DisplayOptionsStoreTests {
     @Test func optionsSurviveTheStore() {
         let saved = DisplayOptionsStore.load()
         defer { DisplayOptionsStore.save(saved) }
-        for options in [DisplayOptions(chosenRetina: true), DisplayOptions(chosenRetina: false), DisplayOptions()] {
+        for options in [
+            DisplayOptions(chosenScale: .native), DisplayOptions(chosenScale: .points),
+            DisplayOptions(chosenScale: .factor(1.5)), DisplayOptions(),
+        ] {
             DisplayOptionsStore.save(options)
             #expect(DisplayOptionsStore.load() == options)
         }
@@ -158,6 +166,14 @@ struct HostDeviceTests {
                 #expect(host.memory.graphicsMemoryMiB(forMemory: mib, vCPUs: count)
                     == Int(kernarium_runtime_loader_gpu_budget_mib(UInt32(mib), UInt32(count), launch)))
             }
+            // While Camera is on the pool is that budget less the loader's reserve for it.
+            for mib in [1536, host.memory.defaultMemoryMiB(vCPUs: count)] {
+                let budget = Int(kernarium_runtime_loader_gpu_budget_mib(UInt32(mib), UInt32(count), launch))
+                let reserve = Int(kernarium_runtime_loader_camera_reserve_mib(UInt32(budget)))
+                #expect(reserve > 0)
+                #expect(host.memory.graphicsMemoryMiB(forMemory: mib, vCPUs: count, cameraLive: true)
+                    == max(budget - reserve, 0))
+            }
             #expect(host.memory.maximumMiB(vCPUs: count)
                 == Int(kernarium_runtime_loader_maximum_guest_memory_mib(UInt32(count), maximumSet)))
             #expect(host.memory.defaultMemoryMiB(vCPUs: count) <= host.memory.maximumMiB(vCPUs: count))
@@ -190,6 +206,55 @@ struct HostDeviceTests {
     }
 }
 
+/// The run starts what the picker offers. The runtime refuses a guest's memory
+/// by the rule the loader answers (`guest_memory_admitted` of
+/// `runtime/guest_memory_budget.hpp`), so a size the picker offers that the
+/// loader refuses would be a start that fails at once.
+struct RuntimeMemoryRuleTests {
+    private func admitted(_ mib: Int) -> Bool {
+        kernarium_runtime_loader_guest_memory_admitted(UInt32(clamping: mib)) != 0
+    }
+
+    @Test func theRuntimeStartsEverySizeThePickerOffersAtEveryCount() {
+        let host = AppEntry.hostDevice()
+        let ceiling = Int(kernarium_runtime_loader_guest_memory_ceiling_mib())
+        for count in 1...host.processorCount {
+            let maximum = host.memory.maximumMiB(vCPUs: count)
+            #expect(admitted(maximum), "\(maximum) MiB at \(count) vCPUs, ceiling \(ceiling)")
+            #expect(admitted(host.memory.defaultMemoryMiB(vCPUs: count)))
+            #expect(admitted(host.memory.safeMemoryMiB(vCPUs: count)))
+            #expect(host.memory.stops(vCPUs: count).allSatisfy(admitted))
+        }
+        // A new guest takes the default of the host's vCPU count.
+        #expect(admitted(Guest.fresh(on: host).memoryMiB))
+        // The ceiling is the most it starts: the next step is refused.
+        #expect(admitted(ceiling))
+        #expect(!admitted(ceiling + Limits.runtimeMemoryStepMiB))
+    }
+
+    @Test func aStoredSizeNoLongerAdmittedComesDownToOneThatIs() {
+        let host = AppEntry.hostDevice()
+        let ceiling = Int(kernarium_runtime_loader_guest_memory_ceiling_mib())
+        for stored in [ceiling + Limits.runtimeMemoryStepMiB, ceiling + 4096, 1 << 20, 100, 1537] {
+            let guest = Guest(cores: host.processorCount, memoryMiB: stored, capacityGiB: 8)
+            #expect(admitted(guest.memoryWithinBound(on: host).memoryMiB), "stored \(stored) MiB")
+        }
+    }
+
+    @Test func theRestatedRangeIsTheLoadersRule() {
+        let range = kernarium_runtime_loader_guest_memory_range()
+        #expect(Limits.runtimeMemoryRangeMiB == Int(range.minimum_mib)...Int(range.largest_mib))
+        #expect(Limits.runtimeMemoryStepMiB == Int(range.step_mib))
+        let ceiling = Int(kernarium_runtime_loader_guest_memory_ceiling_mib())
+        #expect(ceiling <= Limits.runtimeMemoryRangeMiB.upperBound)
+        // The restatement is the loader's rule below the ceiling and past it
+        // only the ceiling differs.
+        let sizes = Array(0...20_000) + Array(max(ceiling - 130, 0)...(ceiling + 130))
+        let differing = sizes.filter { admitted($0) != (MemoryPolicy.runtimeAccepts($0) && $0 <= ceiling) }
+        #expect(differing.isEmpty, "differs at \(differing.prefix(5)) MiB, ceiling \(ceiling)")
+    }
+}
+
 /// The unit fixtures of the bounds and defaults are the shared budget rule's
 /// own answers; this asks the loader, which holds that rule, for the same
 /// rows, and for the vCPU count a device with a given number of cores offers.
@@ -202,10 +267,10 @@ struct DefaultGuestTests {
             #expect(GuestProcessorLimit.vCPUs(physicalProcessorCount: cores) == expected)
         }
         for (limitMiB, bounds, defaults, safe) in [
-            (1536, [960, 960, 896, 896, 896, 896, 896, 896], [960, 960, 896, 896, 896, 896, 896, 896],
-             [960, 960, 896, 896, 896, 896, 896, 896]),
-            (2048, [1472, 1472, 1408, 1408, 1344, 1344, 1344, 1344], [1472, 1472, 1408, 1408, 1344, 1344, 1344, 1344],
-             [1472, 1472, 1408, 1408, 1344, 1344, 1344, 1344]),
+            (1536, [960, 960, 960, 960, 960, 960, 960, 896], [960, 960, 960, 960, 960, 960, 960, 896],
+             [960, 960, 960, 960, 960, 960, 960, 896]),
+            (2048, [1472, 1472, 1408, 1408, 1408, 1408, 1408, 1344], [1472, 1472, 1408, 1408, 1408, 1408, 1408, 1344],
+             [1472, 1472, 1408, 1408, 1408, 1408, 1408, 1344]),
             (2304, [1728, 1728, 1664, 1664, 1600, 1600, 1600, 1600], Array(repeating: 1536, count: 8),
              Array(repeating: 1536, count: 8)),
             (2867, [2304, 2304, 2240, 2240, 2176, 2176, 2176, 2176], Array(repeating: 1536, count: 8),
@@ -254,7 +319,7 @@ struct DefaultGuestTests {
             #expect((1...8).map { policy.defaultMemoryMiB(vCPUs: $0) } == defaults, "limit \(limitMiB) MiB")
             #expect((1...8).map { policy.safeMemoryMiB(vCPUs: $0) } == safe, "limit \(limitMiB) MiB")
             // A limit sets the budget a guest of the default size launches with: the
-            // loader's evaluation, the guest's memory with no limit, never under 384 MiB
+            // loader's evaluation, the guest's memory with no limit, never under 352 MiB
             // otherwise.
             for count in 1...8 {
                 let memory = policy.defaultMemoryMiB(vCPUs: count)
@@ -264,12 +329,12 @@ struct DefaultGuestTests {
                 if limitMiB == 0 {
                     #expect(budget == memory)
                 } else if bounds[0] >= Limits.defaultMemoryRangeMiB.upperBound {
-                    // On a device that offers 4 GiB, a new guest keeps a gibibyte for the GPU.
-                    #expect((budget ?? 0) >= 1024, "limit \(limitMiB) MiB at \(count) vCPUs")
+                    // On a device that offers 4 GiB, a new guest keeps 992 MiB for the GPU.
+                    #expect((budget ?? 0) >= Limits.minimumDefaultGraphicsMemoryMiB, "limit \(limitMiB) MiB at \(count) vCPUs")
                 }
                 // The sheet warns about graphics memory above the default where the
-                // runtime lowered the default to keep a gibibyte for the GPU, and
-                // elsewhere from the first size whose estimate is under a gibibyte:
+                // runtime lowered the default to keep 992 MiB for the GPU, and
+                // elsewhere from the first size whose estimate is under 992 MiB:
                 // the loader's own flag and evaluation of every size on the picker.
                 let holds = kernarium_runtime_loader_default_guest_memory_holds_gpu_budget_for_limit(
                     UInt64(limitMiB) << 20, UInt32(count), launch) != 0
@@ -280,14 +345,15 @@ struct DefaultGuestTests {
                     #expect(memory < policy.safeMemoryMiB(vCPUs: count))
                 }
                 for size in policy.stops(vCPUs: count) where size > memory && size <= policy.safeMemoryMiB(vCPUs: count) {
-                    let short = (policy.graphicsMemoryMiB(forMemory: size, vCPUs: count) ?? 0) < 1024
+                    let short = (policy.graphicsMemoryMiB(forMemory: size, vCPUs: count) ?? 0)
+                        < Limits.minimumDefaultGraphicsMemoryMiB
                     #expect((policy.risk(size, vCPUs: count) == .graphics) == (holds || short),
                             "limit \(limitMiB) MiB, \(size) MiB at \(count) vCPUs")
                 }
             }
             // Where the default is lowered for the GPU (the limits that offer 4 GiB and a
             // default under it), the line is the default. Where the cap of 4 GiB holds the
-            // default, it is where B falls under a gibibyte.
+            // default, it is where B falls under 992 MiB.
             switch limitMiB {
             case 4700:
                 #expect((1...8).map { policy.graphicsLineMiB(vCPUs: $0) } == defaults)
@@ -364,7 +430,7 @@ private final class GuestFrameCapture: @unchecked Sendable {
 }
 
 /// Opt-in physical display check. Saves the guest's rendered frame with each
-/// KERNARIUM_RETINA_MODE value so their displayed text size can be compared.
+/// KERNARIUM_DISPLAY_SCALE value so their displayed text size can be compared.
 @MainActor
 struct RecoveryDisplayTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ANDARIUM_RECOVERY_TESTS"] == "1"), .timeLimit(.minutes(5)))
@@ -395,19 +461,19 @@ struct RecoveryDisplayTests {
         // does not mean Recovery can read it under its SELinux policy.
         do {
             let identity = try AppEntry.fromArguments().adbKeyStore.loadOrCreate()
-            let operations = AdbGuestOperations(identity: identity, clock: GuestRunClock(), device: "device")
+            let operations = AdbGuestOperations(identity: identity, clock: GuestRunClock(), device: "device", run: GuestRunMark.random())
             let density = try await operations.shell("getprop ro.sf.lcd_density", limit: .seconds(5))
-            let scale = model.retina ? scene.screen.nativeScale : 1
-            #expect(density.text.trimmingCharacters(in: .whitespacesAndNewlines) == String(Int((160 * scale).rounded())))
+            let scale = model.resolution.resolved(nativeScale: Double(scene.screen.nativeScale)) ?? 1
+            #expect(density.text.trimmingCharacters(in: .whitespacesAndNewlines) == String(GuestDisplayLayout.dotsPerInch(factor: scale)))
         } catch {
             Issue.record("Recovery display density could not be read: \(error)")
         }
         do {
-            try await captureGuestFrame(named: model.retina ? "recovery-retina.png" : "recovery-points.png")
+            try await captureGuestFrame(named: model.resolution == .native ? "recovery-native.png" : "recovery-points.png")
         } catch {
             Issue.record("Recovery frame could not be captured: \(error)")
         }
-        print("RECOVERY_DISPLAY: ready retina=\(model.retina); capture the screen within 30 seconds")
+        print("RECOVERY_DISPLAY: ready scale=\(model.resolution.text); capture the screen within 30 seconds")
         try await Task.sleep(for: .seconds(30))
         // End selects Advanced, then End selects Power off. Use Recovery's
         // own menu so the run must report a clean guest power-off.

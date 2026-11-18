@@ -26,6 +26,52 @@ struct CodePageStamp final {
 		default;
 };
 
+#if DARWIN_UML_X86_64_GUEST
+/* What an x86 translator asks of the memory it reads (the x86-64 guest's frame
+ * accounting, darwin/memory/mmu/frame_accounting.hpp). Every method has a
+ * default that says "nothing to account": a memory that cannot name a frame
+ * has no aliases to publish at. */
+struct FrameDebt final {
+	std::uint64_t generation{};
+	std::uint64_t page{};
+};
+enum class FrameHoldResult : std::uint8_t {
+	settled,
+	owed,
+	refused,
+	failed,
+	/* Nothing changed: the debt is `owed` locations, more than the caller's
+	 * buffer holds. */
+	crowded,
+	/* The holder stands, and the debt is every write translation of every
+	 * participant. */
+	global,
+};
+struct FrameHold final {
+	FrameHoldResult result{FrameHoldResult::settled};
+	std::uint64_t record_identity{};
+	std::uint64_t debt_sequence{};
+	std::size_t owed{};
+	/* The frame's record and its holder change count as the hold left them;
+	 * null when nothing stands (see frame_hold_unchanged). */
+	const void *record{};
+	std::uint64_t alias_changes{};
+};
+/* What the write fill read of the frame a page maps. */
+struct FrameFill final {
+	const void *backing{};
+	std::uint64_t offset{};
+	const void *record{};
+	std::uint64_t alias_changes{};
+	bool other_holder{};
+};
+struct FramePublication final {
+	bool overflow{};
+	std::size_t own_count{};
+	std::uint64_t own_records{};
+};
+#endif
+
 class GuestAddressSpace {
 public:
 	virtual ~GuestAddressSpace() = default;
@@ -79,6 +125,71 @@ public:
 	{
 		invalidate_code(address);
 	}
+#if DARWIN_UML_X86_64_GUEST
+	/* Registers the page as a holder of its frame before the caller reads a
+	 * byte of it, and names the writer locations whose write translations
+	 * the caller must retire and wait out (`owed` entries of `debts`). A debt
+	 * larger than `capacity` answers `crowded` with its size, or, when
+	 * `global_ok`, registers the holder and answers `global`. */
+	[[nodiscard]] virtual FrameHold hold_code_frame(
+		std::uint64_t, void *, FrameDebt *, std::size_t,
+		bool) noexcept
+	{
+		return {};
+	}
+	/* A completed retirement of a hold's debts covers them. */
+	virtual void clear_code_debt(
+		std::uint64_t, void *, const FrameHold &) noexcept
+	{
+	}
+	/* Whether no holder has been added to the frame `hold` registered a page
+	 * of since the hold, so that registering the same page again, with the
+	 * mapping and the flush serial as they were, would add nothing and owe
+	 * nothing. Lock-free; for a caller that is entered in the address space.
+	 * A memory that cannot say answers false. */
+	[[nodiscard]] virtual bool frame_hold_unchanged(
+		const FrameHold &) noexcept
+	{
+		return false;
+	}
+	/* The write fill's lock-free read of the frame; false when the memory
+	 * cannot say (the fill then tags from the registry alone). */
+	[[nodiscard]] virtual bool frame_fill(
+		std::uint64_t, void *, FrameFill &) noexcept
+	{
+		return false;
+	}
+	/* Whether what `frame_fill` read has not moved. */
+	[[nodiscard]] virtual bool frame_fill_unchanged(
+		const FrameFill &) noexcept
+	{
+		return true;
+	}
+	/* Publishes the store of `length` bytes at `address`, after its bytes
+	 * were written, at every holder of the frame; true if it did. False means
+	 * the frame has no holder but the writer's own page, and the caller
+	 * publishes as it always did. `own` receives the writer's own
+	 * generation's holder addresses. */
+	[[nodiscard]] virtual bool publish_frame_store(std::uint64_t, std::uint64_t,
+		void *, std::uint64_t *, std::size_t, FramePublication &) noexcept
+	{
+		return false;
+	}
+	/* Before a store: the holder addresses of its frame in the writer's own
+	 * generation that publish_frame_store would publish at, with nothing
+	 * published. Same results. */
+	[[nodiscard]] virtual bool frame_own_holders(std::uint64_t, std::uint64_t,
+		void *, std::uint64_t *, std::size_t, FramePublication &) noexcept
+	{
+		return false;
+	}
+	/* The generation's flush serial (frame_accounting.hpp), 0 when the
+	 * memory has none. */
+	[[nodiscard]] virtual std::uint64_t flush_serial(void *) noexcept
+	{
+		return 0;
+	}
+#endif
 	[[nodiscard]] virtual MemoryFault last_fault() const noexcept
 	{
 		return {};

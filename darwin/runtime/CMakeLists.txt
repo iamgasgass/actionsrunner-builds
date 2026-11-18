@@ -76,6 +76,28 @@ uml_declare_architecture_target(uml_runtime_kernel_resources runtime)
 target_link_libraries(uml_runtime_kernel_resources PRIVATE
     UML::RuntimeContract)
 target_include_directories(uml_runtime_kernel_resources PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/runtime)
+
+# Which vCPU carriers are outside an idle wait, and the kqueue timer by which a
+# carrier that leaves one wakes the stall watch. The carriers' idle wrappers
+# below report to it; the watch sleeps by it.
+add_library(uml_runtime_carrier_activity OBJECT
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/carrier_activity.cpp)
+add_library(UML::RuntimeCarrierActivity ALIAS uml_runtime_carrier_activity)
+uml_declare_architecture_target(uml_runtime_carrier_activity runtime)
+target_include_directories(uml_runtime_carrier_activity PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/runtime)
+
+# The kernel's blocking imports, each marked with what it waits for while it
+# blocks, for the stall watch. The loader resolves them to these wrappers.
+add_library(uml_runtime_kernel_waits OBJECT
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/kernel_waits.cpp)
+add_library(UML::RuntimeKernelWaits ALIAS uml_runtime_kernel_waits)
+uml_declare_architecture_target(uml_runtime_kernel_waits runtime)
+target_include_directories(uml_runtime_kernel_waits PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
     ${PROJECT_SOURCE_DIR}/darwin/runtime)
 
 # The record of how the process's guest session ended, which the next launch
@@ -86,6 +108,18 @@ add_library(uml_runtime_session_record OBJECT
 add_library(UML::RuntimeSessionRecord ALIAS uml_runtime_session_record)
 uml_declare_architecture_target(uml_runtime_session_record runtime)
 target_include_directories(uml_runtime_session_record PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/runtime)
+
+# The stall record: the classification of the vCPU carriers' samples into
+# events and the text of the session record's stall slot. It reads no clock
+# and no thread. The watch that feeds it is below.
+add_library(uml_runtime_stall_record OBJECT
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/stall_record.cpp)
+add_library(UML::RuntimeStallRecord ALIAS uml_runtime_stall_record)
+uml_declare_architecture_target(uml_runtime_stall_record runtime)
+target_include_directories(uml_runtime_stall_record PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
     ${PROJECT_SOURCE_DIR}/darwin/runtime)
 
 # The threads an embedded kernel creates and the fence that holds them. The
@@ -96,6 +130,34 @@ add_library(uml_runtime_thread_fence OBJECT
 add_library(UML::RuntimeThreadFence ALIAS uml_runtime_thread_fence)
 uml_declare_architecture_target(uml_runtime_thread_fence runtime)
 target_include_directories(uml_runtime_thread_fence PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/runtime)
+
+# The watch thread that records why a guest's vCPUs stopped running: it reads
+# the kernel thread registry and feeds the stall record, which it writes into
+# the session record.
+add_library(uml_runtime_stall_watch OBJECT
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/stall_watch.cpp)
+add_library(UML::RuntimeStallWatch ALIAS uml_runtime_stall_watch)
+uml_declare_architecture_target(uml_runtime_stall_watch runtime)
+target_include_directories(uml_runtime_stall_watch PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/runtime)
+
+# What the host gives back when the system says it is short of memory: the
+# policy (a response of the host GPU's cached allocations and one guest
+# page-cache trim, rate limited) and the system's side of it, the memory
+# pressure source and the figures. The guest's trim is the emulator's.
+add_library(uml_runtime_memory_pressure OBJECT
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/memory_pressure_response.cpp
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/memory_pressure_system.cpp)
+add_library(UML::RuntimeMemoryPressure ALIAS uml_runtime_memory_pressure)
+uml_declare_architecture_target(uml_runtime_memory_pressure runtime)
+target_link_libraries(uml_runtime_memory_pressure PUBLIC
+    UML::PlatformContract
+    UML::RuntimeGuestStatistics)
+target_include_directories(uml_runtime_memory_pressure PUBLIC
+    ${PROJECT_SOURCE_DIR}/darwin
     ${PROJECT_SOURCE_DIR}/darwin/runtime)
 
 # Hibernating a paused guest's RAM: the order of the fence and the image.
@@ -192,10 +254,15 @@ target_sources(uml_runtime_objects INTERFACE
 	$<TARGET_OBJECTS:uml_runtime_context>
     $<TARGET_OBJECTS:uml_runtime_kernel_signals>
     $<TARGET_OBJECTS:uml_runtime_kernel_resources>
+    $<TARGET_OBJECTS:uml_runtime_carrier_activity>
+    $<TARGET_OBJECTS:uml_runtime_kernel_waits>
     $<TARGET_OBJECTS:uml_runtime_session_record>
+    $<TARGET_OBJECTS:uml_runtime_stall_record>
+    $<TARGET_OBJECTS:uml_runtime_stall_watch>
     $<TARGET_OBJECTS:uml_runtime_thread_fence>
     $<TARGET_OBJECTS:uml_runtime_hibernation>
     $<TARGET_OBJECTS:uml_runtime_virtual_jetsam>
+    $<TARGET_OBJECTS:uml_runtime_memory_pressure>
     $<TARGET_OBJECTS:uml_runtime_guest_statistics>
     $<TARGET_OBJECTS:uml_runtime_guest_selector>
     $<TARGET_OBJECTS:uml_runtime_guest_sync>

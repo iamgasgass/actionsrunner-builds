@@ -2,6 +2,7 @@
 
 #import "KernariumRuntimeLoader.h"
 
+#include "../../darwin/device/camera/camera_tiers.hpp"
 #include "../../darwin/platform/apple/os_memory_limit.hpp"
 #include "../../darwin/runtime/guest_memory_budget.hpp"
 
@@ -45,6 +46,26 @@ ConsoleOutputHandlerState& consoleOutput = *new ConsoleOutputHandlerState;
 std::mutex restartHandlerMutex;
 std::mutex restartRegistrationMutex;
 KernariumRestartHandler restartHandler;
+/* The same shape for the receiver-power events. */
+std::mutex locationHandlerMutex;
+std::mutex locationRegistrationMutex;
+KernariumLocationReceiverHandler locationHandler;
+/* And for the camera state. */
+std::mutex cameraStateHandlerMutex;
+std::mutex cameraStateRegistrationMutex;
+KernariumCameraStateHandler cameraStateHandler;
+/* And for the memory pressure, with the console handler's lifetime: the pressure
+ * queue can still deliver a report while exit() destroys ordinary statics. */
+struct MemoryPressureHandlerState final {
+    std::mutex handlerMutex;
+    std::mutex registrationMutex;
+    KernariumMemoryPressureHandler handler {nil};
+};
+MemoryPressureHandlerState& memoryPressure = *new MemoryPressureHandlerState;
+/* And for the input status. */
+std::mutex inputStatusHandlerMutex;
+std::mutex inputStatusRegistrationMutex;
+KernariumInputStatusHandler inputStatusHandler;
 
 void forwardConsoleOutput(
     void*,
@@ -102,6 +123,120 @@ void updateRestartForwarder(const kernarium_runtime_api* runtime)
         wanted = restartHandler != nil;
     }
     runtime->set_restart_callback(wanted ? forwardRestart : nullptr, nullptr);
+}
+
+/* Runs on a runtime thread, inside the runtime's call, so it only hands the
+ * event to the main queue. */
+void forwardLocationReceiver(void*, int powered)
+{
+    KernariumLocationReceiverHandler handler;
+    {
+        std::lock_guard lock(locationHandlerMutex);
+        handler = locationHandler;
+    }
+    if (handler == nil)
+        return;
+    const BOOL on = powered != 0;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        handler(on);
+    });
+}
+
+void updateLocationReceiverForwarder(const kernarium_runtime_api* runtime)
+{
+    std::lock_guard registration(locationRegistrationMutex);
+    bool wanted;
+    {
+        std::lock_guard lock(locationHandlerMutex);
+        wanted = locationHandler != nil;
+    }
+    runtime->set_location_receiver_callback(
+        wanted ? forwardLocationReceiver : nullptr, nullptr);
+}
+
+/* Runs on a runtime thread, inside the runtime's call, so it only hands the
+ * state to the main queue. */
+void forwardCameraState(void*, int state)
+{
+    KernariumCameraStateHandler handler;
+    {
+        std::lock_guard lock(cameraStateHandlerMutex);
+        handler = cameraStateHandler;
+    }
+    if (handler == nil)
+        return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        handler(state);
+    });
+}
+
+void updateCameraStateForwarder(const kernarium_runtime_api* runtime)
+{
+    std::lock_guard registration(cameraStateRegistrationMutex);
+    bool wanted;
+    {
+        std::lock_guard lock(cameraStateHandlerMutex);
+        wanted = cameraStateHandler != nil;
+    }
+    runtime->set_camera_state_callback(
+        wanted ? forwardCameraState : nullptr, nullptr);
+}
+
+/* Runs on a runtime thread, inside the runtime's call, so it only hands the
+ * report to the main queue. */
+void forwardMemoryPressure(void*, int level, int response)
+{
+    KernariumMemoryPressureHandler handler;
+    {
+        std::lock_guard lock(memoryPressure.handlerMutex);
+        handler = memoryPressure.handler;
+    }
+    if (handler == nil)
+        return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        handler(level, response);
+    });
+}
+
+void updateMemoryPressureForwarder(const kernarium_runtime_api* runtime)
+{
+    std::lock_guard registration(memoryPressure.registrationMutex);
+    bool wanted;
+    {
+        std::lock_guard lock(memoryPressure.handlerMutex);
+        wanted = memoryPressure.handler != nil;
+    }
+    runtime->set_memory_pressure_callback(
+        wanted ? forwardMemoryPressure : nullptr, nullptr);
+}
+
+/* Runs on a runtime thread, inside the runtime's call, so it only hands the
+ * event to the main queue. */
+void forwardInputStatus(void*, int status, int on)
+{
+    KernariumInputStatusHandler handler;
+    {
+        std::lock_guard lock(inputStatusHandlerMutex);
+        handler = inputStatusHandler;
+    }
+    if (handler == nil)
+        return;
+    const BOOL lit = on != 0;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        handler(status, lit);
+    });
+}
+
+void updateInputStatusForwarder(const kernarium_runtime_api* runtime)
+{
+    std::lock_guard registration(inputStatusRegistrationMutex);
+    bool wanted;
+    {
+        std::lock_guard lock(inputStatusHandlerMutex);
+        wanted = inputStatusHandler != nil;
+    }
+    runtime->set_input_status_callback(
+        wanted ? forwardInputStatus : nullptr, nullptr);
 }
 
 [[noreturn]] void guestTimerMaskFailure() noexcept
@@ -241,7 +376,19 @@ __attribute__((constructor)) void isolateGuestTimerFromApplicationThreads()
         api->cancel_touch == nullptr ||
         api->quiesce_resident == nullptr ||
         api->read_graphics_memory == nullptr ||
-        api->prepare_jit == nullptr) {
+        api->prepare_jit == nullptr ||
+        api->set_location_receiver_callback == nullptr ||
+        api->report_location == nullptr ||
+        api->set_input_connected == nullptr ||
+        api->send_keyboard_usage == nullptr ||
+        api->send_pointer == nullptr ||
+        api->send_mouse == nullptr ||
+        api->set_input_status_callback == nullptr ||
+        api->set_network_notice == nullptr ||
+        api->set_camera_state_callback == nullptr ||
+        api->set_camera_rotation == nullptr ||
+        api->plan_camera_reserve == nullptr ||
+        api->set_memory_pressure_callback == nullptr) {
         std::fputs("Kernarium: runtime API validation failed\n", stderr);
         return false;
     }
@@ -292,6 +439,10 @@ __attribute__((constructor)) void isolateGuestTimerFromApplicationThreads()
 
     updateConsoleOutputForwarder(api);
     updateRestartForwarder(api);
+    updateLocationReceiverForwarder(api);
+    updateCameraStateForwarder(api);
+    updateMemoryPressureForwarder(api);
+    updateInputStatusForwarder(api);
 #ifndef UML_APP_STORE_APPLICATION
     /* Optional: only a runtime built for automation has it. */
     automationJobAtStart = reinterpret_cast<int (*)(void)>(
@@ -355,22 +506,37 @@ extern "C" void kernarium_runtime_loader_request_stop(void)
         runtime->request_stop();
 }
 
-extern "C" int kernarium_runtime_loader_sync(void)
+/* With no runtime loaded there is no guest, so nothing to settle: a report that
+ * fits says NO_GUEST, and one that does not is refused as the runtime refuses
+ * it. */
+static int noRuntime(kernarium_runtime_settle* settle)
 {
-    const kernarium_runtime_api* runtime = api();
-    return runtime == nullptr ? -1 : runtime->sync();
+    if (settle != nullptr) {
+        if (settle->struct_size < sizeof(*settle))
+            return -EINVAL;
+        settle->reserved = 0U;
+        settle->guest_storage = KERNARIUM_RUNTIME_GUEST_STORAGE_NO_GUEST;
+        settle->guest_suspension = KERNARIUM_RUNTIME_GUEST_SUSPENSION_NOT_ASKED;
+    }
+    return -1;
 }
 
-extern "C" int kernarium_runtime_loader_quiesce(void)
+extern "C" int kernarium_runtime_loader_sync(kernarium_runtime_settle* settle)
 {
     const kernarium_runtime_api* runtime = api();
-    return runtime == nullptr ? -1 : runtime->quiesce();
+    return runtime == nullptr ? noRuntime(settle) : runtime->sync(settle);
 }
 
-extern "C" int kernarium_runtime_loader_quiesce_resident(void)
+extern "C" int kernarium_runtime_loader_quiesce(kernarium_runtime_settle* settle)
 {
     const kernarium_runtime_api* runtime = api();
-    return runtime == nullptr ? -1 : runtime->quiesce_resident();
+    return runtime == nullptr ? noRuntime(settle) : runtime->quiesce(settle);
+}
+
+extern "C" int kernarium_runtime_loader_quiesce_resident(kernarium_runtime_settle* settle)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ? noRuntime(settle) : runtime->quiesce_resident(settle);
 }
 
 extern "C" void kernarium_runtime_loader_resume(void)
@@ -457,13 +623,12 @@ uml::runtime::guest_memory::LaunchMemorySet launchMemorySet(
         parameters.headroom_mib);
 }
 
-/* C of runtime/guest_memory_budget.hpp for this process: the window the
- * runtime puts the kernel in (a macOS process, and an iOS application on a Mac,
- * get the macOS window; a device and the Simulator get the signed iOS
- * envelope, as native_kernel_placement chooses) and the RAM of the host. */
+/* C of runtime/guest_memory_budget.hpp for this process, the one the runtime's
+ * run admits sizes under: the window the runtime puts the kernel in (a macOS
+ * process, and an iOS application on a Mac, get the macOS window; a device and
+ * the Simulator get the signed iOS envelope) and the RAM of the host. */
 uint32_t guestMemoryCeilingMiB()
 {
-    namespace budget = uml::runtime::guest_memory;
     static const uint32_t ceiling = [] {
         NSProcessInfo* info = NSProcessInfo.processInfo;
 #if TARGET_OS_OSX
@@ -471,10 +636,8 @@ uint32_t guestMemoryCeilingMiB()
 #else
         const bool macosWindow = info.isiOSAppOnMac;
 #endif
-        return budget::guest_memory_ceiling_mib(
-            macosWindow ? budget::guest_memory_range_maximum_mib
-                        : budget::device_window_guest_memory_maximum_mib,
-            info.physicalMemory);
+        return uml::runtime::guest_memory::process_guest_memory_ceiling_mib(
+            macosWindow, info.physicalMemory);
     }();
     return ceiling;
 }
@@ -522,6 +685,26 @@ extern "C" uint32_t kernarium_runtime_loader_maximum_guest_memory_mib_for_limit(
 extern "C" uint32_t kernarium_runtime_loader_guest_memory_ceiling_mib(void)
 {
     return guestMemoryCeilingMiB();
+}
+
+extern "C" uint32_t kernarium_runtime_loader_guest_memory_admitted(
+    uint32_t memoryMiB)
+{
+    return uml::runtime::guest_memory::guest_memory_admitted(
+               memoryMiB, guestMemoryCeilingMiB())
+        ? 1
+        : 0;
+}
+
+extern "C" kernarium_guest_memory_range
+kernarium_runtime_loader_guest_memory_range(void)
+{
+    namespace budget = uml::runtime::guest_memory;
+    return {
+        .minimum_mib = budget::guest_memory_minimum_mib,
+        .step_mib = budget::guest_memory_step_mib,
+        .largest_mib = budget::guest_memory_range_maximum_mib,
+    };
 }
 
 extern "C" uint32_t kernarium_runtime_loader_maximum_guest_memory_mib(
@@ -629,6 +812,40 @@ extern "C" uint32_t kernarium_runtime_loader_gpu_budget_mib(
         parameters);
 }
 
+extern "C" uint32_t kernarium_runtime_loader_camera_reserve_mib(
+    uint32_t gpuBudgetMiB)
+{
+    return static_cast<uint32_t>(uml::camera::cameraHostMemoryReserveMiB(
+        uml::camera::cameraTierForBudget(
+            static_cast<uint64_t>(gpuBudgetMiB) << 20)));
+}
+
+extern "C" uint32_t kernarium_runtime_loader_plan_camera_reserve_mib(
+    uint32_t gpuBudgetMiB,
+    const char* calibrationPath,
+    uint32_t rediscover,
+    uint32_t* exact)
+{
+    const auto ceiling = [&]() -> uint32_t {
+        if (exact != nullptr)
+            *exact = 0;
+        return kernarium_runtime_loader_camera_reserve_mib(gpuBudgetMiB);
+    };
+    const kernarium_runtime_api* runtime = api();
+    if (runtime == nullptr)
+        return ceiling();
+    kernarium_runtime_camera_reserve plan {};
+    plan.struct_size = sizeof(plan);
+    if (rediscover != 0)
+        plan.flags = KERNARIUM_RUNTIME_CAMERA_PLAN_DISCOVER_AGAIN;
+    if (runtime->plan_camera_reserve(gpuBudgetMiB, calibrationPath, &plan) != 0 ||
+        plan.basis != KERNARIUM_RUNTIME_CAMERA_RESERVE_EXACT)
+        return ceiling();
+    if (exact != nullptr)
+        *exact = 1;
+    return plan.reserve_mib;
+}
+
 extern "C" int kernarium_runtime_loader_set_microphone(int enabled)
 {
     const kernarium_runtime_api* runtime = api();
@@ -682,6 +899,124 @@ extern "C" void kernarium_runtime_loader_set_restart_handler(
     const kernarium_runtime_api* runtime = api();
     if (runtime != nullptr)
         updateRestartForwarder(runtime);
+}
+
+extern "C" void kernarium_runtime_loader_set_location_receiver_handler(
+    KernariumLocationReceiverHandler handler)
+{
+    {
+        std::lock_guard lock(locationHandlerMutex);
+        locationHandler = [handler copy];
+    }
+    const kernarium_runtime_api* runtime = api();
+    if (runtime != nullptr)
+        updateLocationReceiverForwarder(runtime);
+}
+
+extern "C" void kernarium_runtime_loader_set_camera_state_handler(
+    KernariumCameraStateHandler handler)
+{
+    {
+        std::lock_guard lock(cameraStateHandlerMutex);
+        cameraStateHandler = [handler copy];
+    }
+    const kernarium_runtime_api* runtime = api();
+    if (runtime != nullptr)
+        updateCameraStateForwarder(runtime);
+}
+
+extern "C" void kernarium_runtime_loader_set_memory_pressure_handler(
+    KernariumMemoryPressureHandler handler)
+{
+    {
+        std::lock_guard lock(memoryPressure.handlerMutex);
+        memoryPressure.handler = [handler copy];
+    }
+    const kernarium_runtime_api* runtime = api();
+    if (runtime != nullptr)
+        updateMemoryPressureForwarder(runtime);
+}
+
+extern "C" int kernarium_runtime_loader_set_camera_rotation(uint32_t degrees)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ? -ENODEV : runtime->set_camera_rotation(degrees);
+}
+
+extern "C" void kernarium_runtime_loader_set_input_status_handler(
+    KernariumInputStatusHandler handler)
+{
+    {
+        std::lock_guard lock(inputStatusHandlerMutex);
+        inputStatusHandler = [handler copy];
+    }
+    const kernarium_runtime_api* runtime = api();
+    if (runtime != nullptr)
+        updateInputStatusForwarder(runtime);
+}
+
+extern "C" int kernarium_runtime_loader_set_input_connected(
+    int device,
+    BOOL connected)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ?
+        -ENODEV : runtime->set_input_connected(device, connected ? 1 : 0);
+}
+
+extern "C" int kernarium_runtime_loader_send_keyboard_usage(
+    uint32_t usage,
+    BOOL pressed)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ?
+        -ENODEV : runtime->send_keyboard_usage(usage, pressed ? 1 : 0);
+}
+
+extern "C" int kernarium_runtime_loader_send_pointer(
+    uint32_t x,
+    uint32_t y,
+    uint32_t buttons,
+    BOOL inRange)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ?
+        -ENODEV : runtime->send_pointer(x, y, buttons, inRange ? 1 : 0);
+}
+
+extern "C" int kernarium_runtime_loader_send_mouse(
+    int32_t dx,
+    int32_t dy,
+    uint32_t buttons,
+    int32_t wheel,
+    int32_t horizontalWheel)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ?
+        -ENODEV :
+        runtime->send_mouse(dx, dy, buttons, wheel, horizontalWheel);
+}
+
+extern "C" int kernarium_runtime_loader_report_location(
+    const kernarium_runtime_location_fix* fix)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ? -ENODEV : runtime->report_location(fix);
+}
+
+extern "C" void kernarium_runtime_loader_wake_for_input(void)
+{
+    /* Optional: the wake is a convenience, and a table without the entry still
+     * runs the guest. */
+    const kernarium_runtime_api* runtime = api();
+    if (runtime != nullptr && runtime->wake_for_input != nullptr)
+        runtime->wake_for_input();
+}
+
+extern "C" int kernarium_runtime_loader_set_network_notice(int notice)
+{
+    const kernarium_runtime_api* runtime = api();
+    return runtime == nullptr ? -ENODEV : runtime->set_network_notice(notice);
 }
 
 extern "C" int kernarium_runtime_loader_connect_vsock(

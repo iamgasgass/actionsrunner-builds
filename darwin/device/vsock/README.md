@@ -35,9 +35,10 @@ application.
   the device sends no event.
 - **Every guest-initiated request is answered with an RST**, and so is a packet
   for another CID, of another socket type, or for no connection.
-- **The device is appended after every other Virtio device**, in the runtime and
-  in the launcher, so that no other device's index moves: Android's vendor policy
-  names the battery's sysfs path by its position.
+- **The device is appended after the Virtio devices that existed before it**, in
+  the runtime and in the launcher, so that no other device's index moves:
+  Android's vendor policy names the battery's sysfs path by its position. A device
+  added later (GNSS, then the camera) goes after it.
 
 ## Connections
 

@@ -94,7 +94,7 @@ index c4f4abd5ef8fbdb387c0157711b2b2b7f3afe134..9343e4d77c5433eff6aeca41c135622b
        free(exts);
        free(dev);
 diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
-index 65b58fca5172571b4fceb86606aa104e9a15ea8e..62e9470c76338eb9e84ebb0946f1c9ac38f56176 100644
+index 6b0035c49b6f77262f8a74d0a236f80ea94e67c7..673f6c448f7ed3b41318b740f5bea060416b7111 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
 @@ -240,7 +240,8 @@ vkr_gbm_get_fd_info_from_allocation_info(UNUSED struct vkr_physical_device *phys

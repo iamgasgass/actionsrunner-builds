@@ -47,6 +47,7 @@ import android_launch_suite as launch_suite  # noqa: E402
 import android_provision  # noqa: E402
 import andarium  # noqa: E402
 import ios_device  # noqa: E402
+import ios_device_reports  # noqa: E402
 import ios_jit_debugger  # noqa: E402
 
 DEFAULT_ARTIFACT_ROOT = REPOSITORY / ".build" / "ios-device-android"
@@ -107,6 +108,12 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--disk-size-gib", type=int,
                         help="the guest storage capacity")
     parser.add_argument(
+        "--haptics", action="store_true",
+        help="this run tests haptics: the launch states no haptics setting, "
+        "so the application's own Haptics switch decides. Without it the "
+        "launch states ANDARIUM_HAPTICS=0 and the phone stays silent",
+    )
+    parser.add_argument(
         "--setting", action="append", default=[], metavar="NAME=VALUE",
         help="another KERNARIUM_* or ANDARIUM_* launch setting",
     )
@@ -161,6 +168,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--artifact-root", type=Path,
                         default=DEFAULT_ARTIFACT_ROOT)
+    ios_device_reports.add_arguments(parser)
     options = parser.parse_args(argv)
     if options.jit_debugger is None:
         options.jit_debugger = "stand-in" if options.engine == "jit" else "none"
@@ -641,6 +649,7 @@ class Run:
         """Install, boot, drive, power off; fills the summary."""
         options, plan = self.options, self.plan
         self.check_unlocked()
+        ios_device_reports.preflight(options, [andarium.APPLICATION])
         if options.app is not None:
             app = options.app.resolve()
             andarium.require_automation_app(app)
@@ -769,6 +778,8 @@ def main(argv: list[str] | None = None) -> int:
             "engine": options.engine,
             "page_size": 4096,
         },
+        # Whether the phone's own haptics were left on for the run.
+        "haptics": options.haptics,
         "runtime_result": None,
         "workload": None,
     }
@@ -791,6 +802,7 @@ def main(argv: list[str] | None = None) -> int:
             engine=options.engine,
             host_port=host_port,
             disk_size_gib=options.disk_size_gib,
+            haptics=options.haptics,
             extra=parse_settings(options.setting),
         )
         artifact.mkdir(parents=True, exist_ok=False)

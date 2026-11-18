@@ -1,0 +1,586 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "A tip is a voluntary one-time purchase that supports Andarium’s development. Every feature is free either way.": {
+      "comment": "The plain statement under the chat, as a centred note. It must say that a tip is voluntary, one-time and a purchase, and that every feature is free whether or not someone tips. Its last two words are tied with a no-break space (U+00A0) so that the last one does not wrap alone; a translation ties its last words the same way, and in Chinese and Japanese with U+2060 between the characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A tip is a voluntary one-time purchase that supports Andarium’s development. Every feature is free either way."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チップは、Andariumの開発を支える任意の一回限りの購入です。チップの有無にかかわらず、すべての機能は無⁠料⁠で⁠す⁠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打赏是自愿的一次性购买，用于支持Andarium的开发。无论是否打赏，所有功能都免费。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贊助是自願的一次性購買，用於支持Andarium的開發。無論是否贊助，所有功能都免費。"
+          }
+        }
+      }
+    },
+    "A voluntary tip for Andarium’s developer.": {
+      "comment": "VoiceOver hint of the Buy me tokens menu item.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A voluntary tip for Andarium’s developer."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andariumのデベロッパへの任意のチップです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "给Andarium开发者的自愿打赏。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "給Andarium開發者的自願贊助。"
+          }
+        }
+      }
+    },
+    "Andarium’s developer": {
+      "comment": "Who speaks in the chat: the person who makes the app. Shown above the first message and the reply.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andarium’s developer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andariumのデベロッパ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andarium的开发者"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andarium的開發者"
+          }
+        }
+      }
+    },
+    "Buy me tokens": {
+      "comment": "The name of the tip sheet and of its menu item: a joke on 'buy me a coffee' for an app made by one developer. The tiers are Lite, Pro, Max and Ultra, which stay in English.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buy me tokens"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トークンをおごる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请我喝点Token"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請我喝點Token"
+          }
+        }
+      }
+    },
+    "Developers used to run on coffee.": {
+      "comment": "First message of the chat: the joke begins. It runs on, and ends in the next message. Its last two words are tied with a no-break space (U+00A0) so that the last one does not wrap alone; a translation ties its last words the same way, and in Chinese and Japanese with U+2060 between the characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developers used to run on coffee."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "デベロッパはかつて、コーヒーで動いていま⁠し⁠た⁠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开发者以前靠咖啡续命。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開發者以前靠咖啡續命。"
+          }
+        }
+      }
+    },
+    "Done": {
+      "comment": "Button under the conversation that closes the sheet after a tip. The close symbol in the bar has no label of ours: the system names it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完了"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        }
+      }
+    },
+    "If Andarium is useful to you, you can buy me some.": {
+      "comment": "Third message of the chat: the invitation to tip, in the developer's first-person voice. Its last two words are tied with a no-break space (U+00A0) so that the last one does not wrap alone; a translation ties its last words the same way, and in Chinese and Japanese with U+2060 between the characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If Andarium is useful to you, you can buy me some."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andariumが役に立っていたら、おごってもらえるとうれしい⁠で⁠す⁠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果觉得Andarium好用，不妨请⁠我来⁠点⁠。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "如果覺得Andarium好用，不妨請⁠我來⁠點⁠。"
+          }
+        }
+      }
+    },
+    "Loading prices": {
+      "comment": "VoiceOver label of the spinner that stands where a price will be.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading prices"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "価格を読み込み中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在载入价格"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在載入價格"
+          }
+        }
+      }
+    },
+    "One-time tip": {
+      "comment": "VoiceOver hint of each tier button.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One-time tip"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1回限りのチップ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性打赏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性贊助"
+          }
+        }
+      }
+    },
+    "Purchases aren’t allowed on this %@": {
+      "comment": "Title of the note when this device may not make purchases. The placeholder is iPhone or iPad. Its last two words are tied with a no-break space (U+00A0) so that the last one does not wrap alone; a translation ties its last words the same way, and in Chinese and Japanese with U+2060 between the characters.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Purchases aren’t allowed on this %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この%@では購入が許可されていません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此%@不允许购买"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此%@不允許購買"
+          }
+        }
+      }
+    },
+    "Thank you!": {
+      "comment": "The developer's first message after a tip.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thank you!"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ありがとうございます！"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "谢谢你！"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "感謝你！"
+          }
+        }
+      }
+    },
+    "That’s a real token of appreciation, and it keeps Andarium going.": {
+      "comment": "The developer's second message after a tip. 'Token of appreciation' is a pun on the tokens of the joke; a translation may drop the pun and thank warmly. Chinese and Japanese tie its last characters with U+2060 so that no lone character or mark wraps alone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That’s a real token of appreciation, and it keeps Andarium going."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このトークン、まさに感謝のしるしです。Andariumを続けていく力になり⁠ま⁠す⁠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这份Token是实打实的心意，也让Andarium能继续做下去。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這份Token滿滿都是心意，也讓Andarium能繼續走下去。"
+          }
+        }
+      }
+    },
+    "The App Store didn’t answer. Check the connection, then try again.": {
+      "comment": "The note under the unavailable title; the Try again button follows it. Chinese and Japanese tie its last characters with U+2060 so that no lone character or mark wraps alone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The App Store didn’t answer. Check the connection, then try again."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Storeから応答がありません。接続を確認して、もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store没有响应。请检查网络连接，然⁠后⁠重⁠试⁠。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store沒有回應。請檢查網路連線，然後再⁠試⁠一⁠次⁠。"
+          }
+        }
+      }
+    },
+    "The tip didn’t go through": {
+      "comment": "Title of the note when a purchase failed; the App Store's own message follows it.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The tip didn’t go through"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チップを完了できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打赏未能完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "贊助未能完成"
+          }
+        }
+      }
+    },
+    "These days it’s tokens.": {
+      "comment": "Second message of the chat: the end of the joke, tokens being what AI services bill in.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These days it’s tokens."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "いまはトークンで動いています。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "现在靠Token续命。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在靠Token續命。"
+          }
+        }
+      }
+    },
+    "Tips aren’t available right now": {
+      "comment": "Title of the note when the App Store gave no prices.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tips aren’t available right now"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在チップは利用できません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法打赏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法贊助"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "comment": "Button under the unavailable note: asks the App Store for the prices again.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試行"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再試一次"
+          }
+        }
+      }
+    },
+    "Waiting for approval": {
+      "comment": "Title of the note when a tip waits for a family organiser to approve it (Ask to Buy).",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for approval"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "承認待ち"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待批准"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待核准"
+          }
+        }
+      }
+    },
+    "Waiting for the App Store": {
+      "comment": "VoiceOver label of the spinner beside the reply while the purchase is under way.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the App Store"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Storeの応答を待っています"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待App Store"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待App Store"
+          }
+        }
+      }
+    },
+    "You can close this sheet meanwhile.": {
+      "comment": "The note under the waiting title: the sheet may be closed while the approval is pending. Chinese and Japanese tie its last characters with U+2060 so that no lone character or mark wraps alone.",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can close this sheet meanwhile."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "承認を待つあいだ、この画面は閉じても構いま⁠せ⁠ん⁠。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你可以先关闭此页面。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你可以先關閉此頁面。"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

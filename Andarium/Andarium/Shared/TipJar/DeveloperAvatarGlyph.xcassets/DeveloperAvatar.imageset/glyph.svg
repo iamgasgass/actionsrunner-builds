@@ -1,0 +1,8 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- A flat two-tone square: what the tests and the Debug arrangement draw in
+     place of the developer's avatar, which the build takes from the ignored
+     Config/Local directory. -->
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="512" height="512" fill="#8E8E93"/>
+<path d="M256 112A88 88 0 1 1 256 288A88 88 0 1 1 256 112ZM96 512C96 400 168 328 256 328C344 328 416 400 416 512Z" fill="#E5E5EA"/>
+</svg>

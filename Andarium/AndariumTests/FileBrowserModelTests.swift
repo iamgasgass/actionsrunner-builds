@@ -248,13 +248,13 @@ struct FileBrowserModelTests {
 
     @Test func aFailureKeepsTheRestAndTryAgainRunsOnlyTheFailedFile() async throws {
         let backend = ScriptedBackend()
-        backend.failing = ["bad.bin": "Not enough space in the guest."]
+        backend.failing = ["bad.bin": "Not enough space in the virtual machine."]
         let (browser, _) = await makeBrowser(backend: backend)
         browser.received([pick("one.txt"), pick("bad.bin"), pick("two.txt")])
         let transfer = try #require(browser.transfer)
         try await settle(transfer)
         #expect(transfer.stage == .failed)
-        #expect(transfer.items.map(\.state) == [.done, .failed("Not enough space in the guest."), .done])
+        #expect(transfer.items.map(\.state) == [.done, .failed("Not enough space in the virtual machine."), .done])
         #expect(transfer.title == "1 of 3 not imported")
         backend.failing = [:]
         browser.retryFailed()
@@ -265,13 +265,13 @@ struct FileBrowserModelTests {
 
     @Test func aRefusedPreparationFailsEveryFileWithItsReason() async throws {
         let backend = ScriptedBackend()
-        backend.prepareFailure = "Not enough space in the guest."
+        backend.prepareFailure = "Not enough space in the virtual machine."
         let (browser, _) = await makeBrowser(backend: backend)
         browser.received([pick("a.bin"), pick("b.bin")])
         let transfer = try #require(browser.transfer)
         try await settle(transfer)
         #expect(transfer.stage == .failed)
-        #expect(transfer.items.allSatisfy { $0.state == .failed("Not enough space in the guest.") })
+        #expect(transfer.items.allSatisfy { $0.state == .failed("Not enough space in the virtual machine.") })
         #expect(backend.started.isEmpty, "nothing is sent that would not fit")
     }
 

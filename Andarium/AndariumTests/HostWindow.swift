@@ -9,8 +9,8 @@ import UIKit
 /// each switching to another test wherever it awaits. A test that puts its
 /// own root view controller in that window, or connects a window of its own,
 /// would replace the root another test is waiting on, and restore a stale
-/// root afterwards. The scene applies the orientation lock of the root it has
-/// at that moment, so a test of the lock then waits on a preference nobody
+/// root afterwards. The scene reads the preferences of the root it has at that
+/// moment, so a test of a root's preferences then waits on a root nobody
 /// holds, for as long as the other test keeps the window.
 ///
 /// A test that does either takes the window with `HostWindow.take()` for its

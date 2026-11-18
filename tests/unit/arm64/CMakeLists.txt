@@ -153,6 +153,30 @@ uml_add_arm64_unit_test(exclusive_events)
 # After an ISB, both engines run the code another vCPU changed and
 # synchronized, in A64 and A32.
 uml_add_arm64_unit_test(isb_code_change)
+# Code one process changed and synchronized on a page another process
+# translated runs in both, on both engines.
+uml_add_arm64_unit_test(cross_generation_code_change)
+# IC IVAU faults at an address nothing maps, as hardware does, so the kernel
+# maps the page and the instruction reaches the frame it means.
+uml_add_arm64_unit_test(code_synchronize_fault)
+# A change published again and again, and to more generations than a frame's
+# holder word names, reaches every process that runs the page.
+uml_add_arm64_unit_test(cross_generation_publication)
+# A publication that begins while another has taken a frame's holder word and
+# not published yet still reaches every process that translated the frame,
+# the target of a kernel write among them. Built on the memory domain's test
+# variant, whose checkpoint holds the first publisher.
+uml_add_arm64_unit_test(cross_generation_overlap
+    OBJECTS
+        $<TARGET_OBJECTS:uml_static_mmu_test_variant>
+        $<TARGET_OBJECTS:uml_arm64_gadgets>
+        $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
+        $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>
+        $<TARGET_OBJECTS:uml_arm64_execution_helpers>)
+target_compile_definitions(uml_arm64_cross_generation_overlap_tests PRIVATE
+    UML_MEMORY_ALLOCATION_TESTING=1)
+target_include_directories(uml_arm64_cross_generation_overlap_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/darwin/memory/mmu)
 uml_add_arm64_unit_test(simd_ordinary_memory_gadget)
 uml_add_arm64_unit_test(simd_structure_gadget)
 uml_add_arm64_unit_test(simd_baseline_inventory WITHOUT_HARNESS

@@ -59,10 +59,8 @@ without asking each other.
   hardware does less fails that test and not a guest.
 - **Flow.** Input is complete Annex B access units or complete JPEG and VP9
   frames. The coded queue's buffer size follows the picture size the client
-  states. Event buffers are bounded by the transport's virtqueue size, and a
-  full queue applies backpressure instead of completing empty events. The
-  device holds an encoded packet back while the hardware has no capture buffer
-  to decode into.
+  states. The device holds an encoded packet back while the hardware has no
+  capture buffer to decode into.
 
 `UML_VIDEO_ACTIVITY_LOG` names a file in which the device appends the profiles
 it advertised and each stream's codec and totals, since a guest that falls back
@@ -74,6 +72,28 @@ optional `guest-v4l2-decode` runs the real V4L2 driver against every advertised
 profile (see [testing](../../../docs/testing.md) for the guest probe input). The
 tests that use the host's hardware share the `video-encoder-hardware` resource
 lock and run in `check-gpu`.
+
+## Suspend and session loss
+
+A guest suspend disables the rings one after another and enables them in the
+same order, and a ring disable resets a device that still holds a request.
+Neither video device is reset: the event queue never defers, so with no event
+waiting the guest's buffer stays in its ring and the device raises its event
+descriptor when an event comes, and the device asks the transport to keep the
+requests it holds (`keepsDeferredRequestsWhileDisabled()`), the buffers a
+stream has queued. What the device completes while a ring is disabled is
+written to the ring at its enable. A stream therefore goes on after a suspend
+with the next picture or coded buffer, a descriptor opened before it works
+after it, and a session started after it gets its source change. A message that
+changes what a stream refers to, or a driver's teardown, still resets the
+device.
+
+The system may invalidate a platform session, as iOS does to an app that was in
+the background. The decoder then rebuilds it from the stream's stored parameter
+sets, shows nothing until the next sync picture and reports no error; a second
+loss with no picture between is an error to the client. The encoder starts
+again at a key frame. A final loss completes the stream's frames with `ERR` and
+sends `VIRTIO_VIDEO_EVENT_ERROR`.
 
 ## Encoder (device ID 30)
 
@@ -164,3 +184,12 @@ exist, and when, is `encoder_controls.cpp`:
 encoder (`tests/support/video`) and then the host's hardware encoder;
 `video-encoder-capabilities` checks the capability and control tables without a
 device and that the wire lists exactly what discovery found.
+
+`virtio-video-suspend` runs the decoder behind the real transport through a ring
+disable and enable, and `vhost-user-held-requests` checks the transport's side
+of it: requests held, completions and events written at the enable, kicks with
+and without an acknowledgement, and the messages that reset.
+`platform-video-decoder-recovery` and `platform-video-encoder-recovery` lose the
+VideoToolbox session, and `guest-video-suspend` suspends a Linux guest by the
+host's route and its own with both devices idle, with a node opened ahead of
+use, and with a decode and an encode stream in progress.

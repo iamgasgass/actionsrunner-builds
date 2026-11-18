@@ -3,6 +3,7 @@
 #define UML_DEVICE_BLOCK_ANDROID_BOOT_HPP
 
 #include "android_data_disk.hpp"
+#include "android_identity.hpp"
 #include "android_layout.hpp"
 
 #include <cstdint>
@@ -121,13 +122,29 @@ inline constexpr std::string_view bootDevicesArgument{
  * argument cannot carry as itself (see uml::block::usable_ubd_path). */
 void validateUbdPath(const std::filesystem::path &path, std::string_view label);
 
+/* `text` without its quote characters (`"` and `'`), which Android's
+ * command-line reader removes before it looks at an argument: a word written
+ * `"androidboot.serialno=x"` sets a serial number like the plain one. */
+[[nodiscard]] std::string withoutQuotes(std::string_view text);
+
+/* Whether a whitespace-separated word of `text`, quotes removed, starts with
+ * `prefix`. A launcher argument that carries a word of the arguments it sets
+ * itself must be refused whole, the compound `quiet androidboot.serialno=x`
+ * included, because UML joins its arguments with spaces. */
+[[nodiscard]] bool carriesPrefix(std::string_view text,
+				 std::string_view prefix);
+
 /* The whitespace-separated arguments of a release's kernel command-line file.
  * Throws when the file is not a readable regular file, when it holds no
- * argument, when an argument starts with one of `launcherPrefixes`, which the
- * launcher sets itself, or with one of storageArgumentPrefixes(), or when it
- * lacks bootDevicesArgument. A launcher that lists hwTimeoutMultiplierPrefix
- * has the one argument legacyHwTimeoutMultiplierArgument dropped from the
- * result instead of refused. */
+ * argument, when a `"` group spans white space or a `"` never closes (the
+ * words would no longer be the arguments Android reads, and the launcher's own
+ * come after them), when an argument, quotes removed, starts with one of
+ * `launcherPrefixes`, which the launcher sets itself, or with one of
+ * storageArgumentPrefixes(), or when it lacks bootDevicesArgument. A launcher
+ * that lists hwTimeoutMultiplierPrefix has the one argument
+ * legacyHwTimeoutMultiplierArgument dropped from the result instead of refused,
+ * and one that lists serialPrefix (android_identity.hpp) the same for
+ * legacySerialArgument, so the guest gets exactly one serial number. */
 std::vector<std::string> readKernelCommandLine(
 	const std::filesystem::path &path,
 	std::span<const std::string_view> launcherPrefixes);

@@ -40,7 +40,7 @@ DEADLINE_SECONDS = 780
 CLEANUP_SECONDS = 90
 BOOT_TIMEOUT_SECONDS = 240
 COMPILE_TIMEOUT_SECONDS = 300
-RUN_TIMEOUT_SECONDS = 240
+RUN_TIMEOUT_SECONDS = 360
 # The device has settled when its processes use less than one core in this many
 # samples in a row, five seconds apart.
 SETTLE_TIMEOUT_SECONDS = 240
@@ -210,6 +210,7 @@ def main() -> int:
         "microphone_tests": [
             here / "ios_microphone_tests.mm",
             sink / "apple_microphone_input.mm",
+            sink / "apple_microphone_tap.mm",
         ],
     }
     with tempfile.TemporaryDirectory(prefix="uml-audio-interruption-") as scratch:

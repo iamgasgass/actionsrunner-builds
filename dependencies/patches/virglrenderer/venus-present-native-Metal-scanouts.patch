@@ -124,7 +124,7 @@ index fcf875c2c3fcc242342034a04ad1ab1bd0e81673..980b6877f18409fe5cc5e4e99d1febc3
  VKR_DEFINE_OBJECT_CAST(device, VK_OBJECT_TYPE_DEVICE, VkDevice)
  
 diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
-index f01e1020296faed1bce5c5fce17a63534c3820d9..7233e6024606d0c1ea1afadc903dbd376e96d03c 100644
+index f6acce4536cc5c8955610cc1db69ccb09cbba012..b78b59b734981d64f066d7383d782c0b764e0c0d 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
 @@ -269,6 +269,7 @@ vkr_dispatch_vkAllocateMemory(struct vn_dispatch_context *dispatch,
@@ -231,7 +231,7 @@ index f01e1020296faed1bce5c5fce17a63534c3820d9..7233e6024606d0c1ea1afadc903dbd37
  bool
  vkr_device_memory_export_blob(struct vkr_device_memory *mem,
                                uint64_t blob_size,
-@@ -737,35 +799,19 @@ vkr_device_memory_export_blob(struct vkr_device_memory *mem,
+@@ -749,35 +811,19 @@ vkr_device_memory_export_blob(struct vkr_device_memory *mem,
     }
  
     if (mem->metal_heap_exportable) {

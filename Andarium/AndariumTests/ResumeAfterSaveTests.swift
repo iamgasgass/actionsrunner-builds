@@ -20,7 +20,7 @@ import UIKit
 ///         xcodebuild test -scheme Andarium -destination 'platform=macOS,variant=Designed for iPad' \
 ///         -only-testing:AndariumTests/ResumeAfterSaveTests
 ///
-/// The save flips Back up guest data, so the attribute is written on every
+/// The save flips Include in backups, so the attribute is written on every
 /// host; iOS's Foundation also writes it again on a save that changes
 /// nothing. The flip is undone once the guest is back. The test requires
 /// that the host held the guest while the application was away, which is
@@ -46,7 +46,7 @@ struct ResumeAfterSaveTests {
         let entry = AppEntry.fromArguments()
         let disk = GuestLocations(directory: AppEntry.guestDirectory(instance: entry.overrides.instance)).data
         try await withAndroidGuest { model, operations in
-            let included = try #require(model.guest?.includeInBackups)
+            let included = try #require(model.guest).includeInBackups
             _ = try await operations.shell("input keyevent KEYCODE_HOME", limit: .seconds(15))
             try await Task.sleep(for: Self.settle)
             let running = Self.footprint()

@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Andarium/scripts/stage-system-image.py stages only a checked, accepted release.
+"""Andarium/scripts/stage-system-image.py stages a checked, accepted release.
 
 A fake release carries the files and manifest fields the script reads: the
 system disk (any bytes), the partition layout that declares the disk's size
 and sha256, the kernel command line and the manifest inventory.
+
+With --unsigned-proof, for developer builds, it stages an unsigned proof image
+instead: a fake proof is a real small system disk (the tracked disk policy's
+partitions with synthetic contents, from the Android release fixture) and the
+manifest a proof producer writes. The staged manifest stays a proof's and
+gains the fields the application reads that a proof lacks.
 """
 
 from __future__ import annotations
 
 __import__("sys").dont_write_bytecode = True
 
+import atexit
 import hashlib
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,6 +30,8 @@ import unittest
 REPOSITORY = pathlib.Path(__file__).resolve().parents[3]
 SCRIPT = REPOSITORY / "Andarium/scripts/stage-system-image.py"
 PACKAGER = REPOSITORY / "Kernarium/scripts/package-ios-frameworks.sh"
+DISK_FIXTURE = REPOSITORY / "tests/support/android/android_release_fixture.py"
+STAGED_PROOF_GOLDEN = REPOSITORY / "tests/unit/andarium/fixtures/staged-unsigned-proof-manifest.json"
 
 RELEASE_ID = "20261031-los24-r4"
 FAMILY = "lineage-24-mainline-6.18-4k"
@@ -80,11 +90,113 @@ def make_acceptance(path: pathlib.Path, **overrides) -> pathlib.Path:
     return path
 
 
-def run(*arguments: str) -> subprocess.CompletedProcess:
+PROOF_ID = "unsigned-proof-ff1"
+PROOF_DIRECTORY = f"lineage24-mainline6.18-4k-{PROOF_ID}"
+KERNEL_RELEASE = "6.18.99-gfeedface0000"
+_PROOF_TEMPLATE: list[pathlib.Path] = []
+
+
+def proof_template() -> pathlib.Path:
+    """A real small system disk with its layout and command line, made once."""
+    if not _PROOF_TEMPLATE:
+        scratch = pathlib.Path(tempfile.mkdtemp(prefix="proof-template."))
+        atexit.register(shutil.rmtree, scratch, ignore_errors=True)
+        subprocess.run(
+            [sys.executable, "-B", str(DISK_FIXTURE), "--android-root", str(REPOSITORY / "android/lineage-24"),
+             "--output", str(scratch)],
+            check=True, capture_output=True, stdin=subprocess.DEVNULL)
+        _PROOF_TEMPLATE.append(scratch / "release")
+    return _PROOF_TEMPLATE[0]
+
+
+def proof_manifest(digest: str | None = None) -> dict:
+    """The manifest of an unsigned proof as its producer writes it: no major, no
+    kernel, no inventory, no source."""
+    producer = {
+        "entry_point": "proof.sh", "limit": "Built from the unsigned target files.",
+        "proof_for_release_id": "ff1", "target_files_sha256": "d" * 64,
+    }
+    if digest is not None:
+        producer["system_disk_sha256"] = digest
+    return {
+        "acceptance": "unsigned-proof",
+        "android": {
+            "build_id": "CP2A.260101.001", "build_number": 29, "security_patch": "2026-10-01", "signed": False,
+            "fingerprint": "Andarium/lineage_andarium/andarium:17/CP2A.260101.001/29:user/test-keys",
+        },
+        "directory_name": PROOF_DIRECTORY,
+        "inventory": [],
+        "kernel": {},
+        "outer": {"dirty": False, "revision": "c" * 40},
+        "producer": producer,
+        "product_family": FAMILY,
+        "published_at_utc": "2026-11-18T00:00:00Z",
+        "release_id": PROOF_ID,
+        "schema_version": 0,
+        "source": {},
+    }
+
+
+def make_proof(root: pathlib.Path, edit=None, digest: bool = True) -> pathlib.Path:
+    """A proof directory; `edit(directory, manifest)` changes it before the manifest is written."""
+    proof = root / PROOF_DIRECTORY
+    shutil.copytree(proof_template(), proof)
+    layout = json.loads((proof / "guest/partition-layout.json").read_text())
+    manifest = proof_manifest(layout["system_disk"]["sha256"] if digest else None)
+    if edit is not None:
+        edit(proof, manifest)
+    (proof / "release-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    return proof
+
+
+class Checkout:
+    """A checkout of its own: the staging script, the two files it imports and
+    the tracked metadata it reads, so a test chooses the line without options
+    of the script. `revision` is its one commit when it is a Git repository."""
+
+    def __init__(self, script: pathlib.Path, revision: str | None) -> None:
+        self.script = script
+        self.revision = revision
+
+
+def make_checkout(
+    root: pathlib.Path, major: int = 17, page_size: int = 4096, kernel_page_size: int = 4096,
+    family: str = FAMILY, git: bool = False,
+) -> Checkout:
+    for relative in (
+        "Andarium/scripts/stage-system-image.py", "kernel/common/artifacts/contract_checks.py",
+        "android/lineage-24/tools/ubd-disk.py",
+    ):
+        (root / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(REPOSITORY / relative, root / relative)
+    metadata = root / "android/lineage-24/metadata"
+    metadata.mkdir(parents=True)
+    (metadata / "lineage.env").write_text(
+        f"LINEAGE24_ANDROID_MAJOR={major}\nLINEAGE24_KERNEL_PAGE_SIZE={page_size}\n")
+    make_acceptance(metadata / "accepted-release.env", LINEAGE24_ACCEPTED_PRODUCT_FAMILY=family)
+    kernel = root / "kernel/mainline-6.18/artifacts"
+    kernel.mkdir(parents=True)
+    (kernel / "accepted-android-4k.env").write_text(
+        f"UML_KERNEL_ARTIFACT_RELEASE='{KERNEL_RELEASE}'\nUML_KERNEL_ARTIFACT_PAGE_SIZE={kernel_page_size}\n")
+    revision = None
+    if git:
+        for command in (["init", "-q", "."], ["add", "-A"], ["commit", "-q", "-m", "fixture"]):
+            subprocess.run(["git", "-C", str(root), *command], check=True, capture_output=True,
+                           stdin=subprocess.DEVNULL)
+        revision = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], check=True, capture_output=True,
+                                  text=True, stdin=subprocess.DEVNULL).stdout.strip()
+    return Checkout(root / "Andarium/scripts/stage-system-image.py", revision)
+
+
+def run_script(script: pathlib.Path, *arguments: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [sys.executable, "-B", str(SCRIPT), *arguments],
+        [sys.executable, "-B", str(script), *arguments],
         capture_output=True, text=True, check=False, stdin=subprocess.DEVNULL,
     )
+
+
+def run(*arguments: str) -> subprocess.CompletedProcess:
+    return run_script(SCRIPT, *arguments)
 
 
 def tree(directory: pathlib.Path) -> list[str]:
@@ -177,6 +289,291 @@ class StageSystemImageTests(unittest.TestCase):
         self.assertEqual((self.output / "guest/system.img").read_bytes(), b"newer disk")
         # No scratch directory is left beside the output.
         self.assertEqual([entry.name for entry in self.output.parent.iterdir()], ["andarium-system"])
+
+
+def set_path(*keys, value):
+    """An edit that sets one manifest field, or removes it when the value is None."""
+    def edit(_directory, manifest):
+        owner = manifest
+        for key in keys[:-1]:
+            owner = owner[key]
+        if value is None:
+            owner.pop(keys[-1], None)
+        else:
+            owner[keys[-1]] = value
+    return edit
+
+
+def rewrite_layout(directory: pathlib.Path, change) -> None:
+    path = directory / "guest/partition-layout.json"
+    layout = json.loads(path.read_text())
+    change(layout)
+    path.write_text(json.dumps(layout, indent=2) + "\n")
+
+
+class UnsignedProofTests(unittest.TestCase):
+    """--unsigned-proof stages a proof for developer builds, and only a proof."""
+
+    def setUp(self):
+        self._scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(self._scratch.cleanup)
+        self.root = pathlib.Path(self._scratch.name)
+        self.output = self.root / "out/andarium-system"
+        self.checkout = make_checkout(self.root / "checkout")
+
+    def stage(self, proof: pathlib.Path, *extra: str, output: pathlib.Path | None = None,
+              checkout: Checkout | None = None):
+        return run_script((checkout or self.checkout).script, "--release", str(proof), "--unsigned-proof",
+                          "--output", str(output or self.output), *extra)
+
+    def test_a_proof_is_staged_with_a_manifest_that_still_says_it_is_one(self):
+        proof = make_proof(self.root / "proofs")
+        result = self.stage(proof)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            tree(self.output),
+            ["boot/kernel-command-line.txt", "guest/partition-layout.json",
+             "guest/system.img", "release-manifest.json"])
+        for relative in ("boot/kernel-command-line.txt", "guest/partition-layout.json", "guest/system.img"):
+            self.assertEqual((self.output / relative).read_bytes(), (proof / relative).read_bytes(), relative)
+        staged = json.loads((self.output / "release-manifest.json").read_text())
+        original = json.loads((proof / "release-manifest.json").read_text())
+        self.assertEqual(staged["acceptance"], "unsigned-proof")
+        self.assertEqual(staged["release_id"], PROOF_ID)
+        self.assertIs(staged["android"]["signed"], False)
+        # Everything the proof said is still there; the three fields it lacked are added.
+        for key, value in original.items():
+            if key not in ("android", "kernel"):
+                self.assertEqual(staged[key], value, key)
+        self.assertEqual(staged["android"], {**original["android"], "major": 17})
+        self.assertEqual(staged["kernel"], {"page_size": 4096, "release": KERNEL_RELEASE})
+        self.assertEqual(staged["proof_staging"]["derived"], ["android.major", "kernel.page_size", "kernel.release"])
+
+    def test_the_staged_manifest_is_the_golden_one_the_application_reads(self):
+        # AndariumCore's SystemInfo and ReleaseIdentity read the same file.
+        proof = make_proof(self.root / "proofs", digest=False)
+        self.assertEqual(self.stage(proof).returncode, 0)
+        self.assertEqual((self.output / "release-manifest.json").read_text(), STAGED_PROOF_GOLDEN.read_text())
+
+    def test_the_output_says_what_a_proof_is_and_where_it_runs(self):
+        proof = make_proof(self.root / "proofs")
+        result = self.stage(proof)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for needle in (
+            f"staged UNSIGNED PROOF {FAMILY} {PROOF_ID}",
+            "developer build only", "AppStore or TestFlight build refuses it",
+            "only on a fresh or isolated guest instance (ANDARIUM_GUEST_INSTANCE=<name>)",
+            "a guest with data of another system cannot start until Erase virtual machine",
+            "a guest made from this proof cannot start another system",
+            "built from revision cccccccccccc, which is unknown to this checkout",
+            "android.major, kernel.page_size, kernel.release",
+            "not checked: the signature",
+        ):
+            self.assertIn(needle, result.stdout)
+
+    def test_the_revision_is_said_to_be_in_this_checkout_when_it_is(self):
+        checkout = make_checkout(self.root / "repository", git=True)
+        proof = make_proof(self.root / "proofs", set_path("outer", "revision", value=checkout.revision))
+        result = self.stage(proof, checkout=checkout)
+        self.assertIn(f"built from revision {checkout.revision[:12]}, which is in this checkout's history", result.stdout)
+
+    def test_the_output_lists_everything_that_is_not_checked(self):
+        with_digest = self.stage(make_proof(self.root / "with"))
+        without = self.stage(make_proof(self.root / "without", digest=False), output=self.root / "out/other")
+        for result in (with_digest, without):
+            line = next(each for each in result.stdout.splitlines() if "not checked:" in each)
+            for needle in (
+                "the signature", "the target files", "the input trees", "the source provenance",
+                "the inventory", "the command line's content", "the tracked disk policy",
+            ):
+                self.assertIn(needle, line)
+        self.assertNotIn("the producer's own disk digest", with_digest.stdout)
+        self.assertIn("the producer's own disk digest (the proof records none)", without.stdout)
+
+    def test_without_the_flag_a_proof_is_refused_and_the_flag_is_named(self):
+        proof = make_proof(self.root / "proofs")
+        result = run("--release", str(proof), "--output", str(self.output))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsigned proof image", result.stderr)
+        self.assertIn("--unsigned-proof", result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_the_flag_alone_finds_no_release(self):
+        make_proof(self.root / "releases")
+        acceptance = make_acceptance(self.root / "accepted-release.env")
+        result = run("--unsigned-proof", "--acceptance", str(acceptance), "--releases", str(self.root / "releases"),
+                     "--output", str(self.output))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("--release names", result.stderr)
+        self.assertFalse(self.output.exists())
+
+    def test_the_flag_stages_nothing_but_a_proof(self):
+        for acceptance in ("accepted", "candidate"):
+            with self.subTest(acceptance):
+                release = make_release(self.root / acceptance, acceptance=acceptance)
+                result = run_script(self.checkout.script, "--release", str(release), "--unsigned-proof",
+                                    "--output", str(self.output))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("--unsigned-proof stages an unsigned proof", result.stderr)
+                self.assertIn(repr(acceptance), result.stderr)
+                self.assertFalse(self.output.exists())
+
+    def test_each_defect_of_a_proof_is_refused_and_stages_nothing(self):
+        def partition_digest(directory, manifest):
+            # A disk whose partition differs from its layout, with every whole-disk
+            # digest (the layout's and the producer's) repaired to the new bytes.
+            disk = directory / "guest/system.img"
+            data = bytearray(disk.read_bytes())
+            layout = json.loads((directory / "guest/partition-layout.json").read_text())
+            system = next(item for item in layout["system_disk"]["partitions"] if item["name"] == "system")
+            data[system["start_bytes"] + 7] ^= 0xFF
+            disk.write_bytes(bytes(data))
+            digest = hashlib.sha256(bytes(data)).hexdigest()
+            rewrite_layout(directory, lambda each: each["system_disk"].update(sha256=digest))
+            manifest["producer"]["system_disk_sha256"] = digest
+
+        def edited_layout(change):
+            def edit(directory, _manifest):
+                rewrite_layout(directory, lambda layout: change(directory, layout))
+            return edit
+
+        def remove(relative):
+            def edit(directory, _manifest):
+                (directory / relative).unlink()
+            return edit
+
+        def write_text(relative, text):
+            def edit(directory, _manifest):
+                (directory / relative).write_text(text)
+            return edit
+
+        def truncate(directory, _manifest):
+            disk = directory / "guest/system.img"
+            disk.write_bytes(disk.read_bytes()[:-4096])
+
+        def link_disk(directory, _manifest):
+            disk = directory / "guest/system.img"
+            (directory / "disk.bin").write_bytes(disk.read_bytes())
+            disk.unlink()
+            disk.symlink_to(directory / "disk.bin")
+
+        cases = {
+            "layout digest": (
+                edited_layout(lambda _d, layout: layout["system_disk"].update(sha256="0" * 64)),
+                "sha256 in the partition layout"),
+            "partition digest": (partition_digest, "does not match its partition layout"),
+            "producer digest": (set_path("producer", "system_disk_sha256", value="1" * 64), "producer recorded"),
+            "truncated disk": (truncate, "size in the partition layout"),
+            "missing disk": (remove("guest/system.img"), "missing or unsafe"),
+            "linked disk": (link_disk, "missing or unsafe"),
+            "missing layout": (remove("guest/partition-layout.json"), "missing or unsafe"),
+            "missing command line": (remove("boot/kernel-command-line.txt"), "missing or unsafe"),
+            "layout schema": (edited_layout(lambda _d, layout: layout.update(schema_version=1)), "schema 2"),
+            "stated page size": (set_path("kernel", "page_size", value=16384), "4096-byte-page"),
+            "family": (set_path("product_family", value="aosp-17"), "product family"),
+            "release ID": (set_path("release_id", value="20261101-los24-r5"), "does not start with"),
+            "release ID the app refuses": (set_path("release_id", value="unsigned-proof-Q!"), "application accepts"),
+            "release ID of another proof": (set_path("producer", "proof_for_release_id", value="ff2"), "producer names"),
+            "no producer": (set_path("producer", value=None), "no producer section"),
+            "signed": (set_path("android", "signed", value=True), "unsigned"),
+            "no signed statement": (set_path("android", "signed", value=None), "unsigned"),
+            "other major": (set_path("android", "major", value=16), "Android major"),
+            "no fingerprint": (set_path("android", "fingerprint", value=None), "no fingerprint"),
+            "build number": (set_path("android", "build_number", value=0), "build_number"),
+            "boolean build number": (set_path("android", "build_number", value=True), "build_number"),
+            "eleven-digit build number": (set_path("android", "build_number", value=10**10), "build_number"),
+            "patch level that is no string": (set_path("android", "security_patch", value=20261001), "security_patch"),
+            "bare proof prefix": (set_path("release_id", value="unsigned-proof-", ), "name a release"),
+            "stated kernel release": (set_path("kernel", "release", value="6.18.1-gstated"), "accepted Android kernel's"),
+            "empty command line": (write_text("boot/kernel-command-line.txt", "  \n"), "command line is empty"),
+            "no android section": (set_path("android", value=None), "no android section"),
+            "no kernel section": (set_path("kernel", value=None), "no kernel section"),
+        }
+        for name, (edit, message) in cases.items():
+            with self.subTest(name):
+                proof = make_proof(self.root / name, edit)
+                output = self.root / "out" / name
+                result = self.stage(proof, output=output)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(output.exists())
+
+    def test_the_tracked_line_must_be_a_four_kib_line(self):
+        proof = make_proof(self.root / "proofs")
+        for name, change in (("image line", {"page_size": 16384}), ("kernel", {"kernel_page_size": 16384})):
+            with self.subTest(name):
+                checkout = make_checkout(self.root / name, **change)
+                result = self.stage(proof, checkout=checkout)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("4096-byte-page line", result.stderr)
+                self.assertFalse(self.output.exists())
+
+    def test_a_repeated_json_key_in_the_manifest_or_the_layout_is_refused(self):
+        def repeat(text: str, key: str, value: str) -> str:
+            return text.rstrip().rstrip("}").rstrip() + f',\n"{key}": {value}}}\n'
+
+        for name, relative, key, value in (
+            ("manifest acceptance", "release-manifest.json", "acceptance", '"unsigned-proof"'),
+            ("manifest release ID", "release-manifest.json", "release_id", '"unsigned-proof-other"'),
+            ("layout schema", "guest/partition-layout.json", "schema_version", "2"),
+        ):
+            with self.subTest(name):
+                proof = make_proof(self.root / name)
+                path = proof / relative
+                path.write_text(repeat(path.read_text(), key, value))
+                result = self.stage(proof, output=self.root / "out" / name)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn(f"repeats the key {key}", result.stderr)
+                self.assertFalse((self.root / "out" / name).exists())
+
+    def test_a_proof_that_states_a_field_the_tracked_line_agrees_with_keeps_it(self):
+        edits = [set_path("android", "major", value=17), set_path("kernel", "release", value=KERNEL_RELEASE),
+                 set_path("kernel", "page_size", value=4096)]
+
+        def edit(directory, manifest):
+            for each in edits:
+                each(directory, manifest)
+
+        proof = make_proof(self.root / "proofs", edit)
+        self.assertEqual(self.stage(proof).returncode, 0)
+        staged = json.loads((self.output / "release-manifest.json").read_text())
+        self.assertEqual(staged["kernel"], {"page_size": 4096, "release": KERNEL_RELEASE})
+        self.assertEqual(staged["proof_staging"]["derived"], [])
+
+    def test_a_failed_staging_keeps_what_was_staged(self):
+        good = make_proof(self.root / "good")
+        self.assertEqual(self.stage(good).returncode, 0)
+        before = (self.output / "release-manifest.json").read_bytes()
+        bad = make_proof(self.root / "bad", set_path("android", "signed", value=True))
+        self.assertNotEqual(self.stage(bad).returncode, 0)
+        self.assertEqual((self.output / "release-manifest.json").read_bytes(), before)
+        self.assertEqual([entry.name for entry in self.output.parent.iterdir()], ["andarium-system"])
+
+    def test_the_tracked_metadata_of_this_checkout_supplies_the_missing_fields(self):
+        sys.path.insert(0, str(REPOSITORY / "kernel/common/artifacts"))
+        import contract_checks
+
+        accepted = contract_checks.parse_assignments(REPOSITORY / "android/lineage-24/metadata/accepted-release.env")
+        image = contract_checks.parse_assignments(REPOSITORY / "android/lineage-24/metadata/lineage.env")
+        kernel = contract_checks.parse_assignments(
+            REPOSITORY / "kernel/mainline-6.18/artifacts/accepted-android-4k.env")
+        proof = make_proof(self.root / "proofs", set_path("product_family", value=accepted["LINEAGE24_ACCEPTED_PRODUCT_FAMILY"]))
+        result = run("--release", str(proof), "--unsigned-proof", "--output", str(self.output))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        staged = json.loads((self.output / "release-manifest.json").read_text())
+        self.assertEqual(staged["android"]["major"], int(image["LINEAGE24_ANDROID_MAJOR"]))
+        self.assertEqual(staged["kernel"]["release"], kernel["UML_KERNEL_ARTIFACT_RELEASE"])
+        self.assertEqual(staged["kernel"]["page_size"], int(kernel["UML_KERNEL_ARTIFACT_PAGE_SIZE"]))
+        self.assertEqual(staged["proof_staging"]["from"], [
+            "android/lineage-24/metadata/lineage.env", "kernel/mainline-6.18/artifacts/accepted-android-4k.env"])
+
+    def test_a_signed_release_is_staged_as_before(self):
+        release = make_release(self.root / "releases")
+        result = run("--release", str(release), "--output", str(self.output))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, f"staged {FAMILY} {RELEASE_ID}: {self.output}\n")
+        self.assertEqual((self.output / "release-manifest.json").read_bytes(), (release / "release-manifest.json").read_bytes())
+        self.assertNotIn("proof_staging", (self.output / "release-manifest.json").read_text())
 
 
 class PackageOptionTests(unittest.TestCase):

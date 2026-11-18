@@ -22,7 +22,17 @@ struct FilesBar: View {
     /// The sheet's own bottom inset, measured outside the bar: read here, the
     /// bar's padding would feed its own measurement.
     let bottomInset: CGFloat
+    /// Optional: the bar shown without a model is the phone's.
+    @Environment(AppModel.self) private var model: AppModel?
     @State private var trailScrolled = false
+
+    /// On the folding iPhone's cover the toolbar's buttons stand in a column
+    /// beside the camera, and Import is one of them (`FolderPage`), so the
+    /// trail has the bar to itself until something is selected: Export, which
+    /// replaces Import then, stays here.
+    private var importIsInToolbar: Bool {
+        (model?.foldPose.importIsInToolbar ?? false) && browser.selection.isEmpty
+    }
 
     var body: some View {
         GlassEffectContainer(spacing: 10) {
@@ -33,7 +43,7 @@ struct FilesBar: View {
                 if browser.browsing, usable {
                     HStack(spacing: 10) {
                         trail
-                        action
+                        if !importIsInToolbar { action }
                     }
                     .transition(.opacity)
                 }
@@ -192,7 +202,7 @@ struct FilesBar: View {
         .buttonBorderShape(.capsule)
     }
 
-    private func actionLabel(_ title: String, symbol: String) -> some View {
+    private func actionLabel(_ title: LocalizedStringKey, symbol: String) -> some View {
         Label(title, systemImage: symbol)
             .font(.subheadline.weight(.semibold))
             .labelStyle(.titleAndIcon)
@@ -240,21 +250,44 @@ private extension View {
     }
 }
 
-/// The system document picker, or what the preview shows in its place.
+/// The system document picker, or what the preview shows in its place. The
+/// App Store configuration opens the files in place (`fileImporter`); every
+/// other build takes copies (`CopyDocumentPicker`).
 struct ImportPickerPresenter: ViewModifier {
     @Bindable var browser: FileBrowserModel
+    /// Optional: the bar shown without a model is the phone's.
+    @Environment(AppModel.self) private var model: AppModel?
 
     func body(content: Content) -> some View {
         if let standIn = browser.backend.importPickerStandIn(deliver: { browser.received($0) }) {
             content.sheet(isPresented: $browser.picking) { standIn }
         } else {
+            #if APP_STORE
             content.fileImporter(
                 isPresented: $browser.picking, allowedContentTypes: [.item], allowsMultipleSelection: true
             ) { result in
-                guard case let .success(urls) = result else { return }
-                browser.received(urls.map(FilePick.picked))
+                switch result {
+                case let .success(urls): browser.received(urls.map { FilePick.picked($0) })
+                case let .failure(error): failed(error)
+                }
             }
+            #else
+            content.documentCopyPicker(
+                isPresented: $browser.picking, types: [.item], allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case let .success(picked):
+                    browser.received(picked.urls.map { FilePick.picked($0, staged: picked.folder) })
+                case let .failure(error): failed(error)
+                }
+            }
+            #endif
         }
+    }
+
+    private func failed(_ error: Error) {
+        browser.picking = false
+        model?.documentPickerFailed(error, title: String(localized: "Not imported"))
     }
 }
 
@@ -332,7 +365,7 @@ struct TransferCapsule: View {
         .contentShape(.rect)
         .onTapGesture { if transfer.items.count > 1 { transfer.expanded.toggle() } }
         .accessibilityAddTraits(transfer.items.count > 1 ? .isButton : [])
-        .accessibilityHint(transfer.items.count > 1 ? (transfer.expanded ? "Hides the files" : "Shows the files") : "")
+        .accessibilityHint(transfer.items.count > 1 ? (transfer.expanded ? String(localized: "Hides the files") : String(localized: "Shows the files")) : "")
     }
 
     @ViewBuilder private var progressFill: some View {
@@ -430,7 +463,7 @@ struct TransferCapsule: View {
                     Text(reason)
                         .font(.caption)
                         .foregroundStyle(.red)
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
             }
             Spacer(minLength: 8)
@@ -448,7 +481,7 @@ struct TransferCapsule: View {
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
         case .moving:
-            Text("\(Formats.size(bytes: item.moved)) of \(Formats.size(bytes: item.size))")
+            Text(MeterWords.of(Formats.size(bytes: item.moved), Formats.size(bytes: item.size)))
                 .font(.caption.weight(.medium))
                 .foregroundStyle(Color.accentColor)
                 .monospacedDigit()
@@ -498,10 +531,10 @@ struct ConflictCard: View {
                 .accessibilityLabel("Cancel import")
             }
             HStack(spacing: 8) {
-                Button { browser.resolveConflict(.skip) } label: { choice("Skip") }
+                Button { browser.resolveConflict(.skip) } label: { choice(String(localized: "Skip")) }
                     .buttonStyle(.bordered)
                     .tint(Color(.label))
-                Button(role: .destructive) { browser.resolveConflict(.replace) } label: { choice("Replace") }
+                Button(role: .destructive) { browser.resolveConflict(.replace) } label: { choice(String(localized: "Replace")) }
                     .buttonStyle(.bordered)
                     .tint(.red)
                 Button { browser.resolveConflict(.keepBoth) } label: { choice("Keep Both") }
@@ -525,9 +558,9 @@ struct ConflictCard: View {
 
     private var title: String {
         if conflict.clashing.count == 1, let only = conflict.clashing.first {
-            return "\u{201C}\(only.name)\u{201D} is already in \(folderName)"
+            return String(localized: "\u{201C}\(only.name)\u{201D} is already in \(folderName)")
         }
-        return "\(conflict.clashing.count) names are already in \(folderName)"
+        return String(localized: "\(conflict.clashing.count) names are already in \(folderName)")
     }
 
     /// The names a count stands for.
@@ -535,6 +568,6 @@ struct ConflictCard: View {
         guard conflict.clashing.count > 1 else { return nil }
         let shown = conflict.clashing.prefix(2).map(\.name)
         let more = conflict.clashing.count - shown.count
-        return ListFormatter.localizedString(byJoining: shown + (more > 0 ? ["\(more) more"] : []))
+        return ListFormatter.localizedString(byJoining: shown + (more > 0 ? [String(localized: "\(more) more")] : []))
     }
 }

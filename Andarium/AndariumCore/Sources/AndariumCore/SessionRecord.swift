@@ -38,11 +38,64 @@ public struct SessionRecord: Equatable, Sendable {
     /// The guest kernel's last output before a crash, oldest line first.
     public var kernelOutput: String?
     public var memory: Memory?
+    /// Whether the guest's console had said that Android finished booting, for
+    /// a guest whose console says so; nil in a record that does not say (an
+    /// earlier runtime, or a guest that never reports it).
+    public var bootFinished: Bool?
+    /// How many times the guest had restarted in the process before this
+    /// session, for a guest whose boot the record follows.
+    public var restarts: Int?
     /// The footprint's large terms at the last checkpoint and at the
     /// session's highest one, in MiB, as the runtime words them ("guest G gpu
     /// H/B ..."); nil in a record that has none.
     public var terms: String?
     public var peakTerms: String?
+    /// The stall record of the session, from layout 4 on: when the guest's
+    /// vCPUs stopped running on the host and what the host was doing then; nil
+    /// in an earlier layout or when the slot is of a version this reader does
+    /// not know.
+    public var stalls: StallRecord?
+    /// What the guest's user network counted and whether Andarium's notice that
+    /// iOS denies it the network was shown, from layout 5 on; nil in an earlier
+    /// layout or when the slot is of a version this reader does not know.
+    public var network: NetworkRecord?
+    /// How often the guest's storage was settled and how often the guest did
+    /// not confirm it, from layout 7 on; nil in an earlier layout, when the
+    /// slot is blank (no settle yet) or when it is of a version this reader
+    /// does not know.
+    public var storage: StorageRecord?
+    /// How the platform presented each of the guest's cameras and the stills of
+    /// the guest's cameras that did not end in a picture and why, from layout 8
+    /// on; nil in an earlier layout, when the slot is blank (no camera presented
+    /// and no failure) or when it is of a version this reader does not know.
+    public var camera: CameraRecord?
+
+    /// The layouts this reader knows: 1 to 3 keep the session's state right
+    /// after the memory slot, 4 puts the stall slot between them, 5 the
+    /// network slot after the stall slot, 6 the figures of the run in each
+    /// history row of an 8 KiB memory slot, 7 the storage slot after the
+    /// network slot and 8 the camera slot after the storage slot. The rows are
+    /// for the person reading the bug report; this reader takes none of them.
+    static let layouts = [
+        "uml-session 1", "uml-session 2", "uml-session 3", "uml-session 4", "uml-session 5", "uml-session 6",
+        "uml-session 7", "uml-session 8",
+    ]
+
+    /// The read cap, 20 KiB: the runtime writes at most 19200 bytes
+    /// (`session_record_max_bytes`), so a file longer than the cap is not one
+    /// it wrote, and is neither read nor copied beyond it. The gap is slack for
+    /// a later layout, not a limit the runtime reaches.
+    public static let maximumBytes = 20 << 10
+
+    /// The output's own text: the runtime pads the state's area with newlines to
+    /// its full size, so the output ends with one newline, as the guest's
+    /// last line did, and not with the padding.
+    private static func withoutPadding(_ output: String) -> String {
+        guard output.hasSuffix("\n") else { return output }
+        var text = Substring(output)
+        while text.hasSuffix("\n") { text.removeLast() }
+        return text + "\n"
+    }
 
     /// Reads a record's text; nil when it is not one.
     public init?(text: String) {
@@ -50,7 +103,7 @@ public struct SessionRecord: Equatable, Sendable {
         var fields: [String: String] = [:]
         let lines = parts[0].split(separator: "\n", omittingEmptySubsequences: true)
             .filter { !$0.allSatisfy { $0 == " " } }
-        guard let format = lines.first, ["uml-session 1", "uml-session 2", "uml-session 3"].contains(format)
+        guard let format = lines.first, Self.layouts.contains(String(format))
         else { return nil }
         for line in lines.dropFirst() {
             guard let space = line.firstIndex(of: " ") else { continue }
@@ -64,10 +117,21 @@ public struct SessionRecord: Equatable, Sendable {
         started = fields["started"].flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
         ended = fields["ended"].flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
         message = fields["message"]
-        kernelOutput = parts.count > 1 ? parts[1] : nil
+        kernelOutput = parts.count > 1 ? Self.withoutPadding(parts[1]) : nil
         memory = fields["memory"].flatMap(Self.memory(from:))
+        bootFinished = fields["boot"].flatMap { ["completed": true, "unfinished": false][$0] }
+        restarts = fields["restarts"].flatMap { Int($0) }
         terms = fields["terms"]
         peakTerms = fields["peak-terms"]
+        let hasStalls = ["uml-session 4", "uml-session 5", "uml-session 6", "uml-session 7", "uml-session 8"]
+            .contains(String(format))
+        stalls = hasStalls ? StallRecord(text: parts[0]) : nil
+        let hasNetwork = ["uml-session 5", "uml-session 6", "uml-session 7", "uml-session 8"]
+            .contains(String(format))
+        network = hasNetwork ? NetworkRecord(text: parts[0]) : nil
+        storage = ["uml-session 7", "uml-session 8"].contains(String(format))
+            ? StorageRecord(text: parts[0]) : nil
+        camera = format == "uml-session 8" ? CameraRecord(text: parts[0]) : nil
     }
 
     /// "at T footprint F peak P [available A]".
@@ -86,11 +150,12 @@ public struct SessionRecord: Equatable, Sendable {
         )
     }
 
-    /// The record at `url`, or nil when there is none or it is not a record.
+    /// The record at `url`, or nil when there is none, it is longer than
+    /// `maximumBytes` or it is not a record.
     public static func read(at url: URL) -> SessionRecord? {
-        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else {
-            return nil
-        }
+        guard let data = BoundedFile.read(url, limit: maximumBytes), data.count <= maximumBytes,
+            let text = String(data: data, encoding: .utf8)
+        else { return nil }
         return SessionRecord(text: text)
     }
 
@@ -113,6 +178,17 @@ public struct SessionRecord: Equatable, Sendable {
 
     /// One line for a log or a report.
     public var summary: String {
+        summaryOfEnd + bootSentence
+    }
+
+    /// What the record adds of the boot when it did not finish.
+    private var bootSentence: String {
+        guard bootFinished == false else { return "" }
+        let times = restarts.map { $0 > 0 ? " and the guest had restarted \($0) time\($0 == 1 ? "" : "s") in this process" : "" } ?? ""
+        return " Android had not finished booting\(times)."
+    }
+
+    private var summaryOfEnd: String {
         if running {
             var line = "The previous session was still running when the process ended (pid \(processID))"
             if let memory {
@@ -148,33 +224,74 @@ public struct SessionRecord: Equatable, Sendable {
         switch end {
         case "guest-panic":
             return SessionEndNotice(
-                title: "Android's kernel panicked",
-                text: "Android stopped with a kernel panic" + (message.map { ": \($0)." } ?? ".")
+                title: String(
+                    localized: "Android’s kernel panicked", bundle: .module,
+                    comment: "Title of Home's card after Android's kernel panicked, the Linux kernel's own fatal error."),
+                text: message.map {
+                    String(
+                        localized: "Android stopped with a kernel panic: \($0).", bundle: .module,
+                        comment: "Home's card after a kernel panic. The argument is the kernel's own message, in English, which stays as it is.")
+                } ?? String(
+                    localized: "Android stopped with a kernel panic.", bundle: .module,
+                    comment: "Home's card after a kernel panic that left no message.")
             )
         case "kernel-abort":
-            return SessionEndNotice(title: "Android's kernel crashed", text: "Android stopped on a kernel error.")
+            return SessionEndNotice(
+                title: String(
+                    localized: "Android’s kernel crashed", bundle: .module,
+                    comment: "Title of Home's card after Android's kernel stopped on an error of its own."),
+                text: String(
+                    localized: "Android stopped on a kernel error.", bundle: .module,
+                    comment: "Home's card after Android's kernel stopped on an error of its own."))
         case "kernel-exit":
-            return SessionEndNotice(title: "Android stopped", text: "Android's kernel ended Andarium.")
+            return SessionEndNotice(
+                title: String(
+                    localized: "Android stopped", bundle: .module,
+                    comment: "Title of Home's card after Android's kernel ended the session by itself, or after a stop with no known cause."),
+                text: String(
+                    localized: "Android’s kernel ended Andarium.", bundle: .module,
+                    comment: "Home's card after Android's kernel ended the session by itself."))
         case "hibernation-restore-failed":
             return SessionEndNotice(
-                title: "Android could not resume",
-                text: "Android's memory could not be restored, so it starts again from boot."
-            )
+                title: String(
+                    localized: "Android could not resume", bundle: .module,
+                    comment: "Title of Home's card after a start that could not bring back the memory Android saved when it was paused."),
+                text: String(
+                    localized: "Android’s memory could not be restored, so it starts again from boot.", bundle: .module,
+                    comment: "Home's card after a start that could not bring back the memory Android saved when it was paused."))
         case "host-fault", "process-exit":
             return SessionEndNotice(
-                title: "Andarium crashed", text: "Andarium stopped on an error of its own while Android was running."
-            )
+                title: String(
+                    localized: "Andarium crashed", bundle: .module,
+                    comment: "Title of Home's card after Andarium itself crashed while Android was running."),
+                text: String(
+                    localized: "Andarium stopped on an error of its own while Android was running.", bundle: .module,
+                    comment: "Home's card after Andarium itself crashed while Android was running."))
         case "running" where nearMemoryLimit:
             return SessionEndNotice(
-                title: "iOS ended Andarium",
-                text: "Android was using almost all the memory iOS allows Andarium. A smaller memory size is safer."
-            )
+                title: String(
+                    localized: "iOS ended Andarium", bundle: .module,
+                    comment: "Title of Home's card after iOS ended Andarium because the memory it used came near the limit."),
+                text: String(
+                    localized: "Android was using almost all the memory iOS allows Andarium. A smaller memory size is safer.",
+                    bundle: .module,
+                    comment: "Home's card after iOS ended Andarium because the memory it used came near the limit."))
         case "running":
             return SessionEndNotice(
-                title: "Andarium stopped unexpectedly", text: "Andarium ended while Android was running."
-            )
+                title: String(
+                    localized: "Andarium stopped unexpectedly", bundle: .module,
+                    comment: "Title of Home's card after Andarium ended while Android was running, with no known cause."),
+                text: String(
+                    localized: "Andarium ended while Android was running.", bundle: .module,
+                    comment: "Home's card after Andarium ended while Android was running, with no known cause."))
         default:
-            return SessionEndNotice(title: "Android stopped", text: "Android stopped unexpectedly.")
+            return SessionEndNotice(
+                title: String(
+                    localized: "Android stopped", bundle: .module,
+                    comment: "Title of Home's card after Android's kernel ended the session by itself, or after a stop with no known cause."),
+                text: String(
+                    localized: "Android stopped unexpectedly.", bundle: .module,
+                    comment: "Home's card after a stop with no known cause."))
         }
     }
 }

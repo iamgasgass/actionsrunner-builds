@@ -1,19 +1,130 @@
 [
   {
+    "build": 12,
+    "version": "1.0 (12)",
+    "entries": [
+      {
+        "id": "old-app-compatibility",
+        "title": "Old app compatibility",
+        "text": "If an app built for an Android version before 4.0 crashes, turn on Old app compatibility for it. Android then runs that app more like older versions did.",
+        "symbol": "clock.arrow.2.circlepath",
+        "place": "sessionSettings"
+      },
+      {
+        "id": "fixes-and-improvements",
+        "title": "Fixes and improvements",
+        "points": [
+          "Fixed the camera preview freezing after you take a photo",
+          "Fixed the camera preview lagging behind in video mode",
+          "A camera recording now ends and is saved when you leave Andarium",
+          "Fixed the start of a video recording having no sound",
+          "Fixed 3D graphics failing to start in apps that run PC programs"
+        ],
+        "symbol": "wrench.and.screwdriver.fill"
+      }
+    ]
+  },
+  {
+    "build": 11,
+    "version": "1.0 (11)",
+    "entries": [
+      {
+        "id": "snapshots",
+        "title": "Snapshots",
+        "text": "Save the virtual machine’s data and restore it later, from Home.",
+        "symbol": "clock.arrow.circlepath"
+      },
+      {
+        "id": "resolution",
+        "title": "Resolution",
+        "text": "On Home, choose the resolution of the virtual machine’s display, up to your screen’s native resolution.",
+        "symbol": "squareshape.split.3x3"
+      },
+      {
+        "id": "ipad-rotation",
+        "title": "Rotation on iPad",
+        "text": "On iPad, the whole app now turns with the device, even while the virtual machine runs.",
+        "symbol": "rotate.right",
+        "requirement": {
+          "device": "pad"
+        }
+      },
+      {
+        "id": "keyboard-mouse-controllers",
+        "title": "Keyboard, mouse and controllers",
+        "text": "Use a hardware keyboard and game controllers with the virtual machine, and on iPad a mouse or trackpad too.",
+        "symbol": "keyboard.fill"
+      },
+      {
+        "id": "location",
+        "title": "Location",
+        "text": "Share this device’s location with the virtual machine. It is off until you turn it on in Capabilities on Home.",
+        "symbol": "location.fill"
+      },
+      {
+        "id": "camera",
+        "title": "Camera",
+        "text": "Use this device’s cameras in the virtual machine. It is off until you turn it on in Capabilities on Home.",
+        "symbol": "camera.fill",
+        "requirement": {
+          "camera": true
+        }
+      },
+      {
+        "id": "haptics",
+        "title": "Haptics",
+        "text": "On iPhone, the virtual machine’s vibration now plays on the Taptic Engine. You can turn it off in Capabilities on Home.",
+        "symbol": "iphone.radiowaves.left.and.right",
+        "requirement": {
+          "device": "haptics"
+        }
+      },
+      {
+        "id": "legacy-apk",
+        "title": "Install older Android apps",
+        "text": "Use Install APK to install an app built for a much older version of Android. Andarium warns you first that the app may not work properly.",
+        "symbol": "square.and.arrow.down.fill",
+        "place": "sessionSettings"
+      },
+      {
+        "id": "send-feedback",
+        "title": "Send feedback",
+        "text": "Email the developer from the Info menu on Home, or from Settings while the virtual machine runs, with screenshots and a bug report if you like.",
+        "symbol": "envelope.fill",
+        "requirement": {
+          "feature": "sendFeedback"
+        }
+      },
+      {
+        "id": "more-fixes",
+        "title": "More fixes",
+        "points": [
+          "Fixed the virtual machine not starting with more than 4 GiB of RAM",
+          "Fixed Andarium quitting when installing a very large APK",
+          "Fixed the virtual machine’s Wi-Fi not reconnecting after it drops",
+          "Fixed a crash when a network connection closes suddenly",
+          "Fixed more crashes in 3D games and apps",
+          "Fixed apps installed with Install APK not appearing on Android’s home screen"
+        ],
+        "symbol": "wrench.and.screwdriver.fill"
+      }
+    ]
+  },
+  {
     "build": 9,
     "version": "1.0 (9)",
     "entries": [
       {
         "id": "file-browser",
         "title": "File browser",
-        "text": "Browse the guest’s internal storage, and import or export files and folders.",
+        "text": "Browse the virtual machine’s internal storage, and import or export files and folders.",
         "symbol": "folder.fill",
         "place": "sessionSettings"
       },
       {
         "id": "more-memory",
         "title": "More memory",
-        "text": "On devices that allow it, the guest’s RAM can now go above 4 GiB.",
+        "text": "On devices that allow it, the virtual machine’s RAM can now go above 4 GiB.",
         "symbol": "memorychip.fill",
         "requirement": { "memoryAboveMiB": 4096 }
       },
@@ -21,7 +132,7 @@
         "id": "stability-fixes",
         "title": "Stability fixes",
         "points": [
-          "Fixed the guest crashing on many iPhones",
+          "Fixed the virtual machine crashing on many iPhones",
           "Fixed a crash when returning to Andarium from the background",
           "Fixed crashes in some 3D games and apps",
           "Fixed a crash when using the gyroscope",

@@ -88,6 +88,28 @@ struct Device {
     { if (fd < 0) throw std::runtime_error(std::string("open decoder: ") + std::strerror(errno)); }
     ~Device() { close(fd); }
 };
+/* Waits until `deadline` for an event `accept` takes. The descriptor is
+ * non-blocking, so DQEVENT with nothing pending fails with ENOENT (V4L2 does
+ * not use EAGAIN there), and that, like a poll that times out, only means the
+ * event has not come yet. The decoder answers a stream's first packet when the
+ * host has made its decoder session, which takes tens of milliseconds on an
+ * idle host and a few hundred on a busy one; a wait that ends at the first
+ * empty poll fails the run on the host's speed. */
+template <typename Accept>
+bool awaitEvent(int fd, std::chrono::steady_clock::time_point deadline, Accept accept)
+{
+    while (std::chrono::steady_clock::now() < deadline) {
+        pollfd p {fd, POLLPRI, 0};
+        if (poll(&p, 1, 100) < 0 && errno != EINTR) throw std::runtime_error("poll source change failed");
+        v4l2_event event {};
+        if (ioctl(fd, VIDIOC_DQEVENT, &event) == 0) {
+            if (accept(event)) return true;
+        } else {
+            require(errno == ENOENT || errno == EAGAIN, "DQEVENT failed");
+        }
+    }
+    return false;
+}
 struct Mapping {
     /* `data` is the plane's first byte and `length` its size. A plane that
      * starts inside a dma-buf, after the planes before it, need not start on a
@@ -512,15 +534,9 @@ void decode(const char* device, const std::string& directory, const char* name, 
     call(fd, VIDIOC_STREAMON, &type, "STREAMON output");
     queue(fd, output, 0, inputs[0], packet.size());
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-    bool source = false;
-    while (!source && std::chrono::steady_clock::now() < deadline) {
-        pollfd p {fd, POLLPRI, 0};
-        if (poll(&p, 1, 100) < 0 && errno != EINTR) throw std::runtime_error("poll source change failed");
-        v4l2_event event {};
-        if (ioctl(fd, VIDIOC_DQEVENT, &event) == 0)
-            source = event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION);
-        else require(errno == EAGAIN, "DQEVENT failed");
-    }
+    const bool source = awaitEvent(fd, deadline, [](const v4l2_event& event) {
+        return event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION);
+    });
     require(source, "decoder source-change timeout");
     v4l2_format format {};
     format.type = capture;
@@ -722,15 +738,9 @@ void decodeShape(const char* device, const std::string& directory, const char* n
     call(fd, VIDIOC_STREAMON, &type, "STREAMON output");
     queue(fd, output, 0, inputs[0], packet.size());
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-    bool source = false;
-    while (!source && std::chrono::steady_clock::now() < deadline) {
-        pollfd p {fd, POLLPRI, 0};
-        if (poll(&p, 1, 100) < 0 && errno != EINTR) throw std::runtime_error("poll source change failed");
-        v4l2_event event {};
-        if (ioctl(fd, VIDIOC_DQEVENT, &event) == 0)
-            source = event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION);
-        else require(errno == EAGAIN, "DQEVENT failed");
-    }
+    const bool source = awaitEvent(fd, deadline, [](const v4l2_event& event) {
+        return event.type == V4L2_EVENT_SOURCE_CHANGE && (event.u.src_change.changes & V4L2_EVENT_SRC_CH_RESOLUTION);
+    });
     require(source, "decoder source-change timeout");
     v4l2_format format {};
     format.type = capture;
@@ -927,15 +937,9 @@ void ringCycle(const char* device, const std::string& directory, const char* nam
     feed(0, ++sequence);
     unsigned free_inputs = unsigned(inputs.size()) - 1;
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-    bool source = false;
-    while (!source && std::chrono::steady_clock::now() < deadline) {
-        pollfd p {fd, POLLPRI, 0};
-        if (poll(&p, 1, 100) < 0 && errno != EINTR) throw std::runtime_error("poll source change failed");
-        v4l2_event event {};
-        if (ioctl(fd, VIDIOC_DQEVENT, &event) == 0)
-            source = event.type == V4L2_EVENT_SOURCE_CHANGE;
-        else require(errno == EAGAIN, "DQEVENT failed");
-    }
+    const bool source = awaitEvent(fd, deadline, [](const v4l2_event& event) {
+        return event.type == V4L2_EVENT_SOURCE_CHANGE;
+    });
     require(source, "decoder source-change timeout");
 
     v4l2_format format {};
@@ -1452,14 +1456,9 @@ private:
     void startCapture()
     {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
-        bool source = false;
-        while (!source && std::chrono::steady_clock::now() < deadline) {
-            pollfd p {fd_, POLLPRI, 0};
-            if (poll(&p, 1, 100) < 0 && errno != EINTR) throw std::runtime_error("poll source change failed");
-            v4l2_event event {};
-            if (ioctl(fd_, VIDIOC_DQEVENT, &event) == 0) source = event.type == V4L2_EVENT_SOURCE_CHANGE;
-            else require(errno == EAGAIN, "DQEVENT failed");
-        }
+        const bool source = awaitEvent(fd_, deadline, [](const v4l2_event& event) {
+            return event.type == V4L2_EVENT_SOURCE_CHANGE;
+        });
         require(source, "decoder source-change timeout");
         v4l2_format format {};
         format.type = capture;
@@ -1971,6 +1970,20 @@ int main(int argc, char** argv)
             {V4L2_MPEG_VIDEO_HEVC_PROFILE_MAIN_10, "hevc-main10", V4L2_PIX_FMT_P010},
         };
         Device capabilities(device);
+        /* A stream that queued nothing has no event to give. Waiting for one
+         * ends at its limit, however many empty polls and empty DQEVENT calls
+         * that takes: a slow host answers late, and late is not an error. */
+        {
+            Device idle(device);
+            v4l2_event none {};
+            require(ioctl(idle.fd, VIDIOC_DQEVENT, &none) < 0 && errno == ENOENT,
+                    "DQEVENT on an empty queue does not fail with ENOENT");
+            require(!awaitEvent(idle.fd, std::chrono::steady_clock::now() + std::chrono::milliseconds(300),
+                                [](const v4l2_event&) { return true; }),
+                    "an event came from a stream that queued nothing");
+            std::puts("an empty event queue is waited out, not failed");
+            std::fflush(stdout);
+        }
         /* The discovery a V4L2 client performs before it builds a decoder.
          * Each of these answers gated Chromium's decoder entirely: a
          * continuous frame-size range left it on its built-in maximum coded

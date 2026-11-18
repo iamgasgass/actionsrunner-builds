@@ -4,6 +4,7 @@
 #include "backing_slots.hpp"
 #include "../domain_heap.hpp"
 #include "fill_index.hpp"
+#include "frame_accounting.hpp"
 #include "mapped_backing.hpp"
 #include "uml_darwin_static_mmu.h"
 #include "word_shared_mutex.hpp"
@@ -39,11 +40,22 @@ struct AddressSpaceLifetime final {
 };
 
 struct GenerationState final {
+#if DARWIN_UML_X86_64_GUEST
+	/* Throws std::bad_alloc when the accounting has no alias id for it. */
+	GenerationState(std::shared_ptr<DomainHeap> domain_heap,
+		std::shared_ptr<FrameAccountingDomain> frame_domain,
+		std::uint64_t generation)
+		: heap{std::move(domain_heap)}, fill_index{heap.get()},
+		  accounting{std::move(frame_domain), *this, generation}
+	{
+	}
+#else
 	GenerationState() noexcept = default;
 	explicit GenerationState(std::shared_ptr<DomainHeap> domain_heap) noexcept
 		: heap{std::move(domain_heap)}, fill_index{heap.get()}
 	{
 	}
+#endif
 	/* The domain's heap holds the fill index's nodes and the mapping history,
 	 * so a retired domain gives that bookkeeping back to the host whole. It is
 	 * declared first: it outlives everything allocated from it. */
@@ -86,6 +98,11 @@ struct GenerationState final {
 		std::uint64_t length{};
 	};
 	std::array<CodeChangeRecord, 1024> code_history{};
+#if DARWIN_UML_X86_64_GUEST
+	/* The generation's writer locations (frame_accounting.hpp), guarded by
+	 * the mapping lock. */
+	StateAccounting accounting;
+#endif
 };
 
 /* The bridge's own type, so the history is written straight into a caller's

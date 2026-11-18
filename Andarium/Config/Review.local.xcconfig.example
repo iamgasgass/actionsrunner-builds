@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Copy to Review.local.xcconfig, which Git ignores, and name the application's
+// App Store identifier (the "id" and the digits of its page address). Only an
+// AppStore build made with this file has the Review on the App Store item;
+// every other build carries neither the item nor an address.
+
+REVIEW_APP_ID = id0000000000

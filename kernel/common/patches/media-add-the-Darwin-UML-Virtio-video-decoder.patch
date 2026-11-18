@@ -82,9 +82,9 @@ not a multiple of the pitch.
  drivers/media/virtio/virtio_video_device.c  | 1329 +++++++++++++++++++
  drivers/media/virtio/virtio_video_driver.c  |  261 ++++
  drivers/media/virtio/virtio_video_helpers.c |  317 +++++
- drivers/media/virtio/virtio_video_vq.c      | 1185 +++++++++++++++++
+ drivers/media/virtio/virtio_video_vq.c      | 1188 +++++++++++++++++
  include/uapi/linux/virtio_video.h           |  544 ++++++++
- 14 files changed, 5334 insertions(+)
+ 14 files changed, 5337 insertions(+)
  create mode 100644 drivers/media/virtio/Kconfig
  create mode 100644 drivers/media/virtio/Makefile
  create mode 100644 drivers/media/virtio/README
@@ -3784,10 +3784,10 @@ index 0000000000000000000000000000000000000000..f27c516cf031dd09eccd685deb05827c
 +}
 diff --git a/drivers/media/virtio/virtio_video_vq.c b/drivers/media/virtio/virtio_video_vq.c
 new file mode 100644
-index 0000000000000000000000000000000000000000..5917feb0512bf044b5dccecc520f02b2bc87d3b3
+index 0000000000000000000000000000000000000000..365a01dae2a209e7aa67fccf9a359b6bfea08be9
 --- /dev/null
 +++ b/drivers/media/virtio/virtio_video_vq.c
-@@ -0,0 +1,1185 @@
+@@ -0,0 +1,1188 @@
 +// SPDX-License-Identifier: GPL-2.0+
 +/* Driver for virtio video device.
 + *
@@ -4008,7 +4008,8 @@ index 0000000000000000000000000000000000000000..5917feb0512bf044b5dccecc520f02b2
 +				continue;
 +			}
 +
-+			vbuf->resp_len = len;
++			/* The used length is the device's word: keep it inside the buffer. */
++			vbuf->resp_len = min_t(unsigned int, len, vbuf->resp_size);
 +			if (vbuf->resp_cb)
 +				vbuf->resp_cb(vvd, vbuf);
 +
@@ -4123,9 +4124,11 @@ index 0000000000000000000000000000000000000000..5917feb0512bf044b5dccecc520f02b2
 +/*
 + * Stop both queues and delete them, once the device can no longer use a
 + * buffer it was given. A transport's reset need not reach the device
-+ * itself: vhost-user's does not, and only disabling the rings in del_vqs()
-+ * makes the backend drop what it holds. Nothing the device may still write is
-+ * freed before that; virtio_video_cancel_cmds() then returns the commands.
++ * itself: vhost-user's does not. del_vqs() disables the rings and then asks
++ * the backend for its features, and that request is what makes a backend that
++ * keeps requests across a ring disable, as the codecs' does, reset its device
++ * and drop what it holds. Nothing the device may still write is freed before
++ * that; virtio_video_cancel_cmds() then returns the commands.
 + */
 +void virtio_video_stop_queues(struct virtio_video_device *vvd)
 +{

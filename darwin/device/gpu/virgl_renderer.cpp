@@ -5,6 +5,7 @@
 #include "device_memory_pool.hpp"
 #include "freed_memory_watch.hpp"
 #include "host_gl_provider.hpp"
+#include "gpu_cache_reclaim.hpp"
 #include "gpu_memory_figures.hpp"
 #include "host_gpu_memory.hpp"
 #include "protocol.hpp"
@@ -403,6 +404,10 @@ VirglRenderer::VirglRenderer()
                 },
                 deviceMemoryReserveBytes);
             uml::platform::publishGpuMemoryBudget(limit);
+            /* The runtime frees the same caches when the system says it is
+             * short of memory. */
+            uml::platform::publishGpuCacheReclaimer(
+                &VirglRenderer::reclaimCachedMemory);
             /* A Venus guest is shown, and budgets, what the pool admits. */
             const virgl_renderer_device_memory_pool pool {
                 .limit = deviceMemoryPool->ceiling(),
@@ -480,8 +485,10 @@ VirglRenderer::VirglRenderer()
             std::lock_guard lock(deviceMemoryReadMutex);
             deviceMemoryReadable = false;
         }
-        if (deviceMemoryPool)
+        if (deviceMemoryPool) {
             deviceMemoryPool->setReclaim({});
+            uml::platform::publishGpuCacheReclaimer(nullptr);
+        }
         if (initialized)
             virgl_renderer_cleanup(this);
         rendererInstanceActive.store(false, std::memory_order_release);
@@ -562,8 +569,10 @@ VirglRenderer::~VirglRenderer()
     /* The pool is the renderer's: nothing the cleanup left can reach it, and
      * the guest that comes after this one starts with nothing reserved. */
     virgl_renderer_set_device_memory_pool(nullptr);
-    if (deviceMemoryPool)
+    if (deviceMemoryPool) {
+        uml::platform::publishGpuCacheReclaimer(nullptr);
         uml::platform::publishGpuMemoryBudget(0);
+    }
     deviceMemoryPool.reset();
     rendererInstanceActive.store(false, std::memory_order_release);
 }

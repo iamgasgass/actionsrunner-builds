@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!--
+     The default display configuration (/vendor/etc/displayconfig/default.xml),
+     which a display without a configuration of its own reads: the guest's
+     display takes its settings from config.xml, so this file carries one thing
+     only. When the thermal HAL reports SEVERE or more (the host is hot), the
+     display's render rate is held to 30 Hz. The display mode does not change;
+     SurfaceFlinger renders every second frame. A status above SEVERE takes the
+     SEVERE point, because the lookup walks down to the nearest status that has
+     one. A display reads the map from this file by the framework topic "display:
+     use the default configuration's refresh rate throttling map" of route p0007.
+-->
+<displayConfiguration>
+    <thermalThrottling>
+        <refreshRateThrottlingMap>
+            <refreshRateThrottlingPoint>
+                <thermalStatus>severe</thermalStatus>
+                <refreshRateRange>
+                    <minimum>0</minimum>
+                    <maximum>30</maximum>
+                </refreshRateRange>
+            </refreshRateThrottlingPoint>
+        </refreshRateThrottlingMap>
+    </thermalThrottling>
+</displayConfiguration>

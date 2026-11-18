@@ -90,12 +90,17 @@ public final class AdbConnection {
     /// Opens a service, for example `shell,v2,raw:ls` or `sync:`. A service
     /// name may hold NUL characters (`abb_exec` separates its arguments with
     /// them). Throws `serviceRefused` when adbd closes the stream at once.
-    public func open(_ service: String) throws -> AdbStream {
+    /// `sent` is called as soon as the request has been written to the
+    /// transport, before the answer is waited for: from then on adbd may be
+    /// running the service, whatever becomes of the answer. A request that
+    /// could not be written does not call it.
+    public func open(_ service: String, sent: (() -> Void)? = nil) throws -> AdbStream {
         let local = nextLocalID
         nextLocalID &+= 1
         var name = Data(service.utf8)
         name.append(0)
         try send(AdbMessage(command: AdbWire.open, arg0: local, payload: name))
+        sent?()
         while true {
             let message = try receive()
             guard message.arg1 == local else { continue }

@@ -1,0 +1,7 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!-- A plain circle: what the tests and the Debug arrangement draw in place of
+     GitHub's mark, which the build takes from the ignored Config/Local
+     directory. -->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M512 64A448 448 0 1 0 512 960A448 448 0 1 0 512 64Z" fill="white"/>
+</svg>

@@ -93,6 +93,18 @@ private:
     T value_ {};
 };
 
+#if UML_VIDEO_ENCODER_TESTING
+struct PropertyFaultState {
+    std::mutex mutex;
+    testing::PropertyFault fault;
+};
+PropertyFaultState& propertyFaultState()
+{
+    static PropertyFaultState state;
+    return state;
+}
+#endif
+
 bool sessionLoss(OSStatus status) noexcept
 {
     return status == kVTInvalidSessionErr || status == kVTVideoEncoderMalfunctionErr ||
@@ -698,6 +710,7 @@ public:
 
     [[nodiscard]] std::string encoderIdentifier() const override { return encoderIdentifier_; }
     [[nodiscard]] std::string diagnostic() const override { return diagnostic_; }
+    void setDrainWait(unsigned milliseconds) override { drainWait_ = milliseconds; }
 
     [[nodiscard]] VideoEncodeStatus update(const VideoEncodeUpdate& update) override
     {
@@ -811,9 +824,10 @@ public:
             }
             auto shared = shared_;
             auto session = session_;
+            const unsigned wait = drainWait_;
             dispatch_async(drainQueue_, ^{
                 @autoreleasepool {
-                    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kDrainWaitMilliseconds);
+                    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(wait);
                     const auto outstanding = [&] {
                         return !shared->pending.empty() && shared->pending.begin()->first < horizon;
                     };
@@ -887,6 +901,10 @@ public:
 
 #if UML_VIDEO_ENCODER_TESTING
     void loseSessionForTest(unsigned count) override { shared_->injectedLosses.store(count); }
+    void invalidateSessionForTest() override
+    {
+        if (session_) VTCompressionSessionInvalidate(session_.get());
+    }
 #endif
 
 private:
@@ -1185,32 +1203,49 @@ private:
 
     static OSStatus setProperty(VTCompressionSessionRef session, CFStringRef key, CFTypeRef value)
     {
+#if UML_VIDEO_ENCODER_TESTING
+        {
+            const auto fault = testing::propertyFault();
+            if (fault.status != noErr && [(__bridge NSString*)key isEqualToString:[NSString stringWithUTF8String:fault.key.c_str()]])
+                return fault.status;
+        }
+#endif
         return VTSessionSetProperty(session, key, value);
     }
 
     // Sets one property. A refusal fails the configuration when the property
     // carries something the stream asked for, and is only noted when the
-    // property is a refinement the encoder is free to ignore.
+    // property is a refinement the encoder is free to ignore. A session that is
+    // lost or cannot get its hardware is not a refusal of the property, whatever
+    // the property is: the configuration is exhausted, not unsupported, and not
+    // made with a setting the host never applied.
     bool apply(VTCompressionSessionRef session, CFStringRef key, id value, bool required)
     {
         const OSStatus status = setProperty(session, key, (__bridge CFTypeRef)value);
         if (status == noErr) return true;
-        if (required) diagnostic_ = std::string("VTSessionSetProperty ") + [(__bridge NSString*)key UTF8String] + " " + std::to_string(status);
+        const bool unavailable = sessionLoss(status) || status == kVTAllocationFailedErr;
+        if (unavailable) hostUnavailable_ = true;
+        if (required || (unavailable && diagnostic_.empty()))
+            diagnostic_ = std::string("VTSessionSetProperty ") + [(__bridge NSString*)key UTF8String] + " " + std::to_string(status);
         return !required;
     }
 
     VideoEncodeStatus applyProperties(VTCompressionSessionRef session)
     {
         const auto& s = plan_.settings;
+        hostUnavailable_ = false;
         const auto refuse = [&](const char* what) {
             if (diagnostic_.empty()) diagnostic_ = std::string("cannot set ") + what;
-            return VideoEncodeStatus::unsupported;
+            return hostUnavailable_ ? VideoEncodeStatus::exhausted : VideoEncodeStatus::unsupported;
         };
+        // Every property is applied, so that the loss of the session is noticed
+        // at the property that met it, optional or not.
+        const auto done = [&] { return hostUnavailable_ ? VideoEncodeStatus::exhausted : VideoEncodeStatus::ok; };
 #define UML_KEY(name) kVTCompressionPropertyKey_##name
         if (s.codec == VideoCodec::jpeg) {
             if (!apply(session, UML_KEY(Quality), @(double(s.jpegQuality) / 100.0), true)) return refuse("Quality");
             applyColor(session);
-            return VideoEncodeStatus::ok;
+            return done();
         }
         if (!apply(session, UML_KEY(ProfileLevel), plan_.profileLevel, true)) return refuse("ProfileLevel");
         if (!apply(session, UML_KEY(AllowFrameReordering), plan_.reorders ? @YES : @NO, true)) return refuse("AllowFrameReordering");
@@ -1279,15 +1314,15 @@ private:
             if (!apply(session, UML_KEY(ContentLightLevelInfo), [NSData dataWithBytes:light.data() length:light.size()], true))
                 return refuse("ContentLightLevelInfo");
         }
-        return VideoEncodeStatus::ok;
+        return done();
     }
 
-    void applyColor(VTCompressionSessionRef session) const
+    void applyColor(VTCompressionSessionRef session)
     {
         const auto& color = plan_.settings.color;
-        if (NSString* value = colorPrimaries(color.primaries)) (void)setProperty(session, UML_KEY(ColorPrimaries), (__bridge CFTypeRef)value);
-        if (NSString* value = transferFunction(color.transfer)) (void)setProperty(session, UML_KEY(TransferFunction), (__bridge CFTypeRef)value);
-        if (NSString* value = matrixCoefficients(color.matrix)) (void)setProperty(session, UML_KEY(YCbCrMatrix), (__bridge CFTypeRef)value);
+        if (NSString* value = colorPrimaries(color.primaries)) (void)apply(session, UML_KEY(ColorPrimaries), value, false);
+        if (NSString* value = transferFunction(color.transfer)) (void)apply(session, UML_KEY(TransferFunction), value, false);
+        if (NSString* value = matrixCoefficients(color.matrix)) (void)apply(session, UML_KEY(YCbCrMatrix), value, false);
     }
 
     // The 24-byte mastering display colour volume and 4-byte content light
@@ -1536,7 +1571,7 @@ private:
         if (session_) {
             VTCompressionSessionCompleteFrames(session_.get(), kCMTimeInvalid);
             std::unique_lock lock(shared_->mutex);
-            shared_->condition.wait_for(lock, std::chrono::milliseconds(kDrainWaitMilliseconds),
+            shared_->condition.wait_for(lock, std::chrono::milliseconds(drainWait_),
                                         [&] { return shared_->pending.empty() || shared_->lost; });
         }
         recoverIfLost();
@@ -1639,6 +1674,8 @@ private:
     bool checked_ {};
     bool levelFallback_ {};
     bool rebuild_ {};   // a setting the running session ignores changed; the next frame starts a new session
+    bool hostUnavailable_ {};   // a property was refused because the session was lost, not because of the property
+    unsigned drainWait_ {kDrainWaitMilliseconds};
     CFRef<VTCompressionSessionRef> session_;
     CFRef<CVPixelBufferPoolRef> pool_;
     CFRef<CVPixelBufferPoolRef> stagingPool_;   // plan_.convertsRgb: the caller's frames
@@ -1678,10 +1715,29 @@ std::unique_ptr<VideoEncoder> makeVideoEncoder()
 }
 
 #if UML_VIDEO_ENCODER_TESTING
+testing::PropertyFault testing::propertyFault()
+{
+    auto& state = apple_encoder::propertyFaultState();
+    std::lock_guard lock(state.mutex);
+    return state.fault;
+}
+
+void testing::failProperty(const char* key, int status)
+{
+    auto& state = apple_encoder::propertyFaultState();
+    std::lock_guard lock(state.mutex);
+    state.fault = PropertyFault {key ? key : "", status};
+}
+
 void testing::loseSession(VideoEncoder& encoder, unsigned count)
 {
     // The variant's factory only ever makes the Apple session.
     static_cast<apple_encoder::ProbeEncoder&>(encoder).loseSessionForTest(count);
+}
+
+void testing::invalidateSession(VideoEncoder& encoder)
+{
+    static_cast<apple_encoder::ProbeEncoder&>(encoder).invalidateSessionForTest();
 }
 #endif
 

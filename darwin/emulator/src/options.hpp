@@ -29,7 +29,8 @@ struct EmulatorOptions final {
 	/* Whole-process budget for translated-code caches. Zero selects half of
 	 * guest memory, which is what the guest's own mem= argument reports;
 	 * --jit-cache-budget= overrides it. Private executor caches are capped
-	 * separately so the shared tier receives the remaining budget.
+	 * separately so the shared tier receives the remaining budget, when that
+	 * is enough for one (cpu/arm64/jit/jit_cache_geometry.hpp).
 	 */
 	std::size_t jit_cache_budget{};
 	std::size_t jit_executor_cache_budget{

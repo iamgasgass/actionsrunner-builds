@@ -1,0 +1,34 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Copy to Developer.local.xcconfig, which Git ignores, and name the developer:
+// a name (shown as it is) and the handles of the profiles on GitHub and X. Store
+// a handle, never a whole address: `//` starts a comment in an xcconfig, and the
+// code builds the addresses. Only an AppStore build made with this file has what
+// they turn on, except that a TestFlight build has Follow developer on X; every
+// other build carries none of it and no value.
+//
+// DEVELOPER_X_HANDLE turns on Follow developer on X, an Info row that opens the
+// developer's profile on X, and the X button of the Buy me tokens header.
+// DEVELOPER_NAME turns on the header's name and avatar, and
+// DEVELOPER_GITHUB_HANDLE its GitHub button. The header's pieces are in a build
+// that has Buy me tokens, and each exists only where its value does.
+//
+// DEVELOPER_ICP_NUMBER turns on the filing number at the bottom of Info (China's
+// ICP filing, shown as it is written, only to a user whose App Store storefront
+// is mainland China's, and linked to MIIT's filing site). It is its own switch:
+// it needs nothing of the others. It is a number as the filing writes it, with
+// no slash (`//` starts a comment here) and no quotes.
+//
+// The values that show artwork also need its file in the ignored Local
+// directory beside this one, where a build made with the value and without the
+// file fails:
+//
+//   Local/x-logo.svg             X's logo, a single-colour vector (one path, any
+//                                fill) drawn as a template image
+//   Local/github-logo.svg        GitHub's mark, the same
+//   Local/developer-avatar.jpeg  the avatar, shown as a circle
+
+DEVELOPER_NAME = example
+DEVELOPER_GITHUB_HANDLE = example
+DEVELOPER_X_HANDLE = example_handle
+DEVELOPER_ICP_NUMBER = 示例ICP备00000000号-0A

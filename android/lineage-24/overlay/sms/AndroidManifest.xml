@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- The application declares no component: the host's requests arrive on the vsock port that HostChannel
+     listens on, and nothing else reaches the service. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="android.kernarium.sms"
+    android:sharedUserId="android.uid.system">
+
+    <application
+        android:name=".HostChannel"
+        android:label="Andarium SMS"
+        android:persistent="true"
+        android:allowBackup="false" />
+</manifest>

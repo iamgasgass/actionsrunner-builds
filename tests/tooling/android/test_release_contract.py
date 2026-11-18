@@ -29,6 +29,55 @@ def expect_failure(function, label: str) -> None:
     fail(f"release contract accepted {label}")
 
 
+def embedded_artifact_check(root: Path):
+    """scripts/check-embedded-artifacts.py as a module: the one place that
+    decides what a difference between an accepted release's input trees and
+    the list means."""
+    import importlib.util  # noqa: PLC0415
+
+    specification = importlib.util.spec_from_file_location(
+        "check_embedded_artifacts", root / "scripts/check-embedded-artifacts.py")
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def check_accepted_inputs(root: Path, recorded: dict[str, str], listed: list[str]) -> None:
+    """The accepted release names no path the list lacks, and a path the list
+    gained since the release is exactly what the embedded-artifact check
+    reports as pending until a release carries it. Nothing else may differ:
+    the accepted descriptor is not edited to hide an input it never had."""
+    checker = embedded_artifact_check(root)
+    if sorted(set(recorded) - set(listed)):
+        fail("tracked acceptance descriptor names input paths the list does not: "
+             + ", ".join(sorted(set(recorded) - set(listed))))
+    # What each path is now equals what the release recorded, so the only
+    # findings left are the paths the release never had.
+    current = {path: recorded.get(path, "f" * 40) for path in listed}
+    findings = checker.input_findings(recorded, listed, current)
+    added = sorted(set(listed) - set(recorded))
+    if [path for path, what, _ in findings] != added or any(
+            what != checker.NEW_INPUT for _, what, _ in findings):
+        fail("the list and the accepted descriptor differ in more than the inputs "
+             "the embedded-artifact check reports as pending")
+
+
+def check_unexplained_differences_still_fail(root: Path, recorded: dict[str, str], listed: list[str]) -> None:
+    """Rows that must stay refused: an input the descriptor names and the list
+    dropped, and a recorded tree that is not an object ID."""
+    some = sorted(recorded)[0]
+    expect_failure(
+        lambda: check_accepted_inputs(root, recorded, [path for path in listed if path != some]),
+        "an accepted input the list no longer names")
+    expect_failure(
+        lambda: check_accepted_inputs(root, {**recorded, "android/lineage-24/removed-since": "a" * 40}, listed),
+        "an accepted path that is not on the list")
+    checker = embedded_artifact_check(root)
+    moved = checker.input_findings(recorded, listed, {path: "e" * 40 for path in listed})
+    if not moved or all(what == checker.NEW_INPUT for _, what, _ in moved):
+        fail("a recorded input whose tree moved is not reported")
+
+
 def read_routes(projects_path: Path, android_root: Path, provenance) -> list[dict]:
     lines = [
         line for line in projects_path.read_text(encoding="utf-8").splitlines()
@@ -116,8 +165,9 @@ def main() -> None:
         fail("tracked acceptance descriptor keys differ from the release contract")
     if INPUT_TREES_KEY in tracked_acceptance:
         trees = release_inputs.parse_trees(tracked_acceptance[INPUT_TREES_KEY])
-        if sorted(trees) != release_inputs.input_paths(root / release_inputs.LIST_RELATIVE):
-            fail("tracked acceptance descriptor names input paths the list does not")
+        listed = release_inputs.input_paths(root / release_inputs.LIST_RELATIVE)
+        check_accepted_inputs(root, trees, listed)
+        check_unexplained_differences_still_fail(root, trees, listed)
     tracked_expected = {
         "LINEAGE24_ACCEPTED_PRODUCT_FAMILY": PRODUCT_FAMILY,
         "LINEAGE24_ACCEPTED_ANDROID_MAJOR": "17",
@@ -506,6 +556,13 @@ def main() -> None:
                 lambda: verify_release(release_root, android_root, semantic=False),
                 label,
             )
+        # A release number of any width up to ten digits is a build number, and
+        # so is one of the old counter: the contract orders no releases.
+        for value in (1, 26, 10_000, 2026110817, 9_999_999_999):
+            manifest = copy.deepcopy(original)
+            manifest["android"]["build_number"] = value
+            manifest_path.write_text(json.dumps(manifest))
+            verify_release(release_root, android_root, semantic=False)
         for key in ("build_number", "security_patch"):
             manifest = copy.deepcopy(original)
             del manifest["android"][key]

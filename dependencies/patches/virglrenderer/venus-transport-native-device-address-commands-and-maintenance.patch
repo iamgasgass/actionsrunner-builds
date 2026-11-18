@@ -549,7 +549,7 @@ index 980b6877f18409fe5cc5e4e99d1febc30796e480..fe7543148d01dd8b73330f382be6a02c
  #include "vkr_context.h"
  
 diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
-index 7233e6024606d0c1ea1afadc903dbd376e96d03c..d0945d02dbedbe405aa532f2104cb87b792c6252 100644
+index b78b59b734981d64f066d7383d782c0b764e0c0d..530efdff06399c9f64f499faacf7967631e182b1 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
 @@ -8,7 +8,7 @@

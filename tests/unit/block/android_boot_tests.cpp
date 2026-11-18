@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iterator>
+#include <map>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -1033,6 +1034,277 @@ void testHwTimeoutMultiplier(const fs::path &directory)
 	});
 }
 
+/* A launcher that has the installation's serial number sets it itself, and the
+ * release's own `umlandroid17` that every release published before then
+ * carries is dropped for it. Any other serial in a release is refused by such
+ * a launcher; a launcher with no serial of its own passes the release's
+ * command line through as it is. */
+void testSerialNumber(const fs::path &directory)
+{
+	require(android::serialPrefix == "androidboot.serialno=");
+	require(android::serialArgument("0123456789abcdef") ==
+		"androidboot.serialno=0123456789abcdef");
+	require(android::legacySerialArgument ==
+		std::string{android::serialPrefix} + "umlandroid17");
+
+	const std::string devices{android::bootDevicesArgument};
+	const auto path = directory / "serial-command-line.txt";
+	constexpr std::array<std::string_view, 2> setsSerial{
+		"androidboot.kernarium.adb_auth=", android::serialPrefix};
+	constexpr std::array<std::string_view, 1> leavesSerial{
+		"androidboot.kernarium.adb_auth="};
+
+	/* The legacy argument is dropped, in whatever place it stands, and the
+	 * others keep their order. */
+	writeText(path, "quiet androidboot.serialno=umlandroid17 " + devices +
+			" console=ttyS0\n");
+	require(android::readKernelCommandLine(path, setsSerial) ==
+		std::vector<std::string>{"quiet", devices, "console=ttyS0"});
+	writeText(path, "androidboot.serialno=umlandroid17 quiet " + devices + "\n");
+	require(android::readKernelCommandLine(path, setsSerial) ==
+		std::vector<std::string>{"quiet", devices});
+	/* A release without it reads the same. */
+	writeText(path, "quiet " + devices + "\n");
+	require(android::readKernelCommandLine(path, setsSerial) ==
+		std::vector<std::string>{"quiet", devices});
+	/* Any other serial is refused: the launcher fixes it. */
+	for (const char *bad : {"androidboot.serialno=0123456789abcdef",
+				"androidboot.serialno=umlandroid18",
+				"androidboot.serialno=umlandroid17x",
+				"androidboot.serialno=",
+				"androidboot.serialno=UMLANDROID17"}) {
+		writeText(path, std::string{"quiet "} + bad + " " + devices + "\n");
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, setsSerial);
+		});
+		/* A launcher with no serial of its own passes it through. */
+		const auto arguments =
+			android::readKernelCommandLine(path, leavesSerial);
+		require(std::find(arguments.begin(), arguments.end(),
+				  std::string{bad}) != arguments.end());
+	}
+	/* The release's command line is read as it is when the launcher has no
+	 * serial: the legacy argument stays and boots the guest as before. */
+	writeText(path, "quiet androidboot.serialno=umlandroid17 " + devices + "\n");
+	require(android::readKernelCommandLine(path, leavesSerial) ==
+		std::vector<std::string>{"quiet", "androidboot.serialno=umlandroid17",
+					 devices});
+	/* Dropping the argument leaves the rest of the checks in force. */
+	writeText(path, "quiet androidboot.serialno=umlandroid17\n");
+	requireThrows([&] {
+		(void)android::readKernelCommandLine(path, setsSerial);
+	});
+	/* Android's reader removes quotes before it looks at an argument, so a
+	 * quoted word sets a serial number like the plain one: the quoted legacy
+	 * word is dropped and any other quoted serial is refused, whatever the
+	 * quotes surround, and the guest gets exactly one serial. */
+	for (const char *quotedLegacy :
+	     {"\"androidboot.serialno=umlandroid17\"",
+	      "androidboot.serialno=\"umlandroid17\"",
+	      "'androidboot.serialno=umlandroid17'",
+	      "androidboot.ser\"ial\"no=umlandroid17"}) {
+		writeText(path, std::string{"quiet "} + quotedLegacy + " " + devices + "\n");
+		require(android::readKernelCommandLine(path, setsSerial) ==
+				std::vector<std::string>{"quiet", devices},
+			std::string{"a quoted legacy serial stays: "} + quotedLegacy);
+	}
+	for (const char *quotedOther :
+	     {"\"androidboot.serialno=0123456789abcdef\"",
+	      "androidboot.serialno=\"0123456789abcdef\"",
+	      "'androidboot.serialno=umlandroid18'",
+	      "\"androidboot.serialno=umlandroid17x\""}) {
+		writeText(path, std::string{"quiet "} + quotedOther + " " + devices + "\n");
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, setsSerial);
+		});
+	}
+	/* A quoted group that holds a serial spans words: refused (see
+	 * testQuotedGroups). */
+	writeText(path, "\"quiet androidboot.serialno=0123456789abcdef\" " + devices + "\n");
+	requireThrows([&] {
+		(void)android::readKernelCommandLine(path, setsSerial);
+	});
+	/* A launcher with no serial of its own leaves quoted words as they are. */
+	writeText(path, "\"androidboot.serialno=umlandroid17\" " + devices + "\n");
+	require(android::readKernelCommandLine(path, leavesSerial) ==
+		std::vector<std::string>{"\"androidboot.serialno=umlandroid17\"", devices});
+
+	/* The words of a launcher argument, quotes removed. */
+	require(android::withoutQuotes("a\"b'c") == "abc");
+	require(android::carriesPrefix("androidboot.serialno=x", android::serialPrefix));
+	require(android::carriesPrefix("quiet androidboot.serialno=x", android::serialPrefix));
+	require(android::carriesPrefix("\"androidboot.serialno=x\"", android::serialPrefix));
+	require(android::carriesPrefix("a\tb\n'androidboot.serialno=x'", android::serialPrefix));
+	require(android::carriesPrefix("androidboot.ser\"ialno=x", android::serialPrefix));
+	require(!android::carriesPrefix("", android::serialPrefix));
+	require(!android::carriesPrefix("quiet", android::serialPrefix));
+	require(!android::carriesPrefix("--android-serialno=ABCDEF", android::serialPrefix));
+	require(!android::carriesPrefix("xandroidboot.serialno=x", android::serialPrefix));
+	require(!android::carriesPrefix("androidboot.serialnumber=x", android::serialPrefix));
+
+	/* The launchers' own multiplier rule is unaffected. */
+	writeText(path, "androidboot.serialno=umlandroid17 "
+			"androidboot.hw_timeout_multiplier=5 " + devices + "\n");
+	constexpr std::array<std::string_view, 2> setsBoth{
+		android::serialPrefix, android::hwTimeoutMultiplierPrefix};
+	require(android::readKernelCommandLine(path, setsBoth) ==
+		std::vector<std::string>{devices});
+}
+
+/* The loop of the pinned Android fs_mgr_boot_config.cpp
+ * ImportKernelCmdlineFromString: a word ends at a space outside a `"` group, and
+ * the quote characters are removed from it. */
+std::map<std::string, std::string> importedProperties(const std::string &line)
+{
+	std::map<std::string, std::string> properties;
+	std::size_t base = 0;
+	while (true) {
+		auto found = base;
+		while ((found = line.find_first_of(" \"", found)) !=
+			       std::string::npos &&
+		       line[found] == '"') {
+			if ((found = line.find('"', found + 1)) ==
+			    std::string::npos)
+				break;
+			++found;
+		}
+		std::string piece = line.substr(base, found - base);
+		piece.erase(std::remove(piece.begin(), piece.end(), '"'),
+			    piece.end());
+		const auto equals = piece.find('=');
+		if (equals != std::string::npos)
+			properties.emplace(piece.substr(0, equals),
+					   piece.substr(equals + 1));
+		if (found == std::string::npos)
+			break;
+		base = found + 1;
+	}
+	return properties;
+}
+
+/* The release's arguments as the launcher joins them with its own. */
+std::map<std::string, std::string> importedAfterLauncher(
+	const std::vector<std::string> &release)
+{
+	std::string line;
+	for (const auto &argument : release)
+		line += argument + ' ';
+	line += android::lcdDensityArgument(240) + ' ' +
+		android::hwTimeoutMultiplierArgument(8) + ' ' +
+		android::serialArgument("0123456789abcdef");
+	return importedProperties(line);
+}
+
+/* A quoted group of a release's command line is one argument to Android and
+ * several words to the reader that drops the legacy serial and multiplier, and
+ * the launcher's own arguments come after the release's: a group that spans
+ * words, or a quote that never closes, is refused before anything is dropped,
+ * and what is accepted reaches Android as the launcher wrote it. */
+void testQuotedGroups(const fs::path &directory)
+{
+	const std::string devices{android::bootDevicesArgument};
+	const auto path = directory / "quoted-groups.txt";
+	constexpr std::array<std::string_view, 3> setsAll{
+		"androidboot.kernarium.adb_auth=", android::serialPrefix,
+		android::hwTimeoutMultiplierPrefix};
+	constexpr std::array<std::string_view, 1> leavesAll{
+		"androidboot.kernarium.adb_auth="};
+	const std::string legacySerial{android::legacySerialArgument};
+	const std::string legacyMultiplier{
+		android::legacyHwTimeoutMultiplierArgument};
+
+	for (const std::string &group : std::vector<std::string>{
+		     "\"quiet " + legacySerial + "\"",
+		     "\"" + legacySerial + " quiet\"",
+		     "\"quiet " + legacyMultiplier + "\"",
+		     "\"" + legacyMultiplier + " quiet\"",
+		     "quiet \"" + legacySerial + " extra\"",
+		     "androidboot.x=\"a b\"",
+		     "\"quiet\tconsole=ttyS0\"",
+		     "\"quiet\nconsole=ttyS0\"",
+		     "\"quiet " + legacySerial,
+		     "quiet " + legacySerial + "\"",
+		     "androidboot.ser\"ialno=umlandroid17",
+		     "\"a\" \"b"}) {
+		writeText(path, group + " " + devices + "\n");
+		/* Refused for every launcher: its own arguments follow the open quote. */
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, setsAll);
+		});
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, leavesAll);
+		});
+	}
+
+	/* The quote may be anywhere in the file, even after the arguments the
+	 * launcher would have dropped, and the file need not end in a newline. */
+	for (const std::string &tail : std::vector<std::string>{
+		     " \"quiet\n", " \"quiet", " quiet\"", " a\"b\"c\"",
+		     " androidboot.x=\"y"}) {
+		writeText(path, legacySerial + " " + devices + tail);
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, setsAll);
+		});
+	}
+
+	/* A quote that opens and closes inside one word is a group of no words
+	 * to span: the legacy arguments in it are dropped and Android reads the
+	 * launcher's own as written, whatever the quotes surround. */
+	for (const std::string &whole : std::vector<std::string>{
+		     "\"" + legacySerial + "\"",
+		     "androidboot.serialno=\"umlandroid17\"",
+		     "androidboot.ser\"ial\"no=umlandroid17"}) {
+		writeText(path, "quiet " + whole + " " + legacyMultiplier +
+				" \"console=ttyS0\" " + devices + "\n");
+		const auto arguments = android::readKernelCommandLine(path, setsAll);
+		require(arguments ==
+			std::vector<std::string>{"quiet", "\"console=ttyS0\"", devices});
+		const auto properties = importedAfterLauncher(arguments);
+		require(properties.at("androidboot.serialno") == "0123456789abcdef");
+		require(properties.at("androidboot.lcd_density") == "240");
+		require(properties.at("androidboot.hw_timeout_multiplier") == "3");
+		require(properties.at("console") == "ttyS0");
+	}
+	/* A launcher that keeps the release's own multiplier passes it through
+	 * whole, quotes included, and the guest gets it. */
+	writeText(path, "\"" + legacyMultiplier + "\" " + devices + "\n");
+	const auto kept = android::readKernelCommandLine(path, leavesAll);
+	require(kept == std::vector<std::string>{"\"" + legacyMultiplier + "\"", devices});
+	require(importedProperties(kept[0] + " " + kept[1]).at(
+			"androidboot.hw_timeout_multiplier") == "5");
+}
+
+/* Both launchers reserve the hardware SKU that tells the guest what the host
+ * has (the iOS runtime's KernariumHostFeatures.hpp, and the standalone
+ * launcher, which passes a host's own argument through) and the vendor SKU
+ * that names the camera layout the host composed
+ * (camera/camera_layout.hpp), so a release cannot state either. The product
+ * axis stays the release's. */
+void testHostFeatureArguments(const fs::path &directory)
+{
+	constexpr std::array<std::string_view, 3> launcherPrefixes{
+		"androidboot.kernarium.adb_auth=",
+		"androidboot.product.hardware.sku=",
+		"androidboot.product.vendor.sku="};
+	const std::string devices{android::bootDevicesArgument};
+	const auto path = directory / "feature-command-line.txt";
+	for (const char *bad : {"androidboot.product.hardware.sku=haptics",
+				"androidboot.product.hardware.sku=",
+				"androidboot.product.hardware.sku=other",
+				"androidboot.product.vendor.sku=camera",
+				"androidboot.product.vendor.sku="}) {
+		writeText(path, std::string{"quiet "} + bad + " " + devices + "\n");
+		requireThrows([&] {
+			(void)android::readKernelCommandLine(path, launcherPrefixes);
+		});
+	}
+	writeText(path, "quiet androidboot.hardware.sku=camera "
+			"androidboot.product.hardware.skus=1 " + devices + "\n");
+	require(android::readKernelCommandLine(path, launcherPrefixes) ==
+		std::vector<std::string>{"quiet", "androidboot.hardware.sku=camera",
+					 "androidboot.product.hardware.skus=1", devices});
+}
+
 /* Both launchers read the release's kernel command line through one
  * tokenizer and refuse an argument that they set themselves. */
 void testKernelCommandLine(const fs::path &directory)
@@ -1109,6 +1381,9 @@ int main(int argc, char *argv[])
 	testStorageIsExact(fixture, fresh("exact"));
 	testLcdDensity(fresh("density"));
 	testHwTimeoutMultiplier(fresh("multiplier"));
+	testSerialNumber(fresh("serial"));
+	testQuotedGroups(fresh("quoted-groups"));
+	testHostFeatureArguments(fresh("feature-arguments"));
 	testKernelCommandLine(fresh("command-line"));
 	testUbdPath();
 	return 0;

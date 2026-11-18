@@ -279,8 +279,9 @@ struct GuestFilesTransferTests {
         let guest = storage([root + "/Download": .folder])
         let adbd = FakeAdbd(features: v2Features, services: guest.services)
         defer { adbd.shutdown() }
-        let temporary = GuestFiles.temporaryPath(in: root + "/Download", token: "ab12cd34")
-        #expect(temporary == root + "/Download/.andarium-ab12cd34.part")
+        let run = try #require(GuestRunMark("0a1b2c3d"))
+        let temporary = GuestFiles.temporaryPath(in: root + "/Download", run: run, token: "ab12cd34")
+        #expect(temporary == root + "/Download/.andarium-0a1b2c3d-ab12cd34.part")
         var steps: [UInt64] = []
         let length = try GuestFiles.upload(
             MemorySource(body), modified: Date(timeIntervalSince1970: 1_700_000_000),
@@ -416,6 +417,29 @@ struct GuestFilesHelperTests {
         #expect(GuestFiles.freeSpaceCommand(for: root) == "df -Pk '\(root)'")
     }
 
+    @Test func thePartitionsRoomIsReadWithDfOnTheConnection() throws {
+        let table = "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/block/dm-7 67108864 1048576 2411776 2% /data\n"
+        func serving(_ stdout: String, exit: UInt8) -> FakeAdbd {
+            FakeAdbd(services: [
+                "shell,v2,raw:*": { stream in
+                    if !stdout.isEmpty { try stream.send(ShellPacket(id: ShellPacket.stdout, data: Data(stdout.utf8)).encoded()) }
+                    try stream.send(ShellPacket(id: ShellPacket.exit, data: Data([exit])).encoded())
+                }
+            ])
+        }
+        let adbd = serving(table, exit: 0)
+        defer { adbd.shutdown() }
+        #expect(try GuestFiles.freeSpace(of: "/data", on: try connected(adbd)) == 2_411_776 * 1024)
+        #expect(adbd.servicesOpened == ["shell,v2,raw:df -Pk '/data'"])
+        // A shell that fails, and output that does not read, are no reading.
+        let failing = serving("df: /data: No such file or directory\n", exit: 1)
+        defer { failing.shutdown() }
+        #expect(try GuestFiles.freeSpace(of: "/data", on: try connected(failing)) == nil)
+        let odd = serving("nothing\n", exit: 0)
+        defer { odd.shutdown() }
+        #expect(try GuestFiles.freeSpace(of: "/data", on: try connected(odd)) == nil)
+    }
+
     @Test func theGuestKeepsItsReserve() {
         let reserve = GuestFiles.guestReserveBytes
         #expect(GuestFiles.guestHasRoom(for: 1000, free: 1000 + reserve))
@@ -466,10 +490,25 @@ struct GuestFilesHelperTests {
         #expect(GuestFileNames.distinct([]) == [])
     }
 
-    @Test func partialFilesAreRecognisedAndSweptByPattern() {
+    @Test func partialFilesAreRecognisedAndRemovedByName() {
         #expect(GuestFiles.isPartial(".andarium-0f1e2d3c.part"))
+        #expect(GuestFiles.isPartial(".andarium-0a1b2c3d-ab12cd34.part"))
         #expect(!GuestFiles.isPartial("clip.part") && !GuestFiles.isPartial(".andarium-x.txt"))
         #expect(GuestFiles.removeCommand(for: root + "/a/.andarium-1.part") == "rm -f -- '\(root)/a/.andarium-1.part'")
-        #expect(GuestFiles.removeStaleCommand(in: root + "/it's") == "rm -f -- '\(root)/it'\\''s'/.andarium-*.part")
+    }
+
+    @Test func aFolderIsMadeWithItsParentsInOneQuotedWord() {
+        #expect(GuestFiles.makeFolderCommand(for: root + "/Android/obb/com.example.game") == "mkdir -p -- '\(root)/Android/obb/com.example.game'")
+        #expect(GuestFiles.makeFolderCommand(for: root + "/it's") == "mkdir -p -- '\(root)/it'\\''s'")
+    }
+
+    @Test func anUploadWritesOnlyUnderAPartialName() throws {
+        let adbd = FakeAdbd(features: v2Features, services: storage([root + "/D": .folder]).services)
+        defer { adbd.shutdown() }
+        #expect(throws: GuestFilesError.badPath) {
+            try GuestFiles.upload(
+                MemorySource(Data(count: 10)), modified: .now, to: root + "/D/a", temporary: root + "/D/other.txt",
+                replacing: false, on: try connected(adbd), progress: { _ in })
+        }
     }
 }

@@ -10,6 +10,7 @@
 #include "memory/static_guest_memory.hpp"
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -99,6 +100,19 @@ public:
 		return breakpoint_immediate_;
 	}
 	[[nodiscard]] bool preempted() const noexcept { return preempted_; }
+	/* Whether the gadget-cache budget or another executor asked this one to
+	 * let go of an address space it holds (Space::request_renewal) since it
+	 * last did. It does at the start of its next run; a run in progress ends
+	 * at its next return from translated code so that the next starts now,
+	 * and the space is not held, or grown, for the rest of the dispatch.
+	 * False while a let-go ran out of memory: the ask stands, and runs go on
+	 * as they did, so that none ends after every block. One relaxed load of
+	 * a flag on this executor's own announcement. */
+	[[nodiscard]] bool renewal_pending() const noexcept
+	{
+		return renew_ != nullptr && !renewal_stuck_ &&
+			renew_->load(std::memory_order_relaxed);
+	}
 	/* While set, every run_block retires at most one guest instruction. */
 	void set_single_step(bool enabled) noexcept { single_step_ = enabled; }
 
@@ -122,6 +136,11 @@ private:
 	 * another executor closed, and of those whose generation the MMU has
 	 * destroyed (`retirements` is its count of destroyed generations). */
 	void leave_gone_spaces(std::uint64_t retirements) noexcept;
+	/* Tell the address space `generation` is bound to, in each cache that
+	 * holds it, that an executor entered it, for the gadget-cache budget to
+	 * find the spaces the guest runs least (gadget_cache_budget.hpp). Once
+	 * per entry. */
+	void note_run(unsigned long generation) noexcept;
 	void select_cpu(CpuState &cpu) noexcept;
 	[[nodiscard]] std::optional<BuildResult> find(
 		std::uint64_t pc, std::uint64_t changes,
@@ -198,10 +217,16 @@ private:
 	std::uint32_t breakpoint_immediate_{};
 	/* Null when the executor keeps its translations to itself. */
 	gadget_cache::ExecutorAnnouncement *announcement_{};
+	/* The announcement's renewal flag, and whether the let-go it asks for
+	 * failed for want of memory and stands (renewal_pending()). */
+	const std::atomic<bool> *renew_{};
+	bool renewal_stuck_{};
 	bool share_translations_{};
 	/* The MMU's count of destroyed generations when this executor last
 	 * looked for address spaces to let go of. */
 	std::uint64_t retirements_seen_{};
+	/* Whether any SVCR mode cache was made, which note_run() then visits. */
+	bool sme_caches_made_{};
 };
 
 #if defined(UML_GADGET_SWEEP_STRESS) && UML_GADGET_SWEEP_STRESS
@@ -214,6 +239,10 @@ namespace stress {
  * shared ones have been closed. */
 [[nodiscard]] std::size_t live_spaces() noexcept;
 [[nodiscard]] std::uint64_t closes() noexcept;
+/* Bodies a slot's release left in no slot's hands, so that a space queued
+ * them to free: what a space's last holder frees after it. A holder that lets
+ * go of a space nobody will run again does not add to it. */
+[[nodiscard]] std::uint64_t limbo_pushes() noexcept;
 /* Renew a shared address space on every Nth body stored in it, 0 for never;
  * the variant starts at every 64th. */
 void set_renewal_period(unsigned stores) noexcept;

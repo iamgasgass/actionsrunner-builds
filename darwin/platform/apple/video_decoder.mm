@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "video_decoder.hpp"
+#include "video_decoder_testing.hpp"
 #include "h264_stream.hpp"
 #include "hevc_stream.hpp"
 
@@ -9,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <limits>
 #include <map>
@@ -24,6 +26,30 @@ void checked(OSStatus status, const char* operation)
 {
     if (status != noErr)
         throw std::runtime_error(std::string(operation) + ": " + std::to_string(status));
+}
+
+/* Whether a status from a session that has been decoding says the system took
+ * the session away rather than that the stream is bad. iOS does so to an app
+ * that was in the background: the session is invalid when the app returns,
+ * and so is a hardware decoder the system reclaimed. */
+bool sessionLoss(OSStatus status) noexcept
+{
+    return status == kVTInvalidSessionErr || status == kVTVideoDecoderMalfunctionErr ||
+           status == kVTVideoDecoderNotAvailableNowErr;
+}
+
+/* A decode that failed because its session is gone. The decoder recovers from
+ * it; any other failure is the stream's and is reported. */
+struct SessionLost final : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
+void checkedDecode(OSStatus status, const char* operation)
+{
+    if (status == noErr) return;
+    const auto message = std::string(operation) + ": " + std::to_string(status);
+    if (sessionLoss(status)) throw SessionLost(message);
+    throw std::runtime_error(message);
 }
 
 template<class T> class CFObject {
@@ -403,7 +429,7 @@ public:
         if (packet.empty()) return;
         if (!session_.get()) throw std::runtime_error("video picture precedes its parameter sets");
         Picture picture {timestamp, {}, layout_ == VideoPixelLayout::planar8Bit, {}};
-        decode(packet, picture);
+        if (!decodeOrLose(packet, picture)) return;
         for (auto& frame : picture.frames) emit(std::move(frame));
     }
 
@@ -423,7 +449,7 @@ public:
 
     void drain() override
     {
-        finishSession();
+        if (!finishSession()) loseSession();
         releaseWaiting();
     }
 
@@ -438,6 +464,7 @@ public:
             std::lock_guard lock(mutex_);
             frames_.clear();
             callbackError_.clear();
+            callbackLost_ = false;
         }
         waiting_.clear();
         order_.clear();
@@ -445,6 +472,9 @@ public:
         h264Order_.reset();
         if (session_.get()) VTDecompressionSessionInvalidate(session_.get());
         session_.reset();
+        // The client begins again at a random access point, as a seek does.
+        resuming_ = false;
+        lossesWithoutPicture_ = 0;
     }
 
     std::vector<DecodedVideoFrame> takeFrames() override
@@ -523,6 +553,10 @@ private:
             }
             packet.assign(bytes.begin(), bytes.end());
         }
+        // A picture that needs one the lost session decoded has nothing to
+        // refer to, and the session is made anew at the next random access point.
+        if (resuming_ && !randomAccess) return {};
+        if (randomAccess) resuming_ = false;
         if (changed || !description_.get() || !session_.get() ||
             (randomAccess && wantedLayout() != sessionLayout_))
             configure();
@@ -612,11 +646,16 @@ private:
     {
         adoptHevc(picture.start.spsId);
         const auto sps = *hevcSets_.sps(picture.start.spsId);
+        const bool randomAccess = hevc::isIrap(picture.start.type);
+        // After a lost session the pictures that follow it have nothing to
+        // refer to until the next random access point; the picture order
+        // does not see them either.
+        if (resuming_ && !randomAccess) return;
         const auto verdict = hevcOrder_.next(picture.start, sps);
         // Nothing decoded before a new sequence is shown after a picture of it.
         if (verdict.startsSequence) releaseWaiting();
         if (!verdict.decode) return;
-        const bool randomAccess = hevc::isIrap(picture.start.type);
+        if (randomAccess) resuming_ = false;
         if (hevcChanged_ || !description_.get() || !session_.get() ||
             (randomAccess && wantedLayout() != sessionLayout_))
             configure();
@@ -626,7 +665,7 @@ private:
         // session decodes the whole coded picture and the copy is cut here.
         if (sps.hasWindow)
             decoded.crop = {sps.window.left, sps.window.top, sps.visibleWidth(), sps.visibleHeight(), true};
-        decode(picture.packet, decoded);
+        if (!decodeOrLose(picture.packet, decoded)) return;
         if (!verdict.output) return;   // decoded because later pictures refer to it
         std::vector<std::uint64_t> released;
         for (auto& frame : decoded.frames) {
@@ -716,6 +755,10 @@ private:
         adoptH264(picture.first.spsId);
         const auto sps = *h264Sets_.sps(picture.first.spsId);
         const bool randomAccess = picture.first.idr();
+        // After a lost session the pictures that follow it have nothing to
+        // refer to until the next IDR picture.
+        if (resuming_ && !randomAccess) return;
+        if (randomAccess) resuming_ = false;
         if (h264Changed_ || !description_.get() || !session_.get() ||
             (randomAccess && wantedLayout() != sessionLayout_))
             configure();
@@ -724,7 +767,7 @@ private:
         // The session decodes the whole coded picture and the copy is cut here.
         if (sps.hasWindow)
             decoded.crop = {sps.window.left, sps.window.top, sps.visibleWidth(), sps.visibleHeight(), true};
-        decode(picture.packet, decoded);
+        if (!decodeOrLose(picture.packet, decoded)) return;
         std::vector<std::uint64_t> released;
         // A picture the hardware returned no frame for is still a picture of
         // the stream: the buffer's account of what refers to what needs it.
@@ -759,12 +802,20 @@ private:
     /* The hardware returns every picture it has been given. Nothing is held
      * back inside it, and what the stream's order holds back is not its to
      * return, so this changes nothing that is waiting. */
-    void finishSession()
+    bool finishSession()
     {
-        if (!session_.get()) return;
-        checked(VTDecompressionSessionFinishDelayedFrames(session_.get()), "drain video decoder");
-        checked(VTDecompressionSessionWaitForAsynchronousFrames(session_.get()), "wait for video drain");
-        checkCallback();
+        if (!session_.get()) return true;
+        try {
+            checkedDecode(VTDecompressionSessionFinishDelayedFrames(session_.get()), "drain video decoder");
+            checkedDecode(VTDecompressionSessionWaitForAsynchronousFrames(session_.get()), "wait for video drain");
+            checkCallback();
+        } catch (const SessionLost&) {
+            // The system took the session. Nothing was in it that a drain
+            // would return, since the hardware returns each picture as it
+            // decodes it; the caller says what the loss means.
+            return false;
+        }
+        return true;
     }
 
     void emit(DecodedVideoFrame frame)
@@ -774,8 +825,54 @@ private:
         frames_.push_back(std::move(frame));
     }
 
+    /* Decodes one picture. A session the system took away is not an error of
+     * the stream: the pictures that need it are dropped, and the session is
+     * made anew from the parameter sets the stream stated at its next random
+     * access point, so a picture is missing and the client is told nothing.
+     * A second loss with no picture between is final, as the encoder's is. */
+    bool decodeOrLose(const std::vector<std::uint8_t>& packet, Picture& picture)
+    {
+        try {
+            decode(packet, picture);
+        } catch (const SessionLost&) {
+            picture.frames.clear();
+            if (lossesWithoutPicture_++ > 0) {
+                lossesWithoutPicture_ = 0;
+                loseSession();
+                throw std::runtime_error("video decoder session lost again before a picture");
+            }
+            loseSession();
+            return false;
+        }
+        lossesWithoutPicture_ = 0;
+        return true;
+    }
+
+    /* The session is gone: what was decoded and waits for the pictures before
+     * it leaves in order, since they will never come, and the stream's picture
+     * order starts over at the next random access point. */
+    void loseSession()
+    {
+        releaseWaiting();
+        waiting_.clear();
+        order_.clear();
+        hevcOrder_.reset();
+        h264Order_.reset();
+        if (session_.get()) VTDecompressionSessionInvalidate(session_.get());
+        session_.reset();
+        resuming_ = true;
+    }
+
     void decode(const std::vector<std::uint8_t>& packet, Picture& picture)
     {
+#if UML_VIDEO_DECODER_TESTING
+        // As the system does when it takes the hardware away: the session the
+        // call below uses is invalid.
+        if (injectedLosses_ > 0 && session_.get()) {
+            --injectedLosses_;
+            VTDecompressionSessionInvalidate(session_.get());
+        }
+#endif
         CFObject<CMBlockBufferRef> block;
         checked(CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, nullptr, packet.size(),
             kCFAllocatorDefault, nullptr, 0, packet.size(), 0, block.address()), "allocate video packet");
@@ -794,9 +891,9 @@ private:
         /* No temporal processing: the hardware returns each picture as it
          * decodes it, and the order pictures are shown in is worked out here,
          * from the stream, not from timestamps a client may not set. */
-        checked(VTDecompressionSessionDecodeFrame(session_.get(), sample.get(), 0, &picture, nullptr),
-                "decode video packet");
-        checked(VTDecompressionSessionWaitForAsynchronousFrames(session_.get()), "wait for decoded video");
+        checkedDecode(VTDecompressionSessionDecodeFrame(session_.get(), sample.get(), 0, &picture, nullptr),
+                      "decode video packet");
+        checkedDecode(VTDecompressionSessionWaitForAsynchronousFrames(session_.get()), "wait for decoded video");
         checkCallback();
     }
 
@@ -805,8 +902,9 @@ private:
         if (codec_ == VideoCodec::h264 && !h264Sets_.complete()) return;
         if (codec_ == VideoCodec::hevc && !hevcSets_.complete()) return;
         /* Building a session anew does not end the stream: what waits for the
-         * pictures before it keeps waiting. */
-        finishSession();
+         * pictures before it keeps waiting. A session the system already took
+         * away is replaced all the same. */
+        (void)finishSession();
         if (session_.get()) VTDecompressionSessionInvalidate(session_.get());
         session_.reset();
         hevcChanged_ = false;
@@ -902,20 +1000,41 @@ private:
         auto& self = *static_cast<AppleVideoDecoder*>(context);
         auto& picture = *static_cast<Picture*>(source);
         std::lock_guard lock(self.mutex_);
+#if UML_VIDEO_DECODER_TESTING
+        if (const auto injected = self.injectedOutputStatus_.exchange(noErr); injected != noErr) status = injected;
+#endif
         try {
+            if (sessionLoss(status)) {
+                // Not over an error of the stream, which stays until discard().
+                if (self.callbackError_.empty() || self.callbackLost_) {
+                    self.callbackLost_ = true;
+                    self.callbackError_ = "hardware video output: " + std::to_string(status);
+                }
+                return;
+            }
             checked(status, "hardware video output");
             if (!image) return;
             picture.frames.push_back(copyPicture(image, picture, picture.timestamp));
         } catch (const std::exception& error) {
+            self.callbackLost_ = false;
             self.callbackError_ = error.what();
         } catch (...) {
+            self.callbackLost_ = false;
             self.callbackError_ = "hardware video output failed";
         }
     }
+    /* A session the system took away is reported once and the decoder makes a
+     * new one. Any other error of the callback is the stream's and stays until
+     * discard(), so every picture after it fails too. */
     void checkCallback()
     {
         std::lock_guard lock(mutex_);
-        if (!callbackError_.empty()) throw std::runtime_error(callbackError_);
+        if (callbackError_.empty()) return;
+        if (callbackLost_) {
+            callbackLost_ = false;
+            throw SessionLost(std::exchange(callbackError_, {}));
+        }
+        throw std::runtime_error(callbackError_);
     }
 
     VideoCodec codec_;
@@ -945,6 +1064,20 @@ private:
     std::mutex mutex_;
     std::vector<DecodedVideoFrame> frames_;
     std::string callbackError_;
+    bool callbackLost_ {};
+    // The session was lost: pictures are dropped until a random access point
+    // lets a new one start, and a loss that follows another with no picture
+    // decoded between is reported.
+    bool resuming_ {};
+    unsigned lossesWithoutPicture_ {};
+#if UML_VIDEO_DECODER_TESTING
+public:
+    void loseSessionForTest(unsigned count) { injectedLosses_ = count; }
+    void failOutputForTest(OSStatus status) { injectedOutputStatus_ = status; }
+private:
+    unsigned injectedLosses_ {};
+    std::atomic<OSStatus> injectedOutputStatus_ {noErr};
+#endif
 };
 
 } // namespace
@@ -989,5 +1122,17 @@ std::unique_ptr<VideoDecoder> makeVideoDecoder(VideoCodec codec)
         throw std::runtime_error("requested video hardware decoder is unavailable");
     return std::make_unique<AppleVideoDecoder>(codec);
 }
+
+#if UML_VIDEO_DECODER_TESTING
+void testing::loseSession(VideoDecoder& decoder, unsigned count)
+{
+    static_cast<AppleVideoDecoder&>(decoder).loseSessionForTest(count);
+}
+
+void testing::failOutput(VideoDecoder& decoder, std::int32_t status)
+{
+    static_cast<AppleVideoDecoder&>(decoder).failOutputForTest(status);
+}
+#endif
 
 } // namespace uml::platform

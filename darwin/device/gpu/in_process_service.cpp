@@ -108,6 +108,14 @@ public:
         return display_->guestScanoutActive();
     }
 
+    std::optional<Display::GuestScanoutMode> guestScanoutMode() const noexcept
+    {
+        std::lock_guard lock(displayMutex_);
+        if (!display_)
+            return std::nullopt;
+        return display_->guestScanoutMode();
+    }
+
     std::optional<DisplayStatistics> displayStatistics() const noexcept
     {
         std::lock_guard lock(displayMutex_);
@@ -303,6 +311,9 @@ private:
                 options_.pointerMode,
                 options_.autoResizeGuest,
                 options_.offscreen);
+            /* A client that connects before this is not counted, which a
+             * client of a display that was just made cannot tell. */
+            display->setClientObserver(options_.clientObserver);
             std::lock_guard lock(displayMutex_);
             display_ = display;
         }
@@ -314,6 +325,16 @@ private:
     void sendInput(
         std::span<const uml::input::vnc::VncInputEvent> events) noexcept
     {
+        if (options_.inputRedirect) {
+            if (!uml::input::vnc::tryDeliver(options_.inputRedirect, events) &&
+                !reportedInputFailure_.exchange(
+                    true, std::memory_order_relaxed)) {
+                std::fputs(
+                    "Unable to forward display input to the redirect\n",
+                    stderr);
+            }
+            return;
+        }
         const auto bytes = events.size_bytes();
         std::lock_guard lock(inputMutex_);
         if (input_.descriptors[0].get() < 0)
@@ -407,6 +428,12 @@ bool InProcessGpuService::requestsHeld() const noexcept
 std::optional<bool> InProcessGpuService::guestScanoutActive() const noexcept
 {
     return implementation_->guestScanoutActive();
+}
+
+std::optional<Display::GuestScanoutMode> InProcessGpuService::guestScanoutMode()
+    const noexcept
+{
+    return implementation_->guestScanoutMode();
 }
 
 std::optional<std::uint16_t> InProcessGpuService::vncPort() const noexcept

@@ -3,6 +3,7 @@
 import Foundation
 import Testing
 @testable import AndariumCore
+import AndariumCoreTestSupport
 
 private let ipad = HostDevice(
     name: "iPad", processorCount: 6, memory: MemoryPolicy(maximumsMiB: [4096]), freeStorageBytes: 40_000_000_000
@@ -98,6 +99,29 @@ struct GuestTests {
         #expect(erased.microphone)
         #expect(erased.includeInBackups)
         #expect(erased.memoryMiB == 2048)
+    }
+
+    @Test func hapticsAreOnForANewGuestAndForOneStoredBefore() throws {
+        #expect(Guest.fresh(on: ipad).haptics)
+        // A record from before the switch has no such key: the guest behaves as it did.
+        let before = Data(#"{"cores":2,"memoryMiB":1024,"capacityGiB":8,"microphone":true,"includeInBackups":false}"#.utf8)
+        #expect(try JSONDecoder().decode(Guest.self, from: before).haptics)
+        #expect(Guest(cores: 2, memoryMiB: 1024, capacityGiB: 8).haptics)
+    }
+
+    @Test func theHapticsChoiceIsKeptAsChosenThroughSaveAndErase() throws {
+        var guest = Guest.fresh(on: ipad)
+        guest.haptics = false
+        let saved = try JSONEncoder().encode(guest)
+        #expect(try JSONDecoder().decode(Guest.self, from: saved).haptics == false)
+        #expect(try JSONDecoder().decode(Guest.self, from: JSONEncoder().encode(guest.erased)).haptics == false)
+        #expect(guest.erased.haptics == false)
+        guest.haptics = true
+        #expect(try JSONDecoder().decode(Guest.self, from: JSONEncoder().encode(guest)).haptics)
+        // It is a choice of its own: the other switches are as they were.
+        let off = Data(#"{"cores":2,"memoryMiB":1024,"capacityGiB":8,"microphone":true,"includeInBackups":false,"haptics":false}"#.utf8)
+        let decoded = try JSONDecoder().decode(Guest.self, from: off)
+        #expect(!decoded.haptics && decoded.microphone && !decoded.location)
     }
 
     @Test func onlyTheChoicesAreStored() throws {
@@ -275,6 +299,20 @@ struct LifecycleTests {
         #expect(RunEnd(result: 0).phase == .home)
         #expect(RunEnd(result: -5).phase == .failed)
         #expect(RunEnd(result: 0, restartedInALoop: true).phase == .failed)
+        // Whose choice the end was does not change where it leads.
+        #expect(RunEnd(result: -5, stoppedByUser: true).phase == .failed)
+        #expect(RunEnd(result: 0, stoppedByUser: true).phase == .home)
+    }
+
+    @Test func theFailureReportSaysTheStopWasTheirs() {
+        let system = SystemInfo(
+            version: "17", release: "20261031-los24-r4",
+            kernel: "Linux 6.18.54", architecture: "arm64, 4 KiB pages", appVersion: "1.0 (1)"
+        )
+        let guest = Guest(cores: 2, memoryMiB: 1536, capacityGiB: 8)
+        let report = RunEnd(result: -5, stoppedByUser: true)
+            .report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: 197)
+        #expect(report.hasSuffix("Virtual machine ended: it was stopped from the boot screen after 3:17"))
     }
 
     @Test func cleanPowerOffAllowsAnotherStartAndFailureRequiresRelaunch() {
@@ -309,7 +347,7 @@ struct LifecycleTests {
         #expect(report == """
             Andarium 1.0 (1) · 20261031-los24-r4
             Linux 6.18.54 · 2 vCPUs · 1.5 GiB
-            Guest ended: runtime result -5 after 1:14
+            Virtual machine ended: runtime result -5 after 1:14
             """)
     }
 }

@@ -60,7 +60,7 @@ struct SpacePauseGuestTests {
         let driver = try #require(model.driver)
 
         let identity = try entry.adbKeyStore.loadOrCreate()
-        let operations = AdbGuestOperations(identity: identity, clock: GuestRunClock(), device: "device")
+        let operations = AdbGuestOperations(identity: identity, clock: GuestRunClock(), device: "device", run: GuestRunMark.random())
         model.start(.normal)
         try await bootCompleted(model, operations)
         print("SPACE_PAUSE: Android booted; free space \(Formats.size(bytes: free.value))")

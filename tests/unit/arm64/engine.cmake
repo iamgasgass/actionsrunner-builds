@@ -130,6 +130,29 @@
             --assume-host-feature frintts --assume-host-feature fcma
             --assume-host-feature jscvt)
 
+    # A store-exclusive may fail without cause (a host interrupt ends the
+    # monitor the engines use), and a corpus case that discards the status
+    # runs once; the runner runs it again while the only difference from the
+    # pack is that its store wrote nothing. This lane makes that happen so the
+    # tolerance is measured and not left to the load a gate happens to run
+    # under: the host interrupts the guest's thread throughout, until a store
+    # has lost its reservation. The JIT's fused pair has no host instructions
+    # between, so a loss there is too rare for a bounded search.
+    uml_add_unit_test(NAME arm64-instruction-corpus-exclusive-interrupted
+        TIMEOUT 300
+        COMMAND uml_arm64_instruction_corpus_tests
+            ${UML_ARM64_INSTRUCTION_CORPUS}
+            --record arm64-tbi-memory --engine gadgets --interrupt)
+    # What the retry must refuse, made on purpose in both lanes: the first
+    # attempt at each such case ends as a lost reservation, which is run again
+    # and passes, or as a loss with another register or a byte outside the
+    # store wrong, a store that wrote other bytes or some of its own, and
+    # (in every attempt) a store that never writes, which each fail.
+    uml_add_unit_test(NAME arm64-instruction-corpus-exclusive-injected
+        COMMAND uml_arm64_instruction_corpus_tests
+            ${UML_ARM64_INSTRUCTION_CORPUS}
+            --record arm64-tbi-memory --inject)
+
     # A virtual CPU with FEAT_SME and without FEAT_SVE executes CNT, INC, DEC,
     # RDVL, ADDVL and ADDPL outside streaming mode for a vector length of 16
     # bytes, a deliberate departure from the architecture whose results are
@@ -271,15 +294,22 @@
             illegal_runtime
             publication_gate
             reservation_alias
-            exclusive_completion)
+            exclusive_completion
+            exclusive_run_fetch
+            exclusive_run_runtime
+            exclusive_run_contention
+            shared_tier_off)
         set(_jit_test_objects ${UML_ARM64_RUNTIME_TEST_OBJECTS})
-        if(JIT_TEST STREQUAL "cache_validation")
+        if(JIT_TEST STREQUAL "cache_validation" OR
+           JIT_TEST STREQUAL "shared_tier_off")
             set(_jit_test_objects ${UML_ARM64_RUNTIME_DIAGNOSTIC_TEST_OBJECTS})
         endif()
         uml_add_arm64_unit_test(jit_${JIT_TEST} NAME arm64-jit-${JIT_TEST}
             WITHOUT_HARNESS OBJECTS ${_jit_test_objects})
     endforeach()
     target_compile_definitions(uml_arm64_jit_cache_validation_tests PRIVATE
+        UML_JIT_RUNTIME_DIAGNOSTICS=1)
+    target_compile_definitions(uml_arm64_jit_shared_tier_off_tests PRIVATE
         UML_JIT_RUNTIME_DIAGNOSTICS=1)
     target_link_libraries(uml_arm64_jit_cache_validation_tests PRIVATE
         uml_test_allocation_failure)
@@ -348,10 +378,18 @@
     # throughout. A store-exclusive may fail without cause (a host interrupt
     # ends the monitor the JIT uses) and the corpus's single attempts must
     # tolerate it; this lane makes that happen so the tolerance is measured
-    # and not left to the load a gate happens to run under.
+    # and not left to the load a gate happens to run under. The spill suite
+    # is not in it: the JIT puts a pair on the host monitor only with
+    # register instructions between, so a store between sends the pair
+    # through its helper, which lost no reservation in that suite under this
+    # storm, and the run would only take longer.
     uml_add_unit_test(NAME arm64-jit-a32-corpus-interrupted TIMEOUT 1200
         COMMAND uml_arm64_jit_a32_corpus_tests ${UML_ARM64_AARCH32_CORPUS}
             --record exclusive-qemu --passes 3000 --interrupt)
+    # The same faults on purpose, as the gadgets' lane has them.
+    uml_add_unit_test(NAME arm64-jit-a32-corpus-injected
+        COMMAND uml_arm64_jit_a32_corpus_tests ${UML_ARM64_AARCH32_CORPUS}
+            --inject)
 
     # The JIT's SME support (cpu/arm64/jit, sme_support).
     uml_add_arm64_unit_test(jit_sme_mode WITHOUT_HARNESS
@@ -462,11 +500,24 @@
     # throughout. A store-exclusive may fail without cause (a host interrupt
     # ends the monitor the gadgets use) and the corpus's single attempts must
     # tolerate it; this lane makes that happen so the tolerance is measured
-    # and not left to the load a gate happens to run under. The sequences
-    # the gadgets translate together run under the same interrupts.
+    # and not left to the load a gate happens to run under. The spill suite
+    # is in it because its cases store between the pair, and the data a
+    # retry compares must hold that store. The sequences the gadgets
+    # translate together run under the same interrupts.
     uml_add_unit_test(NAME arm64-gadget-a32-corpus-interrupted
         COMMAND uml_arm64_gadget_a32_corpus_tests ${UML_ARM64_AARCH32_CORPUS}
-            --record exclusive-qemu,sequences-qemu --passes 200 --interrupt)
+            --record exclusive-qemu,exclusive-spill-qemu,sequences-qemu
+            --passes 200 --interrupt)
+    # What the retry must refuse, made on purpose: the first attempt at
+    # chosen exclusive cases ends as a lost reservation with another
+    # register or TPIDRURO wrong, as a store that reports success and wrote
+    # nothing, or as an expected failure with a register wrong, or as a retry
+    # loop that retires something other than whole passes more, and each must
+    # fail unretried while a plain loss is retried and passes; a whole pass
+    # made on every attempt must fail at the attempt bound.
+    uml_add_unit_test(NAME arm64-gadget-a32-corpus-injected
+        COMMAND uml_arm64_gadget_a32_corpus_tests ${UML_ARM64_AARCH32_CORPUS}
+            --inject)
     target_compile_definitions(uml_arm64_gadget_cache_validation_tests PRIVATE
         UML_GADGET_CACHE_SLOTS=${UML_GADGET_CACHE_SLOT_COUNT})
     # Executors sharing one address space's translations, from several
@@ -488,6 +539,8 @@
         LABELS tsan)
     target_compile_definitions(uml_arm64_gadget_shared_bound_tests PRIVATE
         UML_GADGET_SWEEP_STRESS=1)
+    target_link_libraries(uml_arm64_gadget_shared_bound_tests PRIVATE
+        uml_test_allocation_failure)
 
     # Executors let go of the spaces of generations the MMU destroyed.
     uml_add_arm64_unit_test(gadget_dead_space WITHOUT_HARNESS
@@ -535,6 +588,20 @@
     uml_add_arm64_unit_test(gadget_link NAME arm64-gadget-links WITHOUT_HARNESS)
     uml_add_arm64_unit_test(gadget_indirect_link NAME arm64-gadget-indirect-links
         WITHOUT_HARNESS)
+    uml_add_arm64_unit_test(gadget_run_head NAME arm64-gadget-run-heads
+        WITHOUT_HARNESS)
+    uml_add_arm64_unit_test(gadget_prologue_head
+        NAME arm64-gadget-prologue-heads WITHOUT_HARNESS)
+    uml_add_arm64_unit_test(gadget_move_head
+        NAME arm64-gadget-move-heads WITHOUT_HARNESS)
+    uml_add_arm64_unit_test(gadget_same_base
+        NAME arm64-gadget-same-base WITHOUT_HARNESS)
+    # The builder's list of what each instruction writes, against what
+    # every word of the architecture's decode table that the engine
+    # accepts changes.
+    uml_add_arm64_unit_test(gadget_same_base_writes
+        NAME arm64-gadget-same-base-writes WITHOUT_HARNESS
+        ARGS ${CMAKE_CURRENT_SOURCE_DIR}/a64_instruction_decode_partitions.tsv)
 
     add_executable(uml_gadget_record_table_tests
 		${PROJECT_SOURCE_DIR}/tests/unit/arm64/gadget_record_table_tests.cpp)

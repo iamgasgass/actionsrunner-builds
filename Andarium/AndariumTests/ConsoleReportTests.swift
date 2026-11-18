@@ -26,11 +26,11 @@ struct ConsoleReportTests {
     @Test func thermalLine() {
         #expect(
             ConsoleReport.thermal(phase: .start, state: .nominal, uptime: 12.3456)
-                == "Andarium thermal state: phase=start state=nominal uptime=12.346"
+                == "Andarium thermal state: phase=start state=nominal uptime=12.346 limit=on"
         )
         #expect(
-            ConsoleReport.thermal(phase: .finish, state: .serious, uptime: 0)
-                == "Andarium thermal state: phase=finish state=serious uptime=0.000"
+            ConsoleReport.thermal(phase: .finish, state: .serious, uptime: 0, heatLimitOn: false)
+                == "Andarium thermal state: phase=finish state=serious uptime=0.000 limit=off"
         )
     }
 

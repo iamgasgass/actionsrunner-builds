@@ -31,7 +31,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
  5 files changed, 106 insertions(+), 5 deletions(-)
 
 diff --git a/src/venus/vkr_device_memory.c b/src/venus/vkr_device_memory.c
-index ae27ca53cb96673ead3843bcc20fe3c88972557c..26e9a58f1c7dc0ef2699305e8d4ead7be96d9922 100644
+index 44234cfc8acfcf4fb8606be75e5a4a36c9c8a2c0..4f42d1937d392c0fe950a45ecec003952834bca2 100644
 --- a/src/venus/vkr_device_memory.c
 +++ b/src/venus/vkr_device_memory.c
 @@ -238,6 +238,47 @@ vkr_gbm_get_fd_info_from_allocation_info(UNUSED struct vkr_physical_device *phys

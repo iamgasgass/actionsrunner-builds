@@ -25,37 +25,9 @@ struct SessionView: View {
     var body: some View {
         @Bindable var model = model
         let guestModel = model.guest ?? Guest.fresh(on: model.host)
-        ZStack {
-            Color.black.ignoresSafeArea()
-            guest
-                .clipped()
-                // As on the device, a touch on the guest closes the keys and
-                // still reaches the guest.
-                .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { _ in model.session.closeSideKeys() })
-        }
-        .overlay(alignment: .top) {
-            if model.session.showStats {
-                StatsPill(readout: model.session.readout, memoryMiB: guestModel.memoryMiB, recovery: mode == .recovery)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.top, StatsPlacement.top)
-                    .allowsHitTesting(false)
-            }
-        }
-        .overlay(alignment: .top) {
-            GraphicsNoticeOverlay()
-        }
-        .overlay {
-            SideKeysOverlay(
-                mode: mode, lit: screen != .off,
-                open: $model.session.sideKeysOpen, leading: model.sessionPreset.leftEdge,
-                actions: SideKeyActions(
-                    power: pressPower, powerHold: holdPower,
-                    volumeUp: { pressVolume(up: true) }, volumeDown: { pressVolume(up: false) },
-                    back: pressBack, home: pressHome,
-                    settings: { settings = true }
-                )
-            )
-        }
+        content(guestModel: guestModel)
+        // The text message bar, over the guest and above the keyboard.
+        .overlay(alignment: .bottom) { TextMessageBarOverlay() }
         .statusBarHidden(true)
         // The system honours the bottom edge's deferral only while the home
         // indicator is visible: with it hidden, one swipe goes Home.
@@ -71,6 +43,74 @@ struct SessionView: View {
             while !Task.isCancelled {
                 model.session.readout.tick(memoryMiB: guestModel.memoryMiB)
                 try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private var keyActions: SideKeyActions {
+        SideKeyActions(
+            power: pressPower, powerHold: holdPower,
+            volumeUp: { pressVolume(up: true) }, volumeDown: { pressVolume(up: false) },
+            back: pressBack, home: pressHome,
+            settings: { settings = true }
+        )
+    }
+
+    /// The mock guest and Andarium's pieces over it: on a display that folds
+    /// where the plan puts them (`AndariumCore/FoldLayout.swift`), elsewhere
+    /// as the device draws a phone.
+    @ViewBuilder
+    private func content(guestModel: Guest) -> some View {
+        @Bindable var model = model
+        if let plan = model.sessionPlan {
+            GeometryReader { geo in
+                let origin = geo.frame(in: .global).origin
+                ZStack(alignment: .topLeading) {
+                    Color.black
+                    guest
+                        .frame(width: plan.guest.width, height: plan.guest.height)
+                        .clipped()
+                        .guestScreenAccessibility(model.session.reader, edge: model.session.keysEdge, offered: model.offersScreenReader)
+                        // As on the device, a touch on the guest closes the keys
+                        // and still reaches the guest.
+                        .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { _ in model.session.closeSideKeys() })
+                        .offset(x: plan.guest.minX - origin.x, y: plan.guest.minY - origin.y)
+                    FoldSessionOverlay(
+                        plan: plan, mode: mode, lit: screen != .off, actions: keyActions,
+                        keysLeading: model.sessionPreset.leftEdge)
+                }
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            }
+            .ignoresSafeArea()
+        } else {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                guest
+                    // The keyboard of the text message bar leaves the guest still.
+                    .ignoresSafeArea(.keyboard)
+                    .clipped()
+                    .guestScreenAccessibility(model.session.reader, edge: model.session.keysEdge, offered: model.offersScreenReader)
+                    // As on the device, a touch on the guest closes the keys and
+                    // still reaches the guest.
+                    .simultaneousGesture(DragGesture(minimumDistance: 0).onChanged { _ in model.session.closeSideKeys() })
+            }
+            .overlay(alignment: .top) {
+                if model.session.showStats {
+                    StatsPill(readout: model.session.readout, memoryMiB: guestModel.memoryMiB, recovery: mode == .recovery)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .padding(.top, StatsPlacement.top)
+                        .allowsHitTesting(false)
+                }
+            }
+            .overlay(alignment: .top) {
+                SessionNoticesOverlay()
+            }
+            .overlay {
+                SideKeysOverlay(
+                    mode: mode, lit: screen != .off,
+                    open: $model.session.sideKeysOpen, leading: model.sessionPreset.leftEdge,
+                    tip: SideKeysTip(offersInstall: model.capabilities.offersApkInstall(in: mode)), actions: keyActions
+                )
             }
         }
     }
@@ -209,5 +249,21 @@ struct SessionView: View {
         if preset.settings {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { settings = true }
         }
+    }
+}
+
+private extension View {
+    /// The mock guest reads as the device's display does: Android's screen as
+    /// one element with the screen reader's state as its value, a direct-touch
+    /// area while the screen reader is on, and no action on activation (an
+    /// action that does nothing, as the device's `accessibilityActivate`).
+    func guestScreenAccessibility(_ reader: ScreenReaderSession, edge: KeysEdge?, offered: Bool) -> some View {
+        accessibilityElement(children: .ignore)
+            .accessibilityLabel(ScreenReaderWords.displayLabel)
+            .accessibilityValue(offered ? ScreenReaderWords.displayValue(reader) : "")
+            .accessibilityHint(offered ? ScreenReaderWords.displayHint(reader, edge: edge) ?? "" : "")
+            .accessibilityAddTraits(reader.isOn ? .allowsDirectInteraction : [])
+            .accessibilityAction(.default) {}
+            .accessibilityIdentifier("guest-display")
     }
 }

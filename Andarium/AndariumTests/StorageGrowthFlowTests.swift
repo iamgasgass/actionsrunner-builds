@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import AndariumCore
+import AndariumCoreTestSupport
 import Foundation
 import Testing
 @testable import Andarium
@@ -94,7 +95,7 @@ struct StorageGrowthFlowTests {
         for kind in [BootKind.normal, .recovery, .upgrade] {
             let steps = BootView.steps(kind, guest: guest, system: system, grewFromGiB: model.lifecycle.grewFromGiB)
             let storage = steps.first { $0.title == "Storage" }
-            #expect(storage?.detail == "Growing from 8 GiB to 24 GiB")
+            #expect(storage?.detail == "Grows from 8 GiB to 24 GiB")
         }
         // Without a growth the step states what the storage holds.
         let plain = BootView.steps(.recovery, guest: guest, system: system)

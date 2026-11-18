@@ -122,6 +122,31 @@ public protocol AdbSource: AnyObject {
     func read(limit: Int) throws -> Data?
 }
 
+/// What one guest run puts in the names of its imports' partial files, so that
+/// a sweep of the guest's storage tells them from the ones an earlier run left
+/// (`GuestFiles.sweepCommand`). It is random for each run and held by the
+/// application, so no clock decides which run a file belongs to.
+public struct GuestRunMark: Hashable, Sendable {
+    public static let length = 8
+    private static let digits = Array("0123456789abcdef")
+
+    public let value: String
+
+    /// `value` must be `length` lowercase hexadecimal digits, which a
+    /// shell pattern takes literally.
+    public init?(_ value: String) {
+        guard value.utf8.count == Self.length, value.utf8.allSatisfy({ ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102) })
+        else { return nil }
+        self.value = value
+    }
+
+    public static func random() -> GuestRunMark {
+        var generator = SystemRandomNumberGenerator()
+        let value = String((0..<length).map { _ in digits[Int(generator.next() % UInt64(digits.count))] })
+        return GuestRunMark(value)!
+    }
+}
+
 /// What the file browser asks of the guest's shell and sync service, on a
 /// connection the caller made and arms the watchdog of.
 public enum GuestFiles {
@@ -245,11 +270,16 @@ public enum GuestFiles {
 
     /// The name a file is written under until it has all arrived: in the
     /// destination's folder, so the move is a rename, and hidden, so no
-    /// listing shows it. `token` makes it the transfer's own.
-    public static func temporaryPath(in folder: String, token: String) -> String {
-        GuestFilePath.child(".andarium-\(token).part", of: folder)
+    /// listing shows it. `run` is the guest run that makes it and `token` the
+    /// transfer's own. Every partial file is named here, so each carries the
+    /// mark of the run that wrote it, which `sweepCommand` spares.
+    public static func temporaryPath(in folder: String, run: GuestRunMark, token: String) -> String {
+        GuestFilePath.child(".andarium-\(run.value)-\(token).part", of: folder)
     }
 
+    /// Whether `name` is one of the partial files of an import, of whichever
+    /// run (and of the application's earlier versions, which named them
+    /// without a run).
     public static func isPartial(_ name: String) -> Bool {
         name.hasPrefix(".andarium-") && name.hasSuffix(".part")
     }
@@ -272,6 +302,7 @@ public enum GuestFiles {
     ) throws -> UInt64 {
         guard GuestFilePath.isInsideRoot(path), GuestFilePath.isInsideRoot(temporary),
               GuestFilePath.isValidName(GuestFilePath.name(of: path)),
+              isPartial(GuestFilePath.name(of: temporary)),
               GuestFilePath.parent(of: path) == GuestFilePath.parent(of: temporary)
         else { throw GuestFilesError.badPath }
         let sync = try AdbSync(connection: connection)
@@ -316,14 +347,45 @@ public enum GuestFiles {
         return "\(move) && { \(scanCommand(for: path)) >/dev/null 2>&1; true; }"
     }
 
+    /// Makes `folder`, and the folders above it that are missing; it succeeds
+    /// when they are there. The caller has checked that it is inside `root`.
+    public static func makeFolderCommand(for folder: String) -> String {
+        "mkdir -p -- \(quotedForShell(folder))"
+    }
+
     /// Removes a partial file; the command succeeds when it is not there.
     public static func removeCommand(for temporary: String) -> String {
         "rm -f -- \(quotedForShell(temporary))"
     }
 
-    /// Removes the partial files a stopped import left in `folder`.
-    public static func removeStaleCommand(in folder: String) -> String {
-        "rm -f -- \(quotedForShell(folder))/.andarium-*.part"
+    /// Whether a sweep that spares `run` removes a file of this name: a partial
+    /// file (`isPartial`) that does not carry `run`'s mark. `sweepCommand`
+    /// does the same in the guest's shell.
+    public static func isLeftover(_ name: String, excluding run: GuestRunMark) -> Bool {
+        isPartial(name) && !(name.hasPrefix(".andarium-\(run.value)-") && name.hasSuffix(".part"))
+    }
+
+    /// The shell command that removes every partial file below `root` that
+    /// an earlier run left, and prints the name of each one it removed. A file
+    /// is removed only when it is a regular file (no link, no folder) whose
+    /// name is `isPartial`'s and does not carry `run`'s mark, so an import of
+    /// the run in progress is never touched. `find` does not follow links, so
+    /// nothing outside `root` is reached. It exits 1 when it could not open a
+    /// folder, which the shell user cannot be expected to open in every place.
+    static func sweepCommand(in root: String, excluding run: GuestRunMark) -> String {
+        "find \(quotedForShell(root)) -type f -name '.andarium-*.part' ! -name '.andarium-\(run.value)-*.part' -print -delete"
+    }
+
+    /// The sweep of everything the file browser reaches, for the run `run`.
+    public static func sweepCommand(excluding run: GuestRunMark) -> String {
+        sweepCommand(in: GuestFilePath.root, excluding: run)
+    }
+
+    /// How many files a finished sweep removed; nil when it did not finish
+    /// (the guest ended it, or `find` was not there to run).
+    public static func parseSweep(_ result: ShellResult) -> Int? {
+        guard let code = result.exitCode, code == 0 || code == 1 else { return nil }
+        return result.text.split(whereSeparator: \.isNewline).count
     }
 
     // MARK: Space
@@ -341,6 +403,15 @@ public enum GuestFiles {
         guard lines.count >= 2, let row = lines.last, row.count >= 6, let kib = UInt64(row[3]) else { return nil }
         let (bytes, overflow) = kib.multipliedReportingOverflow(by: 1024)
         return overflow ? nil : bytes
+    }
+
+    /// The bytes available on the file system `path` is on, read with the
+    /// shell on `connection`; nil when the reading cannot be had (the shell
+    /// fails, or `df` prints nothing that reads).
+    public static func freeSpace(of path: String, on connection: AdbConnection) throws -> UInt64? {
+        let result = try connection.runShell(freeSpaceCommand(for: path))
+        guard result.exitCode == 0 else { return nil }
+        return parseFreeSpace(result.text)
     }
 
     /// The room an import of `bytes` keeps free in the guest after it: the

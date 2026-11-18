@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import AndariumCore
+import AndariumCoreTestSupport
 import Foundation
 import Testing
 @testable import Andarium
@@ -113,6 +114,8 @@ struct SessionDiagnosticsTests {
         model.createBugReport()
         #expect(await eventually { offered != nil })
         #expect(offered == file && model.alert == nil)
+        // The share sheet is over the guest: it has the keys, not the guest.
+        #expect(model.shareSheetUp && !model.guestHasKeys)
 
         let entries = try TestZip.entries(of: file)
         #expect(entries.map(\.name) == [
@@ -130,6 +133,27 @@ struct SessionDiagnosticsTests {
         }
         finishedSharing?()
         #expect(!FileManager.default.fileExists(atPath: file.path))
+        #expect(!model.shareSheetUp && model.guestHasKeys)
+    }
+
+    @Test func aShareSheetThatCannotBeShownLeavesTheGuestItsKeys() async throws {
+        let (model, driver) = model()
+        let directory = try diagnostics()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try write("uml-session 1\nstate running\nend running\n", to: directory.appendingPathComponent("session.txt"))
+        model.diagnosticsDirectory = directory
+        model.phase = .running(.normal)
+        let file = try TestZip.staged(entries: ["bugreport-test.txt": Data("report\n".utf8)])
+        driver.bugReport = { _ in file }
+        var asked = false
+        model.presentShare = { _, _ in
+            asked = true
+            return false
+        }
+        model.createBugReport()
+        #expect(await eventually { asked })
+        #expect(await eventually { !FileManager.default.fileExists(atPath: file.path) })
+        #expect(!model.shareSheetUp && model.guestHasKeys)
     }
 
     @Test func aReportTheArchiveCannotTakeIsSharedAsAndroidMadeIt() async throws {
@@ -171,7 +195,7 @@ struct SessionDiagnosticsTests {
         let (launched, _) = model()
         launched.adoptDiagnostics(in: directory, containers: [], endedOutOfForeground: false)
         #expect(launched.notice == .sessionEnded(SessionEndNotice(
-            title: "Android's kernel panicked",
+            title: "Android’s kernel panicked",
             text: "Android stopped with a kernel panic: Attempted to kill init! exitcode=0x0000000b.")))
         #expect(launched.diagnosticsDirectory == directory)
         // The record is kept for the bug report, and the next boot writes its own.

@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//
+// Copy to Feedback.local.xcconfig, which Git ignores, and name the address
+// that receives Send feedback mail. Only an AppStore or TestFlight build made
+// with this file has Send feedback; every other build carries none of it and no
+// address.
+
+FEEDBACK_RECEIVER = feedback@example.com

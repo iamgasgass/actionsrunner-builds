@@ -4,6 +4,7 @@
 #include "session_record.hpp"
 #include "kernel_signal_scope.hpp"
 #include "kernel_threads.hpp"
+#include "kernel_waits.hpp"
 #include "uml_elf64.h"
 
 #include <libkern/OSCacheControl.h>
@@ -265,6 +266,10 @@ private:
 	/* The kernel's console and diagnostic output, which a session record
 	 * quotes (session_record.hpp). */
 	if (void *const wrapper = uml::runtime::kernel_output_import(name))
+		return wrapper;
+	/* The calls that block are marked with what they wait for, for the stall
+	 * watch (kernel_waits.hpp). */
+	if (void *const wrapper = uml::runtime::kernel_wait_import(name))
 		return wrapper;
 	void *address = dlsym(RTLD_DEFAULT, name);
 	/* Darwin SDK headers give a few libc entry points an asm-label alias. */

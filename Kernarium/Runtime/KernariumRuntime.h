@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define KERNARIUM_RUNTIME_API_VERSION 30U
+#define KERNARIUM_RUNTIME_API_VERSION 43U
 
 #if defined(__OBJC__)
 @class MTKView;
@@ -52,6 +52,46 @@ enum {
     KERNARIUM_RUNTIME_ANDROID_BOOT_RECOVERY = 2,
 };
 
+/* The bits of kernarium_runtime_boot.android_host_features (runtime API 31).
+ * Each is one feature of the host, and the runtime's table of them
+ * (KernariumHostFeatures.hpp) names the kernel argument it becomes. */
+enum {
+    /* The device has haptics (a Taptic Engine) and the application plays the
+     * guest's vibrator on it. The guest then finds a vibrator; without the bit
+     * it finds none. */
+    KERNARIUM_RUNTIME_ANDROID_HOST_HAPTICS = 1u << 0,
+    /* The application gives the guest the device's orientation (runtime API
+     * 37), which it follows where the device's interface does not turn. The
+     * guest then lists a device-orientation sensor, which Android's window
+     * manager follows in place of the accelerometer; without the bit it lists
+     * none and judges the accelerometer, as an image without the sensor does. */
+    KERNARIUM_RUNTIME_ANDROID_HOST_ORIENTATION = 1u << 1,
+    /* The application gives the guest the device's magnetic field (runtime API
+     * 38). The guest then lists a magnetometer and declares the compass
+     * feature, from which Android derives the rotation vector and the
+     * orientation that navigation applications take their heading from;
+     * without the bit it lists none and declares none. */
+    KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS = 1u << 2,
+};
+
+/* What the camera does for an Android guest this run (runtime API 37), the
+ * value of kernarium_runtime_boot.android_camera_mode. It is fixed at the
+ * start of the run and nothing changes it until the guest powers off. */
+enum {
+    /* The guest finds the host's cameras and every frame is black: the guest
+     * reports Android's hardware camera privacy switch as on (a lens cover),
+     * the host opens no capture session, and the system's camera indicator
+     * cannot light. This is also what zero, an application that states
+     * nothing, gets. */
+    KERNARIUM_RUNTIME_ANDROID_CAMERA_BLOCKED = 0,
+    /* The guest's camera apps see the host's cameras. A capture session opens
+     * only while a guest app has a camera open. The application asks the
+     * system for access first (the runtime never does) and states this only
+     * when the system has granted it: a session whose access is refused later
+     * delivers black frames as an interruption does. */
+    KERNARIUM_RUNTIME_ANDROID_CAMERA_LIVE = 1,
+};
+
 /* A boot request. Linux guests supply rootfs_path and overlay_path. Android
  * guests supply the release directory (guest/system.img, the read-only system
  * disk; guest/partition-layout.json; boot/kernel-command-line.txt), the path of
@@ -61,7 +101,7 @@ enum {
  * android_data_gib GiB when that is larger; it never shrinks one. The guest
  * has exactly these two disks. The kernel is carried by the runtime.
  *
- * The host GPU's budget is B = max(L - A - G - E - S, 384 MiB), evaluated
+ * The host GPU's budget is B = max(L - A - G - E - S, 352 MiB), evaluated
  * once at launch (see the architecture document): L is the application's
  * memory limit, G the guest's memory, and E the gadget cache plus the other
  * memory the guest side of the process uses. Without a limit B is G. The
@@ -102,7 +142,48 @@ enum {
  * prepare_jit for this request's guest memory and vCPU count with a result of
  * KERNARIUM_RUNTIME_JIT_READY. A boot that asks for it when that is not so
  * runs on gadgets, with a line on stderr: an engine never fails a boot. The
- * runtime reads it only from a request whose struct_size covers it. */
+ * runtime reads it only from a request whose struct_size covers it.
+ *
+ * android_host_features says what the host has that an Android guest is to
+ * find (runtime API 31): a mask of the KERNARIUM_RUNTIME_ANDROID_HOST_ bits
+ * below, zero for none. The runtime turns each bit it knows into the one kernel
+ * argument the guest's image reads for it, which the release's command-line
+ * file cannot set, and ignores a bit it does not know with a line on stderr: a
+ * feature never fails a boot. The runtime reads it only from a request whose
+ * struct_size covers it; a Linux guest ignores it.
+ *
+ * android_camera_mode and android_camera_calibration_path (runtime API 37)
+ * give an Android guest the host's cameras. The runtime discovers them, which
+ * needs no permission, composes the camera layout that describes them
+ * (darwin/device/camera/README.md) as androidboot.product.vendor.sku, which the
+ * release's command-line file cannot set, and makes the camera device after
+ * the GNSS receiver. A host with no camera gets no device and the layout
+ * "none". The mode is one of the KERNARIUM_RUNTIME_ANDROID_CAMERA_ values; an
+ * unknown value runs as blocked, with a line on stderr, because a camera never
+ * fails a boot. The calibration path is a directory, the one the colour data a
+ * Bayer still teaches is kept in (per lens, outside the guest's disks), or null
+ * to keep it in memory. The runtime reads both only from a request whose
+ * struct_size covers them; a Linux guest ignores them.
+ *
+ * android_serial_number and android_ethernet_mac (runtime API 42) state the
+ * installation's identity for a run that must have fixed values, which a test
+ * or a measurement wants. An Android guest otherwise has an identity of its
+ * own: the runtime keeps a random serial number and a random eth0 address in
+ * identity.json beside the data disk, made at the first start of a data disk
+ * (and of an installation that has none), and gives them to the guest. A
+ * request that states either value gets that one value, and the file is
+ * neither read nor written. The other stays what the release and the user
+ * network have without an identity: a request that states only the address
+ * gets the release's own fallback serial number, and one that states only the
+ * serial number gets the user network's default eth0 address. The serial is 6 through 20 characters of A-Z a-z
+ * 0-9 other than "unknown"; the address is the text aa:bb:cc:dd:ee:ff of a
+ * unicast address that is locally administered and none of 02:00:00:00:00:00,
+ * 52:54:00:12:34:56 or 02:15:b2:00:00:00. A value that is anything else fails
+ * the run with -UML_EMULATOR_INVALID_ARGUMENT. The host's own messages never
+ * contain either value; what the guest itself reports (an Android bug report,
+ * the kernel's echo of its command line) carries them as on any Android device.
+ * The runtime reads them only from a request whose struct_size covers them; a
+ * Linux guest ignores them. */
 typedef struct kernarium_runtime_boot {
     uint32_t struct_size;
     uint32_t width;
@@ -124,14 +205,18 @@ typedef struct kernarium_runtime_boot {
     const char* android_time_zone;
     const char* session_record_path;
     uint32_t use_jit;
-    uint32_t reserved;
+    uint32_t android_host_features;
+    uint32_t android_camera_mode;
+    const char* android_camera_calibration_path;
+    const char* android_serial_number;
+    const char* android_ethernet_mac;
 } kernarium_runtime_boot;
 
 /* What a launch's host GPU budget comes to, as the runtime evaluates it for
  * the boot request it receives. */
 typedef struct kernarium_runtime_gpu_budget {
     uint32_t struct_size;
-    /* Nonzero when L - A - G - E - S is below the budget's 384 MiB floor: the
+    /* Nonzero when L - A - G - E - S is below the budget's 352 MiB floor: the
      * process is likely to be ended, the guest boots anyway with the budget
      * clamped to the floor, and the application is to say so. */
     uint32_t short_of_floor;
@@ -151,20 +236,24 @@ typedef struct kernarium_runtime_gpu_budget {
 /* Boots the guest and returns when it is over. A guest that restarts itself is
  * booted again inside this call, on the same view, disk and network, so the
  * call returns only when the guest powers off, the application stops it, a run
- * fails, or the guest restarts itself again and again within seconds of
- * booting. It returns the guest's own status (0 for a power-off or a stop), a
- * negated uml_emulator error constant for a run or start-up that failed, or
- * KERNARIUM_RUNTIME_RESULT_RESTART_LOOP. For Android, 0 means the guest powered
- * off cleanly and all its resources have been released: another run may start
- * in this process. A host stop or an unreported shutdown returns an error. */
+ * fails, or the restart-loop guard ends the loop. It returns the guest's own
+ * status (0 for a power-off or a stop), a negated uml_emulator error constant
+ * for a run or start-up that failed, or KERNARIUM_RUNTIME_RESULT_RESTART_LOOP.
+ * For Android, 0 means the guest powered off cleanly and all its resources have
+ * been released: another run may start in this process. A host stop or an
+ * unreported shutdown returns an error. */
 typedef int (*kernarium_runtime_run_function)(
     KernariumMetalView view,
     const kernarium_runtime_boot* boot);
 
 enum {
-    /* The guest restarted itself five times in a row, each within 15 seconds
-     * of its boot, so the runtime stopped booting it. It is outside the range
-     * of the negated uml_emulator errors (-1 through -4). */
+    /* The guest restarted itself five times in a row within 15 seconds of its
+     * boot, or, for Android, eight times in a row each within 15 seconds or
+     * before its boot had finished (init processed sys.boot_completed=1,
+     * started recovery or apexd marked the boot completed, on a console that
+     * showed init's output), so the runtime stopped booting it. A restart
+     * after a finished boot that lasted 15 seconds or more never counts. It is
+     * outside the range of the negated uml_emulator errors (-1 through -4). */
     KERNARIUM_RUNTIME_RESULT_RESTART_LOOP = -100,
 };
 
@@ -226,17 +315,82 @@ typedef int (*kernarium_runtime_prepare_jit_function)(
     uint32_t guest_processor_count);
 
 typedef void (*kernarium_runtime_request_stop_function)(void);
-/* Flushes the guest's writable host files. Safe to call from any thread while
- * a guest runs, and reports the number of files that could not be flushed. */
-typedef int (*kernarium_runtime_sync_function)(void);
-/* Leaves the guest safely abandonable: trims its cold page cache once, writes
- * its filesystems back, enters full system suspend, then flushes the host's
- * own files. Pair it with resume. */
-typedef int (*kernarium_runtime_quiesce_function)(void);
+
+/* What the guest confirmed about the writeback of its own storage when sync,
+ * quiesce or quiesce_resident returned, as uml_emulator_guest_storage states
+ * it. Only CONFIRMED and NO_GUEST mean that nothing the host cannot see was
+ * left dirty in the guest when the call returned: a caller says the guest's
+ * storage is settled only for those two. The zero value claims nothing. */
+enum {
+    /* Nothing was reported: the call did not write the report, as when it
+     * returned an error, so a report the caller zeroed still holds this. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_NOT_REPORTED = 0,
+    /* The guest ran sync(2) to its return and said so, in this call: it
+     * answered the sync request, or its suspend reply stated that the
+     * suspend's own sync had returned. A suspend reply that says nothing of
+     * it, as an older kernel's, confirms nothing: the guest syncs on the way to
+     * suspend only while /sys/power/sync_on_suspend is set. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_CONFIRMED = 1,
+    /* No guest was running, so there was nothing to settle. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_NO_GUEST = 2,
+    /* The guest was asked and did not confirm in time, or the host could not
+     * ask because another lifecycle call or console request was busy. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_UNCONFIRMED = 3,
+    /* The guest refused the request, or its reply was no confirmation. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_REFUSED = 4,
+    /* A guest was running and its management console could not be reached. */
+    KERNARIUM_RUNTIME_GUEST_STORAGE_UNREACHABLE = 5,
+};
+/* Whether the call put the guest to sleep. */
+enum {
+    /* The call does not suspend (sync), or nothing was asked. */
+    KERNARIUM_RUNTIME_GUEST_SUSPENSION_NOT_ASKED = 0,
+    /* The guest replied that it entered system suspend. */
+    KERNARIUM_RUNTIME_GUEST_SUSPENSION_SUSPENDED = 1,
+    /* The guest refused, or did not confirm that it slept: it may run. */
+    KERNARIUM_RUNTIME_GUEST_SUSPENSION_NOT_SUSPENDED = 2,
+};
+/* What sync, quiesce and quiesce_resident report about the guest (runtime API
+ * 43). The call writes it only when it returns 0 or more. */
+typedef struct kernarium_runtime_settle {
+    /* Set by the caller to sizeof the structure. */
+    uint32_t struct_size;
+    uint32_t reserved;
+    /* A KERNARIUM_RUNTIME_GUEST_STORAGE_ value. */
+    uint32_t guest_storage;
+    /* A KERNARIUM_RUNTIME_GUEST_SUSPENSION_ value. */
+    uint32_t guest_suspension;
+} kernarium_runtime_settle;
+
+/* Has the guest write its filesystems back, then flushes the guest's writable
+ * host files. Safe to call from any thread while a guest runs, and reports the
+ * number of files that could not be flushed: it says nothing of the guest.
+ * `settle` (nullable; the caller sets struct_size) reports what the guest
+ * confirmed. The call waits for the guest at most 3.5 s, and for a lifecycle
+ * call in progress at most 1 s of that, whoever else is in the runtime; the
+ * host files are flushed all the same, and the storage is UNCONFIRMED when the
+ * guest did not reply in time. It fills `settle` with NO_GUEST when no guest
+ * runs. Returns -EINVAL for a struct_size smaller than the structure, with
+ * `settle` untouched, as for the calls below. */
+typedef int (*kernarium_runtime_sync_function)(kernarium_runtime_settle* settle);
+/* Leaves the guest safely abandonable: has it write its filesystems back,
+ * trims its cold page cache once, enters full system suspend, then flushes
+ * the host's own files. Pair it with resume. `settle` (nullable) reports
+ * what the guest confirmed, as for sync, and whether it sleeps. The storage
+ * is confirmed by the guest's reply to a writeback request of this call, or by
+ * a suspend reply that states the suspend's own sync returned. A quiesce
+ * waits for a lifecycle call in progress, which is itself bounded; each wait
+ * for the guest is bounded: the first writeback 2 s,
+ * the trim 3 s, the suspend 10 s (4 s more to abort one that does not
+ * answer) and a final writeback after a suspend that failed 1.5 s. Returns
+ * -EINVAL for a struct_size smaller than the structure, with `settle`
+ * untouched. */
+typedef int (*kernarium_runtime_quiesce_function)(kernarium_runtime_settle* settle);
 /* quiesce for a host that must not write what it is short of: the same
- * order and result, with the guest's RAM kept in the process and no
- * hibernation image written where a quiesce would have written one. */
-typedef int (*kernarium_runtime_quiesce_resident_function)(void);
+ * order, result, report and struct_size rule, with the guest's RAM kept in the
+ * process and no hibernation image written where a quiesce would have written
+ * one. */
+typedef int (*kernarium_runtime_quiesce_resident_function)(kernarium_runtime_settle* settle);
 typedef void (*kernarium_runtime_resume_function)(void);
 typedef void (*kernarium_runtime_send_touch_function)(
     uint32_t slot,
@@ -268,10 +422,24 @@ typedef int (*kernarium_runtime_send_console_input_function)(
  * its virtqueue, through any suspend of the guest, and runs in order after the
  * release. Work already in the renderer carries on. The application holds
  * before it enters the background, where the host GPU is revoked within
- * seconds, and releases when it returns. Returns 1 when the setting is in
- * effect and no request was still running after one second, 0 when one was
- * (the hold is in effect regardless), and -1 when no guest is running: the
- * setting is kept and applies to the guest's GPU once it starts. */
+ * seconds, and releases when it returns. A hold of 1 on an Android guest first
+ * ends the guest's running camera video and waits, two seconds at most, until
+ * the guest has stopped it, so a recording that runs ends before the requests
+ * stop; with no video running it waits for nothing. A hold of 3 or more is a
+ * hold of 1 from a caller that has a deadline: the value is the milliseconds
+ * the deadline leaves, and the wait takes what is left of them after the one
+ * second the hold may spend on a request that is running, two seconds at most;
+ * the deadline does not shorten that second.
+ * A hold of 2 takes the hold at once, with no such wait (the application's own
+ * bound, when the edge is already late), and ends a wait of a hold that is
+ * pending. A hold asked for keeps a guest that restarts from booting until the
+ * requests are given back, from the moment of the call. Returns 1 when the
+ * setting is in effect and no request was still running after one second, 0
+ * when one was (the hold is in effect regardless; a hold that finds the gate
+ * held already answers what the hold that closed it found), and -1 when no
+ * guest is running: the setting is kept and applies to the guest's GPU once it starts.
+ * Callers serialize their holds and releases: a release that overtakes a hold
+ * still waiting for the camera is undone by that hold's close. */
 typedef int (*kernarium_runtime_set_gpu_hold_function)(int held);
 /* Whether the guest's display is on: 1 while it has its primary scanout, 0
  * while it has none, as an Android screen that is off has not, and -1 when no
@@ -532,6 +700,392 @@ typedef int (*kernarium_runtime_connect_vsock_function)(
     uint32_t port,
     uint32_t timeout_ms);
 
+/* The host's location, offered to an Android guest as a GNSS receiver
+ * (darwin/device/gnss/README.md). A flag says which optional field is valid;
+ * a field without its flag is left out of the guest's stream, never written
+ * as zero. */
+enum {
+    /* The host knows the position only roughly (iOS's reduced accuracy). */
+    KERNARIUM_RUNTIME_LOCATION_APPROXIMATE = 1U << 0,
+    KERNARIUM_RUNTIME_LOCATION_HAS_ALTITUDE = 1U << 1,
+    KERNARIUM_RUNTIME_LOCATION_HAS_ELLIPSOIDAL_ALTITUDE = 1U << 2,
+    KERNARIUM_RUNTIME_LOCATION_HAS_HORIZONTAL_ACCURACY = 1U << 3,
+    KERNARIUM_RUNTIME_LOCATION_HAS_VERTICAL_ACCURACY = 1U << 4,
+    KERNARIUM_RUNTIME_LOCATION_HAS_SPEED = 1U << 5,
+    KERNARIUM_RUNTIME_LOCATION_HAS_SPEED_ACCURACY = 1U << 6,
+    KERNARIUM_RUNTIME_LOCATION_HAS_COURSE = 1U << 7,
+    KERNARIUM_RUNTIME_LOCATION_HAS_COURSE_ACCURACY = 1U << 8,
+};
+typedef struct kernarium_runtime_location_fix {
+    /* sizeof of this struct, set by the caller. */
+    uint32_t struct_size;
+    uint32_t flags;
+    /* The fix's own time: UTC in nanoseconds since 1970-01-01. */
+    int64_t utc_ns;
+    /* WGS 84, in degrees. */
+    double latitude;
+    double longitude;
+    /* Meters above sea level, and above the WGS 84 ellipsoid. */
+    double altitude;
+    double ellipsoidal_altitude;
+    /* Meters of radius for the horizontal accuracy, and of the vertical one. */
+    double horizontal_accuracy;
+    double vertical_accuracy;
+    /* Meters per second, and its accuracy. */
+    double speed;
+    double speed_accuracy;
+    /* Degrees clockwise from true north, and its accuracy. */
+    double course;
+    double course_accuracy;
+} kernarium_runtime_location_fix;
+
+/* `powered` is nonzero when the guest powers its GNSS receiver (an Android
+ * client wants a position) and zero when it stops, or when the guest ends or
+ * restarts with the receiver on. It runs on a runtime thread and must return
+ * promptly. */
+typedef void (*kernarium_runtime_location_receiver_callback)(
+    void* context,
+    int powered);
+/* Sets, or with a null callback clears, the one receiver of the guest's
+ * receiver-power events. A receiver that is already powered is reported to a
+ * new callback at once. Once it returns, no call to the previous callback is
+ * running or will start, so its context may be released; the callback must
+ * not call this. A runtime without a GNSS receiver keeps the entry and never
+ * calls back. */
+typedef void (*kernarium_runtime_set_location_receiver_callback_function)(
+    kernarium_runtime_location_receiver_callback callback,
+    void* context);
+
+/* Gives the guest's receiver the host's newest fix, which the receiver
+ * repeats for ten seconds (an approximate fix for twenty minutes) and then
+ * reports as no fix, and reports to the guest at once. A null `fix` drops the
+ * held fix: the guest sees no fix until the next one. Returns 0, -ENODEV when
+ * no guest with a receiver runs, or -EINVAL for a `struct_size` that does not
+ * cover the struct, a time or a position outside its range. It may be called
+ * from any thread with the receiver on or off. */
+typedef int (*kernarium_runtime_report_location_function)(
+    const kernarium_runtime_location_fix* fix);
+
+/* The hardware keyboard, mouse and pointer of an Android guest
+ * (darwin/device/input/README.md). The guest has the three devices from boot,
+ * unplugged: it sees no keyboard, mouse or cursor until the application plugs
+ * them, and unplugging takes them away again with every key and button
+ * released. What the application last asked of each device holds for the run:
+ * a guest that restarts itself has the devices plugged as the application left
+ * them, and a plug asked for between two boots is kept for the next. A plug
+ * that is asked for before the guest's driver has probed takes effect when it
+ * has. The guest registers each device once its driver has set it up, and the
+ * runtime says so with KERNARIUM_RUNTIME_INPUT_STATUS_KEYBOARD_REGISTERED and
+ * KERNARIUM_RUNTIME_INPUT_STATUS_POINTER_REGISTERED (the pointer is registered
+ * while the mouse and the absolute pointer both are), and says they are not
+ * when the guest restarts and when the run ends. An Android guest whose kernel
+ * lacks the hot-plug topic never registers them: a plug changes nothing of
+ * what it sees, and input sent to them is dropped. An application that takes
+ * something from the guest for a device, such as the system pointer's clicks
+ * for the mouse, does so only while that device is registered. The Linux
+ * runtime keeps the entries and answers -ENODEV, as does a runtime with no
+ * guest running.
+ *
+ * Input for a device that is not plugged, or a key the keyboard has no code
+ * for, is dropped and returns 0, and input sent between two boots returns
+ * -ENODEV; every call may come from any thread. */
+enum {
+    /* The keyboard. */
+    KERNARIUM_RUNTIME_INPUT_KEYBOARD = 1,
+    /* The mouse, which is the relative mouse and the absolute pointer together:
+     * Android sees one mouse, with its own cursor. */
+    KERNARIUM_RUNTIME_INPUT_MOUSE = 2,
+};
+
+/* The bits of the buttons of send_pointer and send_mouse, in the order of
+ * UIKit's button numbers. Back and Forward are Android's navigation buttons. */
+enum {
+    KERNARIUM_RUNTIME_BUTTON_PRIMARY = 1U << 0,
+    KERNARIUM_RUNTIME_BUTTON_SECONDARY = 1U << 1,
+    KERNARIUM_RUNTIME_BUTTON_MIDDLE = 1U << 2,
+    KERNARIUM_RUNTIME_BUTTON_BACK = 1U << 3,
+    KERNARIUM_RUNTIME_BUTTON_FORWARD = 1U << 4,
+};
+
+/* One wheel detent, in the high-resolution units of send_mouse's wheels. */
+enum {
+    KERNARIUM_RUNTIME_WHEEL_DETENT = 120,
+};
+
+/* Plugs (`connected` nonzero) or unplugs one of the KERNARIUM_RUNTIME_INPUT_
+ * devices; plugging a plugged device or unplugging an unplugged one changes
+ * nothing. Returns 0, -EINVAL for another device, or -ENODEV when no guest
+ * run is in progress. */
+typedef int (*kernarium_runtime_set_input_connected_function)(
+    int device,
+    int connected);
+
+/* A key of the keyboard, by its position: the usage on the HID Keyboard/Keypad
+ * page (0x04 is A, 0xe3 the left Command key), which the runtime turns into
+ * the Linux key code a USB keyboard with that usage would send. Android's own
+ * key layout turns it into a character. The keyboard has no auto-repeat, as
+ * Android repeats keys itself. A key going down wakes a guest that suspended
+ * itself, at most once a second. Returns 0 or -ENODEV. */
+typedef int (*kernarium_runtime_send_keyboard_usage_function)(
+    uint32_t usage,
+    int pressed);
+
+/* The pointer at (x, y), in the touchscreen's range 0 through
+ * KERNARIUM_RUNTIME_TOUCH_MAXIMUM on both axes (see send_touch) over the guest's
+ * display, with the buttons that are down, which are the
+ * KERNARIUM_RUNTIME_BUTTON_ bits (any other bit is ignored). `in_range` zero
+ * releases the buttons and ends the pointer's contact, and Android's cursor
+ * stays where it was. A position in range before the guest has a display is
+ * dropped. A button going down wakes a guest that suspended itself; a pointer
+ * that only moves does not. Returns 0, -EINVAL for a coordinate out of range,
+ * or -ENODEV. */
+typedef int (*kernarium_runtime_send_pointer_function)(
+    uint32_t x,
+    uint32_t y,
+    uint32_t buttons,
+    int in_range);
+
+/* The mouse's relative motion in guest pixels (what an application that
+ * captured the pointer reads), the buttons that are down (the
+ * KERNARIUM_RUNTIME_BUTTON_ bits, any other ignored), and the vertical and
+ * horizontal wheels in 1/120 of a detent, positive up and to the right. A
+ * button going down or a wheel taking a whole step wakes a guest that
+ * suspended itself; motion does not. Returns 0 or -ENODEV. */
+typedef int (*kernarium_runtime_send_mouse_function)(
+    int32_t dx,
+    int32_t dy,
+    uint32_t buttons,
+    int32_t wheel,
+    int32_t horizontal_wheel);
+
+/* What the guest tells the host of the keyboard and the mouse: the lock lights
+ * of its keyboard, an application capturing or releasing the pointer, and
+ * whether it has registered the devices. */
+enum {
+    KERNARIUM_RUNTIME_INPUT_STATUS_NUM_LOCK = 1,
+    KERNARIUM_RUNTIME_INPUT_STATUS_CAPS_LOCK = 2,
+    KERNARIUM_RUNTIME_INPUT_STATUS_SCROLL_LOCK = 3,
+    KERNARIUM_RUNTIME_INPUT_STATUS_POINTER_CAPTURE = 4,
+    /* The guest registered the keyboard (on) or no longer has it (off). Off
+     * also when the guest restarts and when the run ends. */
+    KERNARIUM_RUNTIME_INPUT_STATUS_KEYBOARD_REGISTERED = 5,
+    /* The guest registered the mouse and the absolute pointer, both (on), or
+     * lost either (off). Off also when the guest restarts and when the run
+     * ends. */
+    KERNARIUM_RUNTIME_INPUT_STATUS_POINTER_REGISTERED = 6,
+};
+
+/* `on` is nonzero when the light is lit, the pointer is captured or the device
+ * is registered. It runs on a runtime thread and must return promptly. */
+typedef void (*kernarium_runtime_input_status_callback)(
+    void* context,
+    int status,
+    int on);
+/* Sets, or with a null callback clears, the one receiver of the input status
+ * events. Once it returns, no call to the previous callback is running or will
+ * start, so its context may be released; the callback must not call this. A
+ * runtime without the devices keeps the entry and never calls back. */
+typedef void (*kernarium_runtime_set_input_status_callback_function)(
+    kernarium_runtime_input_status_callback callback,
+    void* context);
+
+/* A button of a game controller went down: wakes a guest that suspended
+ * itself, as a key down does through send_key, and does nothing to one that is
+ * running. It shares the keyboard's limit of one wake a second, never wakes
+ * for an axis or a release, and may be called from any thread. A runtime with
+ * no guest ignores it. */
+typedef void (*kernarium_runtime_wake_for_input_function)(void);
+
+/* Which denial of the network the application's notice is up for (runtime
+ * API 36). The application watches the system's network path; when iOS denies
+ * Andarium cellular or Wi-Fi access it shows a notice, and tells the runtime,
+ * which keeps it in the session record (how many denials began during the
+ * session and the one in force) beside the counts of the guest's user network.
+ * The notice stays reported after the person dismisses it. It is a note for
+ * bug reports: nothing in the guest's network follows it. */
+enum {
+    KERNARIUM_RUNTIME_NETWORK_NOTICE_NONE = 0,
+    KERNARIUM_RUNTIME_NETWORK_NOTICE_CELLULAR_DENIED = 1,
+    KERNARIUM_RUNTIME_NETWORK_NOTICE_WIFI_DENIED = 2,
+};
+
+/* Sets the denial above; the same value again changes nothing. It may be called
+ * at any time, before a guest runs and between two boots included: the next
+ * session's record starts with the denial in force. Returns 0, or -EINVAL for
+ * another value. Any thread. */
+typedef int (*kernarium_runtime_set_network_notice_function)(int notice);
+
+/* What the host is doing for the cameras of the running guest, as the
+ * callback reports it (runtime API 37; BLOCKED_IN_USE is API 39). */
+enum {
+    /* No guest app has a camera open: no capture session exists and the
+     * system's camera indicator is off. Also the state of a guest that
+     * ended. */
+    KERNARIUM_RUNTIME_CAMERA_STATE_IDLE = 0,
+    /* A guest app has a camera open and frames flow. */
+    KERNARIUM_RUNTIME_CAMERA_STATE_STREAMING = 1,
+    /* The capture cannot run for a reason that ends by itself (another app
+     * or a call has the camera, the system has not granted access); the guest
+     * gets black frames meanwhile. */
+    KERNARIUM_RUNTIME_CAMERA_STATE_INTERRUPTED = 2,
+    /* The same, because other apps share the screen (iPad Split View, Slide
+     * Over or a window the system does not let capture). */
+    KERNARIUM_RUNTIME_CAMERA_STATE_INTERRUPTED_BY_MULTITASKING = 3,
+    /* The same, because the system is under pressure (heat). */
+    KERNARIUM_RUNTIME_CAMERA_STATE_INTERRUPTED_BY_SYSTEM_PRESSURE = 4,
+    /* The guest runs blocked (android_camera_mode) and a guest app has a
+     * camera open: no capture session exists and the system's camera
+     * indicator stays off, the guest gets black frames, and the application
+     * can say the camera is off. Reported when the app opens a camera and
+     * again at each later open, IDLE in between; a live guest never reports
+     * it. A runtime before API 39 reports a blocked guest as IDLE. */
+    KERNARIUM_RUNTIME_CAMERA_STATE_BLOCKED_IN_USE = 5,
+};
+
+/* `state` is a KERNARIUM_RUNTIME_CAMERA_STATE_ value. It runs on a runtime
+ * thread and must return promptly. */
+typedef void (*kernarium_runtime_camera_state_callback)(
+    void* context,
+    int state);
+/* Sets, or with a null callback clears, the one receiver of the camera state
+ * (runtime API 37). The state in force is reported to a new callback at once.
+ * A state is reported when it changes, and IDLE when the guest ends or
+ * restarts with a camera open. Once it returns, no call to the previous
+ * callback is running or will start, so its context may be released; the
+ * callback must not call this. A runtime without a camera keeps the entry and
+ * never calls back. */
+typedef void (*kernarium_runtime_set_camera_state_callback_function)(
+    kernarium_runtime_camera_state_callback callback,
+    void* context);
+
+/* Tells the cameras how the device body is turned (runtime API 37): the
+ * clockwise degrees from portrait, 0, 90, 180 or 270, as the device's user
+ * sees it. It matters when the host owns the rotation (an iPad window): the
+ * guest's display stays upright at rotation 0 while the device, which carries
+ * every built-in sensor, turns under it, so the sensors' mounting turns with
+ * it. Each boot reads it once and states every camera's SENSOR_ORIENTATION
+ * from it (a back camera's turned the same way, a front camera's the other
+ * way, an external camera's not at all); a later change turns the picture by
+ * the difference, as ROTATE_AND_CROP's automatic setting does. A guest whose
+ * display the guest rotates itself (an iPhone) keeps 0. Zero until the
+ * application says otherwise. Returns 0, or -EINVAL for another
+ * value. Any thread, with or without a guest. */
+typedef int (*kernarium_runtime_set_camera_rotation_function)(
+    uint32_t degrees);
+
+/* How a camera reserve was reached (runtime API 40). */
+enum {
+    /* The reserve is the layout's own: the runtime discovered the host's
+     * cameras (which asks the system for no permission and opens no capture
+     * session), read the colour data the calibration directory holds, composed
+     * the layout it would run and took the memory that layout lets a live
+     * session hold. A host with no camera the image can describe holds none:
+     * the reserve is 0, and exact. */
+    KERNARIUM_RUNTIME_CAMERA_RESERVE_EXACT = 0,
+    /* The cameras could not be discovered: the reserve is the tier's ceiling,
+     * which bounds the layouts of the system cameras at the budget's tier (a
+     * development synthetic source can hold more). */
+    KERNARIUM_RUNTIME_CAMERA_RESERVE_CEILING = 1,
+};
+
+/* What the caller of kernarium_runtime_plan_camera_reserve_function asks. */
+enum {
+    /* Discover the host's cameras again before answering, and compose every
+     * answer again: the runtime keeps the discovered source and the answers
+     * composed from it (calibration files included) until a call asks for
+     * this, so an application that asks for each of many budgets sets this on
+     * the first and not on the rest. */
+    KERNARIUM_RUNTIME_CAMERA_PLAN_DISCOVER_AGAIN = 1,
+};
+
+/* What kernarium_runtime_plan_camera_reserve_function takes and answers. The
+ * caller sets struct_size and flags. */
+typedef struct kernarium_runtime_camera_reserve {
+    uint32_t struct_size;
+    /* KERNARIUM_RUNTIME_CAMERA_PLAN_ flags. */
+    uint32_t flags;
+    /* The host memory, in whole MiB, that a live camera session holds out of
+     * the GPU budget. */
+    uint32_t reserve_mib;
+    /* A KERNARIUM_RUNTIME_CAMERA_RESERVE_ value. */
+    uint32_t basis;
+} kernarium_runtime_camera_reserve;
+
+/* The host memory a live camera session of this host would hold out of the GPU
+ * budget of `gpu_budget_mib` MiB (runtime API 40): the figure the next boot with
+ * android_camera_mode LIVE and the same calibration directory takes out of the
+ * pool it gives the GPU, while the camera source, the cameras it presents and
+ * the calibration data are as they were when the answer was composed. The
+ * application asks before the boot, to show the graphics memory the guest would
+ * have while Camera is on. The runtime composes the layout the boot would run
+ * (the cameras it discovers and the colour data in `camera_calibration_path`,
+ * null for none), at the tier the budget gets, and answers what that layout lets
+ * a session hold. It keeps the discovered source and the answers composed from
+ * it: the first call discovers, and `flags` DISCOVER_AGAIN discovers again and
+ * composes every answer again (a boot discovers for its own run). Nothing is
+ * opened and no permission is asked. A host without a camera, and a runtime
+ * without cameras (a Linux guest), answer 0. Returns 0, or a negative value for
+ * a null or short `reserve`; any thread, with or without a guest. */
+typedef int (*kernarium_runtime_plan_camera_reserve_function)(
+    uint32_t gpu_budget_mib,
+    const char* camera_calibration_path,
+    kernarium_runtime_camera_reserve* reserve);
+
+/* The level the system's memory pressure source reported to the host (runtime
+ * API 41). At a critical level the host turns on the guest's page-cache
+ * trimmer and frees the host's graphics caches; a warning and the normal level
+ * turn that trimmer off again and do nothing else (docs/architecture.md,
+ * "Memory pressure"). */
+enum {
+    KERNARIUM_RUNTIME_MEMORY_PRESSURE_NORMAL = 0,
+    KERNARIUM_RUNTIME_MEMORY_PRESSURE_WARNING = 1,
+    KERNARIUM_RUNTIME_MEMORY_PRESSURE_CRITICAL = 2,
+};
+
+/* What the host does about that level. */
+enum {
+    /* A warning or the normal level: no response starts (the guest's trimmer
+     * that a critical level turned on is turned off). */
+    KERNARIUM_RUNTIME_MEMORY_RESPONSE_NONE = 0,
+    /* A critical level: the host starts a response now, which turns on the
+     * guest's gradual page-cache trimmer (one short message) and frees the
+     * host's graphics caches. */
+    KERNARIUM_RUNTIME_MEMORY_RESPONSE_STARTED = 1,
+    /* Reserved: never reported, as a warning starts no response. */
+    KERNARIUM_RUNTIME_MEMORY_RESPONSE_WITHHELD = 2,
+    /* A response is already running, and this level starts none. The host
+     * handles the notifications one at a time, each after the response of the
+     * one before, so this is rare. */
+    KERNARIUM_RUNTIME_MEMORY_RESPONSE_UNDER_WAY = 3,
+};
+
+/* `level` is a KERNARIUM_RUNTIME_MEMORY_PRESSURE_ value and `response` a
+ * KERNARIUM_RUNTIME_MEMORY_RESPONSE_ value. It is called once for each
+ * notification the system delivers while a guest runs, the repeats and the
+ * return to NORMAL included (also the host's own return to NORMAL after a long
+ * quiet, for a system that never delivers it), as soon as the host has decided
+ * what it does and
+ * before it starts the work for that notification, in the order delivered.
+ * The host handles the notifications one at a
+ * time: a level raised during a response is reported after the response, and
+ * one that the system itself merged with others is reported as the most
+ * serious of them. It carries no figures. It runs on a runtime thread and must
+ * return promptly. */
+typedef void (*kernarium_runtime_memory_pressure_callback)(
+    void* context,
+    int level,
+    int response);
+/* Sets, or with a null callback clears, the one receiver of the reports
+ * (runtime API 41). It is an event and not a state: a callback set while the
+ * pressure is in force hears the next level, and a guest that ends or restarts
+ * during the pressure reports no NORMAL, so the application takes the end of
+ * the run as the end of it. It may be set before a guest runs. Once it
+ * returns, no call to the previous callback is running or will start, so its
+ * context may be released; the callback must not call this. */
+typedef void (*kernarium_runtime_set_memory_pressure_callback_function)(
+    kernarium_runtime_memory_pressure_callback callback,
+    void* context);
+
 /* The application resolves only this versioned getter after loading exactly
  * one runtime framework. The table is immutable and remains valid until
  * process exit. The selected framework owns one host runtime and its
@@ -567,6 +1121,23 @@ typedef struct kernarium_runtime_api {
     kernarium_runtime_quiesce_resident_function quiesce_resident;
     kernarium_runtime_read_graphics_memory_function read_graphics_memory;
     kernarium_runtime_prepare_jit_function prepare_jit;
+    kernarium_runtime_set_location_receiver_callback_function
+        set_location_receiver_callback;
+    kernarium_runtime_report_location_function report_location;
+    kernarium_runtime_set_input_connected_function set_input_connected;
+    kernarium_runtime_send_keyboard_usage_function send_keyboard_usage;
+    kernarium_runtime_send_pointer_function send_pointer;
+    kernarium_runtime_send_mouse_function send_mouse;
+    kernarium_runtime_set_input_status_callback_function
+        set_input_status_callback;
+    kernarium_runtime_wake_for_input_function wake_for_input;
+    kernarium_runtime_set_network_notice_function set_network_notice;
+    kernarium_runtime_set_camera_state_callback_function
+        set_camera_state_callback;
+    kernarium_runtime_set_camera_rotation_function set_camera_rotation;
+    kernarium_runtime_plan_camera_reserve_function plan_camera_reserve;
+    kernarium_runtime_set_memory_pressure_callback_function
+        set_memory_pressure_callback;
 } kernarium_runtime_api;
 
 #if defined(__GNUC__)

@@ -4,8 +4,11 @@
 // can carry the lift of a contact or the release of a key, and the guest
 // would hold it until something else released it. The queue therefore
 // releases what the guest was told is held before the next report it
-// accepts.
+// accepts. The same holds for the hardware keyboard, mouse and pointer, whose
+// devices the host plugs and unplugs and whose queue owes nothing to a guest
+// that has not registered an input device.
 
+#include "hardware_test_support.hpp"
 #include "held_input.hpp"
 #include "named_tests.hpp"
 #include "require.hpp"
@@ -22,7 +25,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <initializer_list>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -37,6 +42,7 @@ using uml::input::virtio::EventQueue;
 using uml::input::virtio::HeldInput;
 using uml::input::virtio::Touchscreen;
 using uml::input::virtio::VirtioInputDevice;
+using uml::input::virtio::testing::Rig;
 namespace protocol = uml::input::virtio::protocol;
 
 using uml::testing::require;
@@ -125,6 +131,16 @@ void requireStream(
                 " events, wanted " + std::to_string(want.size()),
             where);
     }
+}
+
+// Whether a stream ends with `tail`.
+bool sameStreamEnd(const Events& got, const Events& tail)
+{
+    if (got.size() < tail.size())
+        return false;
+    return std::memcmp(
+               got.data() + (got.size() - tail.size()), tail.data(),
+               tail.size() * sizeof(protocol::InputEvent)) == 0;
 }
 
 // What a guest's input core believes after the events it was given.
@@ -851,11 +867,292 @@ void heldInputResetForgetsEverythingAndSelectsTheFirstSlot()
     requireStream(releaseOf(held), {slot(0), lift(), synchronize()});
 }
 
+
+// ---- The devices the host plugs and unplugs.
+
+constexpr std::uint32_t hidUsageA = 0x04;
+constexpr std::uint32_t hidUsageB = 0x05;
+
+constexpr protocol::InputEvent registration(std::int32_t registered)
+{
+    return {
+        protocol::statusNotice, protocol::noticeRegistration, registered};
+}
+
+// Reads up to `limit` events from a device, as a guest that posts that many
+// buffers does.
+Events readEvents(
+    VirtioInputDevice& device,
+    std::size_t limit = std::numeric_limits<std::size_t>::max())
+{
+    Events events;
+    while (events.size() < limit) {
+        const auto result =
+            device.processQueue(protocol::eventQueue, 1, {}, 8);
+        if (result.action != uml::virtio::VhostUserQueueAction::complete)
+            break;
+        events.push_back(
+            uml::testing::loadExact<protocol::InputEvent>(result.response));
+    }
+    return events;
+}
+
+// Fills a queue that holds `queued` events with empty reports up to its
+// capacity.
+void fillQueue(EventQueue& queue, std::size_t queued)
+{
+    for (; queued < queueCapacity; ++queued)
+        queue.enqueue(Events {synchronize()});
+}
+
+// A guest that reads part of a full queue of a plugged device, after the host
+// dropped a report: the host then sends one more through `send`. Returns the
+// events the guest read after the 64 it read first, in the order it read
+// them, which must end with `tail`.
+Events readAroundDevice(
+    VirtioInputDevice& device,
+    const Events& tail,
+    const std::function<void()>& send)
+{
+    auto all = readEvents(device, 64);
+    require(all.size() == 64);
+    send();
+    const auto rest = readEvents(device);
+    all.insert(all.end(), rest.begin(), rest.end());
+    require(all.size() == queueCapacity + tail.size());
+    requireStream(Events(all.end() - tail.size(), all.end()), tail);
+    return Events(all.begin(), all.end() - tail.size());
+}
+
+void aDroppedKeyReleaseOnTheHardwareKeyboardIsReleased()
+{
+    Rig rig;
+    rig.plugEverything();
+    (void)rig.input.keyUsage(hidUsageA, true);
+    fillQueue(*rig.keyboardQueue, 2);
+    // The release of A is dropped: the host believes the key is up.
+    (void)rig.input.keyUsage(hidUsageA, false);
+
+    const Events tail {
+        key(keyA, 0), synchronize(), key(keyB, 1), synchronize()};
+    const auto stale = readAroundDevice(rig.keyboardDevice, tail, [&] {
+        (void)rig.input.keyUsage(hidUsageB, true);
+    });
+    Guest guest;
+    guest.apply(stale);
+    require(guest.keys.test(keyA));
+    guest.apply(Events(tail.begin(), tail.begin() + 2));
+    require(guest.idle());
+}
+
+void aDroppedButtonReleaseOnTheMouseIsReleased()
+{
+    Rig rig;
+    rig.plugEverything();
+    (void)rig.input.mouse(0, 0, 0b11, 0, 0);
+    fillQueue(*rig.mouseQueue, 3);
+    (void)rig.input.mouse(0, 0, 0b10, 0, 0); // the left button, dropped
+
+    // The guest holds both buttons, and the host believes only the right one
+    // is down, so the release ends both ahead of the motion.
+    const Events tail {
+        key(buttonLeft, 0), key(buttonRight, 0), synchronize(),
+        {eventRelative, relativeX, 4}, synchronize()};
+    const auto stale = readAroundDevice(rig.mouseDevice, tail, [&] {
+        (void)rig.input.mouse(4, 0, 0b10, 0, 0);
+    });
+    Guest guest;
+    guest.apply(stale);
+    require(guest.keys.test(buttonLeft) && guest.keys.test(buttonRight));
+    guest.apply(Events(tail.begin(), tail.begin() + 3));
+    require(guest.idle());
+}
+
+void aDroppedLeaveOnThePointerReleasesTheContactAndTheButton()
+{
+    Rig rig;
+    rig.plugEverything();
+    (void)rig.input.pointer(100, 200, 1U, true, 1000, 2000);
+    // The first report, eight events, is the tool, the contact and the left
+    // button.
+    fillQueue(*rig.pointerQueue, 8);
+    (void)rig.input.pointer(0, 0, 0, false, 1000, 2000); // dropped
+
+    const Events release {
+        key(buttonLeft, 0),
+        key(protocol::buttonToolMouse, 0),
+        key(protocol::buttonTouch, 0),
+        slot(0), lift(),
+        synchronize(),
+    };
+    Events stale;
+    {
+        auto all = readEvents(rig.pointerDevice, 64);
+        (void)rig.input.pointer(300, 400, 0, true, 1000, 2000);
+        const auto rest = readEvents(rig.pointerDevice);
+        all.insert(all.end(), rest.begin(), rest.end());
+        require(all.size() > queueCapacity + release.size());
+        // The release comes right after what was queued, before the enter.
+        const auto at = all.begin() + queueCapacity;
+        requireStream(Events(at, at + release.size()), release);
+        stale = Events(all.begin(), at);
+    }
+    Guest guest;
+    guest.apply(stale);
+    require(guest.contacts.test(0));
+    require(guest.keys.test(buttonLeft));
+    guest.apply(release);
+    require(guest.idle());
+}
+
+void nothingIsInjectedAfterAnUnplug()
+{
+    Rig rig;
+    rig.plugEverything();
+    (void)rig.input.keyUsage(hidUsageA, true);
+    fillQueue(*rig.keyboardQueue, 2);
+    (void)rig.input.keyUsage(hidUsageA, false); // dropped
+
+    // The unplug ends the guest's input device: it holds nothing, so the
+    // reads that follow carry what was queued and no release.
+    rig.input.setKeyboardConnected(false);
+    const auto all = readEvents(rig.keyboardDevice);
+    require(all.size() == queueCapacity);
+    require(sameStreamEnd(all, Events {synchronize()}));
+
+    // The device is plugged and registered again, and nothing is owed for
+    // the key of the first session.
+    rig.input.setKeyboardConnected(true);
+    Rig::registers(rig.keyboardDevice);
+    (void)rig.input.keyUsage(hidUsageB, true);
+    requireStream(
+        readEvents(rig.keyboardDevice), Events {key(keyB, 1), synchronize()});
+}
+
+void nothingIsInjectedWhileTheGuestHasNoInputDevice()
+{
+    Rig rig;
+    rig.plugEverything();
+    (void)rig.input.keyUsage(hidUsageA, true);
+    fillQueue(*rig.keyboardQueue, 2);
+    (void)rig.input.keyUsage(hidUsageA, false); // dropped
+
+    // The guest takes its input device down: what it reads is what was
+    // queued, and the empty queue owes it nothing.
+    Rig::status(rig.keyboardDevice, registration(0));
+    const auto all = readEvents(rig.keyboardDevice);
+    require(all.size() == queueCapacity);
+    require(sameStreamEnd(all, Events {synchronize()}));
+    require(readEvents(rig.keyboardDevice).empty());
+
+    // A report for the device that is not there is held for the one that
+    // comes, and the old device's release is not.
+    (void)rig.input.keyUsage(hidUsageB, true);
+    require(readEvents(rig.keyboardDevice).empty());
+    Rig::registers(rig.keyboardDevice);
+    requireStream(
+        readEvents(rig.keyboardDevice), Events {key(keyB, 1), synchronize()});
+}
+
+void aReportHeldForTheRegistrationIsHeldByTheGuestAfterIt()
+{
+    Rig rig;
+    rig.input.setKeyboardConnected(true); // plugged, not registered
+    (void)rig.input.keyUsage(hidUsageA, true);
+    require(readEvents(rig.keyboardDevice).empty());
+
+    // The registration delivers what was held, and the queue follows it as it
+    // follows every report: a later drop releases the key.
+    Rig::registers(rig.keyboardDevice);
+    fillQueue(*rig.keyboardQueue, 2);
+    (void)rig.input.keyUsage(hidUsageA, false); // dropped
+    const Events tail {
+        key(keyA, 0), synchronize(), key(keyB, 1), synchronize()};
+    const auto stale = readAroundDevice(rig.keyboardDevice, tail, [&] {
+        (void)rig.input.keyUsage(hidUsageB, true);
+    });
+    Guest guest;
+    guest.apply(stale);
+    require(guest.keys.test(keyA));
+}
+
+void aResetOfTheDeviceForgetsWhatTheGuestHeld()
+{
+    // A fixed device stays registered through a reset, so the reset alone
+    // decides what the queue still owes.
+    EventQueue fixed;
+    fixed.enqueue(Events {key(keyA, 1), synchronize()});
+    fillQueue(fixed, 2);
+    fixed.enqueue(Events {key(keyA, 0), synchronize()}); // dropped
+    fixed.reset();
+    const Events next {key(keyB, 1), synchronize()};
+    fixed.enqueue(next);
+    Events got;
+    protocol::InputEvent event {};
+    while (fixed.take(event))
+        got.push_back(event);
+    requireStream(got, next);
+
+    // A plugged device is unregistered by a reset and registers again.
+    EventQueue plugged(EventQueue::Attachment::pluggable);
+    require(plugged.setConnected(true));
+    plugged.guestStatus(registration(1));
+    plugged.enqueue(Events {key(keyA, 1), synchronize()});
+    fillQueue(plugged, 2);
+    plugged.enqueue(Events {key(keyA, 0), synchronize()}); // dropped
+    plugged.reset();
+    plugged.guestStatus(registration(1));
+    plugged.enqueue(next);
+    got.clear();
+    while (plugged.take(event))
+        got.push_back(event);
+    requireStream(got, next);
+}
+
+void anUnplugForgetsWhatTheGuestHeldButNotWhatIsStillQueued()
+{
+    EventQueue queue(EventQueue::Attachment::pluggable);
+    require(queue.setConnected(true));
+    queue.guestStatus(registration(1));
+    queue.enqueue(Events {key(keyA, 1), synchronize()});
+    protocol::InputEvent event {};
+    while (queue.take(event)) {
+    }
+    // The guest read the key, then the device went away and came back. The
+    // new input device holds nothing, however the host plugs it.
+    require(queue.setConnected(false));
+    require(queue.setConnected(true));
+    queue.guestStatus(registration(1));
+    fillQueue(queue, 0);
+    queue.enqueue(Events {key(keyB, 1), synchronize()}); // dropped
+    std::size_t count = 0;
+    while (queue.take(event))
+        ++count;
+    require(count == queueCapacity);
+    // Nothing was held, so nothing is released after the drop either.
+    require(!queue.take(event));
+
+    // What the new input device is still to read is held by it once read.
+    queue.enqueue(Events {key(keyA, 1), synchronize()});
+    require(queue.setConnected(false));
+    require(queue.setConnected(true));
+    queue.guestStatus(registration(1));
+    fillQueue(queue, 2);
+    queue.enqueue(Events {key(keyB, 1), synchronize()}); // dropped
+    Events got;
+    while (queue.take(event))
+        got.push_back(event);
+    require(got.size() == queueCapacity + 2);
+    requireStream(
+        Events(got.end() - 2, got.end()),
+        Events {key(keyA, 0), synchronize()});
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    const std::array<uml::testing::NamedTest, 22> tests {{
+    const std::array<uml::testing::NamedTest, 30> tests {{
         {"a-dropped-lift-is-released-before-the-next-report",
          aDroppedLiftIsReleasedBeforeTheNextReport},
         {"a-dropped-move-still-releases-the-contact-it-held",
@@ -897,6 +1194,21 @@ int main(int argc, char** argv)
          heldInputIgnoresWhatAGuestDoesNotTake},
         {"held-input-reset-forgets-everything-and-selects-the-first-slot",
          heldInputResetForgetsEverythingAndSelectsTheFirstSlot},
+        {"a-dropped-key-release-on-the-hardware-keyboard-is-released",
+         aDroppedKeyReleaseOnTheHardwareKeyboardIsReleased},
+        {"a-dropped-button-release-on-the-mouse-is-released",
+         aDroppedButtonReleaseOnTheMouseIsReleased},
+        {"a-dropped-leave-on-the-pointer-releases-the-contact-and-the-button",
+         aDroppedLeaveOnThePointerReleasesTheContactAndTheButton},
+        {"nothing-is-injected-after-an-unplug", nothingIsInjectedAfterAnUnplug},
+        {"nothing-is-injected-while-the-guest-has-no-input-device",
+         nothingIsInjectedWhileTheGuestHasNoInputDevice},
+        {"a-report-held-for-the-registration-is-held-by-the-guest-after-it",
+         aReportHeldForTheRegistrationIsHeldByTheGuestAfterIt},
+        {"a-reset-of-the-device-forgets-what-the-guest-held",
+         aResetOfTheDeviceForgetsWhatTheGuestHeld},
+        {"an-unplug-forgets-what-the-guest-held-but-not-what-is-still-queued",
+         anUnplugForgetsWhatTheGuestHeldButNotWhatIsStillQueued},
     }};
     // A name on the command line runs only that case.
     if (argc > 1) {

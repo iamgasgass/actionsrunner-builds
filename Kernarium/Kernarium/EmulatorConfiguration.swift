@@ -40,7 +40,7 @@ struct EmulatorConfiguration: Equatable {
     static let retinaEnvironmentKey = "KERNARIUM_RETINA_MODE"
     static let autoResizeGuestEnvironmentKey = "KERNARIUM_GPU_AUTO_RESIZE"
     // The three launch parameters of the host GPU's fixed budget
-    // B = max(L - A - G - E - S, 384 MiB): A, the application's own
+    // B = max(L - A - G - E - S, 352 MiB): A, the application's own
     // expected ceiling; E_rest, the guest side's memory beyond the gadget
     // cache; and S, the headroom left unused. Only the environment states
     // them, for a measurement run.
@@ -71,9 +71,12 @@ struct EmulatorConfiguration: Equatable {
     }
     static let gpuBudgetParameterRangeMiB = 0...16384
     // The sizes the stepper steps through: from 512 MiB in 64 MiB steps, through
-    // the top of any range, 1 TiB (`guest_memory_range_maximum_mib`). The most
-    // it offers at a vCPU count is the runtime's budget answer
-    // (`systemGuestMemoryBound`), which the host's ceiling bounds.
+    // the top of any range, 1 TiB (`guest_memory_range_maximum_mib`), which is
+    // the shape of the runtime's own test (`guest_memory_admitted`); the hosted
+    // tests hold these figures to the loader's answers. The most it offers at
+    // a vCPU count is the runtime's budget answer (`systemGuestMemoryBound`),
+    // which the host's ceiling bounds, and every size it offers is one the
+    // runtime starts.
     static let guestMemoryRangeMiB = 512...(1 << 20)
     static let guestMemoryStepMiB = 64
     /// The most guest RAM this host admits whatever the memory limit says: the

@@ -1,0 +1,77 @@
+{
+  "identifier" : "A0A0A0A0-0000-4000-8000-0000000000FF",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "A0A0A0A0-0000-4000-8000-000000000001",
+      "localizations" : [
+        {
+          "description" : "Lite",
+          "displayName" : "Lite",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.andarium.tip.lite",
+      "referenceName" : "Lite",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "A0A0A0A0-0000-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "Pro",
+          "displayName" : "Pro",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.andarium.tip.pro",
+      "referenceName" : "Pro",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "A0A0A0A0-0000-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "Max",
+          "displayName" : "Max",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.andarium.tip.max",
+      "referenceName" : "Max",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "49.99",
+      "familyShareable" : false,
+      "internalID" : "A0A0A0A0-0000-4000-8000-000000000004",
+      "localizations" : [
+        {
+          "description" : "Ultra",
+          "displayName" : "Ultra",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.andarium.tip.ultra",
+      "referenceName" : "Ultra",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storeKitErrors" : [],
+    "_storefront" : "USA"
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

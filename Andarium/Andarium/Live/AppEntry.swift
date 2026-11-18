@@ -52,20 +52,43 @@ struct AppEntry {
     }
 
     func configureTips() {
+        #if !APP_STORE
+        // The input probe's UI tests tap the side keys and Settings; a tip's
+        // popover over them is no part of what they check, but for the one
+        // that checks the first tap on the keys with the tip up.
+        let environment = ProcessInfo.processInfo.environment
+        if InputProbeLaunch.showsTip(in: environment) {
+            try? Tips.resetDatastore()
+            Tips.showTipsForTesting([SideKeysTip.self])
+        } else if InputProbeLaunch.requested(in: environment) {
+            Tips.hideAllTipsForTesting()
+        }
+        #endif
         try? Tips.configure([.displayFrequency(.immediate)])
     }
 
     /// The model for this launch. A copy of Andarium without its system, or
     /// with one it cannot read, still opens, and says so.
     @MainActor
-    /// `freeSpace` is the device's free space a run watches: the application's
-    /// own reading unless a test supplies another.
-    func makeModel(freeSpace: @escaping @Sendable () -> UInt64 = { AppEntry.freeStorageBytes() }) -> AppModel {
+    /// `freeSpace` is the space a run watches: the application's own reading
+    /// (`freeStorageBytes`) unless a test supplies another.
+    /// `environment` is the launch's unless a test supplies another.
+    func makeModel(
+        freeSpace: @escaping @Sendable () -> UInt64 = { AppEntry.freeStorageBytes() },
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> AppModel {
         let launch = overrides
         let bundle = Bundle.main
         let version = Self.appVersion(bundle)
         let systemFolder = bundle.resourceURL?.appendingPathComponent(SystemFolder.name)
         let host = Self.hostDevice()
+        #if !APP_STORE
+        // A UI test of the hardware keyboard and mouse opens the session with
+        // no guest behind it.
+        if InputProbeLaunch.requested(in: environment) {
+            return Self.makeInputProbeModel(host: host, version: version, environment: environment)
+        }
+        #endif
 
         var problem: String?
         var system = SystemInfo(
@@ -79,27 +102,36 @@ struct AppEntry {
                 system = try SystemInfo(manifest: manifest, appVersion: version)
                 carried = try SystemFolder.release(in: systemFolder)
             } catch {
-                problem = "This copy of Andarium does not carry a usable system: \(error.localizedDescription)"
+                problem = String(localized: "This copy of Andarium does not carry a usable system: \(error.localizedDescription)")
             }
         } else {
-            problem = "This copy of Andarium does not carry a system."
+            problem = String(localized: "This copy of Andarium does not carry a system.")
         }
 
         let locations = GuestLocations(directory: Self.guestDirectory(instance: launch.instance))
         let storage = TwoDiskStorage(
             locations: locations,
             release: carried?.identity ?? ReleaseIdentity(
-                releaseID: "unavailable", buildFingerprint: "unavailable", buildNumber: 1, securityPatch: "",
+                releaseID: "unavailable", buildFingerprint: "unavailable", buildNumber: BuildNumber.oldest, securityPatch: "",
                 systemDiskSHA256: String(repeating: "0", count: 64), dataLayout: 1, minimumGiB: 4, defaultGiB: 8,
                 maximumGiB: 64
             ),
             releaseDirectory: systemFolder ?? locations.directory
         )
+        // What the last process left half done in the snapshots (a restore, a
+        // create, a delete) is completed before the guest is read.
+        var snapshotRecoveryFailure: (any Error)?
+        do {
+            try storage.recoverSnapshots()
+        } catch {
+            snapshotRecoveryFailure = error
+            print("Andarium: the snapshots could not be recovered: \(error.localizedDescription)")
+        }
         var guest: Guest?
         do {
             guest = try storage.load()
         } catch {
-            problem = problem ?? "The guest\u{2019}s settings could not be read: \(error.localizedDescription)"
+            problem = problem ?? String(localized: "The virtual machine\u{2019}s settings could not be read: \(error.localizedDescription)")
         }
         // A stored memory size above the bound of its vCPU count comes down to
         // it; a size the launch states stays as stated.
@@ -108,9 +140,13 @@ struct AppEntry {
         }
 
         let model = AppModel(
-            guest: guest, host: host, system: system, capabilities: .device,
+            guest: guest, host: host, system: system, capabilities: Self.deviceCapabilities(),
             createRequirementBytes: storage.createRequirementBytes
         )
+        // An iPhone's guest follows the device's orientation; a harness launch
+        // may state it for another device (an App Store build states nothing).
+        model.followsDeviceOrientation = launch.followsDeviceOrientation
+            ?? (UIDevice.current.userInterfaceIdiom == .phone)
         #if !APP_STORE && !targetEnvironment(simulator)
         // A development build on a device can run the guest on the JIT engine
         // when a debugger prepares its memory.
@@ -118,20 +154,38 @@ struct AppEntry {
         #endif
         // The rulers offer no size the carried system's data disk would refuse.
         model.releaseMaximumGiB = storage.release.maximumGiB
-        // Retina mode is the person's choice where they made one, else on when
-        // the system lets this application use more than 4 GiB.
-        let options = DisplayOptionsStore.load()
-        model.retina = launch.retina ?? options.retina(memoryLimitBytes: MemoryLimit.bytes())
-        model.retinaChosen = options.chosenRetina != nil
-        // A value a launch states is that run's, and what the person chose
-        // stays stored.
-        model.retinaStatedByLaunch = launch.retina != nil
+        // The resolution is the person's choice where they made one (a Retina
+        // mode an earlier version stored is none), else the choice nearest 1.5
+        // where the system holds this application to 4 GiB or less and the one
+        // nearest 2.0 where it does not. A value a launch states is that run's,
+        // and what the person chose stays stored.
+        model.chosenScale = DisplayOptionsStore.load().chosenScale
+        model.launchScale = launch.displayScale
+        model.memoryLimitBytes = MemoryLimit.bytes()
         // The statistics show from the start where the person left them,
         // unless the launch is a harness's, which decides for its run alone
         // (`StatsPreference.launch`). An App Store build carries no setting.
         let stats = StatsPreference().launch(for: launch)
         model.session.showStats = stats.showOnScreen
         model.statsDecidedByLaunch = !stats.keepsChanges
+        // "Use the pointer as touch" is the person's last choice, unless the
+        // launch is a harness's and decides for its run alone.
+        let pointer = PointerPreference().launch(automated: !launch.isEmpty)
+        model.pointerAsTouch = pointer.isOn
+        model.pointerAsTouchDecidedByLaunch = !pointer.keepsChanges
+        // Settings' "When hot" is the person's last choice, unless the launch
+        // is a harness's and decides for its run alone (`HeatLimitPreference`);
+        // an App Store build has no launch environment and so keeps the
+        // person's own.
+        #if APP_STORE
+        let heat = HeatLimitPreference().launch(automated: false)
+        #else
+        let heat = HeatLimitPreference().launch(
+            automated: !launch.isEmpty || ThermalOverride.stated(in: environment) != nil,
+            stated: HeatLimitLaunch.stated(in: environment))
+        #endif
+        model.heatLimitOn = heat.isOn
+        model.heatLimitDecidedByLaunch = !heat.keepsChanges
         #if !APP_STORE
         model.printsStatistics = launch.statistics == true
         // The JIT row follows the person's last choice, unless the launch is a
@@ -141,12 +195,19 @@ struct AppEntry {
             hasOtherSettings: !launch.isEmpty)
         model.jitOn = jit.isOn
         model.jitDecidedByLaunch = !jit.keepsChanges
+        // A harness launch can keep the device's haptics silent for its run
+        // (`HapticsLaunch`); the person's switch stays as stored.
+        model.hapticsSilencedByLaunch = HapticsLaunch.silences(in: environment)
         #endif
 
         #if APP_STORE
         let markerDirectory = Self.supportDirectory()
         #else
         let markerDirectory = launch.instance == nil ? Self.supportDirectory() : locations.directory
+        #endif
+        #if APP_REVIEW
+        // Before the previous session's record is read: it tells the prompt how the last run ended.
+        Self.addRatingPrompt(to: model)
         #endif
         let marker = PauseMarker(url: markerDirectory.appendingPathComponent("pause.json"))
         let closedInBackground = marker.consume()
@@ -170,15 +231,28 @@ struct AppEntry {
                 Self.answerSpaceScreenFromHarness(model: model, directory: locations.directory)
             }
             #endif
+            // The colour data's folder: the boot reads it and the planner asks the runtime
+            // about it, and the planner's figure is the boot's only while they are one value.
+            let calibration = markerDirectory.appendingPathComponent("Camera", isDirectory: true)
             let runtime = LiveRuntime(
                 model: model, storage: storage, marker: marker, keyStore: adbKeyStore,
-                sessionRecord: sessionRecord, freeSpace: watched)
+                sessionRecord: sessionRecord,
+                cameraDirectory: calibration,
+                freeSpace: watched)
             model.driver = runtime
+            model.snapshotDriver = runtime
+            model.cameraReservePlanner = { policy in
+                LiveRuntime.cameraReservePlan(for: policy, calibration: calibration)
+            }
+            // The listing says why a restore that began last time is still not finished.
+            if let snapshotRecoveryFailure { runtime.snapshotRecoveryFailed(snapshotRecoveryFailure) }
             model.fileBrowser = FileBrowserModel(backend: runtime.makeGuestFiles(hostFree: watched))
             model.refreshPlan()
             // Access the person took away while Andarium was closed takes the
             // Microphone choice with it.
             model.microphone?.refresh()
+            model.location?.refresh()
+            model.camera?.refresh()
             #if !APP_STORE
             // A debugger attached at launch (StikDebug) is asked for what the
             // JIT row says at once: it spins until it is served, and the
@@ -192,11 +266,89 @@ struct AppEntry {
         }
         announceWhatsNew(
             on: model, hasGuest: guest != nil, vCPUs: guest?.cores ?? host.processorCount)
-        model.alert = problem.map { AppAlert(title: "Andarium is incomplete", message: $0) }
+        model.alert = problem.map { AppAlert(title: String(localized: "Andarium is incomplete"), message: $0) }
+        #if APP_REVIEW
+        // Last: the ribbon and the alert above are part of what Home shows.
+        model.reviewAsk?.start()
+        #endif
         return model
     }
 
     #if !APP_STORE
+    /// The model of a UI test's launch of the hardware keyboard and mouse
+    /// (`InputProbeLaunch`): a guest that exists only in memory and a session
+    /// that is open as if its run had booted, so the display takes the keys
+    /// and the pointer. The guest's keyboard and mouse send to the probe's log
+    /// instead of the runtime, and nothing is read from or written to the
+    /// application's own guest or settings.
+    @MainActor
+    private static func makeInputProbeModel(
+        host: HostDevice, version: String, environment: [String: String]
+    ) -> AppModel {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("InputProbe", isDirectory: true)
+        let locations = GuestLocations(directory: directory)
+        let storage = TwoDiskStorage(
+            locations: locations,
+            release: ReleaseIdentity(
+                releaseID: "probe", buildFingerprint: "probe", buildNumber: BuildNumber.oldest, securityPatch: "",
+                systemDiskSHA256: String(repeating: "0", count: 64), dataLayout: 1, minimumGiB: 4, defaultGiB: 8,
+                maximumGiB: 64
+            ),
+            releaseDirectory: directory
+        )
+        let system = SystemInfo(
+            version: "", release: "probe", securityPatch: nil, kernel: "", architecture: "", appVersion: version)
+        let model = AppModel(
+            guest: Guest.fresh(on: host), host: host, system: system, capabilities: Self.deviceCapabilities(),
+            createRequirementBytes: 0
+        )
+        // The launch decides the setting for its own run.
+        model.pointerAsTouch = PointerPreference().launch(automated: true).isOn
+        model.pointerAsTouchDecidedByLaunch = true
+        let heat = HeatLimitPreference().launch(automated: true, stated: HeatLimitLaunch.stated(in: environment))
+        model.heatLimitOn = heat.isOn
+        model.heatLimitDecidedByLaunch = true
+        // The side keys play their feedback here too: a launch that keeps the
+        // phone silent does so on this path as on the ordinary one.
+        model.hapticsSilencedByLaunch = HapticsLaunch.silences(in: environment)
+        let probe = InputProbe()
+        model.inputProbe = probe
+        // A probe that states iOS's thermal state runs the thermal session
+        // against a stand-in for the guest's HAL, which says what Android
+        // would be told in the probe's log.
+        let thermalStated = ThermalOverride.stated(in: environment) != nil
+        let hal = thermalStated
+            ? ThermalProbeHal { [weak probe] severity in
+                DispatchQueue.main.async { MainActor.assumeIsolated { probe?.record("heat told \(severity)") } }
+            } : nil
+        let runtime = LiveRuntime(
+            model: model, storage: storage, marker: PauseMarker(url: directory.appendingPathComponent("pause.json")),
+            keyboardMouse: KeyboardMouse.probe(
+                probe, supportsMouse: host.supportsPointer,
+                guestRegisters: InputProbeLaunch.guestRegisters(in: environment)
+            ) { [weak model] wanted in model?.pointerLockWanted = wanted },
+            thermalOpener: hal)
+        model.driver = runtime
+        model.phase = .running(.normal)
+        runtime.beginInputProbe()
+        if thermalStated { runtime.beginThermalProbe() }
+        #if FEEDBACK_MAIL
+        if FeedbackProbe.requested(in: environment) { FeedbackProbe.install(on: model) }
+        #endif
+        if let script = OldAppsProbeLaunch.script(in: environment) {
+            let scripted = ScriptedOldApps(open: ["com.example.rally"])
+            switch script {
+            case .apps: break
+            case .refuse: scripted.writeAnswer = .failed
+            case .none: scripted.listingAnswer = .unavailable
+            }
+            model.scriptedOldApps = scripted
+            // What the first listing of a run does once Android's storage is up.
+            Task { await model.refreshOldApps() }
+        }
+        return model
+    }
+
     /// An automation launch creates the guest if there is none, erases it
     /// when asked, and starts it; a normal launch stops at Home.
     @MainActor
@@ -242,6 +394,18 @@ struct AppEntry {
         return model.alert == nil
     }
     #endif
+
+    /// What the application offers on the device: the runtime's, with text
+    /// messages held back until a release image carries the service. A
+    /// development launch can switch them on (`TextMessagesLaunch`); an App
+    /// Store build has no such launch.
+    private static func deviceCapabilities() -> Capabilities {
+        #if APP_STORE
+        .device
+        #else
+        TextMessagesLaunch.capabilities(in: ProcessInfo.processInfo.environment)
+        #endif
+    }
 
     // MARK: Device
 
@@ -293,13 +457,19 @@ struct AppEntry {
     }
 
     @MainActor
-    static func hostDevice() -> HostDevice {
+    static func hostDevice(camera: CameraPlatform? = nil) -> HostDevice {
         let info = ProcessInfo.processInfo
         let name: String
+        let idiom: HostDevice.Idiom
         if info.isiOSAppOnMac {
             name = "Mac"
+            idiom = .mac
+        } else if UIDevice.current.userInterfaceIdiom == .pad {
+            name = "iPad"
+            idiom = .pad
         } else {
-            name = UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+            name = "iPhone"
+            idiom = .phone
         }
         // A guest has every processor, at most the count the memory budget is
         // measured for; the memory policy has a row for each of those counts.
@@ -308,7 +478,10 @@ struct AppEntry {
             name: name, processorCount: limit,
             memory: memoryPolicy(processorCount: limit),
             freeStorageBytes: freeStorageBytes(),
-            runsGuestGraphics: drawsGuestGraphics()
+            runsGuestGraphics: drawsGuestGraphics(),
+            supportsPointer: UIDevice.current.userInterfaceIdiom != .phone,
+            idiom: idiom, hasHaptics: DeviceHaptics.isAvailable,
+            hasCompass: MotionSensors().compassAvailable, hasCamera: (camera ?? .system).hasCamera
         )
     }
 
@@ -348,12 +521,16 @@ struct AppEntry {
             },
             graphicsMemory: { memoryMiB, count in
                 Int(kernarium_runtime_loader_gpu_budget_mib(UInt32(memoryMiB), UInt32(count), launchSet))
+            },
+            cameraReserve: { budgetMiB in
+                Int(kernarium_runtime_loader_camera_reserve_mib(UInt32(clamping: budgetMiB)))
             }
         )
     }
 
-    /// The device's free space. It touches no state of the entry, and the
-    /// run's space watch reads it off the main actor.
+    /// The space a write can use on the device, the one figure the run's
+    /// watch, the start checks and every screen use. It touches no state of
+    /// the entry, so a `@Sendable` source can hold it.
     nonisolated static func freeStorageBytes() -> UInt64 {
         HostStorage.freeBytes()
     }

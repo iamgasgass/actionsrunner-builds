@@ -1,0 +1,2743 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ of %@" : {
+      "comment" : "Where the thumb on the edge of a long text points, in bytes of the whole text, shown while it is held and read by VoiceOver: 126 KiB of 252 KiB. The placeholders are sizes.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$@中の%1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，共%2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，共%2$@"
+          }
+        }
+      }
+    },
+    "%@ unpacked" : {
+      "comment" : "What the files of a bug report make when they are unpacked, under its name on its first page: 653 KiB unpacked. The placeholder is a size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展開後%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解压后%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解壓縮後%@"
+          }
+        }
+      }
+    },
+    "%@ · %@" : {
+      "comment" : "The count and the total size of the attachments (2 attachments · 3.4 MiB), and of the entries of a bug report in the viewer.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@. Some mail services refuse mail over 20 MiB." : {
+      "comment" : "The same line when the attachments are over 20 MiB: the count, the total size and the warning.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@。20 MiBを超えるメールを受け付けないメールサービスがあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@。部分邮件服务会拒收超过20 MiB的邮件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@。部分郵件服務會拒收超過20 MiB的郵件。"
+          }
+        }
+      }
+    },
+    "%lld attachments are no longer available, so they were taken out of the list. Check the list, then send again." : {
+      "comment" : "The message of the alert when Send finds that several attachments added earlier are gone or can no longer be read, and takes them out of the list. The number is at least 2.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件の添付ファイルが利用できなくなったため、リストから削除しました。リストを確認して、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有%lld个附件已不可用，因此已从列表中移除。请检查列表，然后再次发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有%lld個附件已無法使用，因此已從列表中移除。請檢查列表，然後再傳送一次。"
+          }
+        }
+      }
+    },
+    "%lld items weren’t added" : {
+      "comment" : "The title of the alert when two or more chosen items could not be copied; the number is at least 2.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件の項目を追加できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有%lld个项目未添加"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有%lld個項目未加入"
+          }
+        }
+      }
+    },
+    "^[%lld attachment](inflect: true)" : {
+      "comment" : "The count of attached files under the rows of the mail, and its VoiceOver reading. English agrees the noun with the number; Chinese and Japanese have one form.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイル%lld件"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld个附件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld個附件"
+          }
+        }
+      }
+    },
+    "^[%lld file](inflect: true)" : {
+      "comment" : "The count of the files of a bug report, in its row on the sheet and under its name on its first page, and its VoiceOver reading, and the count of the files in one of its folders, under the folder's name. English agrees the noun with the number; Chinese and Japanese have one form.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld個のファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld个文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld個檔案"
+          }
+        }
+      }
+    },
+    "^[%lld second](inflect: true)" : {
+      "comment" : "The length of an attached video as VoiceOver reads it. English agrees the noun with the number; Chinese and Japanese have one form.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld秒"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld秒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld秒"
+          }
+        }
+      }
+    },
+    "A bug report and a screenshot need the virtual machine to finish starting. The start log is attached." : {
+      "comment" : "The line under that title: a bug report and a screenshot wait for the start, and the start log is already attached as a row.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートとスクリーンショットには、仮想マシンの起動完了が必要です。起動ログを添付しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误报告和截屏需要等虚拟机启动完成。启动日志已附上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤報告和截圖需要等虛擬機器啟動完成。啟動記錄檔已附上。"
+          }
+        }
+      }
+    },
+    "A file couldn’t be read. Check that it is still in Files and downloaded, then try again." : {
+      "comment" : "A line of the alert when a chosen file could not be opened or read: it was moved or deleted, or its storage did not hand it over.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを読み込めませんでした。“ファイル”アプリにまだあり、ダウンロード済みであることを確認して、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取文件。请确认它仍在“文件”App中且已下载，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取檔案。請確認它仍在「檔案」App中且已下載，然後再試一次。"
+          }
+        }
+      }
+    },
+    "A folder or a package can’t be attached. Compress it in Files first." : {
+      "comment" : "A line of the alert when a chosen item is a folder or a package (a folder that looks like one file). Files is the iOS app; Compress is its menu item.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダまたはパッケージは添付できません。先に“ファイル”アプリで圧縮してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法附加文件夹或包。请先在“文件”App中将其压缩。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法附加檔案夾或套件。請先在「檔案」App中將其壓縮。"
+          }
+        }
+      }
+    },
+    "Add" : {
+      "comment" : "The label of the bar's button that opens a menu to add photos, videos or files. The menu items are Photos and Files.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入"
+          }
+        }
+      }
+    },
+    "Add a photo or a file" : {
+      "comment" : "What VoiceOver says for the bar's Add button, which opens a menu with Photos and Files.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真またはファイルを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加照片或文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入照片或檔案"
+          }
+        }
+      }
+    },
+    "Add files" : {
+      "comment" : "What VoiceOver says for the Files item of the bar's Add menu.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入檔案"
+          }
+        }
+      }
+    },
+    "Add photos or videos" : {
+      "comment" : "What VoiceOver says for the Photos item of the bar's Add menu.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真またはビデオを追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加照片或视频"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入照片或影片"
+          }
+        }
+      }
+    },
+    "An attachment is no longer available, so it was taken out of the list. Check the list, then send again." : {
+      "comment" : "The message of the alert when Send finds that one attachment (a file, the bug report, the screenshot or a photo) added earlier is gone or can no longer be read, and takes it out of the list.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルが利用できなくなったため、リストから削除しました。リストを確認して、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "某个附件已不可用，因此已从列表中移除。请检查列表，然后再次发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "某個附件已無法使用，因此已從列表中移除。請檢查列表，然後再傳送一次。"
+          }
+        }
+      }
+    },
+    "An empty file can’t be attached." : {
+      "comment" : "A line of the alert when a chosen file has no content.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空のファイルは添付できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法附加空文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法附加空白檔案。"
+          }
+        }
+      }
+    },
+    "Andarium couldn’t open the mail composer." : {
+      "comment" : "The text of that alert.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumはメール作成画面を開けませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium无法打开邮件撰写窗口。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium無法打開郵件撰寫視窗。"
+          }
+        }
+      }
+    },
+    "Andarium makes its own copy of this file before attaching it. Large files take a while." : {
+      "comment" : "The detail of the card shown while a picked file is copied before it is attached, a file the system has not downloaded, for one. Andarium is the app's name.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumがこのファイルのコピーを作成してから添付します。大きなファイルは時間がかかります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium会先拷贝此文件，然后再附加。大文件需要一些时间。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium會先拷貝此檔案，然後再附加。大型檔案需要一些時間。"
+          }
+        }
+      }
+    },
+    "APK files can’t be sent by mail" : {
+      "comment" : "The title of the alert when a pick held only Android packages (.apk, and the bundles .apks, .xapk and .apkm): mail services reject a message that carries one, so none was attached. A line of the alert that lists several refusals says the same.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APKファイルはメールで送信できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APK文件无法通过邮件发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APK檔案無法透過郵件傳送"
+          }
+        }
+      }
+    },
+    "Archive" : {
+      "comment" : "What a file of the bug report is, under its name and size, when it is an archive stored inside the report and opens like a folder.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "归档文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存檔"
+          }
+        }
+      }
+    },
+    "Archive, not shown" : {
+      "comment" : "What an archive of the bug report is that cannot be opened here (it is compressed inside the report, or inside another archive), under its name and size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アーカイブ（表示されません）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "归档文件，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存檔，不顯示"
+          }
+        }
+      }
+    },
+    "Attached" : {
+      "comment" : "What VoiceOver says for the Bug report button once a bug report is attached.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附加"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已附加"
+          }
+        }
+      }
+    },
+    "Attachment not available" : {
+      "comment" : "The title of the alert when Send finds that one attachment added earlier is gone or can no longer be read, and takes it out of the list.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを利用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件無法使用"
+          }
+        }
+      }
+    },
+    "Attachments not available" : {
+      "comment" : "The title of the alert when Send finds that several attachments added earlier are gone or can no longer be read, and takes them out of the list.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを利用できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件無法使用"
+          }
+        }
+      }
+    },
+    "Bug report" : {
+      "comment" : "The Android bug report, as the Create bug report row of Settings names it: a button of the bar, a row of the mail and a name for VoiceOver.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "错误报告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤報告"
+          }
+        }
+      }
+    },
+    "Bug report not attached" : {
+      "comment" : "The title of the alert when the finished bug report cannot be added to the mail; the system's reason follows.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートを添付できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未附加错误报告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未附加錯誤報告"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "comment" : "The button at the top of the sheet that closes it; with something written it asks first.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "Can’t send yet" : {
+      "comment" : "The title of the alert when Send is tapped while the Problem line or the details are empty. Nothing opens; the message says which is missing.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ送信できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还不能发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還無法傳送"
+          }
+        }
+      }
+    },
+    "Copying file" : {
+      "comment" : "The title of the card over the sheet while a file that cannot be used where it is kept (not yet downloaded from its cloud storage, say) is copied first.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルをコピー中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在拷贝文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在拷貝檔案"
+          }
+        }
+      }
+    },
+    "Create bug report" : {
+      "comment" : "The button of the card that asks for a bug report; the Create bug report row of Settings says the same.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートを作成"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "创建错误报告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建立錯誤報告"
+          }
+        }
+      }
+    },
+    "Damaged, not shown" : {
+      "comment" : "What a file of the bug report is that cannot be read from the archive (damaged or cut short), under its name and size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "破損しているため表示されません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已损坏，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已損毀，不顯示"
+          }
+        }
+      }
+    },
+    "Describe what you did and what happened, then send again." : {
+      "comment" : "The message of that alert when only the details, the large field under the Problem line, are empty.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何をして、何が起こったかを入力してから、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请描述你做了什么、发生了什么，然后再次发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請描述你做了什麼、發生了什麼事，然後再傳送一次。"
+          }
+        }
+      }
+    },
+    "Details" : {
+      "comment" : "VoiceOver name of the large text field that becomes the body of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "详细信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "詳細資訊"
+          }
+        }
+      }
+    },
+    "Discard" : {
+      "comment" : "The destructive button of that alert.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "破棄"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捨棄"
+          }
+        }
+      }
+    },
+    "Discard this feedback?" : {
+      "comment" : "The question of the alert that Cancel shows once something is written or attached.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このフィードバックを破棄しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要放弃此反馈吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要捨棄此回饋嗎？"
+          }
+        }
+      }
+    },
+    "Dismiss" : {
+      "comment" : "VoiceOver name of the button that puts away the card that asks for a bug report.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
+          }
+        }
+      }
+    },
+    "Dismiss Google apps note" : {
+      "comment" : "VoiceOver name of the close button of the box at the top of Send feedback's mail (\"Missing Google apps?\"). It differs from \"Dismiss\", the card that asks for a bug report, so the two are told apart. Google stays in Latin letters in every language.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Googleアプリの案内を閉じる"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭Google应用说明"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉Google應用程式說明"
+          }
+        }
+      }
+    },
+    "Empty" : {
+      "comment" : "What a file of the bug report with no content is, under its name and size. It opens nothing.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白"
+          }
+        }
+      }
+    },
+    "Encrypted, not shown" : {
+      "comment" : "What a file of the bug report that is encrypted is, under its name and size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化されているため表示されません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加密，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加密，不顯示"
+          }
+        }
+      }
+    },
+    "Feedback is sent with the Mail app. Add a mail account in Settings › Apps › Mail › Mail Accounts, then come back." : {
+      "comment" : "The text of that notice. The path is iOS's: Settings, Apps, Mail, Mail Accounts, each in iOS's own words for the language.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードバックは“メール”アプリから送信されます。“設定”＞“アプリ”＞“メール”＞“メールアカウント”でメールアカウントを追加してから、ここに戻ってください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "反馈会通过“邮件”App发送。请在“设置”>“App”>“邮件”>“邮件账户”中添加邮件账户，然后返回此处。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回饋會透過「郵件」App傳送。請在「設定」>「App」>「郵件」>「郵件帳號」中加入郵件帳號，然後再回到這裡。"
+          }
+        }
+      }
+    },
+    "Feedback not sent" : {
+      "comment" : "The title of the alert when the system's mail composer reports a failure; the system's own words follow.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードバックを送信できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发送反馈"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未傳送回饋"
+          }
+        }
+      }
+    },
+    "Feedback sent" : {
+      "comment" : "The title of the confirmation that shows after the mail was sent.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードバックを送信しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "反馈已发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已傳送回饋"
+          }
+        }
+      }
+    },
+    "File" : {
+      "comment" : "What VoiceOver says first for an attached file's row, before the file's name and size; the row itself shows the name.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Files" : {
+      "comment" : "The item of the bar's Add menu that opens the Files app to add files to the mail; an Android package is refused there. The iOS app is named Files: 文件, 檔案, ファイル.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
+          }
+        }
+      }
+    },
+    "Folder" : {
+      "comment" : "What the viewer says of an entry that is a folder of the archive, under its name.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件夹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案夾"
+          }
+        }
+      }
+    },
+    "For any bug, attach a bug report. It tells us what the virtual machine and the app were doing." : {
+      "comment" : "The card over the bar while the virtual machine runs. The app is Andarium, an iOS app.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どんなバグでも、バグレポートを添付してください。仮想マシンとアプリがそのとき何をしていたかがわかります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遇到任何错误时，请附上错误报告。它会告诉我们虚拟机和App当时在做什么。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遇到任何錯誤時，請附上錯誤報告。它會告訴我們虛擬機器和App當時在做什麼。"
+          }
+        }
+      }
+    },
+    "Google licenses its apps and Google Play services only to makers of certified devices. Install apps from files you have; many work without them." : {
+      "comment" : "The opened answer under \"Missing Google apps?\": why (Google licenses its apps and Google Play services only to makers of certified devices) and what to do. The same text as the boot screen's panel; Google stays in Latin letters in every language.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Googleは、自社のアプリとGoogle Play開発者サービスを、認定済みデバイスのメーカーにのみライセンス供与しています。お持ちのファイルからアプリを追加でき、多くはこれらなしで動作します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google仅向认证设备的制造商授权其应用和Google Play服务。你可以用已有的文件安装应用，许多应用不需要这些服务也能使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Google只向認證裝置的製造商授權其應用程式和Google Play服務。你可以用手邊的檔案安裝應用程式，許多應用程式不需要這些服務也能使用。"
+          }
+        }
+      }
+    },
+    "Hide" : {
+      "comment" : "The button under the folded information block that closes it.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏"
+          }
+        }
+      }
+    },
+    "Hide app and device details" : {
+      "comment" : "What VoiceOver says for the Hide button: the block at the end of the mail names the app, the iPhone or iPad and the Android version.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリとデバイスの詳細を非表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏App和设备详细信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏App和裝置詳細資訊"
+          }
+        }
+      }
+    },
+    "Inside the bug report." : {
+      "comment" : "A sentence on the first page of an archive that is stored inside the bug report: where it is.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートの中にあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位于错误报告内。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位於錯誤報告內。"
+          }
+        }
+      }
+    },
+    "It couldn’t be copied. Check the free space on this %@, then try again." : {
+      "comment" : "The text of that alert. The %@ is iPhone or iPad.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーできませんでした。この%@の空き容量を確認して、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法拷贝该项目。请检查此%@的可用空间，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法拷貝該項目。請檢查此%@的可用空間，然後再試一次。"
+          }
+        }
+      }
+    },
+    "Keep editing" : {
+      "comment" : "The other button of that alert: back to the sheet.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集を続ける"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续编辑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續編輯"
+          }
+        }
+      }
+    },
+    "Mail can’t send from this %@" : {
+      "comment" : "The title of the notice when no mail account is set up. The %@ is iPhone or iPad.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この%@からはメールを送信できません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此%@无法发送邮件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此%@無法傳送郵件"
+          }
+        }
+      }
+    },
+    "Mail couldn’t send the message." : {
+      "comment" : "The text of that alert when the system gives no reason. Mail is the iOS app.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“メール”がメッセージを送信できませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“邮件”无法发送此邮件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「郵件」無法傳送此郵件。"
+          }
+        }
+      }
+    },
+    "Mail not opened" : {
+      "comment" : "The title of the alert when the system's mail composer cannot be shown.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールを開けませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开邮件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開郵件"
+          }
+        }
+      }
+    },
+    "Mail services reject messages that carry an APK, so these files were not attached. Paste a download link for the app in the details instead." : {
+      "comment" : "The text of that alert for two or more files, and the line of the longer alert for several packages. The details are the large field of the mail, where the link goes.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールサービスはAPKを含むメッセージを拒否するため、これらのファイルは添付されませんでした。代わりに、アプリのダウンロードリンクを詳細に貼り付けてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邮件服务会拒收带有APK的邮件，因此未附加这些文件。请改为在详细信息中粘贴该App的下载链接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "郵件服務會拒收含有APK的郵件，因此未附加這些檔案。請改為在詳細資訊中貼上該App的下載連結。"
+          }
+        }
+      }
+    },
+    "Mail services reject messages that carry an APK, so this file was not attached. Paste a download link for the app in the details instead." : {
+      "comment" : "The text of that alert for one file, and the line of the longer alert for one package. The details are the large field of the mail, where the link goes.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールサービスはAPKを含むメッセージを拒否するため、このファイルは添付されませんでした。代わりに、アプリのダウンロードリンクを詳細に貼り付けてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邮件服务会拒收带有APK的邮件，因此未附加此文件。请改为在详细信息中粘贴该App的下载链接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "郵件服務會拒收含有APK的郵件，因此未附加此檔案。請改為在詳細資訊中貼上該App的下載連結。"
+          }
+        }
+      }
+    },
+    "Make the problem happen again." : {
+      "comment" : "Step 2 of that way.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "問題をもう一度再現します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让问题再次出现。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓問題再次發生。"
+          }
+        }
+      }
+    },
+    "Missing Google apps?" : {
+      "comment" : "The question at the top of Send feedback's mail, in a tinted box: the one a person asks when the virtual machine's Android has no Google apps. Tapping it opens the answer in place.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Googleのアプリが見つかりませんか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到Google应用？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到Google應用程式？"
+          }
+        }
+      }
+    },
+    "Not supported, not shown" : {
+      "comment" : "What a file of the bug report is that is packed in a way this reader does not support, under its name and size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非対応の形式のため表示されません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不受支持，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不受支援，不顯示"
+          }
+        }
+      }
+    },
+    "Not text, not shown" : {
+      "comment" : "What a file of the bug report that is not text is, under its name and size, and what VoiceOver says. The row is dimmed and opens nothing; the file goes with the mail as it is.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストではないため表示されません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是文本，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不是文字，不顯示"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "comment" : "The button that closes an alert of the sheet.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
+      }
+    },
+    "One item wasn’t added" : {
+      "comment" : "The title of the alert when one chosen photo or video could not be copied into the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1件の項目を追加できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有1个项目未添加"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有1個項目未加入"
+          }
+        }
+      }
+    },
+    "Only the first %lld files are listed." : {
+      "comment" : "Under the count, when an archive holds more files than the viewer lists; the number is how many it lists.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最初の%lld個のファイルのみ表示しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅列出前%lld个文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅列出前%lld個檔案。"
+          }
+        }
+      }
+    },
+    "Only while the virtual machine is running" : {
+      "comment" : "What VoiceOver says for the dimmed Bug report and Screenshot buttons when no virtual machine runs.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仮想マシンの実行中のみ利用できます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅在虚拟机运行时可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅在虛擬機器執行時可用"
+          }
+        }
+      }
+    },
+    "Photo" : {
+      "comment" : "The title of an attached photo, a row of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片"
+          }
+        }
+      }
+    },
+    "Photos" : {
+      "comment" : "The item of the bar's Add menu that opens the photo library to add photos or videos.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片"
+          }
+        }
+      }
+    },
+    "Picture" : {
+      "comment" : "What a file of the bug report is, under its name and size, when it is a picture (the screenshot); also what VoiceOver says of the picture on its page.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片"
+          }
+        }
+      }
+    },
+    "Picture, not shown" : {
+      "comment" : "What a picture of the bug report that was refused (too large, or not a picture it can decode) is, under its name and size. The row is dimmed and opens nothing.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像（表示されません）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片，不顯示"
+          }
+        }
+      }
+    },
+    "Position" : {
+      "comment" : "What VoiceOver calls the thumb on the edge of a long text, which moves through the text; its value is the percentage and the place in bytes.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置"
+          }
+        }
+      }
+    },
+    "Problem" : {
+      "comment" : "The label of the first line of the mail, which becomes its subject: a short name for what went wrong. iOS's own feedback form says Problem.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "問題"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "问题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "問題"
+          }
+        }
+      }
+    },
+    "Remove bug report" : {
+      "comment" : "VoiceOver name of the button that takes the attached bug report out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除错误报告"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除錯誤報告"
+          }
+        }
+      }
+    },
+    "Remove file" : {
+      "comment" : "VoiceOver name of the button that takes a file out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除檔案"
+          }
+        }
+      }
+    },
+    "Remove photo" : {
+      "comment" : "VoiceOver name of the button that takes a photo out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真を削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除照片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除照片"
+          }
+        }
+      }
+    },
+    "Remove screenshot" : {
+      "comment" : "VoiceOver name of the button that takes the screenshot out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショットを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除截屏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除截圖"
+          }
+        }
+      }
+    },
+    "Remove start log" : {
+      "comment" : "VoiceOver name of the button that takes the start log out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ログを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除启动日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除啟動記錄檔"
+          }
+        }
+      }
+    },
+    "Remove video" : {
+      "comment" : "VoiceOver name of the button that takes a video out of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビデオを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除视频"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除影片"
+          }
+        }
+      }
+    },
+    "Reporting a slow start?" : {
+      "comment" : "The title of the card over the bar when the sheet was opened during a start (from the boot screen's notice): the virtual machine is starting, so there is nothing to start.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動が遅いことを報告しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要报告启动缓慢吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要回報啟動緩慢嗎？"
+          }
+        }
+      }
+    },
+    "Screenshot" : {
+      "comment" : "The picture of the virtual machine's screen as it is now: a button of the bar, a row of the mail and a name for VoiceOver.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截屏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖"
+          }
+        }
+      }
+    },
+    "Screenshot not taken" : {
+      "comment" : "The title of the alert when the screenshot fails.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショットを撮影できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法截屏"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法截圖"
+          }
+        }
+      }
+    },
+    "Send" : {
+      "comment" : "The short form of the Send feedback button, where the bar is too narrow for the full name.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送"
+          }
+        }
+      }
+    },
+    "Send feedback" : {
+      "comment" : "The name of the feature: the item in Home's toolbar menu, the title of the sheet, the button of its bar and the button's VoiceOver name. iOS's TestFlight says Send Feedback this way.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードバックを送信"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送反馈"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送回饋"
+          }
+        }
+      }
+    },
+    "Send feedback…" : {
+      "comment" : "The row in the Settings of a running virtual machine that opens the sheet. The ellipsis marks a control that opens a prompt, as iOS writes it.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィードバックを送信…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送反馈…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送回饋…"
+          }
+        }
+      }
+    },
+    "Send without a bug report?" : {
+      "comment" : "The title of the alert that Send shows when both fields are written, the virtual machine runs, and no bug report is attached.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートなしで送信しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要在没有错误报告的情况下发送吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要在沒有錯誤報告的情況下傳送嗎？"
+          }
+        }
+      }
+    },
+    "Send without bug report" : {
+      "comment" : "The button of that alert that opens the mail without a bug report. Its other button is Create bug report.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートなしで送信"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不附带错误报告发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不附帶錯誤報告傳送"
+          }
+        }
+      }
+    },
+    "Show" : {
+      "comment" : "The button under the folded information block that opens it.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示"
+          }
+        }
+      }
+    },
+    "Show app and device details" : {
+      "comment" : "What VoiceOver says for the Show button of that block.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリとデバイスの詳細を表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示App和设备详细信息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示App和裝置詳細資訊"
+          }
+        }
+      }
+    },
+    "Shows the answer" : {
+      "comment" : "VoiceOver's hint on the collapsed line \"Missing Google apps? That’s on purpose. Why\": a tap opens the answer in place.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答を表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示答案"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示答案"
+          }
+        }
+      }
+    },
+    "Shows the start log" : {
+      "comment" : "VoiceOver hint of the start log's row, which opens its text.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ログを表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示启动日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示啟動記錄檔"
+          }
+        }
+      }
+    },
+    "Shows what the bug report holds" : {
+      "comment" : "VoiceOver hint of the bug report's row, which opens the list of what the report holds.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートの内容を表示します"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示错误报告的内容"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示錯誤報告的內容"
+          }
+        }
+      }
+    },
+    "Start log" : {
+      "comment" : "The name of the attached text file that holds what the virtual machine printed while starting, as a row of the mail and a name for VoiceOver.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動ログ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动日志"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟動記錄檔"
+          }
+        }
+      }
+    },
+    "Start the virtual machine." : {
+      "comment" : "Step 1 of the way to a bug report from Home.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仮想マシンを起動します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动虚拟机。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟動虛擬機器。"
+          }
+        }
+      }
+    },
+    "Tap the side keys, then Settings › Send feedback, and attach a bug report." : {
+      "comment" : "Step 3 of the way to a bug report, on the card shown from Home. The names are the ones of the side keys (Side keys, Settings, as the session's tip writes them) and of the row Send feedback… in Settings, without its ellipsis.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サイドキーをタップし、“設定”＞“フィードバックを送信”をタップして、バグレポートを添付します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点侧边按键，然后轻点“设置”>“发送反馈”，并附上错误报告。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下側邊按鍵，然後點一下「設定」>「傳送回饋」，並附上錯誤報告。"
+          }
+        }
+      }
+    },
+    "Text" : {
+      "comment" : "What a file of the bug report is, under its name and size, when it is text and opens as text.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキスト"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        }
+      }
+    },
+    "Thank you for helping make Andarium better." : {
+      "comment" : "The text of that confirmation.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumの改善にご協力いただき、ありがとうございます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感谢你帮助改进Andarium。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "感謝你協助改善Andarium。"
+          }
+        }
+      }
+    },
+    "That’s on purpose." : {
+      "comment" : "The first words of the answer to the question above, as the headline of the opened answer: Android has no Google apps on purpose.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意図的に搭載していません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是有意的。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是刻意的。"
+          }
+        }
+      }
+    },
+    "That’s on purpose. Why" : {
+      "comment" : "The collapsed form of the answer under the question above: the first words and the word that opens the rest. The last word is the string \"Why\" of this table, which is shown in the accent colour; Chinese and Japanese write no space between the two.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "意図的に搭載していません。理由"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是有意的。原因"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是刻意的。原因"
+          }
+        }
+      }
+    },
+    "The file couldn’t be read." : {
+      "comment" : "Said in the viewer when the attached file cannot be opened.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを読み込めませんでした。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取该文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取該檔案。"
+          }
+        }
+      }
+    },
+    "The virtual machine’s display isn’t available right now." : {
+      "comment" : "The text of that alert when there is no picture to take.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仮想マシンのディスプレイは現在利用できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机的显示画面目前不可用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虛擬機器的顯示畫面目前無法使用。"
+          }
+        }
+      }
+    },
+    "There isn’t enough free space on this %@. Free up space, then try again." : {
+      "comment" : "A line of the alert when a file could not be added for lack of room to copy it. The %@ is iPhone or iPad.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この%@の空き容量が足りません。容量を空けてから、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此%@的可用空间不足。请释放一些空间，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此%@的可用空間不足。請釋出一些空間，然後再試一次。"
+          }
+        }
+      }
+    },
+    "They couldn’t be copied. Check the free space on this %@, then try again." : {
+      "comment" : "The text of that alert. The %@ is iPhone or iPad.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーできませんでした。この%@の空き容量を確認して、もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法拷贝这些项目。请检查此%@的可用空间，然后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法拷貝這些項目。請檢查此%@的可用空間，然後再試一次。"
+          }
+        }
+      }
+    },
+    "This archive has no files." : {
+      "comment" : "Said in the viewer when the archive lists nothing.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアーカイブにはファイルがありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此归档文件中没有文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此封存檔中沒有檔案。"
+          }
+        }
+      }
+    },
+    "This bug report can’t be read. It may be damaged or cut short." : {
+      "comment" : "Said in the viewer when the attached archive has no readable directory.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバグレポートを読み込めません。破損しているか、途中で切れている可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取此错误报告。它可能已损坏或不完整。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取此錯誤報告。它可能已損毀或不完整。"
+          }
+        }
+      }
+    },
+    "This bug report can’t be shown here." : {
+      "comment" : "Said in the viewer for an archive of a kind it does not read (several disks, ZIP64).",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバグレポートはここでは表示できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此错误报告无法在这里显示。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此錯誤報告無法在這裡顯示。"
+          }
+        }
+      }
+    },
+    "This file can’t be read. It may be damaged or cut short." : {
+      "comment" : "Said in place of a window of text that could not be read, in the viewer and on the start log.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルを読み込めません。破損しているか、途中で切れている可能性があります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取此文件。它可能已损坏或不完整。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取此檔案。它可能已損毀或不完整。"
+          }
+        }
+      }
+    },
+    "This file can’t be shown." : {
+      "comment" : "Said on the page of a file that was not opened for a reason the file's row already gave.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルは表示できません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法显示此文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法顯示此檔案。"
+          }
+        }
+      }
+    },
+    "This file goes with your mail as it is." : {
+      "comment" : "A sentence on the first page of the bug report: the file the mail carries is this one, whole, and nothing in it is changed or left out.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このファイルはそのままメールに添付されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此文件将原样附在你的邮件中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此檔案會原樣附在你的郵件中。"
+          }
+        }
+      }
+    },
+    "Too large, not shown" : {
+      "comment" : "What a file of the bug report is that is too large to be read here, under its name and size.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きすぎるため表示されません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过大，不显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "太大，不顯示"
+          }
+        }
+      }
+    },
+    "Unnamed file" : {
+      "comment" : "The name of a file of the archive that has none, in the viewer's list and as its page's title.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前のないファイル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名的檔案"
+          }
+        }
+      }
+    },
+    "Video" : {
+      "comment" : "The title of an attached video, a row of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビデオ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片"
+          }
+        }
+      }
+    },
+    "What did you do, and what happened?" : {
+      "comment" : "The hint in the empty body of the mail.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何をして、何が起こりましたか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你做了什么，发生了什么？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你做了什麼，發生了什麼事？"
+          }
+        }
+      }
+    },
+    "What went wrong?" : {
+      "comment" : "The hint in the empty Problem line.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何が問題でしたか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哪里出了问题？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哪裡出了問題？"
+          }
+        }
+      }
+    },
+    "Why" : {
+      "comment" : "The word that opens the answer to \"Missing Google apps?\"; it ends the string \"That’s on purpose. Why\".",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "理由"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原因"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原因"
+          }
+        }
+      }
+    },
+    "Without a bug report, a problem will most likely not get fixed." : {
+      "comment" : "The first line of the card over the bar when the sheet was opened from Home, where no virtual machine runs. It says what a bug report is worth; the three steps under it say how to get one.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートがないと、問題はおそらく修正されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有错误报告，问题很可能无法得到修复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有錯誤報告，問題很可能無法修復。"
+          }
+        }
+      }
+    },
+    "Without a bug report, a problem will most likely not get fixed. Send without one only if your message reports no problem, such as a suggestion or a question, or if you don’t want to attach it." : {
+      "comment" : "The message of that alert. It says what a bug report is worth, and when sending without one is right.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "バグレポートがないと、問題はおそらく修正されません。メッセージが問題を報告するものでない場合（提案や質問など）や、添付したくない場合にのみ、バグレポートなしで送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有错误报告，问题很可能无法得到修复。请仅在你的反馈不是报告问题（例如提出建议或提问），或你不想附上错误报告时，才不附带错误报告发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有錯誤報告，問題很可能無法修復。請僅在你的回饋不是回報問題（例如提出建議或提問），或你不想附上錯誤報告時，才不附帶錯誤報告傳送。"
+          }
+        }
+      }
+    },
+    "Write what went wrong in the Problem line, and describe what you did and what happened, then send again." : {
+      "comment" : "The message of that alert when both the Problem line and the details are empty.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“問題”の行に何が問題だったかを、その下の欄に何をして何が起こったかを入力してから、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“问题”行写下哪里出了问题，并在其下描述你做了什么、发生了什么，然后再次发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「問題」行寫下哪裡出了問題，並在其下描述你做了什麼、發生了什麼事，然後再傳送一次。"
+          }
+        }
+      }
+    },
+    "Write what went wrong in the Problem line, then send again." : {
+      "comment" : "The message of that alert when only the Problem line is empty. Problem is the label of that line.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“問題”の行に、何が問題だったかを入力してから、もう一度送信してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在“问题”行写下哪里出了问题，然后再次发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在「問題」行寫下哪裡出了問題，然後再傳送一次。"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

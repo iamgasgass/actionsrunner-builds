@@ -43,8 +43,13 @@ target_compile_definitions(uml_memory_shared_backing PRIVATE
 set(_uml_static_mmu_sources
     mmu/address_layout.cpp
     mmu/address_space.cpp
+    mmu/code_holders.cpp
     mmu/execution_gate.cpp
     mmu/mapped_backing.cpp)
+# The x86-64 guest's frame accounting; no other product compiles it.
+if(UML_BUILD_X86_64_GUEST)
+    list(APPEND _uml_static_mmu_sources mmu/frame_accounting.cpp)
+endif()
 
 add_library(uml_static_mmu OBJECT ${_uml_static_mmu_sources})
 uml_declare_architecture_target(uml_static_mmu memory)
@@ -131,6 +136,19 @@ if(UML_BUILD_UNIT_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/mmu)
     target_compile_definitions(uml_static_mmu_test_variant PUBLIC
         UML_MEMORY_ALLOCATION_TESTING=1)
+
+    # The fetch path with an observer that holds a reader between its read of
+    # a frame and its return, for the row that publishes in that window.
+    add_library(uml_static_guest_memory_test_variant OBJECT
+        static_guest_memory.cpp)
+    uml_declare_architecture_target(uml_static_guest_memory_test_variant memory)
+    target_link_libraries(uml_static_guest_memory_test_variant PRIVATE
+        UML::BridgeAbi
+        UML::MemoryContract)
+    target_include_directories(uml_static_guest_memory_test_variant PRIVATE
+        ${PROJECT_SOURCE_DIR}/darwin)
+    target_compile_definitions(uml_static_guest_memory_test_variant PUBLIC
+        UML_STATIC_GUEST_MEMORY_TESTING=1)
 
     if(TARGET uml_native_mmu)
         add_library(uml_native_mmu_test_variant OBJECT
