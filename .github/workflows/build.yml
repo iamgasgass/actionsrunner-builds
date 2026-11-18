@@ -344,15 +344,15 @@ jobs:
             echo "kernel host tools: verified"; exit 0
           fi
           rm -rf .build/dependencies/kernel-host-tools
-          dependencies/prepare.sh --archive-manifest dependencies/kernel-host-tools/archives.tsv
-          dependencies/prepare.sh --product kernel-host-tools
+          .github/ci/retry.sh dependencies/prepare.sh --archive-manifest dependencies/kernel-host-tools/archives.tsv
+          .github/ci/retry.sh dependencies/prepare.sh --product kernel-host-tools
           dependencies/build-kernel-host-tools.sh --jobs "$JOBS"
 
       - name: Replay the Linux 6.18 source
         if: steps.ktool.outcome == 'success'
         run: |
           set -eu
-          kernel/mainline-6.18/scripts/prepare-source.sh
+          .github/ci/retry.sh kernel/mainline-6.18/scripts/prepare-source.sh
           git -C /Volumes/KernelBuild/linux log -1 --format='%h %s'
 
       - name: Build the Android kernel
@@ -443,14 +443,14 @@ jobs:
         timeout-minutes: 200
         run: |
           set -eu
-          dependencies/prepare.sh --product apple-gpu-vulkan-experiment
+          .github/ci/retry.sh dependencies/prepare.sh --product apple-gpu-vulkan-experiment
           dependencies/build-apple-gpu.sh --platform ios --jobs "$JOBS"
 
       - name: Build the network prefix (GLib, libslirp)
         if: steps.deps.outputs.network == 'build'
         run: |
           set -eu
-          dependencies/prepare.sh --product ios-network
+          .github/ci/retry.sh dependencies/prepare.sh --product ios-network
           dependencies/build-ios-network.sh --platform ios --jobs "$JOBS"
 
       - name: Build GPT fdisk and zstd
@@ -461,11 +461,11 @@ jobs:
         run: |
           set -eu
           if [ "$STORAGE" = build ]; then
-            dependencies/prepare.sh --product ios-storage
+            .github/ci/retry.sh dependencies/prepare.sh --product ios-storage
             dependencies/build-ios-storage.sh --jobs "$JOBS"
           fi
           if [ "$ZSTD" = build ]; then
-            dependencies/prepare.sh --product ios-compression
+            .github/ci/retry.sh dependencies/prepare.sh --product ios-compression
             dependencies/build-ios-zstd.sh --jobs "$JOBS"
           fi
 
