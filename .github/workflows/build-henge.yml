@@ -1,0 +1,177 @@
+# .github/workflows/build-henge.yml
+#
+# Builds Henge.ipa (SideStore / AltStore) and Henge.tipa (TrollStore) on a GitHub-hosted macOS runner.
+#
+#   push to the "henge" or "main" branch   build, keep both files as workflow artifacts, and put them on the
+#                                          rolling pre-release "henge-latest" (Releases page)
+#   Run workflow (Actions tab, manual)     the same, from the branch you pick
+#
+# The IPA is ad-hoc signed (ios/scripts/package_ipa.sh): the sideloader re-signs it with your certificate.
+# Henge links a few iOS libraries built from Leviidev/Husk (glib, libslirp, the pairing library, StikJIT):
+# they are built here and cached, so only the first run is slow.
+
+name: Build Henge IPA
+
+on:
+  push:
+    branches: [henge, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'Screenshots/**'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Also update the "henge-latest" pre-release
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-henge-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HUSK: ${{ github.workspace }}/Husk
+  IOS_DEPS: ${{ github.workspace }}/Husk/build/ios-arm64/sysroot
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 150
+
+    steps:
+      - name: Check out Henge
+        uses: actions/checkout@v4
+        with:
+          path: Henge
+
+      - name: Check out Husk (source of the prebuilt iOS libraries)
+        uses: actions/checkout@v4
+        with:
+          repository: Leviidev/Husk
+          path: Husk
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          ls -d /Applications/Xcode*.app
+          # The newest released Xcode, 26 or later (the app targets the iOS 26 SDK).
+          app="$(ls -d /Applications/Xcode_[0-9]*.app | grep -viE 'beta|release_candidate|_rc' \
+                 | sed -E 's#.*/Xcode_([0-9.]+)\.app#\1 &#' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+          [ -n "$app" ] || { echo "::error::no released Xcode on this runner"; exit 1; }
+          sudo xcode-select -s "$app/Contents/Developer"
+          xcodebuild -version
+          ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
+          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Henge needs the iOS 26 SDK"; exit 1; }
+          echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
+
+      - name: Metal toolchain
+        run: |
+          set -euo pipefail
+          if ! xcrun -sdk iphoneos metal --version >/dev/null 2>&1; then
+            xcodebuild -downloadComponent MetalToolchain
+          fi
+          xcrun -sdk iphoneos metal --version
+
+      - name: Install build tools
+        run: |
+          set -euxo pipefail
+          for tool in xcodegen meson ninja pkg-config cmake; do
+            command -v "$tool" >/dev/null 2>&1 || brew install "$tool"
+          done
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup default stable
+          rustup target add aarch64-apple-ios
+
+      - name: Husk revision
+        id: husk
+        run: echo "rev=$(git -C Husk rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Husk's iOS libraries
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            Husk/third_party/build
+            Husk/build
+          key: henge-husk-${{ steps.husk.outputs.rev }}-${{ env.XCODE_BUILD }}
+
+      - name: Fetch Husk's third-party sources
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: Husk
+        run: bash scripts/fetch_sources.sh
+
+      - name: Build the iOS libraries Henge needs (libffi, glib, libslirp)
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: Husk
+        run: bash scripts/build_ios.sh libffi glib libslirp
+
+      - name: Build Husk's on-device pairing library
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: Husk
+        run: bash scripts/build_rppairing_ios.sh
+
+      - name: Check the prebuilt libraries
+        run: |
+          set -euo pipefail
+          test -s Husk/build/ios-arm64/lib/libhusk_rppairing.a
+          for dep in libslirp libglib-2.0 libintl libpcre2-8; do
+            test -s "$IOS_DEPS/lib/$dep.a" || { echo "::error::missing $dep.a"; exit 1; }
+          done
+          test -d Husk/src/app/Frameworks/StikJIT.xcframework || { echo "::error::Husk has no StikJIT.xcframework"; exit 1; }
+
+      - name: Copy the prebuilt libraries into Henge
+        working-directory: Henge
+        run: zsh ios/scripts/fetch_deps.sh
+
+      - name: Build the restore stack (libirecovery, usbmuxd, idevicerestore)
+        working-directory: Henge
+        run: zsh tools/build_ios_restore.sh
+
+      - name: Build the engine
+        working-directory: Henge
+        run: make ios-lib
+
+      - name: Package Henge.ipa
+        working-directory: Henge
+        run: |
+          zsh ios/scripts/package_ipa.sh || { tail -n 200 ios/build/DerivedData.buildlog || true; exit 1; }
+
+      - name: Package Henge.tipa (TrollStore)
+        working-directory: Henge
+        run: zsh ios/scripts/package_ipa.sh --trollstore
+
+      - name: Upload Henge.ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: Henge-ipa-${{ github.sha }}
+          path: ~/Desktop/Henge.ipa
+          if-no-files-found: error
+
+      - name: Upload Henge.tipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: Henge-tipa-${{ github.sha }}
+          path: ~/Desktop/Henge.tipa
+          if-no-files-found: error
+
+      - name: Update the "henge-latest" pre-release
+        if: github.event_name == 'push' || inputs.release
+        working-directory: Henge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=henge-latest
+          notes="Henge built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::12} on $(date -u +%Y-%m-%d). Henge.ipa: SideStore / AltStore. Henge.tipa: TrollStore."
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" ~/Desktop/Henge.ipa ~/Desktop/Henge.tipa \
+            --target "$GITHUB_SHA" --prerelease --title "Henge (latest build)" --notes "$notes"
