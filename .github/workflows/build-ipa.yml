@@ -49,6 +49,23 @@ env:
   HOMEBREW_NO_AUTO_UPDATE: '1'
 
 jobs:
+  # The engine's own tests (CPU translator, MMU, exceptions, devices) on Apple silicon: the JIT runs
+  # arm64 code natively, so this is the one place every engine change is exercised before a device.
+  engine-tests:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - name: Check out macOSiOS X
+        uses: actions/checkout@v4
+
+      - name: Build and run the engine tests
+        run: |
+          set -euo pipefail
+          uname -m
+          clang --version | head -1
+          make -j"$(sysctl -n hw.ncpu)" build/test_classify build/test_jit_region build/test_operands
+          make test-engine
+
   build:
     runs-on: macos-26
     timeout-minutes: 150

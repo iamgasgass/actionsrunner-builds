@@ -115,6 +115,11 @@ $(B)/test_dt_fixup: tests/test_dt_fixup.c host/dt_fixup.c host/dt_fixup.h | $(B)
 $(B)/test_%: tests/test_%.c tests/%_programs.S tests/harness.S tests/harness.h $(ENGINE)
 	$(CC) $(CFLAGS) -Itests tests/test_$*.c tests/$*_programs.S tests/harness.S $(ENGINE) -o $@
 
+# The engine's tests alone, without the Mac tools (hengevm needs the restore stack): what CI runs on
+# Apple silicon (.github/workflows/build-ipa.yml, job engine-tests).
+test-engine: $(TESTS)
+	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done
+
 test: all
 	@ulimit -s 65520; for t in $(TESTS); do echo "== $$t"; $$t || exit 1; done # a test keeps a whole HvCpu (2 MB of TLB and more) on its stack
 
