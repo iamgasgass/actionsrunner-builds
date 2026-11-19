@@ -82,10 +82,12 @@ struct SessionView: View {
                         }
                     }
                     .frame(width: layout.screen.width, height: layout.screen.height)
-                    .clipShape(RoundedRectangle(cornerRadius: layout.fillsPhone ? 0 : 15, style: .continuous))
+                    // Square corners: rounded ones cut macOS's own corners off (the Apple menu, the clock,
+                    // the Dock's ends). The hairline sits just outside the picture, so it covers none of it.
+                    .clipShape(Rectangle())
                     .overlay {
                         if !layout.fillsPhone {
-                            RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(Color.white.opacity(0.16), lineWidth: 0.5)
+                            Rectangle().stroke(Color.white.opacity(0.16), lineWidth: 0.5).padding(-0.5)
                         }
                     }
                     .position(x: layout.screen.midX, y: layout.screen.midY)
