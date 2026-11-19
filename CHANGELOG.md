@@ -8,10 +8,12 @@ e limiti sono descritti nel [README](README.md).
 ## Non pubblicata
 
 ### Interfaccia come nel video di Huy Nguyen (macOS 27.2 sull'iPhone Duo piegato)
-- Il deck sotto il Mac è ora quello del video: colore ardesia-lilla fino al bordo inferiore, maniglia, quattro
+- Il deck sotto il Mac è ora quello del video: fino al bordo inferiore, maniglia, quattro
   pulsanti in alto a destra (tastiera, laptop, info, spegnimento rosso), tastiera MacBook con la **vera riga
   funzioni** (luminosità, Mission Control, Spotlight, dettatura, Non disturbare, ⏪ ⏯ ⏩, muto, volume, Touch ID)
   e un trackpad grande. La barra a capsula sopra il deck non c'è più.
+- Colori identici alla 1.0.0: deck in alluminio grigio siderale, tasti quasi neri nel pozzetto scuro, trackpad
+  grigio; barra degli strumenti e pannello del trackpad con i colori di Henge (`Desk`).
 - **Modalità Trackpad** dal pulsante laptop: barra degli strumenti sul deck e trackpad con *Click* / *Right-click*.
 - Muto e volume vanno a macOS come tasti USB; luminosità regola lo schermo nell'app; Touch ID blocca lo schermo.
 - Tolti i tasti funzione inventati della 1.0.0 (Finder, Safari, Terminale, blocco trascinamento, rotazione,

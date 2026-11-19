@@ -2,7 +2,8 @@
 //
 // macOSiOS X: the deck under the Mac's screen, upright, made like the lower half of a MacBook, after
 // Huy Nguyen's video of macOS 27.2 on the half-folded iPhone Duo (Henge with "some keyboard on the
-// extended screen"): a slate-violet deck with a grab bar, four small buttons at its top right
+// extended screen"), in macOSiOS X 1.0.0's colours (space grey aluminium, near-black keys in a dark well,
+// Henge's Desk colours for the tools): a deck with a grab bar, four small buttons at its top right
 // (keyboard, laptop, info, power), a MacBook keyboard with its real function row (brightness, Mission
 // Control, Spotlight, dictation, Do Not Disturb, media, mute and volume, Touch ID), and a large trackpad
 // under it. The laptop button turns the deck into the trackpad alone, with the session's tools above
@@ -47,18 +48,22 @@ enum SceneOrientation {
     }
 }
 
-/// The deck's colours, taken from the video: slate violet aluminium, near-black keys, a lighter pad.
+/// The deck's colours: exactly those of macOSiOS X 1.0.0 (commit 2ef2084), the space grey MacBook deck,
+/// and Henge's own Desk colours for the session's tools and the trackpad panel.
 private enum DeckColor {
-    static let deck = Color(red: 0.235, green: 0.224, blue: 0.345)
-    static let deckLow = Color(red: 0.200, green: 0.190, blue: 0.300)
-    static let key = Color(red: 0.150, green: 0.150, blue: 0.180)
-    static let keyDown = Color(red: 0.300, green: 0.300, blue: 0.360)
-    static let keyLatched = Color(red: 0.250, green: 0.250, blue: 0.320)
-    static let pad = Color(red: 0.310, green: 0.294, blue: 0.455)
+    static let top = Color(red: 0.20, green: 0.205, blue: 0.22)
+    static let middle = Color(red: 0.15, green: 0.155, blue: 0.17)
+    static let bottom = Color(red: 0.11, green: 0.115, blue: 0.125)
+    static let well = Color.black.opacity(0.55)
+    static let key = Color(white: 0.085)
+    static let keyDown = Color(white: 0.30)
+    static let keyLatched = Color(white: 0.20)
+    static let arrow = Color(white: 0.09)
+    static let arrowDown = Color(white: 0.32)
+    static let padTop = Color(red: 0.17, green: 0.175, blue: 0.19)
+    static let padBottom = Color(red: 0.14, green: 0.145, blue: 0.16)
     static let legend = Color.white.opacity(0.92)
-    static let faint = Color.white.opacity(0.55)
-    static let button = Color.white.opacity(0.10)
-    static let power = Color(red: 1.0, green: 0.27, blue: 0.23)
+    static let dim = Color.white.opacity(0.55)
 }
 
 // MARK: - The keyboard's model
@@ -252,25 +257,29 @@ struct MacKeyboardDeck: View {
     // MARK: Surface
 
     private var deckSurface: some View {
-        let shape = UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0,
-                                           bottomTrailingRadius: 0, topTrailingRadius: 24, style: .continuous)
-        return shape
-            .fill(LinearGradient(colors: [DeckColor.deck, DeckColor.deckLow], startPoint: .top, endPoint: .bottom))
-            .overlay(shape.stroke(LinearGradient(colors: [Color.white.opacity(0.18), .clear],
-                                                 startPoint: .top, endPoint: .center), lineWidth: 0.7))
+        let shape = UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 0,
+                                           bottomTrailingRadius: 0, topTrailingRadius: 22, style: .continuous)
+        return ZStack {
+            LinearGradient(colors: [DeckColor.top, DeckColor.middle, DeckColor.bottom], startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [Color.white.opacity(0.07), .clear], center: .init(x: 0.5, y: 0.05),
+                           startRadius: 10, endRadius: 360)
+        }
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
+                                                   startPoint: .top, endPoint: .bottom), lineWidth: 0.7))
     }
 
     /// The grab bar in the middle, and in laptop mode the four small buttons at the right, as in the video.
     private func header(width: CGFloat) -> some View {
         ZStack {
-            Capsule().fill(Color.black.opacity(0.55)).frame(width: 46, height: 3.5)
+            Capsule().fill(DeckColor.well).frame(width: 46, height: 3.5)
             if layout == .laptop && !controlsHidden {
                 HStack(spacing: 6) {
                     Spacer()
                     small("keyboard", "Keyboard", action: typing)
                     small("laptopcomputer", "Trackpad only") { layout = .trackpad }
                     small("info.circle", "Details", action: details)
-                    small("power", "Shut down", tint: DeckColor.power, action: shutDown)
+                    small("power", "Shut down", tint: Desk.bad, action: shutDown)
                 }
                 .padding(.trailing, 10)
             }
@@ -278,14 +287,15 @@ struct MacKeyboardDeck: View {
         .frame(width: width, height: 34)
     }
 
-    private func small(_ symbol: String, _ label: String, tint: Color = DeckColor.legend,
+    private func small(_ symbol: String, _ label: String, tint: Color = Desk.text,
                        action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(width: 30, height: 22)
-                .background(DeckColor.button, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .background(Desk.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Desk.hairline, lineWidth: 0.5))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -306,24 +316,27 @@ struct MacKeyboardDeck: View {
             }
             .labelStyle(.iconOnly)
             .buttonBorderShape(.circle)
-            .tint(DeckColor.button)
+            .tint(Desk.raised)
             Spacer()
             tool("plus.magnifyingglass", "Zoom in", action: zoom)
             Spacer()
             tool("info.circle", "Details", action: details)
             Spacer()
-            tool("power", "Shut down", tint: DeckColor.power, action: shutDown)
+            tool("power", "Shut down", tint: Desk.bad, action: shutDown)
         }
-        .frame(height: 44)
+        .padding(.horizontal, 12)
+        .frame(height: 54)
+        .background(Desk.card, in: Capsule())
+        .overlay(Capsule().stroke(Desk.hairline, lineWidth: 0.5))
     }
 
-    private func tool(_ symbol: String, _ label: String, tint: Color = DeckColor.legend,
+    private func tool(_ symbol: String, _ label: String, tint: Color = Desk.text,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -332,8 +345,9 @@ struct MacKeyboardDeck: View {
 
     private func trackpad(width: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DeckColor.pad)
-            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.13), lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(LinearGradient(colors: [DeckColor.padTop, DeckColor.padBottom], startPoint: .top, endPoint: .bottom))
+            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 0.6)
             Trackpad()
         }
         .frame(width: width)
@@ -347,7 +361,9 @@ struct MacKeyboardDeck: View {
             VStack(spacing: 0) {
                 ZStack {
                     Trackpad()
-                    if !compact {
+                    if compact {
+                        Text("Trackpad").font(.system(size: 14)).foregroundStyle(Desk.faint).allowsHitTesting(false)
+                    } else {
                         VStack(spacing: 6) {
                             hint("Drag", "to move")
                             hint("Tap", "to click")
@@ -357,22 +373,22 @@ struct MacKeyboardDeck: View {
                         .allowsHitTesting(false)
                     }
                 }
-                Rectangle().fill(Color.white.opacity(0.10)).frame(height: 0.5)
+                Rectangle().fill(Desk.hairline).frame(height: 0.5)
                 HStack(spacing: 0) {
                     MouseButton(title: "Click", button: 0)
-                    Rectangle().fill(Color.white.opacity(0.10)).frame(width: 0.5)
+                    Rectangle().fill(Desk.hairline).frame(width: 0.5)
                     MouseButton(title: "Right-click", button: 1)
                 }
-                .frame(height: compact ? 48 : 64)
+                .frame(height: compact ? 50 : 70)
             }
-            .background(DeckColor.pad.opacity(0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+            .background(Desk.card)
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Desk.hairline, lineWidth: 0.5))
         }
     }
 
     private func hint(_ strong: String, _ rest: String) -> some View {
-        (Text(strong).foregroundColor(DeckColor.legend).fontWeight(.semibold) + Text(" \(rest)").foregroundColor(DeckColor.faint))
+        (Text(strong).foregroundColor(Desk.dim).fontWeight(.semibold) + Text(" \(rest)").foregroundColor(Desk.faint))
             .font(.system(size: 15))
     }
 
@@ -389,6 +405,8 @@ struct MacKeyboardDeck: View {
                 }
             }
         }
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(DeckColor.well))
     }
 
     private func row(_ keys: [KeySpec], height: CGFloat, functionRow: Bool) -> some View {
@@ -510,10 +528,10 @@ private struct ArrowStack: View {
     private func half(up: Bool, pressed: Binding<Bool>) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(pressed.wrappedValue ? DeckColor.keyDown : DeckColor.key)
+                .fill(pressed.wrappedValue ? DeckColor.arrowDown : DeckColor.arrow)
             Image(systemName: up ? "chevron.up" : "chevron.down")
                 .font(.system(size: 7, weight: .bold))
-                .foregroundStyle(DeckColor.legend)
+                .foregroundStyle(Color.white.opacity(0.9))
         }
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in
@@ -544,7 +562,9 @@ private struct Keycap: View {
         ZStack {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .fill(pressed ? DeckColor.keyDown : lit ? DeckColor.keyLatched : DeckColor.key)
-                .shadow(color: .black.opacity(pressed ? 0.1 : 0.45), radius: pressed ? 0.3 : 1, y: pressed ? 0 : 1)
+                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.white.opacity(pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
+                .shadow(color: .black.opacity(pressed ? 0.1 : 0.5), radius: pressed ? 0.3 : 0.8, y: pressed ? 0 : 0.8)
             legend
             if lit {
                 VStack { HStack { Circle().fill(Color.green).frame(width: 3.4, height: 3.4)
@@ -625,8 +645,8 @@ private struct Keycap: View {
             } else if let shifted {
                 // Symbol over digit or sign, both small, as on a MacBook.
                 VStack(spacing: 0) {
-                    Text(shifted).font(.system(size: 7)).foregroundStyle(shift ? fg : fg.opacity(0.7))
-                    Text(primary).font(.system(size: 10, weight: .medium)).foregroundStyle(fg)
+                    Text(shifted).font(.system(size: 7)).foregroundStyle(shift ? fg : DeckColor.dim)
+                    Text(primary).font(.system(size: 10, weight: .medium)).foregroundStyle(shift ? DeckColor.dim : fg)
                 }
             } else {
                 Text(primary.uppercased()).font(.system(size: 11, weight: .medium)).foregroundStyle(fg)

@@ -202,8 +202,8 @@ L'interfaccia della sessione copia quella del video di Huy Nguyen
 ([x.com/little_34306](https://x.com/little_34306/status/2120923267699761294): macOS 27.2 sull'iPhone Duo
 piegato a metà, con Henge e una tastiera sul secondo schermo).
 
-- **In verticale — Laptop:** il Mac nella metà superiore e, subito sotto, il **deck di un MacBook** color
-  ardesia-lilla, fino al bordo inferiore: maniglia al centro in alto, quattro piccoli pulsanti in alto a destra
+- **In verticale — Laptop:** il Mac nella metà superiore e, subito sotto, il **deck di un MacBook** grigio siderale
+  (gli stessi colori della 1.0.0), fino al bordo inferiore: maniglia al centro in alto, quattro piccoli pulsanti in alto a destra
   (**tastiera** di iOS, **laptop**, **info**, **spegnimento** in rosso), la **tastiera MacBook** con la sua vera
   riga funzioni e sotto un **trackpad grande**. Il pulsante *laptop* passa alla **modalità Trackpad**: sul deck
   la barra degli strumenti (nascondi, tastiera, laptop, incolla, zoom, info, spegnimento) e il trackpad con le
