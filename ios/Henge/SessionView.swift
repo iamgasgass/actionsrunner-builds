@@ -288,45 +288,31 @@ struct SessionView: View {
                 touch = screen
                 fillsPhone = false
                 toolsY = screen.maxY + 10
-                let top = typing ? screen.maxY + 8 : toolsY + 54 + 10
-                let bottom = full.height - insets.bottom - (typing ? 8 : 0)
-                pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
+                if typing {
+                    let top = screen.maxY + 8
+                    let bottom = full.height - insets.bottom - 8
+                    pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
+                } else {
+                    // The MacBook deck (MacKeyboardDeck): right under the Mac's screen, edge to edge and
+                    // down to the bottom of the device; it keeps its own keys clear of the home indicator.
+                    let top = screen.maxY + 8
+                    pad = CGRect(x: 0, y: top, width: full.width, height: max(full.height - top, 60))
+                }
             }
         }
     }
 
     // MARK: Upright
 
+    /// Upright: the deck under the Mac, as a MacBook's (MacKeyboardDeck.swift). Typing on iOS's keyboard,
+    /// which covers the deck, leaves the trackpad above it.
     @ViewBuilder private func uprightControls(_ layout: Layout) -> some View {
-        if !typing && !controlsHidden {
-            HStack {
-                tool("eye.slash", "Hide controls") { hideControls() }
-                Spacer()
-                tool("keyboard", "Keyboard") { typing = true }
-                Spacer()
-                pasteTool
-                Spacer()
-                tool("plus.magnifyingglass", "Zoom in") { zoomed = true }
-                Spacer()
-                tool(deckLayout.next.symbol, "Show \(deckLayout.next.title.lowercased())") {
-                    withAnimation(.snappy(duration: 0.2)) { deckLayout = deckLayout.next }
-                }
-                Spacer()
-                tool("info.circle", "Details") { showDetails = true }
-                Spacer()
-                tool("power", "Shut down", tint: Desk.bad) { stopTapped() }
-            }
-            .padding(.horizontal, 22)
-            .frame(width: layout.pad.width, height: 54)
-            .background(Desk.card, in: Capsule())
-            .overlay(Capsule().stroke(Desk.hairline, lineWidth: 0.5))
-            .position(x: layout.pad.midX, y: layout.toolsY + 27)
-            .transition(.opacity)
-        }
-        if typing || deckLayout == .trackpad {
+        if typing {
             trackpadPanel(layout)
         } else {
-            MacKeyboardDeck(layout: $deckLayout)
+            MacKeyboardDeck(layout: $deckLayout, controlsHidden: controlsHidden, bottomInset: layout.insets.bottom,
+                            typing: { typing = true }, hide: { hideControls() }, zoom: { zoomed = true },
+                            details: { showDetails = true }, shutDown: { stopTapped() })
                 .frame(width: layout.pad.width, height: layout.pad.height)
                 .position(x: layout.pad.midX, y: layout.pad.midY)
         }

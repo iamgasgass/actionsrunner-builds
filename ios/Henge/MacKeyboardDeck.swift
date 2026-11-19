@@ -1,49 +1,32 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// macOSiOS X: the laptop deck. WindowsiOS X put a Surface Laptop's keyboard and touchpad under Windows'
-// screen (its LaptopDeckView.swift); here the same deck is a MacBook's: a Magic Keyboard with the Mac's
-// layout (fn/globe, control, option, command, the Mac's function row) and a Force Touch trackpad below it.
-// The trackpad is macOSiOS X's own Trackpad, which the engine presents to macOS as a Magic Trackpad 2, so
-// macOS's gestures work on it. Keys go to the Mac as USB HID usages (henge_vm_key_hid); control, option,
-// command and shift latch through StickyKeys, so one finger makes a shortcut and ⌘-click works.
+// macOSiOS X: the deck under the Mac's screen, upright, made like the lower half of a MacBook, after
+// Huy Nguyen's video of macOS 27.2 on the half-folded iPhone Duo (Henge with "some keyboard on the
+// extended screen"): a slate-violet deck with a grab bar, four small buttons at its top right
+// (keyboard, laptop, info, power), a MacBook keyboard with its real function row (brightness, Mission
+// Control, Spotlight, dictation, Do Not Disturb, media, mute and volume, Touch ID), and a large trackpad
+// under it. The laptop button turns the deck into the trackpad alone, with the session's tools above
+// it and Click / Right-click under it; the same button brings the keyboard back.
+//
+// It replaces WindowsiOS X's Surface deck (LaptopDeckView.swift on that branch). Keys go to the Mac as
+// USB HID usages (henge_vm_key_hid); control, option, command and shift latch through StickyKeys, so one
+// finger makes a shortcut and ⌘-click works. The trackpad is the session's own Trackpad, which macOS
+// sees as a Magic Trackpad 2.
 import SwiftUI
 import UIKit
 
-/// What the deck under the Mac's screen shows, upright. F10 or the toolbar's deck button cycles it.
+/// What the deck under the screen shows, upright: the MacBook (keyboard and trackpad) or the trackpad alone.
 enum DeckLayout: String, CaseIterable {
-    case laptop     // keyboard above, trackpad below: a MacBook
-    case trackpad   // the whole deck is a trackpad, with click buttons
-    case keyboard   // the whole deck is the keyboard
+    case laptop
+    case trackpad
 
     static let key = "macosiosx.deck.layout"
 
-    var next: DeckLayout {
-        switch self {
-        case .laptop: return .trackpad
-        case .trackpad: return .keyboard
-        case .keyboard: return .laptop
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .laptop: return "Laptop"
-        case .trackpad: return "Trackpad"
-        case .keyboard: return "Keyboard"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .laptop: return "laptopcomputer"
-        case .trackpad: return "rectangle.and.hand.point.up.left"
-        case .keyboard: return "keyboard"
-        }
-    }
+    var toggled: DeckLayout { self == .laptop ? .trackpad : .laptop }
 }
 
-/// Turns the scene, even with the device's orientation lock on: Studio is the Mac on its side, full screen;
-/// Laptop is upright, the Mac above the deck. As WindowsiOS X's SceneOrientationController.
+/// Turns the scene: Studio is the Mac on its side, full screen; Laptop is upright, the Mac above the deck.
+/// As WindowsiOS X's SceneOrientationController. A request, not a lock: turning the device turns it back.
 @MainActor
 enum SceneOrientation {
     static func activeScene() -> UIWindowScene? {
@@ -53,52 +36,50 @@ enum SceneOrientation {
             ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
     }
 
-    /// Studio: the Mac full screen, on its side.
     static func studio() { request(.landscapeRight) }
-
-    /// Laptop: upright, the Mac's screen above the keyboard and trackpad.
     static func laptop() { request(.portrait) }
-
-    /// The next orientation round the device: portrait, landscape right, landscape left.
-    static func rotate() {
-        guard let scene = activeScene() else { return }
-        switch scene.interfaceOrientation {
-        case .portrait, .portraitUpsideDown: request(.landscapeRight)
-        case .landscapeRight: request(.landscapeLeft)
-        default: request(.portrait)
-        }
-    }
 
     private static func request(_ mask: UIInterfaceOrientationMask) {
         guard let scene = activeScene() else { return }
-        // A request, not a lock: turning the device afterwards turns the scene as usual.
         scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
             HengeLog.log("deck", "orientation request refused: \(error.localizedDescription)")
         }
     }
 }
 
+/// The deck's colours, taken from the video: slate violet aluminium, near-black keys, a lighter pad.
+private enum DeckColor {
+    static let deck = Color(red: 0.235, green: 0.224, blue: 0.345)
+    static let deckLow = Color(red: 0.200, green: 0.190, blue: 0.300)
+    static let key = Color(red: 0.150, green: 0.150, blue: 0.180)
+    static let keyDown = Color(red: 0.300, green: 0.300, blue: 0.360)
+    static let keyLatched = Color(red: 0.250, green: 0.250, blue: 0.320)
+    static let pad = Color(red: 0.310, green: 0.294, blue: 0.455)
+    static let legend = Color.white.opacity(0.92)
+    static let faint = Color.white.opacity(0.55)
+    static let button = Color.white.opacity(0.10)
+    static let power = Color(red: 1.0, green: 0.27, blue: 0.23)
+}
+
 // MARK: - The keyboard's model
 
+/// What the function row does. A Mac keyboard's media and brightness keys are consumer-page usages,
+/// which the virtual USB keyboard doesn't carry, so those do the nearest thing (noted per key); mute and
+/// volume are on the keyboard page and go to macOS as they are.
 private enum FunctionAction: Equatable {
     case escape
-    case spotlight
-    case finder
-    case safari
-    case terminal
-    case missionControl
-    case showDesktop
-    case appSwitcher
-    case screenshot
-    case dragLock
-    case cycleDeck
-    case rotate
-    case studio
-    case forwardDelete
+    case brightnessDown, brightnessUp   // the screen's brightness on the device (the session's own setting)
+    case missionControl                 // ⌃↑
+    case spotlight                      // ⌘Space
+    case dictation                      // F5
+    case doNotDisturb                   // F6
+    case rewind, playPause, fastForward // F7, F8, F9
+    case mute, volumeDown, volumeUp     // HID 0x7f, 0x81, 0x80
+    case touchID                        // ⌃⌘Q: lock the screen
 }
 
 private enum KeyRole: Equatable {
-    case functionKey(action: FunctionAction, fnHid: UInt8?, fnTag: String?, symbol: String?, text: String?)
+    case function(action: FunctionAction, fnHid: UInt8?, symbol: String?, text: String?)
     case regular(hid: UInt8, primary: String, shifted: String?, fnHid: UInt8?, fnLabel: String?)
     case modifier(code: UInt16, symbol: String, name: String)
     case capsLock
@@ -111,9 +92,9 @@ private struct KeySpec: Identifiable {
     let widthWeight: CGFloat
     let role: KeyRole
 
-    static func fn(_ id: String, _ action: FunctionAction, fnHid: UInt8? = nil, tag: String? = nil,
+    static func fn(_ id: String, _ action: FunctionAction, fnHid: UInt8? = nil,
                    symbol: String? = nil, text: String? = nil, w: CGFloat = 1.0) -> KeySpec {
-        KeySpec(id: id, widthWeight: w, role: .functionKey(action: action, fnHid: fnHid, fnTag: tag, symbol: symbol, text: text))
+        KeySpec(id: id, widthWeight: w, role: .function(action: action, fnHid: fnHid, symbol: symbol, text: text))
     }
 
     static func key(_ primary: String, shifted: String? = nil, hid: UInt8, w: CGFloat = 1.0,
@@ -129,52 +110,38 @@ private struct KeySpec: Identifiable {
 
 /// HID usages the keyboard sends (USB HID Usage Tables, keyboard page).
 private enum HID {
-    static let a: UInt8 = 0x04, d: UInt8 = 0x07, five: UInt8 = 0x22
-    static let returnKey: UInt8 = 0x28, escape: UInt8 = 0x29, delete: UInt8 = 0x2a, tab: UInt8 = 0x2b, space: UInt8 = 0x2c
-    static let capsLock: UInt8 = 0x39, f11: UInt8 = 0x44, forwardDelete: UInt8 = 0x4c
+    static let q: UInt8 = 0x14, returnKey: UInt8 = 0x28, escape: UInt8 = 0x29, delete: UInt8 = 0x2a
+    static let tab: UInt8 = 0x2b, space: UInt8 = 0x2c, capsLock: UInt8 = 0x39
+    static let f5: UInt8 = 0x3e, f6: UInt8 = 0x3f, f7: UInt8 = 0x40, f8: UInt8 = 0x41, f9: UInt8 = 0x42
+    static let forwardDelete: UInt8 = 0x4c
     static let right: UInt8 = 0x4f, left: UInt8 = 0x50, down: UInt8 = 0x51, up: UInt8 = 0x52
     static let home: UInt8 = 0x4a, pageUp: UInt8 = 0x4b, end: UInt8 = 0x4d, pageDown: UInt8 = 0x4e
-    static let control: UInt8 = 0xe0, shift: UInt8 = 0xe1, option: UInt8 = 0xe2, command: UInt8 = 0xe3
+    static let mute: UInt8 = 0x7f, volumeUp: UInt8 = 0x80, volumeDown: UInt8 = 0x81
+    static let control: UInt8 = 0xe0, command: UInt8 = 0xe3
 }
 
-// MARK: - The deck
-
-/// The lower half of a MacBook, under the Mac's screen: keyboard and trackpad, as the layout says.
-struct MacKeyboardDeck: View {
-    @Binding var layout: DeckLayout
-
-    @ObservedObject private var sticky = StickyKeys.shared
-    @State private var capsLocked = false
-    @State private var fnActive = false
-    @State private var dragLocked = false
-
-    private let keyDownHaptic = UIImpactFeedbackGenerator(style: .rigid)
-    private let keyUpHaptic = UIImpactFeedbackGenerator(style: .soft)
-
-    init(layout: Binding<DeckLayout>) { _layout = layout }
-
-    // The function row, MacBook height (about two thirds of a key). Tapped alone each key does what its
-    // picture says on the Mac; with fn on it sends F1–F12, as a Mac keyboard does.
-    private static let functionRow: [KeySpec] = [
-        .fn("esc", .escape, text: "esc", w: 1.4),
-        .fn("f1", .spotlight, fnHid: 0x3a, tag: "F1", symbol: "magnifyingglass"),
-        .fn("f2", .finder, fnHid: 0x3b, tag: "F2", symbol: "folder"),
-        .fn("f3", .safari, fnHid: 0x3c, tag: "F3", symbol: "safari"),
-        .fn("f4", .terminal, fnHid: 0x3d, tag: "F4", symbol: "terminal"),
-        .fn("f5", .missionControl, fnHid: 0x3e, tag: "F5", symbol: "rectangle.3.group"),
-        .fn("f6", .showDesktop, fnHid: 0x3f, tag: "F6", symbol: "menubar.dock.rectangle"),
-        .fn("f7", .appSwitcher, fnHid: 0x40, tag: "F7", symbol: "square.on.square"),
-        .fn("f8", .screenshot, fnHid: 0x41, tag: "F8", symbol: "camera.viewfinder"),
-        .fn("f9", .dragLock, fnHid: 0x42, tag: "F9", symbol: "hand.draw"),
-        .fn("f10", .cycleDeck, fnHid: 0x43, tag: "F10", symbol: "rectangle.split.1x2"),
-        .fn("f11", .rotate, fnHid: 0x44, tag: "F11", symbol: "rotate.right"),
-        .fn("f12", .studio, fnHid: 0x45, tag: "F12", symbol: "arrow.up.left.and.arrow.down.right"),
-        .fn("fwddel", .forwardDelete, symbol: "delete.right", w: 1.1),
+private enum Rows {
+    // The MacBook's function row, at two thirds of a key's height. With fn on, F1–F12.
+    static let function: [KeySpec] = [
+        .fn("esc", .escape, text: "esc", w: 1.5),
+        .fn("f1", .brightnessDown, fnHid: 0x3a, symbol: "sun.min"),
+        .fn("f2", .brightnessUp, fnHid: 0x3b, symbol: "sun.max"),
+        .fn("f3", .missionControl, fnHid: 0x3c, symbol: "rectangle.3.group"),
+        .fn("f4", .spotlight, fnHid: 0x3d, symbol: "magnifyingglass"),
+        .fn("f5", .dictation, fnHid: 0x3e, symbol: "mic"),
+        .fn("f6", .doNotDisturb, fnHid: 0x3f, symbol: "moon"),
+        .fn("f7", .rewind, fnHid: 0x40, symbol: "backward"),
+        .fn("f8", .playPause, fnHid: 0x41, symbol: "playpause"),
+        .fn("f9", .fastForward, fnHid: 0x42, symbol: "forward"),
+        .fn("f10", .mute, fnHid: 0x43, symbol: "speaker.slash"),
+        .fn("f11", .volumeDown, fnHid: 0x44, symbol: "speaker.wave.1"),
+        .fn("f12", .volumeUp, fnHid: 0x45, symbol: "speaker.wave.3"),
+        .fn("touchid", .touchID, symbol: "touchid"),
     ]
 
-    // The MacBook's ANSI (U.S.) layout. macOS reads the keys by position, so another layout chosen in
+    // The MacBook's ANSI (U.S.) layout. macOS reads keys by position, so another layout chosen in
     // macOS's settings types its own characters from the same keys.
-    private static let mainRows: [[KeySpec]] = [
+    static let main: [[KeySpec]] = [
         [
             .key("`", shifted: "~", hid: 0x35),
             .key("1", shifted: "!", hid: 0x1e), .key("2", shifted: "@", hid: 0x1f), .key("3", shifted: "#", hid: 0x20),
@@ -185,26 +152,23 @@ struct MacKeyboardDeck: View {
         ],
         [
             .key("tab", hid: HID.tab, w: 1.5),
-            .key("q", shifted: "Q", hid: 0x14), .key("w", shifted: "W", hid: 0x1a), .key("e", shifted: "E", hid: 0x08),
-            .key("r", shifted: "R", hid: 0x15), .key("t", shifted: "T", hid: 0x17), .key("y", shifted: "Y", hid: 0x1c),
-            .key("u", shifted: "U", hid: 0x18), .key("i", shifted: "I", hid: 0x0c), .key("o", shifted: "O", hid: 0x12),
-            .key("p", shifted: "P", hid: 0x13), .key("[", shifted: "{", hid: 0x2f), .key("]", shifted: "}", hid: 0x30),
-            .key("\\", shifted: "|", hid: 0x31),
+            .key("q", hid: 0x14), .key("w", hid: 0x1a), .key("e", hid: 0x08), .key("r", hid: 0x15),
+            .key("t", hid: 0x17), .key("y", hid: 0x1c), .key("u", hid: 0x18), .key("i", hid: 0x0c),
+            .key("o", hid: 0x12), .key("p", hid: 0x13),
+            .key("[", shifted: "{", hid: 0x2f), .key("]", shifted: "}", hid: 0x30), .key("\\", shifted: "|", hid: 0x31),
         ],
         [
             KeySpec(id: "caps", widthWeight: 1.8, role: .capsLock),
-            .key("a", shifted: "A", hid: 0x04), .key("s", shifted: "S", hid: 0x16), .key("d", shifted: "D", hid: 0x07),
-            .key("f", shifted: "F", hid: 0x09), .key("g", shifted: "G", hid: 0x0a), .key("h", shifted: "H", hid: 0x0b),
-            .key("j", shifted: "J", hid: 0x0d), .key("k", shifted: "K", hid: 0x0e), .key("l", shifted: "L", hid: 0x0f),
+            .key("a", hid: 0x04), .key("s", hid: 0x16), .key("d", hid: 0x07), .key("f", hid: 0x09),
+            .key("g", hid: 0x0a), .key("h", hid: 0x0b), .key("j", hid: 0x0d), .key("k", hid: 0x0e), .key("l", hid: 0x0f),
             .key(";", shifted: ":", hid: 0x33), .key("'", shifted: "\"", hid: 0x34),
             .key("return", hid: HID.returnKey, w: 1.8),
         ],
         [
             .mod("lshift", Keys.shift, "⇧", "shift", w: 2.35),
-            .key("z", shifted: "Z", hid: 0x1d), .key("x", shifted: "X", hid: 0x1b), .key("c", shifted: "C", hid: 0x06),
-            .key("v", shifted: "V", hid: 0x19), .key("b", shifted: "B", hid: 0x05), .key("n", shifted: "N", hid: 0x11),
-            .key("m", shifted: "M", hid: 0x10), .key(",", shifted: "<", hid: 0x36), .key(".", shifted: ">", hid: 0x37),
-            .key("/", shifted: "?", hid: 0x38),
+            .key("z", hid: 0x1d), .key("x", hid: 0x1b), .key("c", hid: 0x06), .key("v", hid: 0x19),
+            .key("b", hid: 0x05), .key("n", hid: 0x11), .key("m", hid: 0x10),
+            .key(",", shifted: "<", hid: 0x36), .key(".", shifted: ">", hid: 0x37), .key("/", shifted: "?", hid: 0x38),
             .mod("rshift", Keys.shift, "⇧", "shift", w: 2.35),
         ],
         [
@@ -220,83 +184,224 @@ struct MacKeyboardDeck: View {
             .key("→", hid: HID.right, fnHid: HID.end, fnLabel: "end"),
         ],
     ]
+}
+
+// MARK: - The deck
+
+struct MacKeyboardDeck: View {
+    @Binding var layout: DeckLayout
+    let controlsHidden: Bool
+    let bottomInset: CGFloat
+    let typing: () -> Void
+    let hide: () -> Void
+    let zoom: () -> Void
+    let details: () -> Void
+    let shutDown: () -> Void
+
+    @ObservedObject private var sticky = StickyKeys.shared
+    @AppStorage("henge.display.brightness") private var brightness = 1.0
+    @State private var capsLocked = false
+    @State private var fnActive = false
+
+    private let keyHaptic = UIImpactFeedbackGenerator(style: .rigid)
+
+    init(layout: Binding<DeckLayout>, controlsHidden: Bool, bottomInset: CGFloat,
+         typing: @escaping () -> Void, hide: @escaping () -> Void, zoom: @escaping () -> Void,
+         details: @escaping () -> Void, shutDown: @escaping () -> Void) {
+        _layout = layout
+        self.controlsHidden = controlsHidden
+        self.bottomInset = bottomInset
+        self.typing = typing
+        self.hide = hide
+        self.zoom = zoom
+        self.details = details
+        self.shutDown = shutDown
+    }
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
-            let h = geo.size.height
+            let bottom = max(bottomInset, 10)
             ZStack(alignment: .top) {
-                aluminium
-                VStack(spacing: 8) {
+                deckSurface
+                VStack(spacing: 0) {
+                    header(width: w)
                     switch layout {
                     case .laptop:
-                        let keyboardH = max(150, min(h * 0.62, (w - 20) * 0.62))
-                        keyboardWell(height: keyboardH)
+                        let room = geo.size.height - 34 - bottom
+                        let keyboardH = min(max(room * 0.56, 150), (w - 16) * 0.56)
+                        keyboard
                             .frame(height: keyboardH)
-                            .padding(.horizontal, 8)
-                        trackpad(width: min(w - 24, max(w * 0.62, 240)), height: max(h - keyboardH - 26, 60))
+                            .padding(.horizontal, 6)
+                        Spacer(minLength: 10)
+                        trackpad(width: min(w * 0.62, w - 40))
+                            .frame(height: max(room - keyboardH - 14, 56))
                     case .trackpad:
-                        trackpad(width: w - 20, height: max(h - 66, 60))
-                        clickButtons.frame(height: 44).padding(.horizontal, 10)
-                    case .keyboard:
-                        keyboardWell(height: h - 18)
-                            .frame(height: h - 18)
-                            .padding(.horizontal, 8)
+                        if !controlsHidden { toolbar.padding(.horizontal, 14) }
+                        trackpadPanel
+                            .padding(.horizontal, 10)
+                            .padding(.top, 6)
                     }
                 }
-                .padding(.top, 9)
+                .padding(.bottom, bottom)
             }
-            .frame(width: w, height: h)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
-        .onDisappear {
-            if dragLocked { henge_vm_mouse_button(0, 0); dragLocked = false }
-        }
+        .animation(.snappy(duration: 0.22), value: layout)
     }
 
     // MARK: Surface
 
-    /// A MacBook's space grey aluminium, with the light from above.
-    private var aluminium: some View {
+    private var deckSurface: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0,
+                                           bottomTrailingRadius: 0, topTrailingRadius: 24, style: .continuous)
+        return shape
+            .fill(LinearGradient(colors: [DeckColor.deck, DeckColor.deckLow], startPoint: .top, endPoint: .bottom))
+            .overlay(shape.stroke(LinearGradient(colors: [Color.white.opacity(0.18), .clear],
+                                                 startPoint: .top, endPoint: .center), lineWidth: 0.7))
+    }
+
+    /// The grab bar in the middle, and in laptop mode the four small buttons at the right, as in the video.
+    private func header(width: CGFloat) -> some View {
         ZStack {
-            LinearGradient(colors: [Color(red: 0.20, green: 0.205, blue: 0.22),
-                                    Color(red: 0.15, green: 0.155, blue: 0.17),
-                                    Color(red: 0.11, green: 0.115, blue: 0.125)],
-                           startPoint: .top, endPoint: .bottom)
-            RadialGradient(colors: [Color.white.opacity(0.07), .clear], center: .init(x: 0.5, y: 0.05),
-                           startRadius: 10, endRadius: 360)
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
-                                             startPoint: .top, endPoint: .bottom), lineWidth: 0.7)
+            Capsule().fill(Color.black.opacity(0.55)).frame(width: 46, height: 3.5)
+            if layout == .laptop && !controlsHidden {
+                HStack(spacing: 6) {
+                    Spacer()
+                    small("keyboard", "Keyboard", action: typing)
+                    small("laptopcomputer", "Trackpad only") { layout = .trackpad }
+                    small("info.circle", "Details", action: details)
+                    small("power", "Shut down", tint: DeckColor.power, action: shutDown)
+                }
+                .padding(.trailing, 10)
+            }
+        }
+        .frame(width: width, height: 34)
+    }
+
+    private func small(_ symbol: String, _ label: String, tint: Color = DeckColor.legend,
+                       action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 30, height: 22)
+                .background(DeckColor.button, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    /// Trackpad mode's tools, on the deck above the pad (the session's own, plus the laptop button).
+    private var toolbar: some View {
+        HStack {
+            tool("eye.slash", "Hide controls", action: hide)
+            Spacer()
+            tool("keyboard", "Keyboard", action: typing)
+            Spacer()
+            tool("laptopcomputer", "MacBook keyboard") { layout = .laptop }
+            Spacer()
+            PasteButton(payloadType: String.self) { texts in
+                if let text = texts.first { Sharing.paste(text) }
+            }
+            .labelStyle(.iconOnly)
+            .buttonBorderShape(.circle)
+            .tint(DeckColor.button)
+            Spacer()
+            tool("plus.magnifyingglass", "Zoom in", action: zoom)
+            Spacer()
+            tool("info.circle", "Details", action: details)
+            Spacer()
+            tool("power", "Shut down", tint: DeckColor.power, action: shutDown)
+        }
+        .frame(height: 44)
+    }
+
+    private func tool(_ symbol: String, _ label: String, tint: Color = DeckColor.legend,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func trackpad(width: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DeckColor.pad)
+            RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.13), lineWidth: 0.7)
+            Trackpad()
+        }
+        .frame(width: width)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    /// The trackpad alone: the hints in the middle, Click and Right-click along the bottom.
+    private var trackpadPanel: some View {
+        GeometryReader { g in
+            let compact = g.size.height < 240
+            VStack(spacing: 0) {
+                ZStack {
+                    Trackpad()
+                    if !compact {
+                        VStack(spacing: 6) {
+                            hint("Drag", "to move")
+                            hint("Tap", "to click")
+                            hint("Hold, then drag", "to grab")
+                            hint("Two fingers", "to scroll")
+                        }
+                        .allowsHitTesting(false)
+                    }
+                }
+                Rectangle().fill(Color.white.opacity(0.10)).frame(height: 0.5)
+                HStack(spacing: 0) {
+                    MouseButton(title: "Click", button: 0)
+                    Rectangle().fill(Color.white.opacity(0.10)).frame(width: 0.5)
+                    MouseButton(title: "Right-click", button: 1)
+                }
+                .frame(height: compact ? 48 : 64)
+            }
+            .background(DeckColor.pad.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 0.5))
         }
     }
 
-    private func keyboardWell(height: CGFloat) -> some View {
-        let spacing: CGFloat = 3.5
-        let pad: CGFloat = 5
-        let rowsH = max(110, height - pad * 2 - spacing * 5)
-        let unit = rowsH / 5.66 // the function row is two thirds of a key's height
-        return VStack(spacing: spacing) {
-            row(Self.functionRow, height: unit * 0.66, functionRow: true).frame(height: unit * 0.66)
-            ForEach(0..<Self.mainRows.count, id: \.self) { i in
-                row(Self.mainRows[i], height: unit, functionRow: false).frame(height: unit)
+    private func hint(_ strong: String, _ rest: String) -> some View {
+        (Text(strong).foregroundColor(DeckColor.legend).fontWeight(.semibold) + Text(" \(rest)").foregroundColor(DeckColor.faint))
+            .font(.system(size: 15))
+    }
+
+    // MARK: Keyboard
+
+    private var keyboard: some View {
+        GeometryReader { g in
+            let spacing: CGFloat = 4
+            let unit = max(18, (g.size.height - spacing * 5) / 5.62) // the function row is two thirds of a key
+            VStack(spacing: spacing) {
+                row(Rows.function, height: unit * 0.62, functionRow: true)
+                ForEach(0..<Rows.main.count, id: \.self) { i in
+                    row(Rows.main[i], height: unit, functionRow: false)
+                }
             }
         }
-        .padding(pad)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.black.opacity(0.55)))
     }
 
     private func row(_ keys: [KeySpec], height: CGFloat, functionRow: Bool) -> some View {
         GeometryReader { g in
             let total = keys.reduce(CGFloat(0)) { $0 + $1.widthWeight }
-            let spacing: CGFloat = 3.5
+            let spacing: CGFloat = 4
             let avail = max(10, g.size.width - spacing * CGFloat(keys.count - 1))
             HStack(spacing: spacing) {
                 ForEach(keys) { spec in
                     let kw = avail * spec.widthWeight / total
                     if spec.role == .upDownStack {
                         ArrowStack(fnActive: fnActive) { up in
-                            keyDownHaptic.impactOccurred(intensity: 0.68)
+                            keyHaptic.impactOccurred(intensity: 0.6)
                             tap(up ? (fnActive ? HID.pageUp : HID.up) : (fnActive ? HID.pageDown : HID.down))
                         }
                         .frame(width: kw, height: height)
@@ -304,55 +409,19 @@ struct MacKeyboardDeck: View {
                         Keycap(spec: spec, functionRow: functionRow, shift: sticky.down.contains(Keys.shift) || capsLocked,
                                lit: lit(spec), fnActive: fnActive,
                                down: { keyDown(spec) }, up: { keyUp(spec) })
-                        .frame(width: kw, height: height)
+                            .frame(width: kw, height: height)
                     }
                 }
             }
         }
+        .frame(height: height)
     }
-
-    private func trackpad(width: CGFloat, height: CGFloat) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LinearGradient(colors: [Color(red: 0.17, green: 0.175, blue: 0.19), Color(red: 0.14, green: 0.145, blue: 0.16)],
-                                     startPoint: .top, endPoint: .bottom))
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.white.opacity(dragLocked ? 0.45 : 0.12), lineWidth: dragLocked ? 1 : 0.6)
-            if dragLocked {
-                Label("Drag lock: F9 lets go", systemImage: "hand.draw")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .allowsHitTesting(false)
-            }
-            Trackpad()
-        }
-        .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    private var clickButtons: some View {
-        HStack(spacing: 0) {
-            MouseButton(title: "Click", button: 0)
-            Rectangle().fill(Color.white.opacity(0.12)).frame(width: 0.5)
-            MouseButton(title: "Right-click", button: 1)
-        }
-        .background(Color.black.opacity(0.25))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-
-    // MARK: Keys
 
     private func lit(_ spec: KeySpec) -> Bool {
         switch spec.role {
         case .capsLock: return capsLocked
         case .fnGlobe: return fnActive
         case .modifier(let code, _, _): return sticky.down.contains(code)
-        case .functionKey(let action, _, _, _, _):
-            switch action {
-            case .dragLock: return dragLocked
-            case .cycleDeck: return layout != .laptop
-            default: return false
-            }
         default: return false
         }
     }
@@ -373,20 +442,8 @@ struct MacKeyboardDeck: View {
         StickyKeys.shared.releaseAll()
     }
 
-    /// Opens an app the way a Mac user does without a mouse: Spotlight, its name, return.
-    private func launch(_ app: String) {
-        chord([HID.command], HID.space)
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 450_000_000)
-            await Keys.typeSlowly(app)
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            henge_vm_key_hid(HID.returnKey, 1)
-            henge_vm_key_hid(HID.returnKey, 0)
-        }
-    }
-
     private func keyDown(_ spec: KeySpec) {
-        keyDownHaptic.impactOccurred(intensity: 0.7)
+        keyHaptic.impactOccurred(intensity: 0.7)
         switch spec.role {
         case .capsLock:
             capsLocked.toggle()
@@ -396,7 +453,7 @@ struct MacKeyboardDeck: View {
             fnActive.toggle()
         case .modifier(let code, _, _):
             StickyKeys.shared.toggle(code)
-        case .functionKey(let action, let fnHid, _, _, _):
+        case .function(let action, let fnHid, _, _):
             if fnActive, let fnHid { tap(fnHid); return }
             perform(action)
         case .regular(let hid, _, _, let fnHid, _):
@@ -408,7 +465,6 @@ struct MacKeyboardDeck: View {
 
     private func keyUp(_ spec: KeySpec) {
         guard case .regular(let hid, _, _, let fnHid, _) = spec.role else { return }
-        keyUpHaptic.impactOccurred(intensity: 0.22)
         henge_vm_key_hid(fnActive ? (fnHid ?? hid) : hid, 0)
         StickyKeys.shared.releaseAll()
     }
@@ -416,22 +472,19 @@ struct MacKeyboardDeck: View {
     private func perform(_ action: FunctionAction) {
         switch action {
         case .escape: tap(HID.escape)
-        case .spotlight: chord([HID.command], HID.space)                 // ⌘Space
-        case .finder: launch("Finder")
-        case .safari: launch("Safari")
-        case .terminal: launch("Terminal")
-        case .missionControl: chord([HID.control], HID.up)              // ⌃↑
-        case .showDesktop: tap(HID.f11)                                 // F11, macOS's default for Show Desktop
-        case .appSwitcher: chord([HID.command], HID.tab)                // ⌘Tab: back to the last app
-        case .screenshot: chord([HID.command, HID.shift], HID.five)     // ⌘⇧5: the screenshot toolbar
-        case .dragLock:
-            dragLocked.toggle()
-            henge_vm_mouse_button(0, dragLocked ? 1 : 0)
-        case .cycleDeck:
-            withAnimation(.snappy(duration: 0.2)) { layout = layout.next }
-        case .rotate: SceneOrientation.rotate()
-        case .studio: SceneOrientation.studio()
-        case .forwardDelete: tap(HID.forwardDelete)
+        case .brightnessDown: brightness = max(0.4, brightness - 0.1)
+        case .brightnessUp: brightness = min(1.0, brightness + 0.1)
+        case .missionControl: chord([HID.control], HID.up)
+        case .spotlight: chord([HID.command], HID.space)
+        case .dictation: tap(HID.f5)
+        case .doNotDisturb: tap(HID.f6)
+        case .rewind: tap(HID.f7)
+        case .playPause: tap(HID.f8)
+        case .fastForward: tap(HID.f9)
+        case .mute: tap(HID.mute)
+        case .volumeDown: tap(HID.volumeDown)
+        case .volumeUp: tap(HID.volumeUp)
+        case .touchID: chord([HID.control, HID.command], HID.q)
         }
     }
 }
@@ -456,11 +509,11 @@ private struct ArrowStack: View {
 
     private func half(up: Bool, pressed: Binding<Bool>) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 3.5, style: .continuous)
-                .fill(pressed.wrappedValue ? Color(white: 0.32) : Color(white: 0.09))
-            Image(systemName: up ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
-                .font(.system(size: 6.5))
-                .foregroundStyle(Color.white.opacity(0.9))
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(pressed.wrappedValue ? DeckColor.keyDown : DeckColor.key)
+            Image(systemName: up ? "chevron.up" : "chevron.down")
+                .font(.system(size: 7, weight: .bold))
+                .foregroundStyle(DeckColor.legend)
         }
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { _ in
@@ -472,7 +525,7 @@ private struct ArrowStack: View {
     }
 }
 
-// MARK: - A Magic Keyboard key
+// MARK: - A key
 
 private struct Keycap: View {
     let spec: KeySpec
@@ -487,16 +540,13 @@ private struct Keycap: View {
     @State private var pressed = false
 
     var body: some View {
-        let radius: CGFloat = functionRow ? 3.5 : 5
+        let radius: CGFloat = functionRow ? 4 : 6
         ZStack {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(pressed ? Color(white: 0.30) : lit ? Color(white: 0.20) : Color(white: 0.085))
-                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
-                .shadow(color: .black.opacity(pressed ? 0.1 : 0.5), radius: pressed ? 0.3 : 0.8, y: pressed ? 0 : 0.8)
+                .fill(pressed ? DeckColor.keyDown : lit ? DeckColor.keyLatched : DeckColor.key)
+                .shadow(color: .black.opacity(pressed ? 0.1 : 0.45), radius: pressed ? 0.3 : 1, y: pressed ? 0 : 1)
             legend
-            if lit && showsLight {
-                // The caps lock key's green light, and the same for whatever is latched.
+            if lit {
                 VStack { HStack { Circle().fill(Color.green).frame(width: 3.4, height: 3.4)
                         .shadow(color: .green.opacity(0.8), radius: 2); Spacer() }; Spacer() }
                     .padding(4)
@@ -520,17 +570,9 @@ private struct Keycap: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var showsLight: Bool {
-        switch spec.role {
-        case .capsLock, .fnGlobe, .modifier: return true
-        case .functionKey(let action, _, _, _, _): return action == .dragLock || action == .cycleDeck
-        default: return false
-        }
-    }
-
     private var accessibilityName: String {
         switch spec.role {
-        case .functionKey(_, _, let tag, let symbol, let text): return fnActive ? (tag ?? text ?? "") : (text ?? symbol ?? tag ?? "")
+        case .function(_, _, let symbol, let text): return text ?? symbol ?? ""
         case .regular(_, let primary, _, _, _): return primary
         case .modifier(_, _, let name): return name
         case .capsLock: return "caps lock"
@@ -540,52 +582,53 @@ private struct Keycap: View {
     }
 
     @ViewBuilder private var legend: some View {
-        let fg = Color.white.opacity(0.92)
-        let dim = Color.white.opacity(0.55)
+        let fg = DeckColor.legend
         switch spec.role {
-        case .functionKey(_, _, let tag, let symbol, let text):
-            if fnActive, let tag {
-                Text(tag).font(.system(size: 9, weight: .semibold)).foregroundStyle(fg)
+        case .function(_, let fnHid, let symbol, let text):
+            if fnActive, let fnHid {
+                Text("F\(Int(fnHid) - 0x39)").font(.system(size: 8.5, weight: .semibold)).foregroundStyle(fg)
             } else if let text {
-                Text(text).font(.system(size: 9, weight: .medium)).foregroundStyle(fg)
+                Text(text).font(.system(size: 8.5, weight: .medium)).foregroundStyle(fg)
             } else if let symbol {
-                Image(systemName: symbol).font(.system(size: 9, weight: .medium)).foregroundStyle(fg)
+                Image(systemName: symbol).font(.system(size: 8.5, weight: .medium)).foregroundStyle(fg)
             }
         case .capsLock:
             corner("caps lock", fg)
         case .fnGlobe:
             VStack(alignment: .leading, spacing: 0) {
-                Text("fn").font(.system(size: 8.5, weight: .medium)).foregroundStyle(fg)
-                Spacer(minLength: 0)
                 Image(systemName: "globe").font(.system(size: 8.5)).foregroundStyle(fg)
+                Spacer(minLength: 0)
+                Text("fn").font(.system(size: 8, weight: .medium)).foregroundStyle(fg)
             }
             .padding(3.5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         case .modifier(_, let symbol, let name):
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(symbol).font(.system(size: 9.5)).foregroundStyle(fg)
-                Spacer(minLength: 0)
-                Text(name).font(.system(size: 7.5, weight: .medium)).foregroundStyle(fg).lineLimit(1).minimumScaleFactor(0.6)
+            if name == "shift" {
+                corner("⇧ shift", fg)
+            } else {
+                VStack(spacing: 0) {
+                    Text(symbol).font(.system(size: 9)).foregroundStyle(fg)
+                    Text(name).font(.system(size: 7, weight: .medium)).foregroundStyle(fg).lineLimit(1).minimumScaleFactor(0.6)
+                }
+                .padding(.horizontal, 2)
             }
-            .padding(3.5)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: name == "shift" ? .leading : .trailing)
         case .regular(_, let primary, let shifted, _, let fnLabel):
             if fnActive, let fnLabel {
-                Text(fnLabel).font(.system(size: 9, weight: .semibold)).foregroundStyle(fg)
+                Text(fnLabel).font(.system(size: 8.5, weight: .semibold)).foregroundStyle(fg)
             } else if primary == "space" {
                 EmptyView()
             } else if primary == "←" || primary == "→" {
-                Image(systemName: primary == "←" ? "arrowtriangle.left.fill" : "arrowtriangle.right.fill")
-                    .font(.system(size: 6.5)).foregroundStyle(fg)
+                Image(systemName: primary == "←" ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 8, weight: .bold)).foregroundStyle(fg)
             } else if primary.count > 1 {
                 corner(primary, fg)
-            } else if let shifted, shifted.uppercased() != primary.uppercased() {
+            } else if let shifted {
+                // Symbol over digit or sign, both small, as on a MacBook.
                 VStack(spacing: 0) {
-                    Text(shifted).font(.system(size: 7.5)).foregroundStyle(shift ? fg : dim)
-                    Text(primary).font(.system(size: 10.5, weight: .medium)).foregroundStyle(shift ? dim : fg)
+                    Text(shifted).font(.system(size: 7)).foregroundStyle(shift ? fg : fg.opacity(0.7))
+                    Text(primary).font(.system(size: 10, weight: .medium)).foregroundStyle(fg)
                 }
             } else {
-                // Mac keycaps print letters in capitals.
                 Text(primary.uppercased()).font(.system(size: 11, weight: .medium)).foregroundStyle(fg)
             }
         case .upDownStack:
@@ -597,7 +640,7 @@ private struct Keycap: View {
     private func corner(_ word: String, _ fg: Color) -> some View {
         let right = word == "delete" || word == "return"
         return Text(word)
-            .font(.system(size: 8, weight: .medium))
+            .font(.system(size: 7.5, weight: .medium))
             .foregroundStyle(fg)
             .lineLimit(1)
             .minimumScaleFactor(0.6)

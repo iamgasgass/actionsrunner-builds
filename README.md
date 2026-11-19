@@ -198,35 +198,39 @@ prossimo avvio del Mac.
 
 ## 8. Interfaccia: modalità Laptop e Studio
 
-- **In verticale — Laptop:** il Mac nella metà superiore e, sotto, il **deck di un MacBook**:
-  tastiera Magic Keyboard completa (layout U.S., 6 righe) e trackpad. Il pulsante del deck nella barra (o **F10**)
-  passa tra **Laptop** (tastiera + trackpad), **Trackpad** (solo trackpad, con pulsanti *Click* / *Right-click*)
-  e **Tastiera** (solo tastiera).
+L'interfaccia della sessione copia quella del video di Huy Nguyen
+([x.com/little_34306](https://x.com/little_34306/status/2120923267699761294): macOS 27.2 sull'iPhone Duo
+piegato a metà, con Henge e una tastiera sul secondo schermo).
+
+- **In verticale — Laptop:** il Mac nella metà superiore e, subito sotto, il **deck di un MacBook** color
+  ardesia-lilla, fino al bordo inferiore: maniglia al centro in alto, quattro piccoli pulsanti in alto a destra
+  (**tastiera** di iOS, **laptop**, **info**, **spegnimento** in rosso), la **tastiera MacBook** con la sua vera
+  riga funzioni e sotto un **trackpad grande**. Il pulsante *laptop* passa alla **modalità Trackpad**: sul deck
+  la barra degli strumenti (nascondi, tastiera, laptop, incolla, zoom, info, spegnimento) e il trackpad con le
+  istruzioni e i pulsanti *Click* / *Right-click*; lo stesso pulsante riporta la tastiera.
 - **In orizzontale — Studio:** il Mac a schermo intero; lo schermo stesso è il trackpad. Il pulsante
   **Laptop** nella barra riporta in verticale.
 - **iPhone Duo:** la postura viene letta dal sensore della cerniera (`UIHingeInteraction`, iOS 27.1): piegato a
-  portatile, la sessione si mette in verticale (Laptop). Il codice si compila solo se l'SDK di Xcode contiene
-  quell'API; altrimenti il Duo usa la stessa logica degli altri iPhone.
+  portatile, la sessione si mette in verticale (Laptop), come nel video. Il codice si compila solo se l'SDK di
+  Xcode contiene quell'API; altrimenti il Duo usa la stessa logica degli altri iPhone.
 - **iPad:** Studio, con tastiera e trackpad/mouse fisici; il deck resta disponibile in verticale.
 
-**Tasti funzione del deck** (premuti da soli fanno quello che mostra l'icona; con **fn** attivo inviano F1–F12):
+**Riga funzioni** (come su un MacBook; con **fn** attivo inviano F1–F12):
 
-| Tasto | Azione | Scorciatoia inviata a macOS |
-| :--- | :--- | :--- |
-| esc | Esc | `esc` |
-| F1 🔍 | Spotlight | `⌘ Spazio` |
-| F2 📁 | apre il Finder | Spotlight → "Finder" → Invio |
-| F3 🧭 | apre Safari | Spotlight → "Safari" → Invio |
-| F4 ⌨︎ | apre il Terminale | Spotlight → "Terminal" → Invio |
-| F5 | Mission Control | `⌃ ↑` |
-| F6 | mostra la Scrivania | `F11` |
-| F7 | torna all'app precedente | `⌘ Tab` |
-| F8 📷 | strumenti di screenshot | `⌘ ⇧ 5` |
-| F9 ✋ | **blocco trascinamento** (tiene premuto il clic finché non lo ripremi) | — |
-| F10 | layout del deck: Laptop → Trackpad → Tastiera | — |
-| F11 ↻ | ruota lo schermo | — |
-| F12 ⤢ | modalità **Studio** | — |
-| ⌦ | cancella a destra | `forward delete` |
+| Tasto | Azione |
+| :--- | :--- |
+| esc | `esc` |
+| ☼ − / ☼ + | luminosità dello schermo del Mac sul dispositivo |
+| Mission Control | `⌃ ↑` |
+| 🔍 | Spotlight (`⌘ Spazio`) |
+| 🎤 dettatura, 🌙 Non disturbare | inviano `F5`, `F6` |
+| ⏪ ⏯ ⏩ | inviano `F7`, `F8`, `F9` |
+| 🔇 🔉 🔊 | **muto, volume giù, volume su** di macOS (tasti USB veri) |
+| Touch ID | blocca lo schermo (`⌃ ⌘ Q`) |
+
+I tasti multimediali e di luminosità di una tastiera Apple usano una pagina USB che la tastiera virtuale del
+motore non ha: per questo luminosità agisce sullo schermo dell'app e ⏪ ⏯ ⏩ / dettatura / Non disturbare
+inviano i tasti F corrispondenti. Muto e volume arrivano a macOS come su un Mac.
 
 Riga inferiore come su un MacBook: **fn/🌐 · ⌃ control · ⌥ option · ⌘ command · spazio · ⌘ · ⌥ · ← ↑↓ →**.
 ⌃ ⌥ ⌘ e ⇧ restano "agganciati" dopo un tocco (spia verde) fino al tasto o al clic successivo: con un dito solo
