@@ -2,7 +2,7 @@
 //
 // macOSiOS X: the deck under the Mac's screen, upright, made like the lower half of a MacBook, after
 // Huy Nguyen's video of macOS 27.2 on the half-folded iPhone Duo (Henge with "some keyboard on the
-// extended screen"), in macOSiOS X 1.0.0's colours (space grey aluminium, near-black keys in a dark well,
+// extended screen"), in macOSiOS X 1.0.0's colours on an iOS dark mode deck (near-black keys in a dark well,
 // Henge's Desk colours for the tools): a deck with a grab bar, four small buttons at its top right
 // (keyboard, laptop, info, power), a MacBook keyboard with its real function row (brightness, Mission
 // Control, Spotlight, dictation, Do Not Disturb, media, mute and volume, Touch ID), and a large trackpad
@@ -48,12 +48,14 @@ enum SceneOrientation {
     }
 }
 
-/// The deck's colours: exactly those of macOSiOS X 1.0.0 (commit 2ef2084), the space grey MacBook deck,
+/// The deck's colours: exactly those of macOSiOS X 1.0.0 (commit 2ef2084), on a deck in iOS dark mode's colours,
 /// and Henge's own Desk colours for the session's tools and the trackpad panel.
 private enum DeckColor {
-    static let top = Color(red: 0.20, green: 0.205, blue: 0.22)
-    static let middle = Color(red: 0.15, green: 0.155, blue: 0.17)
-    static let bottom = Color(red: 0.11, green: 0.115, blue: 0.125)
+    // The deck's background: iOS dark mode's own colours, secondarySystemBackground (#1C1C1E) at the top
+    // down to systemBackground (#000000) at the bottom.
+    static let top = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    static let middle = Color(red: 14 / 255, green: 14 / 255, blue: 15 / 255)
+    static let bottom = Color.black
     static let well = Color.black.opacity(0.55)
     static let key = Color(white: 0.085)
     static let keyDown = Color(white: 0.30)
@@ -242,14 +244,16 @@ struct MacKeyboardDeck: View {
                         trackpad(width: min(w * 0.62, w - 40))
                             .frame(height: max(room - keyboardH - 14, 56))
                     case .trackpad:
-                        if !controlsHidden { toolbar.padding(.horizontal, 14) }
+                        if !controlsHidden { toolbar.padding(.horizontal, 10) }
                         trackpadPanel
-                            .padding(.horizontal, 10)
+                            .frame(width: w - 20)
                             .padding(.top, 6)
                     }
                 }
                 .padding(.bottom, bottom)
+                .frame(width: w)
             }
+            .frame(width: w, height: geo.size.height)
         }
         .animation(.snappy(duration: 0.22), value: layout)
     }
@@ -261,12 +265,10 @@ struct MacKeyboardDeck: View {
                                            bottomTrailingRadius: 0, topTrailingRadius: 22, style: .continuous)
         return ZStack {
             LinearGradient(colors: [DeckColor.top, DeckColor.middle, DeckColor.bottom], startPoint: .top, endPoint: .bottom)
-            RadialGradient(colors: [Color.white.opacity(0.07), .clear], center: .init(x: 0.5, y: 0.05),
-                           startRadius: 10, endRadius: 360)
         }
         .clipShape(shape)
-        .overlay(shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.04)],
-                                                   startPoint: .top, endPoint: .bottom), lineWidth: 0.7))
+        .overlay(shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.14), .clear],
+                                                   startPoint: .top, endPoint: .center), lineWidth: 0.7))
     }
 
     /// The grab bar in the middle, and in laptop mode the four small buttons at the right, as in the video.
@@ -304,27 +306,29 @@ struct MacKeyboardDeck: View {
 
     /// Trackpad mode's tools, on the deck above the pad (the session's own, plus the laptop button).
     private var toolbar: some View {
-        HStack {
+        // No fixed gaps: seven buttons must fit the narrowest iPhone, so only the spacers stretch.
+        HStack(spacing: 0) {
             tool("eye.slash", "Hide controls", action: hide)
-            Spacer()
+            Spacer(minLength: 0)
             tool("keyboard", "Keyboard", action: typing)
-            Spacer()
+            Spacer(minLength: 0)
             tool("laptopcomputer", "MacBook keyboard") { layout = .laptop }
-            Spacer()
+            Spacer(minLength: 0)
             PasteButton(payloadType: String.self) { texts in
                 if let text = texts.first { Sharing.paste(text) }
             }
             .labelStyle(.iconOnly)
             .buttonBorderShape(.circle)
             .tint(Desk.raised)
-            Spacer()
+            Spacer(minLength: 0)
             tool("plus.magnifyingglass", "Zoom in", action: zoom)
-            Spacer()
+            Spacer(minLength: 0)
             tool("info.circle", "Details", action: details)
-            Spacer()
+            Spacer(minLength: 0)
             tool("power", "Shut down", tint: Desk.bad, action: shutDown)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
         .frame(height: 54)
         .background(Desk.card, in: Capsule())
         .overlay(Capsule().stroke(Desk.hairline, lineWidth: 0.5))
@@ -336,7 +340,7 @@ struct MacKeyboardDeck: View {
             Image(systemName: symbol)
                 .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: 44, height: 44)
+                .frame(width: 40, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
