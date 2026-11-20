@@ -25,7 +25,7 @@ yy, xx = np.mgrid[0:S, 0:S].astype(float)
 # ---- the glyph: a macOS window, as WindowsiOS X drew Windows' four panes: a rounded window with its
 # title bar (a thin seam under it) and the three traffic lights, with Apple's bite out of the right
 # side and Husk's leaf on top. The whole glyph (window + leaf) is centred in the icon.
-W = S * 0.50                  # the window's width
+W = S * 0.64                  # the window's width (Henge X: bigger in the icon than the first 0.50)
 H = W * 0.80                  # and height (a Mac window, a little wider than tall)
 R = W * 0.085                 # its corner radius (macOS windows are rounded)
 BAR = H * 0.20                # the title bar

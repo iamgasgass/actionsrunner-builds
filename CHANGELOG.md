@@ -15,6 +15,10 @@ e limiti sono descritti nel [README](README.md).
 - **Modalità scura come quella di iOS, con il nero vero**: sfondo `#000000`, schede `#1C1C1E`, parti in rilievo `#2C2C2E`,
   testo bianco, grigi di sistema; vale con *Dark* e con *System* quando iOS è scuro.
 - **Colore di accento viola, quello dell'icona** (pulsanti, schede, interruttori, link), al posto del blu.
+- **Icona**: la finestra macOS occupa ora il 64% della larghezza dell'icona (era il 50%).
+- **SDK più recente**: la CI legge la versione reale di ogni Xcode presente sul runner (dal suo `Info.plist`, non dal
+  nome della cartella), sceglie la più alta (beta comprese; a pari versione vince la release) e scrive nel riepilogo
+  della run l'elenco degli Xcode con i loro SDK iOS e quello usato. `HENGEX_XCODE` fissa una versione.
 
 ### Motore più veloce
 - **Statistiche diagnostiche spente di default** (`HV_STATS=0` in `EngineTuning.swift`). Erano sempre accese:

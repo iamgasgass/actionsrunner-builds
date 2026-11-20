@@ -104,24 +104,44 @@ jobs:
           repository: Leviidev/Husk
           path: Husk
 
-      - name: Select Xcode
+      - name: Select Xcode (the newest SDK on the runner)
         env:
           PIN: ${{ vars.HENGEX_XCODE }}
         run: |
           set -euo pipefail
-          ls -d /Applications/Xcode*.app
-          # The newest Xcode on the runner, betas included (as WindowsiOS X), unless HENGEX_XCODE pins one.
+          # Every Xcode on the runner, by the version in its own Info.plist (folder names vary: Xcode_27.0.app,
+          # Xcode_27.0_beta.app, Xcode-beta.app, symlinks), with its iOS SDK. The newest wins, betas included;
+          # at an equal version a release beats a beta. HENGEX_XCODE (a version, e.g. 26.7) pins one instead.
+          echo "### Xcode on this runner" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Xcode | build | iOS SDK | path |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          candidates=""
+          for app in /Applications/Xcode*.app; do
+            [ -L "$app" ] && continue
+            plist="$app/Contents/Info.plist"
+            [ -f "$plist" ] || continue
+            ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null || true)"
+            [ -n "$ver" ] || continue
+            build="$(/usr/libexec/PlistBuddy -c 'Print :ProductBuildVersion' "$app/Contents/version.plist" 2>/dev/null || echo '?')"
+            sdk="$(DEVELOPER_DIR="$app/Contents/Developer" xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo '?')"
+            case "$app" in *[Bb]eta*|*_RC*|*_rc*|*Release_Candidate*) rel=0 ;; *) rel=1 ;; esac
+            echo "  $ver ($build), iOS SDK $sdk: $app"
+            echo "| $ver | $build | $sdk | \`$app\` |" >> "$GITHUB_STEP_SUMMARY"
+            candidates+="$ver.$rel $app"$'\n'
+          done
           if [ -n "$PIN" ]; then
-            app="/Applications/Xcode_${PIN}.app"
+            app="$(printf '%s' "$candidates" | awk -v pin="$PIN" 'index($1, pin".") == 1' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
           else
-            app="$(ls -d /Applications/Xcode_[0-9]*.app | sed -E 's#.*/Xcode_([0-9.]+)[^/]*\.app#\1 &#' \
-                   | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+            app="$(printf '%s' "$candidates" | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
           fi
-          [ -d "$app" ] || { echo "::error::no Xcode at $app"; exit 1; }
+          [ -n "$app" ] && [ -d "$app" ] || { echo "::error::no Xcode found (pin: ${PIN:-none})"; exit 1; }
           sudo xcode-select -s "$app/Contents/Developer"
           xcodebuild -version
           ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
           [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Henge X needs the iOS 26 SDK"; exit 1; }
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "Building with Xcode $ver, iOS SDK $sdk ($app)"
+          echo "**Building with Xcode $ver, iOS SDK $sdk**" >> "$GITHUB_STEP_SUMMARY"
           echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
 
       - name: Metal toolchain
