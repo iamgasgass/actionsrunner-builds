@@ -7,6 +7,21 @@ e limiti sono descritti nel [README](README.md).
 
 ## Non pubblicata
 
+### Motore più veloce
+- **Statistiche diagnostiche spente di default** (`HV_STATS=0` in `EngineTuning.swift`). Erano sempre accese:
+  ogni vCPU scriveva decine di contatori nella struttura condivisa della macchina e, per la ripartizione degli
+  accessi lenti, rifaceva una scansione della tabella delle pagine in più su certi accessi lenti alla memoria e sui
+  mancati colpi della cache dei salti indiretti. Per riattivarle: `HV_STATS=10` in `Documents/henge-env.txt`.
+- **Niente più scritture condivise sui percorsi caldi**: il contatore dei blocchi e l'anello di debug del
+  dispatcher, i contatori e l'anello delle eccezioni, e i contatori di cambi di contesto, svuotamenti del TLB e
+  page walk delle istruzioni (macro `HV_COUNT`) si aggiornano solo con le statistiche o il log accesi. Prima ogni
+  vCPU li scriveva a ogni passaggio, e la stessa riga di cache rimbalzava tra i core. Il contatore "blocks/s"
+  dell'app ora somma i contatori per-CPU (`icount`).
+- **Motore compilato per A14** (`-mcpu=apple-a14`, solo `core/` e `devices/`): atomiche LSE (CAS, LDADD) al posto
+  dei cicli LDXR/STXR e scheduling per i core Apple. Il resto dell'app resta generico, quindi su un iPhone più
+  vecchio l'app si apre ancora e mostra il messaggio "needs an A14".
+- CI: job `engine-tests` che compila ed esegue i test del motore su Apple silicon a ogni push.
+
 ### Interfaccia come nel video di Huy Nguyen (macOS 27.2 sull'iPhone Duo piegato)
 - Il deck sotto il Mac è ora quello del video: fino al bordo inferiore, maniglia, quattro
   pulsanti in alto a destra (tastiera, laptop, info, spegnimento rosso), tastiera MacBook con la **vera riga

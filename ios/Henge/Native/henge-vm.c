@@ -33,6 +33,17 @@ static int installer_session;
 static uint64_t stopped_blocks, stopped_tx, stopped_rx;
 static const char *exit_description(void);
 static int lock_running(void);
+
+/* Blocks the dispatcher has entered, summed over the CPUs: each counts its own (icount), so the
+   count costs no shared write on the dispatcher's path. Reads may race a CPU's increment: a
+   display rate, nothing depends on it being exact. */
+static uint64_t blocks_entered(void) {
+    HvMachine *m = hv_vm_machine();
+    uint64_t n = 0;
+    for (int i = 0; m && i < m->ncpus; i++)
+        if (m->cpus[i]) n += __atomic_load_n(&m->cpus[i]->icount, __ATOMIC_RELAXED);
+    return n;
+}
 /* A Mac app ran through the translation layer in this launch (henge-tl.c): it may have remapped part of the JIT region. */
 _Atomic int henge_tl_ran;
 
@@ -57,7 +68,7 @@ static void on_exit(int reason) {
     case HV_HALT_HOST: exit_outcome = HENGE_VM_OUTCOME_HOST_STOP; break;
     case HV_HALT_PANIC: exit_outcome = HENGE_VM_OUTCOME_PANIC; break;
     }
-    stopped_blocks = hv_vm_machine()->stats.blocks;
+    stopped_blocks = blocks_entered();
     stopped_tx = hv_net_tx_frames;
     stopped_rx = hv_net_rx_frames;
     /* The restore stack owns separate USB workers for the installer session.
@@ -348,7 +359,7 @@ int henge_vm_knob(const char *name, int value) {
 }
 uint64_t henge_vm_blocks(void) {
     pthread_rwlock_rdlock(&api_lock);
-    uint64_t result = state == 1 ? hv_vm_machine()->stats.blocks : stopped_blocks;
+    uint64_t result = state == 1 ? blocks_entered() : stopped_blocks;
     pthread_rwlock_unlock(&api_lock);
     return result;
 }

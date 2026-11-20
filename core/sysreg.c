@@ -192,7 +192,7 @@ static int write_reg(HvCpu *cpu, uint32_t reg, uint64_t v) {
         uint64_t changed = cpu->sctlr_el1 ^ v;
         cpu->sctlr_el1 = v;
         if (changed & (1u | 1u << 19 | 1u << 24 | 1u << 25)) { /* M, WXN, E0E, EE: what translations depend on */
-            cpu->m->stats.flush_why[2]++;
+            HV_COUNT(cpu->m, cpu->m->stats.flush_why[2]);
             hv_tlb_flush(cpu);
             __atomic_store_n(&cpu->exit_req, 1, __ATOMIC_RELAXED); /* the block's chained exit must not follow the old mapping */
         }
@@ -211,13 +211,13 @@ static int write_reg(HvCpu *cpu, uint32_t reg, uint64_t v) {
     case R(3, 0, 2, 0, 1): { /* TTBR1: rewritten unchanged on context switches; its ASID field only counts with TCR.A1 */
         uint64_t changed = (cpu->ttbr1_el1 ^ v) & ((cpu->tcr_el1 >> 22) & 1 ? ~0ull : 0x0000ffffffffffffull);
         cpu->ttbr1_el1 = v;
-        if (changed) cpu->m->stats.flush_why[3]++, hv_tlb_flush(cpu);
+        if (changed) HV_COUNT(cpu->m, cpu->m->stats.flush_why[3]), hv_tlb_flush(cpu);
         return 0;
     }
     case R(3, 0, 2, 0, 2):
         if (cpu->tcr_el1 != v) {
             cpu->tcr_el1 = v;
-            cpu->m->stats.flush_why[4]++;
+            HV_COUNT(cpu->m, cpu->m->stats.flush_why[4]);
             hv_tlb_flush(cpu);
         }
         return 0;
@@ -229,7 +229,7 @@ static int write_reg(HvCpu *cpu, uint32_t reg, uint64_t v) {
     case R(3, 0, 10, 2, 0):
         if (cpu->mair_el1 != v) {
             cpu->mair_el1 = v;
-            cpu->m->stats.flush_why[5]++;
+            HV_COUNT(cpu->m, cpu->m->stats.flush_why[5]);
             hv_tlb_flush(cpu);
         }
         return 0;
@@ -360,12 +360,12 @@ void hv_tlbi_apply(HvCpu *cpu, uint32_t op1, uint32_t crn, uint32_t crm, uint32_
         uint64_t len = shift ? pages << shift : 0;
         if (!shift || len > (256ull << HV_TLB_PAGE_BITS)) {
             /* Reserved granule: everything. A big range: what of that half lies in it. */
-            if (!shift) cpu->m->stats.flush_why[6]++, hv_tlb_flush(cpu);
+            if (!shift) HV_COUNT(cpu->m, cpu->m->stats.flush_why[6]), hv_tlb_flush(cpu);
             else if ((va >> 55) & 1) hv_tlb_flush_kernel_range(cpu, va, len);
             else {
                 hv_tlb_flush_user_range(cpu, va, len);
                 hv_tlb_stash_drop(cpu, all_asids ? -1 : (int)(xt >> 48));
-                cpu->m->stats.reset_why[7]++;
+                HV_COUNT(cpu->m, cpu->m->stats.reset_why[7]);
                 hv_ijc_drop_range(cpu, va, len, all_asids ? -1 : (int)(xt >> 48));
             }
         } else {
@@ -382,13 +382,13 @@ void hv_tlbi_apply(HvCpu *cpu, uint32_t op1, uint32_t crn, uint32_t crm, uint32_
     } else if (by_asid) {
         hv_tlb_flush_user(cpu);
         hv_tlb_stash_drop(cpu, (int)(xt >> 48));
-        cpu->m->stats.reset_why[1]++;
+        HV_COUNT(cpu->m, cpu->m->stats.reset_why[1]);
         if (cpu->m->stats_interval) cpu->m->stats.ijc_reset_kind[2]++;
         hv_ijc_drop_asid(cpu, (uint16_t)(xt >> 48));
     } else {
         if (cpu->m->log >= 2)
             fprintf(stderr, "tlbi-all S1_%u_C%u_C%u_%u pc %llx\n", op1, crn, crm, op2, (unsigned long long)pc);
-        cpu->m->stats.flush_why[crm == 7 ? 0 : 1]++;
+        HV_COUNT(cpu->m, cpu->m->stats.flush_why[crm == 7 ? 0 : 1]);
         uint64_t since_switch = crm == 7 ? mach_absolute_time() - cpu->ttbr0_changed_at : ~0ull; /* 24 MHz ticks */
         /* HV_SWITCH_FLUSH=1 (testing): macOS 27's xnu follows a process switch between two shared regions with a
            local TLBI VMALLE1, to drop the old region's global entries. Here every process's user entries are put
@@ -469,7 +469,7 @@ int hv_sysreg_sys(HvCpu *cpu, uint32_t insn, uint64_t pc) {
            translating everything again, many times a boot. HV_IC_FLUSH: as before. */
         static int flush = -1;
         if (flush < 0) flush = getenv("HV_IC_FLUSH") != NULL;
-        cpu->m->stats.flush_ic++;
+        HV_COUNT(cpu->m, cpu->m->stats.flush_ic);
         if (flush) cpu->m->flush_pending = 1;
         return 0;
     }

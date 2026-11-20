@@ -428,7 +428,7 @@ void hv_debug_el0_in_kernel(HvCpu *cpu, const char *what) {
                     (unsigned long long)m->stats.block_flushes, (unsigned long long)cpu->last_stub,
                     (unsigned long long)cpu->miss_site);
             for (int k = 15; k >= 0; k--) fprintf(stderr, " %llx", (unsigned long long)m->stats.recent[(m->stats.nrecent - 1 - k) & 15]);
-            fprintf(stderr, "\n  (%s) el changes, oldest first:\n", what);
+            fprintf(stderr, "\n  (%s) el changes, oldest first (both lists are kept only with HV_LOG):\n", what);
             for (int k = 15; k >= 0; k--) {
                 uint32_t i = (m->stats.nelchg - 1 - k) & 15;
                 if (m->stats.elchg[i].kind == 9)
@@ -797,7 +797,7 @@ static void chain(HvMachine *m, uint64_t *slot, HvBlock *b) {
             hv_jit_write(&m->jit, site, &insn, 4);
             hv_jit_finish_branch(&m->jit, site); /* B to B; the stub follows the slot meanwhile */
         }
-        m->stats.chained++;
+        HV_COUNT(m, m->stats.chained);
         if (m->stats_interval) m->stats.xchained++;
         pthread_mutex_unlock(&m->tr_mu);
         return;
@@ -819,7 +819,7 @@ static void chain(HvMachine *m, uint64_t *slot, HvBlock *b) {
             hv_jit_finish(&m->jit, cond, 1);
         }
     }
-    m->stats.chained++;
+    HV_COUNT(m, m->stats.chained);
 }
 
 static int run_loop(HvCpu *cpu, int one);
@@ -1094,7 +1094,10 @@ static int run_loop(HvCpu *cpu, int one) {
         prev_pc = cpu->pc;
         prev_b = b;
         if (m->stats_interval) m->stats.why[why]++;
-        m->stats.recent[m->stats.nrecent++ & 15] = cpu->pc | cpu->el;
+        /* The debugging ring and the block count are written by every CPU into the one machine struct, so
+           they cost a cache line bouncing between cores on every dispatcher pass: kept only when something
+           reads them (HV_LOG / gen checks for the ring, HV_STATS for the count; the app sums icount). */
+        if (__builtin_expect(m->log || m->gen_checks, 0)) m->stats.recent[m->stats.nrecent++ & 15] = cpu->pc | cpu->el;
         if (why == 5 && m->stats_interval) {
             int kind = 6;
             /* A plain walk: fetching could raise an abort in the guest. */
@@ -1116,8 +1119,10 @@ static int run_loop(HvCpu *cpu, int one) {
         cpu->exit_reason = HV_EXIT_BRANCH;
         cpu->last_stub = 0;
         cpu->icount++;
-        m->stats.blocks++;
-        if (m->stats_interval && cpu->index == 0 && (m->stats.blocks & 0xffff) == 0) print_stats(cpu, 0);
+        if (m->stats_interval) {
+            m->stats.blocks++;
+            if (cpu->index == 0 && (cpu->icount & 0xffff) == 0) print_stats(cpu, 0);
+        }
         if (m->gen_checks && ((uint64_t)(b->code - m->jit.base) >= m->jit.used || b->jit_gen != __atomic_load_n(&m->jit_gen, __ATOMIC_SEQ_CST)))
             fprintf(stderr, "hengevm: cpu %u entering %p (rx+%llx, used %llx) for va %llx: block gen %u, now %u, maker %u\n", cpu->index, (void *)b->code, (unsigned long long)(b->code - m->jit.base) * 4, (unsigned long long)m->jit.used * 4, (unsigned long long)b->va, b->jit_gen, m->jit_gen, b->maker);
         hv_enter(cpu, b->code);

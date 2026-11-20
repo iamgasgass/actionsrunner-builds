@@ -295,6 +295,12 @@ typedef struct HvMachine {
     uint64_t cntvoff;
 } HvMachine;
 
+/* A statistics counter in m->stats, counted only with HV_STATS on. Every CPU writes the one machine
+   struct, so an unconditional count on a path that runs thousands of times a second (context switches,
+   TLB flushes, instruction-fetch walks) bounces a cache line between the cores for nothing the app reads.
+   An expression, so it also fits the comma forms (count, act). */
+#define HV_COUNT(m, x) ((void)(__builtin_expect((m)->stats_interval != 0, 0) && ((x)++, 1)))
+
 static inline uint32_t hv_block_hash(uint64_t va, uint64_t pa, uint32_t flags) {
     uint64_t h = (va >> 2) ^ (pa >> 2) * 0x9e3779b97f4a7c15ull ^ flags;
     return (uint32_t)(h ^ (h >> 29)) & (HV_BLOCK_HASH - 1);

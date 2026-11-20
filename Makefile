@@ -140,13 +140,25 @@ IOS_CC = xcrun --sdk iphoneos clang -arch arm64 -miphoneos-version-min=17.0 -isy
 IOS_DEPS ?= $(if $(wildcard ios/deps/include/slirp/libslirp.h),$(CURDIR)/ios/deps,$(HOME)/Documents/Coding/Husk/build/ios-arm64/sysroot)
 IOS_CFLAGS = -std=c11 -Wall -Wextra -O2 -g -Icore -Ihost -Idevices -I$(IOS_DEPS)/include/slirp
 IB = build/ios
+# The engine itself (core/ and devices/) only runs once a Mac starts, and a Mac needs an A14 or M1 anyway
+# (the guest's Armv8.5 instructions run as they are): so it is built for the A14, which brings LSE atomics
+# (CAS, LDADD instead of LDXR/STXR loops: the MMU and the dispatcher are full of atomics) and lets the
+# compiler schedule for Apple's cores. Everything the app calls at launch (host/, the app's own C) keeps the
+# baseline, so an older iPhone still opens the app and sees "needs an A14" instead of crashing.
+IOS_ENGINE_CPU = -mcpu=apple-a14
 IOS_SRC = $(wildcard core/*.c) host/prof_ios.c host/jit_region.c host/disk.c host/vm.c host/snapshot.c host/dt_fixup.c host/net_slirp.c host/dns_proxy.c host/share.c host/audio_mac.c host/hvsparse.c host/usb_host.c \
           $(filter-out devices/pvg_mac.m,$(wildcard devices/*.c))
 IOS_OBJ = $(patsubst %.c,$(IB)/%.o,$(IOS_SRC)) $(IB)/host/enter.o $(IB)/devices/pvg_metal.o
 
 $(IB)/core/mmu.o: core/mmu.c core/*.h host/*.h devices/*.h
 	@mkdir -p $(dir $@)
-	$(IOS_CC) $(IOS_CFLAGS) -mgeneral-regs-only -c $< -o $@
+	$(IOS_CC) $(IOS_CFLAGS) $(IOS_ENGINE_CPU) -mgeneral-regs-only -c $< -o $@
+$(IB)/core/%.o: core/%.c core/*.h host/*.h devices/*.h
+	@mkdir -p $(dir $@)
+	$(IOS_CC) $(IOS_CFLAGS) $(IOS_ENGINE_CPU) -c $< -o $@
+$(IB)/devices/%.o: devices/%.c core/*.h host/*.h devices/*.h
+	@mkdir -p $(dir $@)
+	$(IOS_CC) $(IOS_CFLAGS) $(IOS_ENGINE_CPU) -c $< -o $@
 $(IB)/%.o: %.c core/*.h host/*.h devices/*.h
 	@mkdir -p $(dir $@)
 	$(IOS_CC) $(IOS_CFLAGS) -c $< -o $@

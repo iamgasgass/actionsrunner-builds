@@ -43,10 +43,13 @@ void hv_pstate_set(HvCpu *cpu, uint64_t spsr) {
 }
 
 void hv_take_exception(HvCpu *cpu, int type, uint32_t esr, uint64_t far, int set_far, uint64_t ret) {
-    if (type == HV_EXC_SYNC) cpu->m->stats.exceptions++;
-    else cpu->m->stats.interrupts++;
+    /* Shared by every CPU (see the dispatcher's note): counted for HV_STATS, ring kept for HV_LOG. */
+    if (cpu->m->stats_interval) {
+        if (type == HV_EXC_SYNC) cpu->m->stats.exceptions++;
+        else cpu->m->stats.interrupts++;
+    }
     uint64_t spsr = hv_pstate_get(cpu);
-    {
+    if (__builtin_expect(cpu->m->log || cpu->m->gen_checks, 0)) {
         HvStats *st = &cpu->m->stats;
         uint32_t k = st->nelchg++ & 15;
         st->elchg[k].from = ret, st->elchg[k].spsr = spsr, st->elchg[k].kind = (uint32_t)type, st->elchg[k].el = cpu->el;
@@ -111,7 +114,7 @@ void hv_raise_abort(HvCpu *cpu, int insn, uint64_t va, uint32_t fsc, int wnr, in
 }
 
 void hv_eret(HvCpu *cpu) {
-    if (cpu->m) {
+    if (cpu->m && __builtin_expect(cpu->m->log || cpu->m->gen_checks, 0)) { /* the debugging ring: see hv_take_exception */
         HvStats *st = &cpu->m->stats;
         uint32_t k = st->nelchg++ & 15;
         st->elchg[k].from = cpu->pc, st->elchg[k].to = cpu->elr_el1, st->elchg[k].spsr = cpu->spsr_el1;

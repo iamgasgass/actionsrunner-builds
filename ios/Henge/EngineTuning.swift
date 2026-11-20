@@ -15,7 +15,10 @@ enum EngineTuning {
         "HV_HZ": "60",         // the refresh rate macOS is told its display has
         "HV_WFI_SPIN": "0",    // microseconds an idle CPU watches for work before sleeping
         "HV_FLUSH": "2",       // disk flush: F_BARRIERFSYNC, ordered but without a full fsync
-        "HV_STATS": "10",      // seconds between engine stats lines in the log; 0 = off
+        // Engine statistics: off. When on, every CPU counts into shared counters on the hot paths and
+        // re-walks page tables for the slow-path breakdown, which costs real speed. For diagnosis, put
+        // HV_STATS=10 (seconds between stats lines in the log) in Documents/henge-env.txt.
+        "HV_STATS": "0",
     ]
 
     static func apply() {
