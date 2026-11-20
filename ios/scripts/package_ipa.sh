@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds macOSiOS X for iOS and writes ~/Desktop/macOSiOS-X.ipa (or ~/Desktop/macOSiOS-X.tipa with --trollstore).
+# Builds Henge X for iOS and writes ~/Desktop/Henge-X.ipa (or ~/Desktop/Henge-X.tipa with --trollstore).
 # (The Xcode target keeps Henge's name, so the bundle inside is Payload/Henge.app.)
 # Unsigned build, then signed ad hoc inside out with the entitlements file named by the
 # HENGE_ENTITLEMENTS environment variable (default Henge/Henge.entitlements), as Husk's
@@ -10,7 +10,7 @@ set -e
 IOS="$(cd "$(dirname "$0")/.." && pwd)"
 TROLLSTORE=false
 [ "$1" = "--trollstore" ] && TROLLSTORE=true
-OUT="${HENGE_IPA_OUT:-$HOME/Desktop/macOSiOS-X.ipa}" # HENGE_IPA_OUT: somewhere else (a trial build that must not replace the one on the Desktop)
+OUT="${HENGE_IPA_OUT:-$HOME/Desktop/Henge-X.ipa}" # HENGE_IPA_OUT: somewhere else (a trial build that must not replace the one on the Desktop)
 [ "$TROLLSTORE" = true ] && OUT="${OUT%.ipa}.tipa"
 [ -d "$IOS/deps/StikJIT.xcframework" ] || "$IOS/scripts/fetch_deps.sh"
 cd "$IOS"
@@ -34,7 +34,7 @@ rm -f "$PROBE"
 PROBE="$IOS/build/probe_hinge.swift"
 printf 'import UIKit\n@available(iOS 27.1, *) func probe(_ v: UIView) { v.addInteraction(UIHingeInteraction { _, u in if let h = u.hinge { _ = (h.status.rawValue, Double(h.angle)) } }) }\n' > "$PROBE"
 if xcrun --sdk iphoneos swiftc -typecheck -sdk "$SDK_PATH" -target arm64-apple-ios17.0 "$PROBE" >/dev/null 2>&1; then
-    CONDITIONS="$CONDITIONS MACOSIOSX_HINGE"
+    CONDITIONS="$CONDITIONS HENGEX_HINGE"
     echo "UIHingeInteraction: yes (iPhone Duo hinge sensor compiled in)"
 else
     echo "UIHingeInteraction: not in this SDK, building without the hinge sensor"

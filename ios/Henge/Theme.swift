@@ -1,19 +1,24 @@
 import SwiftUI
 import UIKit
 
-/// The Desk: a quiet page, cards on it with a hairline edge, and one blue for what you press.
-/// A Mac's screen is the only colourful thing here. Dark, or light (Settings › Appearance);
-/// a running Mac's session is always dark.
+/// The Desk: a quiet page, cards on it with a hairline edge, and one violet for what you press.
+/// A Mac's screen is the only colourful thing here. Dark (also System when iOS is dark), or light
+/// (Settings › Appearance); a running Mac's session is always dark.
+///
+/// Henge X: dark is iOS dark mode's own palette, true black underneath: the page is systemBackground
+/// (#000000), cards secondarySystemBackground (#1C1C1E), raised parts tertiarySystemBackground (#2C2C2E),
+/// text label (white) and the greys systemGray / systemGray2. The accent is the icon's violet.
 enum Desk {
-    static let page = tone(light: (242, 243, 247), dark: (11, 12, 16))
-    static let card = tone(light: (255, 255, 255), dark: (22, 24, 31))
-    static let raised = tone(light: (228, 230, 236), dark: (35, 38, 47))
-    static let text = tone(light: (17, 19, 24), dark: (242, 243, 247))
-    static let dim = tone(light: (92, 97, 112), dark: (144, 149, 164))
-    static let faint = tone(light: (138, 143, 157), dark: (106, 111, 126))
-    static let accent = Color(red: 46 / 255, green: 107 / 255, blue: 1)
-    /// Blue for tints and text: lighter on the dark page, deeper on the light one.
-    static let accentLight = tone(light: (31, 91, 235), dark: (91, 141, 255))
+    static let page = tone(light: (242, 243, 247), dark: (0, 0, 0))
+    static let card = tone(light: (255, 255, 255), dark: (28, 28, 30))
+    static let raised = tone(light: (228, 230, 236), dark: (44, 44, 46))
+    static let text = tone(light: (17, 19, 24), dark: (255, 255, 255))
+    static let dim = tone(light: (92, 97, 112), dark: (142, 142, 147))
+    static let faint = tone(light: (138, 143, 157), dark: (99, 99, 102))
+    /// The icon's violet (its background between the top and the middle), for fills under white text.
+    static let accent = Color(red: 118 / 255, green: 90 / 255, blue: 240 / 255)
+    /// The same violet for tints and text: lighter on the black page, deeper on the light one.
+    static let accentLight = tone(light: (98, 70, 222), dark: (164, 138, 255))
     static let good = tone(light: (20, 145, 90), dark: (57, 217, 138))
     static let warn = tone(light: (184, 119, 0), dark: (255, 188, 46))
     static let bad = tone(light: (210, 56, 43), dark: (255, 122, 112))

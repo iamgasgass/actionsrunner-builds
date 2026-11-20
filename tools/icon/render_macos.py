@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# macOSiOS X app icon, made as WindowsiOS X's (tools/icon/render_windows.py on that branch), which follows
+# Henge X app icon, made as WindowsiOS X's (tools/icon/render_windows.py on that branch), which follows
 # Husk's icon: Husk drew Android's head as an Apple apple (with the bite and the leaf), WindowsiOS X gave
 # Windows' four panes the bite and the leaf; here a macOS window (title bar and traffic lights) gets them.
 # Same glass look, same rounded square, same leaf, in macOS's violet and blue.

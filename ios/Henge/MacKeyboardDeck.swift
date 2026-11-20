@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// macOSiOS X: the deck under the Mac's screen, upright, made like the lower half of a MacBook, after
+// Henge X: the deck under the Mac's screen, upright, made like the lower half of a MacBook, after
 // Huy Nguyen's video of macOS 27.2 on the half-folded iPhone Duo (Henge with "some keyboard on the
-// extended screen"), in macOSiOS X 1.0.0's colours on an iOS dark mode deck (near-black keys in a dark well,
+// extended screen"), in Henge X 1.0.0's colours on an iOS dark mode deck (near-black keys in a dark well,
 // Henge's Desk colours for the tools): a deck with a grab bar, four small buttons at its top right
 // (keyboard, laptop, info, power), a MacBook keyboard with its real function row (brightness, Mission
 // Control, Spotlight, dictation, Do Not Disturb, media, mute and volume, Touch ID), and a large trackpad
@@ -21,7 +21,7 @@ enum DeckLayout: String, CaseIterable {
     case laptop
     case trackpad
 
-    static let key = "macosiosx.deck.layout"
+    static let key = "hengex.deck.layout"
 
     var toggled: DeckLayout { self == .laptop ? .trackpad : .laptop }
 }
@@ -48,7 +48,7 @@ enum SceneOrientation {
     }
 }
 
-/// The deck's colours: exactly those of macOSiOS X 1.0.0 (commit 2ef2084), on a deck in iOS dark mode's colours,
+/// The deck's colours: exactly those of Henge X 1.0.0 (commit 2ef2084), on a deck in iOS dark mode's colours,
 /// and Henge's own Desk colours for the session's tools and the trackpad panel.
 private enum DeckColor {
     // The deck's background: iOS dark mode's own colours, secondarySystemBackground (#1C1C1E) at the top

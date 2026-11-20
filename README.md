@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/icon.png" width="128" height="128" alt="Icona di macOSiOS X">
+<img src="docs/icon.png" width="128" height="128" alt="Icona di Henge X">
 
-# macOSiOS X
+# Henge X
 
 **macOS su iPhone e iPad, senza jailbreak, senza Mac e senza PC.**
 Si installa direttamente sul telefono, dai server di Apple.
@@ -13,7 +13,7 @@ Si installa direttamente sul telefono, dai server di Apple.
 
 ---
 
-> **In una riga:** macOSiOS X è la copia di [WindowsiOS X](../../tree/claude/nice-johnson-xmx741) (branch
+> **In una riga:** Henge X è la copia di [WindowsiOS X](../../tree/claude/nice-johnson-xmx741) (branch
 > `claude/nice-johnson-xmx741`) in cui **Windows 11 è sostituito da macOS** in ogni sua parte: sistema ospite,
 > installazione, tastiera, scorciatoie, icona, nomi. Il motore che fa girare macOS è quello di
 > [Henge](https://github.com/Leviidev/Henge) (branch `henge` di questo repository), l'unico che emula la
@@ -41,7 +41,7 @@ Si installa direttamente sul telefono, dai server di Apple.
 
 ## 1. Cos'è
 
-macOSiOS X esegue **macOS originale e non modificato** (Ventura, Sonoma, Sequoia, Tahoe, macOS 27) dentro
+Henge X esegue **macOS originale e non modificato** (Ventura, Sonoma, Sequoia, Tahoe, macOS 27) dentro
 un'app iOS. Non usa `Hypervisor.framework` né `Virtualization.framework`, che sugli iPhone non jailbroken non
 ci sono. Usa invece:
 
@@ -58,7 +58,7 @@ integrato** nell'app (iOS 26 o successivo, abbinamento sul dispositivo).
 
 ## 2. Cosa cambia rispetto a WindowsiOS X
 
-| | WindowsiOS X | **macOSiOS X** |
+| | WindowsiOS X | **Henge X** |
 | :--- | :--- | :--- |
 | Sistema ospite | Windows 11 Pro ARM64 | **macOS** 13.6 – 27.2 (consigliato **Sequoia 15.6.1**) |
 | Piattaforma virtuale | PC UEFI (EDK2, ACPI, NVMe, xHCI, HDA) | **Mac virtuale `vmapple`** (AVPBooter, iBoot, VirtIO, GPU paravirtuale Apple) |
@@ -67,7 +67,7 @@ integrato** nell'app (iOS 26 o successivo, abbinamento sul dispositivo).
 | Installazione | disco WinPE scritto sull'iPhone (wimlib + FatFs), `startnet.cmd`, `unattend.xml` | **ripristino come su un Mac vero**: modalità DFU, `idevicerestore`, firma personalizzata da Apple (TSS) |
 | Firmware | EDK2 di QEMU, incluso nell'app | **boot ROM di Apple scaricata da Apple** all'installazione, verificata con SHA-256, mai inclusa nell'app |
 | Driver di rete | NetKVM + disco "Tools" | **nessuno**: macOS ha già i driver VirtIO |
-| Disco ausiliario | WINIOSTOOLS (D:) | **cartella condivisa** (File › macOSiOS X › Shared ↔ `~/Henge` sul Mac) e **appunti** condivisi |
+| Disco ausiliario | WINIOSTOOLS (D:) | **cartella condivisa** (File › Henge X › Shared ↔ `~/Henge` sul Mac) e **appunti** condivisi |
 | Tastiera del deck | Surface Laptop: Ctrl, Fn, ⊞ Win, Alt | **Magic Keyboard**: fn/🌐, ⌃ control, ⌥ option, ⌘ command |
 | Tasti funzione | Start, Cerca, Esplora file, Edge, Paint… | **Spotlight, Finder, Safari, Terminale, Mission Control, Scrivania…** ([§8](#8-interfaccia-modalità-laptop-e-studio)) |
 | Trackpad | tablet assoluto USB | **Magic Trackpad 2**: i gesti di macOS (2 dita scorre, 3 dita Spaces/Mission Control) |
@@ -78,11 +78,11 @@ integrato** nell'app (iOS 26 o successivo, abbinamento sul dispositivo).
 | iPhone Duo | sensore cerniera (`UIHingeInteraction`) | **uguale**: piegato a portatile → Laptop |
 | Riga del dispositivo | `IPHONE 14 PRO · 6 GB · 2560 MB / 4 VCPU` | `IPHONE 14 PRO · 6 GB · 3 GB / 5 VCPU` |
 | Firma | firma automatica, bundle ID `com.iamgasgass.windowsiosx` | firma automatica, bundle ID **`com.iamgasgass.macosiosx`** |
-| Compilazione | GitHub Actions → `WindowsiOS-X.ipa` | GitHub Actions → **`macOSiOS-X.ipa`** e **`macOSiOS-X.tipa`** (TrollStore) |
+| Compilazione | GitHub Actions → `WindowsiOS-X.ipa` | GitHub Actions → **`Henge-X.ipa`** e **`Henge-X.tipa`** (TrollStore) |
 | Icona | logo Windows con morso e foglia | **finestra macOS** (barra del titolo, tre "semafori") con morso e foglia |
-| Nome | WindowsiOS X | **macOSiOS X** |
+| Nome | WindowsiOS X | **Henge X** |
 
-Rispetto a Henge, macOSiOS X aggiunge: il **deck Laptop** con tastiera Mac completa e trackpad, la
+Rispetto a Henge, Henge X aggiunge: il **deck Laptop** con tastiera Mac completa e trackpad, la
 **modalità Studio** con il pulsante per tornare a Laptop, il **sensore cerniera** dell'iPhone Duo, la **riga del
 dispositivo** nella schermata iniziale, il nome, l'icona, il bundle ID, il workflow `build-ipa.yml` e questa
 documentazione in italiano.
@@ -92,7 +92,7 @@ documentazione in italiano.
 La regola è la stessa di WindowsiOS X e di Henge: **iOS 17 o successivo, chip A14 / M1 o più recente**. La CPU
 virtuale dichiara a macOS istruzioni Armv8.5 (`core/sysreg.c`) e il JIT le passa così come sono al processore
 dell'iPhone. Un A13 o precedente non le ha: l'app lo rileva dal modello e mostra
-*"macOS won't run on this iPhone. macOSiOS X needs an A14 or M1 chip or newer."*
+*"macOS won't run on this iPhone. Henge X needs an A14 or M1 chip or newer."*
 
 | RAM del dispositivo | iPhone / iPad | Memoria proposta per un nuovo Mac | vCPU (auto) | Stato |
 | :--- | :--- | :---: | :---: | :--- |
@@ -124,8 +124,8 @@ audio e schermo), mai più di 6. Se all'avvio la memoria non si riesce a riserva
 un modo per il JIT (StikDebug, TrollStore, jailbreak o l'helper integrato su iOS 26+), Wi-Fi e il dispositivo in
 carica.
 
-1. **Installa l'app.** Scarica `macOSiOS-X.ipa` da GitHub (*Actions → Build IPA → ultima run → Artifacts*,
-   oppure dalla pagina *Releases*) e caricala con SideStore o AltStore; con TrollStore usa `macOSiOS-X.tipa`.
+1. **Installa l'app.** Scarica `Henge-X.ipa` da GitHub (*Actions → Build IPA → ultima run → Artifacts*,
+   oppure dalla pagina *Releases*) e caricala con SideStore o AltStore; con TrollStore usa `Henge-X.tipa`.
 2. **Aprila.** In cima alla scheda *Macs* vedi il modello, la RAM e cosa riceverà un Mac, ad esempio
    `IPHONE 14 PRO · 6 GB · 3 GB / 5 VCPU`. Toccando quella riga apri le impostazioni.
 3. **Attiva il JIT** dalla scheda *Settings › JIT* (il metodo *Automatic* sceglie da solo tra StikDebug,
@@ -170,10 +170,10 @@ flowchart TD
 È l'equivalente del disco "WindowsiOS X Tools", ma per macOS non servono driver: serve solo collegare i file e
 gli appunti.
 
-- **Configurazione (una volta per ogni Mac):** apri *Terminale* nel Mac, poi in macOSiOS X apri *Details* e tocca
+- **Configurazione (una volta per ogni Mac):** apri *Terminale* nel Mac, poi in Henge X apri *Details* e tocca
   **Type the Set Up Command**; premi Invio nel Mac e scegli *Consenti* quando macOS chiede di `henge-agent` e
   delle reti locali. Serve la tastiera del Mac in layout **U.S.** per quel momento.
-- **Cartella:** File › *macOSiOS X* › *Shared* sull'iPhone è la stessa cartella di `~/Henge` nel Mac.
+- **Cartella:** File › *Henge X* › *Shared* sull'iPhone è la stessa cartella di `~/Henge` nel Mac.
 - **Appunti:** ciò che copi nel Mac arriva sull'iPhone; il pulsante *Incolla* della barra incolla dall'iPhone
   nel Mac (iOS non chiede permessi per quel pulsante).
 - Il server è un piccolo WebDAV su un socket Unix interno all'app: nessuna porta TCP aperta, le altre app non
@@ -248,11 +248,11 @@ possono fare da pulsanti (su = clic, giù = clic destro).
 | :--- | :--- | :--- |
 | **Aggiornare** l'IPA sopra l'app esistente (stesso bundle ID) | ✅ sì | niente |
 | **Cancellare** l'app e reinstallarla | ❌ no, iOS cancella i dati | prima esporta il Mac (sotto) |
-| Passare da **Henge** (`com.henge.app` o altro) a **macOSiOS X** | ❌ per iOS è un'altra app | esporta da Henge e importa in macOSiOS X |
+| Passare da **Henge** (`com.henge.app` o altro) a **Henge X** | ❌ per iOS è un'altra app | esporta da Henge e importa in Henge X |
 
 **Esportare / importare un Mac:**
-1. Spegni il Mac. Nella sua scheda tocca **Export** (finisce in File › *macOSiOS X* › *Exports*), poi
-   **Move Out of macOSiOS X…** per spostarlo fuori dall'app.
+1. Spegni il Mac. Nella sua scheda tocca **Export** (finisce in File › *Henge X* › *Exports*), poi
+   **Move Out of Henge X…** per spostarlo fuori dall'app.
 2. Nella nuova app: **+** › *Bring in a Mac from a computer…* e scegli la cartella esportata.
    Un Mac creato su un Mac vero si prepara con `tools/export_ios.sh DISK AUX ECID [NOME]`.
 
@@ -261,7 +261,7 @@ possono fare da pulsanti (su = clic, giù = clic destro).
 | Sintomo | Causa | Soluzione |
 | :--- | :--- | :--- |
 | *"macOS won't run on this iPhone … A14 or M1"* | chip A13 o precedente | non risolvibile: servono le istruzioni Armv8.5 |
-| *JIT off* / il Mac non parte | JIT non attivo | *Settings › JIT*; con StikDebug apri l'app da macOSiOS X, non dall'elenco di StikDebug |
+| *JIT off* / il Mac non parte | JIT non attivo | *Settings › JIT*; con StikDebug apri l'app da Henge X, non dall'elenco di StikDebug |
 | iOS chiude l'app durante *Write macOS* o l'uso | memoria | abbassa la memoria del Mac; firma con `increased-memory-limit` |
 | *"Not enough free space"* | vedi tabella in [§3](#3-dispositivi-compatibili) | libera spazio o scegli Ventura/Sonoma; il download parziale riprende |
 | *"The partial download did not match Apple's file"* | download danneggiato | riparte da solo |
@@ -274,17 +274,17 @@ possono fare da pulsanti (su = clic, giù = clic destro).
 ## 11. Compilare l'app
 
 ### Su GitHub Actions (consigliato, non serve un Mac)
-`.github/workflows/build-ipa.yml` parte a ogni push su `main` e `claude/**`, su ogni tag `macosiosx-v*` e a
+`.github/workflows/build-ipa.yml` parte a ogni push su `main` e `claude/**`, su ogni tag `hengex-v*` e a
 mano (*Run workflow*). Su `macos-26`:
-1. **Xcode più recente** del runner (beta comprese, minimo 26; la variabile `MACOSIOSX_XCODE` lo fissa);
+1. **Xcode più recente** del runner (beta comprese, minimo 26; la variabile `HENGEX_XCODE` lo fissa);
 2. librerie iOS compilate da [Husk](https://github.com/Leviidev/Husk) e messe in cache: libffi, glib, libslirp,
    libreria di abbinamento, StikJIT;
 3. stack di ripristino (`tools/build_ios_restore.sh`): libirecovery, usbmuxd, idevicerestore e dipendenze;
 4. `make ios-lib` → motore;
-5. **prove dell'SDK**: compila un file Swift di una riga per `UIHingeInteraction` (→ `MACOSIOSX_HINGE`) e per
+5. **prove dell'SDK**: compila un file Swift di una riga per `UIHingeInteraction` (→ `HENGEX_HINGE`) e per
    l'accessorio di scena iOS 27 (→ `HENGE_SCENE_ACCESSORY`);
-6. app non firmata, poi firma ad hoc con gli entitlement → **`macOSiOS-X.ipa`** e **`macOSiOS-X.tipa`**;
-7. artifact `macOSiOS-X-<versione>-<commit>`; con un tag `macosiosx-v*` (o *release* manuale) anche una
+6. app non firmata, poi firma ad hoc con gli entitlement → **`Henge-X.ipa`** e **`Henge-X.tipa`**;
+7. artifact `Henge-X-<versione>-<commit>`; con un tag `hengex-v*` (o *release* manuale) anche una
    GitHub Release.
 
 Il pulsante *Run workflow* compare solo se il workflow si trova sul branch predefinito del repository.
@@ -296,8 +296,8 @@ brew install xcodegen meson ninja pkg-config cmake
 ios/scripts/fetch_deps.sh
 tools/build_ios_restore.sh
 make ios-lib
-MACOSIOSX_TEAM_ID=XXXXXXXXXX ios/scripts/package_ipa.sh        # → ~/Desktop/macOSiOS-X.ipa
-ios/scripts/package_ipa.sh --trollstore                         # → ~/Desktop/macOSiOS-X.tipa
+HENGEX_TEAM_ID=XXXXXXXXXX ios/scripts/package_ipa.sh        # → ~/Desktop/Henge-X.ipa
+ios/scripts/package_ipa.sh --trollstore                         # → ~/Desktop/Henge-X.tipa
 ```
 Il bundle ID è `com.iamgasgass.macosiosx`. Gli entitlement sono `get-task-allow` (JIT),
 `dynamic-codesigning`, `increased-memory-limit` (consigliato) ed `extended-virtual-addressing`; con un team
@@ -308,17 +308,17 @@ personale gratuito usa `Henge/Henge.personal.entitlements` (vedi [ios/README.md]
 ## 12. Struttura del repository
 
 ```text
-macOSiOS X/
+Henge X/
 ├── core/                 motore JIT ARM64→ARM64, MMU software, registri di sistema (da Henge)
 ├── devices/              Mac virtuale vmapple: GICv3, PCIe, VirtIO, xHCI (tastiera + Magic Trackpad 2),
 │                         AES, cfg, bdif, USB virtio, GPU paravirtuale (pvg_lite.c + pvg_metal.m)
 ├── host/                 memoria, regione JIT, dischi, rete slirp + DNS, condivisione WebDAV, installazione
 ├── ios/
 │   ├── project.yml          progetto XcodeGen (nome visibile, bundle ID, entitlement)
-│   ├── scripts/package_ipa.sh  build + prove dell'SDK + firma ad hoc → macOSiOS-X.ipa / .tipa
+│   ├── scripts/package_ipa.sh  build + prove dell'SDK + firma ad hoc → Henge-X.ipa / .tipa
 │   ├── Henge/               l'app (i nomi interni restano quelli di Henge)
 │   │   ├── MacKeyboardDeck.swift  deck Laptop: tastiera Mac + trackpad, Studio, rotazione
-│   │   ├── HingeSensor.swift      sensore cerniera dell'iPhone Duo (MACOSIOSX_HINGE)
+│   │   ├── HingeSensor.swift      sensore cerniera dell'iPhone Duo (HENGEX_HINGE)
 │   │   ├── SessionView.swift      sessione: Laptop / Studio, barra, zoom, dettagli
 │   │   ├── HomeView.swift         schermata Macs, riga del dispositivo
 │   │   ├── Hardware.swift         profilo del dispositivo: RAM, vCPU, chip, tastiera e mouse fisici
@@ -336,7 +336,7 @@ macOSiOS X/
 ├── tests/                test del motore
 ├── docs/                 architettura, licenze, icona, changelog di Henge
 ├── .github/workflows/build-ipa.yml   build dell'IPA
-└── CHANGELOG.md          cronologia delle versioni di macOSiOS X
+└── CHANGELOG.md          cronologia delle versioni di Henge X
 ```
 
 ## 13. Cosa è verificato e cosa no
@@ -344,7 +344,7 @@ macOSiOS X/
 | Parte | Stato |
 | :--- | :--- |
 | Motore Henge: installazione e avvio di Sequoia, Tahoe, macOS 27, Sonoma, Ventura su **iPhone 17 Pro** | ✅ verificato a monte (Henge) |
-| Compilazione di `macOSiOS-X.ipa` e `.tipa` su GitHub Actions (`macos-26`) | ✅ verificato (run #12, commit `2ef2084`) |
+| Compilazione di `Henge-X.ipa` e `.tipa` su GitHub Actions (`macos-26`) | ✅ verificato (run #12, commit `2ef2084`) |
 | Deck Laptop (tastiera Mac + trackpad), Studio, rotazione, riga del dispositivo | ⏳ da provare su dispositivo |
 | iPhone da 4 e 6 GB | ⏳ non ancora provati con macOS |
 | Sensore cerniera dell'iPhone Duo | ⏳ richiede l'SDK iOS 27.1 nel runner |
@@ -382,7 +382,7 @@ Architettura: [docs/architecture.md](docs/architecture.md). Spegnimento: [docs/g
   </tr>
 </table>
 
-<sub>Schermate di Henge, il motore di macOSiOS X; l'interfaccia di macOSiOS X aggiunge il deck Laptop.</sub>
+<sub>Schermate di Henge, il motore di Henge X; l'interfaccia di Henge X aggiunge il deck Laptop.</sub>
 
 ## 15. Crediti e licenze
 
@@ -396,6 +396,6 @@ Architettura: [docs/architecture.md](docs/architecture.md). Spegnimento: [docs/g
 Licenza **GPL-2.0-or-later**: l'app include usbmuxd (GPLv2 o GPLv3) e codice di Husk (GPL-2.0-or-later), quindi
 il binario è un'opera GPL combinata e non può andare sull'App Store. Vedi [docs/licensing.md](docs/licensing.md).
 
-**macOS e la boot ROM del Mac sono di Apple e non fanno parte di macOSiOS X**: l'app li scarica da Apple durante
+**macOS e la boot ROM del Mac sono di Apple e non fanno parte di Henge X**: l'app li scarica da Apple durante
 l'installazione. macOS, Mac, iPhone, iPad, Safari, Finder, Spotlight e Mission Control sono marchi di Apple Inc.;
 Windows è un marchio di Microsoft. Questo progetto non è affiliato né all'una né all'altra.

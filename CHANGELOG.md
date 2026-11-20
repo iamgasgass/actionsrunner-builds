@@ -1,4 +1,4 @@
-# Changelog — macOSiOS X
+# Changelog — Henge X
 
 Copia di **WindowsiOS X** (branch `claude/nice-johnson-xmx741`) con **macOS al posto di Windows 11**, sul motore
 di [Henge](https://github.com/Leviidev/Henge) (branch `henge` di questo repository, commit `252f482`).
@@ -6,6 +6,14 @@ La cronologia del motore è in [docs/CHANGELOG-Henge.md](docs/CHANGELOG-Henge.md
 e limiti sono descritti nel [README](README.md).
 
 ## Non pubblicata
+
+### Henge X
+- Nuovo nome **Henge X** ovunque: nome dell'app, testi, JIT helper, IPA `Henge-X.ipa` / `Henge-X.tipa`, variabili
+  `HENGEX_TEAM_ID`, `HENGEX_XCODE`, `HENGEX_HINGE`, tag di release `hengex-v*`, documentazione. Il **bundle ID resta**
+  `com.iamgasgass.macosiosx`: cambiarlo farebbe vedere a iOS un'app nuova e il Mac già installato resterebbe in quella vecchia.
+- **Modalità scura come quella di iOS, con il nero vero**: sfondo `#000000`, schede `#1C1C1E`, parti in rilievo `#2C2C2E`,
+  testo bianco, grigi di sistema; vale con *Dark* e con *System* quando iOS è scuro.
+- **Colore di accento viola, quello dell'icona** (pulsanti, schede, interruttori, link), al posto del blu.
 
 ### Motore più veloce
 - **Statistiche diagnostiche spente di default** (`HV_STATS=0` in `EngineTuning.swift`). Erano sempre accese:
@@ -47,16 +55,16 @@ e limiti sono descritti nel [README](README.md).
 - **Laptop e Studio**: verticale = Laptop, orizzontale = Studio a schermo intero; nuovo pulsante **Laptop** nella
   barra di Studio su iPhone.
 - **Sensore cerniera dell'iPhone Duo** (`ios/Henge/HingeSensor.swift`): piegato a portatile → Laptop.
-  Compilato solo se l'SDK ha `UIHingeInteraction` (`MACOSIOSX_HINGE`, prova in `package_ipa.sh`).
+  Compilato solo se l'SDK ha `UIHingeInteraction` (`HENGEX_HINGE`, prova in `package_ipa.sh`).
 - **Riga del dispositivo** nella schermata *Macs*: `IPHONE 14 PRO · 6 GB · 3 GB / 5 VCPU` (modello, RAM, memoria
   proposta per un Mac, vCPU); tocca per le impostazioni.
-- **Nome e identità**: *macOSiOS X*, bundle ID `com.iamgasgass.macosiosx`, versione 1.0.0 (102), team di firma
-  da `MACOSIOSX_TEAM_ID`; tutti i testi visibili dell'app dicono macOSiOS X.
+- **Nome e identità**: *Henge X*, bundle ID `com.iamgasgass.macosiosx`, versione 1.0.0 (102), team di firma
+  da `HENGEX_TEAM_ID`; tutti i testi visibili dell'app dicono Henge X.
 - **Icona** (`tools/icon/render_macos.py`): come quella di WindowsiOS X (dall'icona di Husk, con morso e foglia),
   ma con una finestra macOS e i tre "semafori" al posto dei quattro riquadri di Windows; chiara, scura e tinta.
-- **CI** `.github/workflows/build-ipa.yml`: push su `main` e `claude/**`, tag `macosiosx-v*`, avvio manuale;
-  Xcode più recente (beta comprese, `MACOSIOSX_XCODE` per fissarlo); produce **`macOSiOS-X.ipa`** e
-  **`macOSiOS-X.tipa`**.
+- **CI** `.github/workflows/build-ipa.yml`: push su `main` e `claude/**`, tag `hengex-v*`, avvio manuale;
+  Xcode più recente (beta comprese, `HENGEX_XCODE` per fissarlo); produce **`Henge-X.ipa`** e
+  **`Henge-X.tipa`**.
 - **README in italiano** completo, con la stessa struttura di quello di WindowsiOS X.
 
 ### Sostituito da macOS (nulla di Windows rimane)
@@ -66,4 +74,4 @@ e limiti sono descritti nel [README](README.md).
 
 ### Rimosso da Henge
 - La sorgente AltStore di Leviidev (`repo.json`, `tools/update-source.py`) e la build Bitrise (`bitrise.yml`, `ci/`)
-  di un fork: macOSiOS X si compila con il suo workflow.
+  di un fork: Henge X si compila con il suo workflow.

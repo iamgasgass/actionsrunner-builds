@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// macOSiOS X: the iPhone Duo's hinge, as WindowsiOS X reads it (its HingeSensorView.swift). Folded partly
+// Henge X: the iPhone Duo's hinge, as WindowsiOS X reads it (its HingeSensorView.swift). Folded partly
 // open, like a laptop, the session turns upright so the fold runs between the Mac's screen and the deck
 // (Laptop); opened flat, it leaves the orientation to the device (on its side: Studio).
 //
-// UIHingeInteraction is only in the iOS 27.1 SDK. ios/scripts/package_ipa.sh adds MACOSIOSX_HINGE when the
+// UIHingeInteraction is only in the iOS 27.1 SDK. ios/scripts/package_ipa.sh adds HENGEX_HINGE when the
 // SDK type-checks a probe that uses it; with an older SDK this compiles to nothing and every device takes
 // its layout from its orientation alone.
 import SwiftUI
@@ -44,7 +44,7 @@ struct HingeSensorView: UIViewRepresentable {
             super.didMoveToWindow()
             guard window != nil, !installed, Hinge.present, NSClassFromString("UIHingeInteraction") != nil else { return }
             installed = true
-            #if MACOSIOSX_HINGE
+            #if HENGEX_HINGE
             if #available(iOS 27.1, *) {
                 addInteraction(UIHingeInteraction { [weak self] _, update in
                     guard let hinge = update.hinge else { self?.onUpdate?(0, nil); return }

@@ -1,16 +1,16 @@
 # .github/workflows/build-ipa.yml
 #
-# macOSiOS X: builds macOSiOS-X.ipa (SideStore / AltStore) and macOSiOS-X.tipa (TrollStore) for every
+# Henge X: builds Henge-X.ipa (SideStore / AltStore) and Henge-X.tipa (TrollStore) for every
 # supported iPhone and iPad (A14 / M1 or newer, iOS 17+), from a clean checkout, as WindowsiOS X's
 # build-ipa.yml builds WindowsiOS-X.ipa.
 #
 #   push to main or claude/**                build, keep both files as workflow artifacts
-#   push of a tag like macosiosx-v1.0.0      the same, and publish them on that tag's release
+#   push of a tag like hengex-v1.0.0      the same, and publish them on that tag's release
 #   Run workflow (Actions tab, manual)       the same from the branch you pick; "release" also publishes
 #
 # "Unsigned" as sideloaders mean it: ad hoc signed with the entitlements embedded (ios/scripts/package_ipa.sh),
 # so SideStore / AltStore re-sign it at install and TrollStore installs the .tipa as it is.
-# Builds with the newest Xcode on the runner, betas included (26 or later; the variable MACOSIOSX_XCODE pins
+# Builds with the newest Xcode on the runner, betas included (26 or later; the variable HENGEX_XCODE pins
 # one). The iPhone Duo's hinge sensor (UIHingeInteraction) is compiled in only when that SDK has it.
 # The engine links a few iOS libraries built from Leviidev/Husk (glib, libslirp, the pairing library,
 # StikJIT): they are built here and cached, so only the first run is slow.
@@ -20,7 +20,7 @@ name: Build IPA
 on:
   push:
     branches: [main, 'claude/**']
-    tags: ['macosiosx-v[0-9]+.[0-9]+*']
+    tags: ['hengex-v[0-9]+.[0-9]+*']
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -32,7 +32,7 @@ on:
         type: boolean
         default: false
       tag:
-        description: Release tag (empty = macosiosx-v + CFBundleShortVersionString)
+        description: Release tag (empty = hengex-v + CFBundleShortVersionString)
         type: string
         default: ''
 
@@ -55,7 +55,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 30
     steps:
-      - name: Check out macOSiOS X
+      - name: Check out Henge X
         uses: actions/checkout@v4
 
       - name: Build and run the engine tests
@@ -93,7 +93,7 @@ jobs:
     timeout-minutes: 150
 
     steps:
-      - name: Check out macOSiOS X
+      - name: Check out Henge X
         uses: actions/checkout@v4
         with:
           path: Henge
@@ -106,11 +106,11 @@ jobs:
 
       - name: Select Xcode
         env:
-          PIN: ${{ vars.MACOSIOSX_XCODE }}
+          PIN: ${{ vars.HENGEX_XCODE }}
         run: |
           set -euo pipefail
           ls -d /Applications/Xcode*.app
-          # The newest Xcode on the runner, betas included (as WindowsiOS X), unless MACOSIOSX_XCODE pins one.
+          # The newest Xcode on the runner, betas included (as WindowsiOS X), unless HENGEX_XCODE pins one.
           if [ -n "$PIN" ]; then
             app="/Applications/Xcode_${PIN}.app"
           else
@@ -121,7 +121,7 @@ jobs:
           sudo xcode-select -s "$app/Contents/Developer"
           xcodebuild -version
           ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
-          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: macOSiOS X needs the iOS 26 SDK"; exit 1; }
+          [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Henge X needs the iOS 26 SDK"; exit 1; }
           echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
 
       - name: Metal toolchain
@@ -195,12 +195,12 @@ jobs:
         working-directory: Henge
         run: make ios-lib
 
-      - name: Package macOSiOS-X.ipa
+      - name: Package Henge-X.ipa
         working-directory: Henge
         run: |
           zsh ios/scripts/package_ipa.sh || { tail -n 200 ios/build/DerivedData.buildlog || true; exit 1; }
 
-      - name: Package macOSiOS-X.tipa (TrollStore)
+      - name: Package Henge-X.tipa (TrollStore)
         working-directory: Henge
         run: zsh ios/scripts/package_ipa.sh --trollstore
 
@@ -208,17 +208,17 @@ jobs:
         working-directory: Henge
         run: echo "VERSION=$(plutil -extract CFBundleShortVersionString raw ios/Henge/Info.plist)" >> "$GITHUB_ENV"
 
-      - name: Upload macOSiOS-X.ipa and .tipa
+      - name: Upload Henge-X.ipa and .tipa
         uses: actions/upload-artifact@v4
         with:
-          name: macOSiOS-X-${{ env.VERSION }}-${{ github.sha }}
+          name: Henge-X-${{ env.VERSION }}-${{ github.sha }}
           path: |
-            ~/Desktop/macOSiOS-X.ipa
-            ~/Desktop/macOSiOS-X.tipa
+            ~/Desktop/Henge-X.ipa
+            ~/Desktop/Henge-X.tipa
           if-no-files-found: error
 
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/macosiosx-v') || inputs.release
+        if: startsWith(github.ref, 'refs/tags/hengex-v') || inputs.release
         working-directory: Henge
         env:
           GH_TOKEN: ${{ github.token }}
@@ -227,8 +227,8 @@ jobs:
           set -euo pipefail
           TAG="$TAG_INPUT"
           if [ -z "$TAG" ]; then
-            if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="macosiosx-v$VERSION"; fi
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then TAG="${GITHUB_REF#refs/tags/}"; else TAG="hengex-v$VERSION"; fi
           fi
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "macOSiOS X $TAG" \
-            --notes "macOS on iPhone and iPad (A14 / M1 or newer, iOS 17+). macOSiOS-X.ipa: SideStore / AltStore. macOSiOS-X.tipa: TrollStore. JIT: StikDebug, TrollStore or the built-in helper (iOS 26+)."
-          gh release upload "$TAG" ~/Desktop/macOSiOS-X.ipa ~/Desktop/macOSiOS-X.tipa --clobber
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "Henge X $TAG" \
+            --notes "macOS on iPhone and iPad (A14 / M1 or newer, iOS 17+). Henge-X.ipa: SideStore / AltStore. Henge-X.tipa: TrollStore. JIT: StikDebug, TrollStore or the built-in helper (iOS 26+)."
+          gh release upload "$TAG" ~/Desktop/Henge-X.ipa ~/Desktop/Henge-X.tipa --clobber

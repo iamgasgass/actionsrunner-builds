@@ -33,7 +33,7 @@ final class RangedDownload: NSObject, URLSessionDataDelegate {
     func run() async throws {
         if !FileManager.default.fileExists(atPath: part.path) {
             guard FileManager.default.createFile(atPath: part.path, contents: nil) else {
-                throw NSError(domain: "Henge", code: 4, userInfo: [NSLocalizedDescriptionKey: "macOSiOS X couldn't create the download file."])
+                throw NSError(domain: "Henge", code: 4, userInfo: [NSLocalizedDescriptionKey: "Henge X couldn't create the download file."])
             }
         }
         have = Self.size(of: part)

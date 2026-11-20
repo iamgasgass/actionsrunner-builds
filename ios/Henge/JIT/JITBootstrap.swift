@@ -118,7 +118,7 @@ enum JITBootstrap {
             if henge_ios_jit_prewarm_self(jitBytes) {
                 prewarmed = true
                 lastFailure = nil
-                HengeLog.log("jit", "JIT region made by macOSiOS X itself (\(henge_ios_jit_self_route().map { String(cString: $0) } ?? "self"))")
+                HengeLog.log("jit", "JIT region made by Henge X itself (\(henge_ios_jit_self_route().map { String(cString: $0) } ?? "self"))")
                 return true
             }
             releaseUnusedCompressedHeap()
@@ -145,8 +145,8 @@ enum JITBootstrap {
             lastFailure = "The debugger is attached but is not answering trap "
                         + "requests, and this device will not execute a MAP_JIT "
                         + "mapping either, so no executable memory could be "
-                        + "claimed. This happens when macOSiOS X was opened from StikDebug's "
-                        + "app list, which attaches without macOSiOS X's script: open macOSiOS X "
+                        + "claimed. This happens when Henge X was opened from StikDebug's "
+                        + "app list, which attaches without Henge X's script: open Henge X "
                         + "from the Home Screen and tap Turn On JIT. It also happens "
                         + "inside another container app."
         }
@@ -417,7 +417,7 @@ enum JITBootstrap {
         // checked against whichever app iOS actually installed — a container app hosting Henge
         // fails the query even when StikDebug is installed. open() has no such restriction.
         HengeLog.log("jit", "opening stikjit:// for bundle \(bundleID), pid \(getpid()); "
-                         + "macOSiOS X will be backgrounded and relaunched after attach")
+                         + "Henge X will be backgrounded and relaunched after attach")
         UIApplication.shared.open(launchURL, options: [:]) { success in
             if !success {
                 HengeLog.log("jit", "FAIL: open(stikjit://) did not succeed -- StikDebug is not installed")

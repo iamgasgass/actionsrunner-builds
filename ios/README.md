@@ -1,10 +1,10 @@
-# macOSiOS X for iOS
+# Henge X for iOS
 
-The macOSiOS X app on Henge's engine (HengeVM). The Xcode project keeps Henge's internal names (target
+The Henge X app on Henge's engine (HengeVM). The Xcode project keeps Henge's internal names (target
 `Henge`, `Henge.xcodeproj`, `henge_*` in C), as WindowsiOS X kept WindowsiOS's; what the user sees is
-macOSiOS X (display name, bundle ID `com.iamgasgass.macosiosx`, icon, IPA name).
+Henge X (display name, bundle ID `com.iamgasgass.macosiosx`, icon, IPA name).
 Build: `ios/scripts/package_ipa.sh` (writes
-`~/Desktop/macOSiOS-X.ipa`; `--trollstore` writes `macOSiOS-X.tipa`, for TrollStore and
+`~/Desktop/Henge-X.ipa`; `--trollstore` writes `Henge-X.tipa`, for TrollStore and
 TrollStore Lite, without the entitlements TrollStore bans). Needs Xcode 26 or later, xcodegen,
 and the prebuilt pieces
 `ios/scripts/fetch_deps.sh` copies from Husk (StikJIT, the pairing library,
@@ -16,7 +16,7 @@ libslirp and glib for iOS). `HENGE_ENTITLEMENTS` picks the app's entitlements fi
 the packager as an environment variable (`HENGE_ENTITLEMENTS=... ios/scripts/package_ipa.sh`).
 
 - **JIT**: on iOS 26+ (TXM) only an attached debugger can grant executable
-  memory. macOSiOS X uses the same machinery as Husk: StikDebug, TrollStore, a
+  memory. Henge X uses the same machinery as Husk: StikDebug, TrollStore, a
   jailbreak, or the built-in StikJIT helper (`HengeJITHelper.appex`, with
   on-device pairing on iOS 27). The app claims one 1 GB region per launch
   (`JITBootstrap.jitBytes`) and the engine writes through a `vm_remap`'d alias
@@ -28,10 +28,10 @@ the packager as an environment variable (`HENGE_ENTITLEMENTS=... ios/scripts/pac
   (`Installer.swift`, [docs/architecture.md](../docs/architecture.md)). A machine
   can also be exported from the app, or made on a Mac with
   `tools/export_ios.sh DISK AUX ECID [NAME]` (disk packed with its holes left out,
-  see `host/hvsparse.h`), and dropped on macOSiOS X in Finder or picked in Files.
+  see `host/hvsparse.h`), and dropped on Henge X in Finder or picked in Files.
 - **Boot ROM**: fetched from Apple at install, not shipped (`Henge/BootROM.swift`,
   [docs/architecture.md](../docs/architecture.md)).
-- **Display**: iOS has no ParavirtualizedGraphics framework, so macOSiOS X replays the
+- **Display**: iOS has no ParavirtualizedGraphics framework, so Henge X replays the
   guest's GPU commands with Metal (`devices/pvg_lite.c`, `devices/pvg_metal.m`).
 - **External display**: on iOS 27, `SessionView` registers a SwiftUI
   `ExternalNonInteractiveAccessory` during a Mac session. On iOS 17–26 iOS offers
@@ -66,10 +66,10 @@ the packager as an environment variable (`HENGE_ENTITLEMENTS=... ios/scripts/pac
 - **Laptop deck** (`Henge/MacKeyboardDeck.swift`): upright, a MacBook's keyboard and trackpad under
   the Mac's screen, as WindowsiOS X's Surface deck; F10 or the toolbar switches Laptop / Trackpad /
   Keyboard. On its side the Mac fills the screen (Studio). On the iPhone Duo the hinge sensor
-  (`Henge/HingeSensor.swift`, only with the iOS 27.1 SDK: `MACOSIOSX_HINGE`) turns the session upright
+  (`Henge/HingeSensor.swift`, only with the iOS 27.1 SDK: `HENGEX_HINGE`) turns the session upright
   when folded like a laptop.
 - **Chips**: the virtual CPU offers Armv8.5 instructions (`core/sysreg.c`), which
-  macOS uses and which run as they are, so macOSiOS X needs an A14 or M1 or newer.
+  macOS uses and which run as they are, so Henge X needs an A14 or M1 or newer.
 
 Code from Husk (GPL-2.0-or-later): `Henge/JIT/*`, `Henge/HengeLog.swift`,
 `Henge/Native/henge-ios-jit.*`, `henge-brk.S`, `HengeJITHelper/`. StikJIT is

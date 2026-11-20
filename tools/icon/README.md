@@ -1,6 +1,6 @@
 # App icon
 
-macOSiOS X's icon is made as WindowsiOS X's (its `tools/icon/render_windows.py`), which follows Husk's icon:
+Henge X's icon is made as WindowsiOS X's (its `tools/icon/render_windows.py`), which follows Husk's icon:
 Husk drew Android's head as Apple's apple, WindowsiOS X gave Windows' four panes Apple's bite and leaf, and
 here a macOS window — rounded corners, title bar, the three traffic lights — gets the bite and the leaf.
 Same glass look, same rounded square and the same leaf, in macOS's violet and blue.
