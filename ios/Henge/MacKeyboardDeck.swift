@@ -235,14 +235,16 @@ struct MacKeyboardDeck: View {
                     header(width: w)
                     switch layout {
                     case .laptop:
+                        // WindowsiOS X's proportions: the keyboard takes 62.5% of the deck's body and the
+                        // trackpad the rest, max(246, 56% of the width) wide and never closer than 32 to an edge.
                         let room = geo.size.height - 34 - bottom
-                        let keyboardH = min(max(room * 0.56, 150), (w - 16) * 0.56)
+                        let keyboardH = max(142, room * 0.625)
                         keyboard
                             .frame(height: keyboardH)
                             .padding(.horizontal, 6)
-                        Spacer(minLength: 10)
-                        trackpad(width: min(w * 0.62, w - 40))
-                            .frame(height: max(room - keyboardH - 14, 56))
+                        Spacer(minLength: 8)
+                        trackpad(width: min(max(246, w * 0.56), w - 64))
+                            .frame(height: max(room - keyboardH - 12, 56))
                     case .trackpad:
                         if !controlsHidden { toolbar.padding(.horizontal, 10) }
                         trackpadPanel

@@ -7,6 +7,13 @@ e limiti sono descritti nel [README](README.md).
 
 ## Non pubblicata
 
+### Proporzioni come WindowsiOS X
+- In verticale lo schermo ha un **pannello nero fino a metà altezza (49%)**, come il display di WindowsiOS X; il deck
+  inizia sotto. La **tastiera prende il 62,5% del deck** e il **trackpad il resto**, largo max(246, 56%) punti come in
+  WindowsiOS X (prima la tastiera era limitata dalla larghezza e il trackpad prendeva tutto lo spazio rimasto).
+- Nuovo formato schermo **Laptop** (impostazioni del Mac › Screen, su iPhone): una risoluzione con la forma del
+  pannello (1600 di larghezza), così macOS lo riempie invece di stare al centro con il nero sopra e sotto.
+
 ### Henge X
 - Nuovo nome **Henge X** ovunque: nome dell'app, testi, JIT helper, IPA `Henge-X.ipa` / `Henge-X.tipa`, variabili
   `HENGEX_TEAM_ID`, `HENGEX_XCODE`, `HENGEX_HINGE`, tag di release `hengex-v*`, documentazione, e **bundle ID

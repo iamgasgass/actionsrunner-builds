@@ -74,7 +74,7 @@ struct MacSettingsView: View {
                 .padding(17)
                 .deskCard()
 
-                if Device.fittingScreen.height != 1080 {
+                if Device.fittingScreen.height != 1080 || !Device.isPad {
                     DeskHeading("Screen")
                     VStack(alignment: .leading, spacing: 12) {
                         Picker("Screen", selection: Binding(get: {
@@ -82,6 +82,8 @@ struct MacSettingsView: View {
                             if mac.screen.width == Device.performanceScreen.width,
                                mac.screen.height == Device.performanceScreen.height { return "performance" }
                             if mac.screen.width == 1920, mac.screen.height == 1080 { return "wide" }
+                            if mac.screen.width == Device.laptopScreen.width,
+                               mac.screen.height == Device.laptopScreen.height { return "laptop" }
                             return "fit"
                         }, set: { choice in
                             mac.retina = choice == "retina"
@@ -89,6 +91,7 @@ struct MacSettingsView: View {
                             case "retina": break
                             case "performance": (mac.screenWidth, mac.screenHeight) = Device.performanceScreen
                             case "wide": (mac.screenWidth, mac.screenHeight) = (1920, 1080)
+                            case "laptop": (mac.screenWidth, mac.screenHeight) = Device.laptopScreen
                             default: (mac.screenWidth, mac.screenHeight) = Device.fittingScreen
                             }
                             save()
@@ -97,11 +100,12 @@ struct MacSettingsView: View {
                                 Text("Retina").tag("retina")
                                 Text("Performance").tag("performance")
                             }
+                            if !Device.isPad { Text("Laptop").tag("laptop") }
                             Text("Fit this \(Device.name)").tag("fit")
                             Text("16:9").tag("wide")
                         }
                         .pickerStyle(.segmented)
-                        Text("\(mac.screen.width) × \(mac.screen.height). \(Device.isPad ? "Performance renders about 30% fewer pixels. " : "")Changes apply the next time this Mac starts.")
+                        Text("\(mac.screen.width) × \(mac.screen.height). \(Device.isPad ? "Performance renders about 30% fewer pixels. " : "Laptop fills the screen above the keyboard upright; Fit this \(Device.name) fills it on its side. ")Changes apply the next time this Mac starts.")
                             .font(.system(size: 13)).foregroundStyle(Desk.dim)
                     }
                     .padding(17)

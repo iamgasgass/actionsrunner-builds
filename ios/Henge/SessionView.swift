@@ -64,6 +64,14 @@ struct SessionView: View {
             let layout = Layout(full: full, insets: insets, landscape: landscape, zoomed: zoomed, typing: typing, centre: zoomCentre, aspect: mac.aspect)
             ZStack(alignment: .topLeading) {
                 (landscape || zoomed ? Color.black : Desk.page)
+                if let panel = layout.panel {
+                    // WindowsiOS X's display: a black panel with a fine edge, the Mac's screen centred in it.
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.black)
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.12), lineWidth: 0.6))
+                        .frame(width: panel.width, height: panel.height)
+                        .position(x: panel.midX, y: panel.midY)
+                }
                 // One view in every layout: it holds the layer the engine draws into.
                 BootDisplay(display: display, role: .device)
                     .opacity(display.isExternal ? 0 : 1)
@@ -238,7 +246,9 @@ struct SessionView: View {
         let toolsY: CGFloat
         let pad: CGRect
         let insets: EdgeInsets
-        var barY: CGFloat?    // where the controls go in the space beside the screen, if it has room for them
+        var barY: CGFloat?
+        /// Upright with the deck: the black panel the Mac's screen sits in (WindowsiOS X's display area), else nil.
+        var panel: CGRect?    // where the controls go in the space beside the screen, if it has room for them
 
         var shown: CGSize {
             CGSize(width: min(touch.width / max(screen.width, 1), 1), height: min(touch.height / max(screen.height, 1), 1))
@@ -283,6 +293,21 @@ struct SessionView: View {
                 fillsPhone = true
                 toolsY = 0
                 pad = .zero
+            } else if !typing {
+                // Laptop, as WindowsiOS X lays it out: the screen's panel down to about half the device
+                // (49%), the deck under it. The Mac fits the panel: a Mac with the Laptop screen shape fills it,
+                // a 16:9 one sits in its middle with black above and below.
+                let panelTop = insets.top + 4
+                let deckTop = (full.height * 0.49).rounded()
+                let p = CGRect(x: 5, y: panelTop, width: full.width - 10, height: max(deckTop - 6 - panelTop, 120))
+                let width = min(p.width, p.height * aspect)
+                let height = width / aspect
+                screen = CGRect(x: p.midX - width / 2, y: p.midY - height / 2, width: width, height: height)
+                panel = p
+                touch = screen
+                fillsPhone = false
+                toolsY = p.maxY + 10
+                pad = CGRect(x: 0, y: deckTop, width: full.width, height: max(full.height - deckTop, 60))
             } else {
                 let width = full.width - 16
                 let height = width / aspect
@@ -290,16 +315,10 @@ struct SessionView: View {
                 touch = screen
                 fillsPhone = false
                 toolsY = screen.maxY + 10
-                if typing {
-                    let top = screen.maxY + 8
-                    let bottom = full.height - insets.bottom - 8
-                    pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
-                } else {
-                    // The MacBook deck (MacKeyboardDeck): right under the Mac's screen, edge to edge and
-                    // down to the bottom of the device; it keeps its own keys clear of the home indicator.
-                    let top = screen.maxY + 8
-                    pad = CGRect(x: 0, y: top, width: full.width, height: max(full.height - top, 60))
-                }
+                // Typing on iOS's keyboard: the trackpad between the Mac and the keyboard.
+                let top = screen.maxY + 8
+                let bottom = full.height - insets.bottom - 8
+                pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
             }
         }
     }

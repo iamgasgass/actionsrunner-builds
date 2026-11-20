@@ -16,6 +16,17 @@ enum Device {
         return (1920, min(max(Int((1920 / shape / 8).rounded()) * 8, 1080), 1440))
     }
 
+    /// A Mac's screen the shape of the Laptop panel (upright, the top half of the device, as WindowsiOS X lays
+    /// it out: SessionView.Layout), so macOS fills it instead of sitting in it with black above and below.
+    /// 1600 wide; the panel is about the device's width by 49% of its height, less the status bar.
+    static var laptopScreen: (width: Int, height: Int) {
+        let size = UIScreen.main.bounds.size
+        let w = min(size.width, size.height), h = max(size.width, size.height)
+        let panelW = w - 10, panelH = max(h * 0.49 - 64, 100)
+        let height = Int((1600 * panelH / panelW / 8).rounded()) * 8
+        return (1600, min(max(height, 1000), 1800))
+    }
+
     /// Preserve the iPad's shape while reducing the virtual GPU's pixel work.
     static var performanceScreen: (width: Int, height: Int) {
         let fit = fittingScreen
