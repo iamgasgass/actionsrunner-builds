@@ -8,6 +8,8 @@ e limiti sono descritti nel [README](README.md).
 ## Non pubblicata
 
 ### Proporzioni come WindowsiOS X
+- **Impostazioni › Aspect**: *Henge classic* (il layout esattamente com'era prima delle nuove proporzioni: schermo a
+  tutta larghezza in alto, tastiera limitata dalla larghezza, trackpad grande) o *Henge X* (le proporzioni nuove, predefinite).
 - In verticale lo schermo ha un **pannello nero fino a metà altezza (49%)**, come il display di WindowsiOS X; il deck
   inizia sotto. La **tastiera prende il 62,5% del deck** e il **trackpad il resto**, largo max(246, 56%) punti come in
   WindowsiOS X (prima la tastiera era limitata dalla larghezza e il trackpad prendeva tutto lo spazio rimasto).

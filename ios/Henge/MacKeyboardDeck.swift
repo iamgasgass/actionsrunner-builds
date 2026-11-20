@@ -26,6 +26,19 @@ enum DeckLayout: String, CaseIterable {
     var toggled: DeckLayout { self == .laptop ? .trackpad : .laptop }
 }
 
+/// Settings › Aspect: how the session lays out upright. Henge classic is the layout before the new
+/// proportions, exactly: the Mac's screen full width at the top, the deck right under it, the keyboard's
+/// height capped by the width and the trackpad taking the rest. Henge X is WindowsiOS X's proportions:
+/// a black panel down to half the device for the screen, the keyboard 62.5% of the deck.
+enum LayoutAspect: String, CaseIterable, Identifiable {
+    case classic
+    case hengeX
+
+    static let key = "hengex.layout.aspect"
+    var id: String { rawValue }
+    var title: String { self == .classic ? "Henge classic" : "Henge X" }
+}
+
 /// Turns the scene: Studio is the Mac on its side, full screen; Laptop is upright, the Mac above the deck.
 /// As WindowsiOS X's SceneOrientationController. A request, not a lock: turning the device turns it back.
 @MainActor
@@ -197,6 +210,8 @@ private enum Rows {
 
 struct MacKeyboardDeck: View {
     @Binding var layout: DeckLayout
+    /// Settings › Aspect: Henge classic keeps the deck's proportions from before Henge X's.
+    @AppStorage(LayoutAspect.key) private var aspect = LayoutAspect.hengeX
     let controlsHidden: Bool
     let bottomInset: CGFloat
     let typing: () -> Void
@@ -235,16 +250,27 @@ struct MacKeyboardDeck: View {
                     header(width: w)
                     switch layout {
                     case .laptop:
-                        // WindowsiOS X's proportions: the keyboard takes 62.5% of the deck's body and the
-                        // trackpad the rest, max(246, 56% of the width) wide and never closer than 32 to an edge.
                         let room = geo.size.height - 34 - bottom
-                        let keyboardH = max(142, room * 0.625)
-                        keyboard
-                            .frame(height: keyboardH)
-                            .padding(.horizontal, 6)
-                        Spacer(minLength: 8)
-                        trackpad(width: min(max(246, w * 0.56), w - 64))
-                            .frame(height: max(room - keyboardH - 12, 56))
+                        if aspect == .classic {
+                            // Henge classic: exactly as before the new proportions.
+                            let keyboardH = min(max(room * 0.56, 150), (w - 16) * 0.56)
+                            keyboard
+                                .frame(height: keyboardH)
+                                .padding(.horizontal, 6)
+                            Spacer(minLength: 10)
+                            trackpad(width: min(w * 0.62, w - 40))
+                                .frame(height: max(room - keyboardH - 14, 56))
+                        } else {
+                            // Henge X, WindowsiOS X's proportions: the keyboard takes 62.5% of the deck's body and
+                            // the trackpad the rest, max(246, 56% of the width) wide and never closer than 32 to an edge.
+                            let keyboardH = max(142, room * 0.625)
+                            keyboard
+                                .frame(height: keyboardH)
+                                .padding(.horizontal, 6)
+                            Spacer(minLength: 8)
+                            trackpad(width: min(max(246, w * 0.56), w - 64))
+                                .frame(height: max(room - keyboardH - 12, 56))
+                        }
                     case .trackpad:
                         if !controlsHidden { toolbar.padding(.horizontal, 10) }
                         trackpadPanel

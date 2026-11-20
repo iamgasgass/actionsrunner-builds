@@ -16,6 +16,7 @@ struct SettingsView: View {
     @AppStorage(EngineTuning.superblocksKey) private var superblocks = false
     @AppStorage(JITBootstrap.codeCacheKey) private var codeCacheMB = JITBootstrap.defaultCodeCacheMB
     @AppStorage(DeskAppearance.key) private var appearance = DeskAppearance.system
+    @AppStorage(LayoutAspect.key) private var layoutAspect = LayoutAspect.hengeX
     @AppStorage(InstantResume.key) private var instantResume = false
     @AppStorage(MacAppsFeature.key) private var macApps = false
 
@@ -133,6 +134,17 @@ struct SettingsView: View {
                 Section("Mac Apps") {
                     Toggle("Mac apps without macOS", isOn: $macApps)
                     Text("Bring in a .dmg or an .app (the + button on Home) and run it inside Henge X through its own translation layer, without starting a Mac. Programs without windows run today; apps with windows don't yet. Experimental.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Desk.card)
+                Section("Aspect") {
+                    Picker("Aspect", selection: $layoutAspect) {
+                        ForEach(LayoutAspect.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(layoutAspect == .classic
+                         ? "Henge classic: the Mac's screen full width at the top, the keyboard and a large trackpad under it."
+                         : "Henge X: as WindowsiOS X, the Mac's screen in a panel down to half the \(Device.name), the keyboard bigger and the trackpad under it. For a Mac that fills the panel, choose Laptop in its Screen settings.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)

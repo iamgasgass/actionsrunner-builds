@@ -34,6 +34,8 @@ struct SessionView: View {
     @State private var typing = false
     /// What the deck under the screen shows, upright (MacKeyboardDeck.swift).
     @AppStorage(DeckLayout.key) private var deckLayout = DeckLayout.laptop
+    /// Settings › Aspect: Henge classic or Henge X's proportions, upright.
+    @AppStorage(LayoutAspect.key) private var layoutAspect = LayoutAspect.hengeX
     @State private var zoomed = false
     @State private var showDetails = false
     @State private var controlsHidden = false
@@ -61,7 +63,8 @@ struct SessionView: View {
             let full = CGSize(width: geo.size.width + insets.leading + insets.trailing,
                               height: geo.size.height + insets.top + insets.bottom)
             let landscape = full.width > full.height
-            let layout = Layout(full: full, insets: insets, landscape: landscape, zoomed: zoomed, typing: typing, centre: zoomCentre, aspect: mac.aspect)
+            let layout = Layout(full: full, insets: insets, landscape: landscape, zoomed: zoomed, typing: typing, centre: zoomCentre, aspect: mac.aspect,
+                                classic: layoutAspect == .classic)
             ZStack(alignment: .topLeading) {
                 (landscape || zoomed ? Color.black : Desk.page)
                 if let panel = layout.panel {
@@ -246,15 +249,15 @@ struct SessionView: View {
         let toolsY: CGFloat
         let pad: CGRect
         let insets: EdgeInsets
-        var barY: CGFloat?
-        /// Upright with the deck: the black panel the Mac's screen sits in (WindowsiOS X's display area), else nil.
-        var panel: CGRect?    // where the controls go in the space beside the screen, if it has room for them
+        var barY: CGFloat?    // where the controls go in the space beside the screen, if it has room for them
+        /// Upright with the deck (Henge X): the black panel the Mac's screen sits in (WindowsiOS X's display area), else nil.
+        var panel: CGRect?
 
         var shown: CGSize {
             CGSize(width: min(touch.width / max(screen.width, 1), 1), height: min(touch.height / max(screen.height, 1), 1))
         }
 
-        init(full: CGSize, insets: EdgeInsets, landscape: Bool, zoomed: Bool, typing: Bool, centre: CGPoint, aspect: CGFloat) {
+        init(full: CGSize, insets: EdgeInsets, landscape: Bool, zoomed: Bool, typing: Bool, centre: CGPoint, aspect: CGFloat, classic: Bool) {
             self.insets = insets
             let big = full.height >= 600 // an iPad on its side, or a window on one
             if zoomed {
@@ -293,8 +296,8 @@ struct SessionView: View {
                 fillsPhone = true
                 toolsY = 0
                 pad = .zero
-            } else if !typing {
-                // Laptop, as WindowsiOS X lays it out: the screen's panel down to about half the device
+            } else if !typing && !classic {
+                // Henge X: Laptop, as WindowsiOS X lays it out: the screen's panel down to about half the device
                 // (49%), the deck under it. The Mac fits the panel: a Mac with the Laptop screen shape fills it,
                 // a 16:9 one sits in its middle with black above and below.
                 let panelTop = insets.top + 4
@@ -315,10 +318,17 @@ struct SessionView: View {
                 touch = screen
                 fillsPhone = false
                 toolsY = screen.maxY + 10
-                // Typing on iOS's keyboard: the trackpad between the Mac and the keyboard.
-                let top = screen.maxY + 8
-                let bottom = full.height - insets.bottom - 8
-                pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
+                if typing {
+                    // Typing on iOS's keyboard: the trackpad between the Mac and the keyboard.
+                    let top = screen.maxY + 8
+                    let bottom = full.height - insets.bottom - 8
+                    pad = CGRect(x: 8, y: top, width: width, height: max(bottom - top, 60))
+                } else {
+                    // Henge classic: the MacBook deck right under the Mac's screen, edge to edge and down to
+                    // the bottom of the device; it keeps its own keys clear of the home indicator.
+                    let top = screen.maxY + 8
+                    pad = CGRect(x: 0, y: top, width: full.width, height: max(full.height - top, 60))
+                }
             }
         }
     }
