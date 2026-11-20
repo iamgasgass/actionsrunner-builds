@@ -517,7 +517,10 @@ static void print_profile(HvMachine *m) {
             Dl_info di;
             const char *name = dladdr(pc, &di) && di.dli_sname ? di.dli_sname : "?";
             static const char *detail;
-            if (!detail) detail = getenv("HV_PROF_FN") ? getenv("HV_PROF_FN") : "run";
+            if (!detail) {
+                const char *env = getenv("HV_PROF_FN"); /* read once: two getenv calls could disagree */
+                detail = env ? env : "run";
+            }
             if (!strcmp(name, detail)) { /* per-offset detail for one function (HV_PROF_FN, default the dispatcher loop) */
                 uint32_t off = (uint32_t)((uint8_t *)pc - (uint8_t *)di.dli_saddr);
                 int r = 0;

@@ -35,13 +35,23 @@ static const char *exit_description(void);
 static int lock_running(void);
 
 /* Blocks the dispatcher has entered, summed over the CPUs: each counts its own (icount), so the
-   count costs no shared write on the dispatcher's path. Reads may race a CPU's increment: a
-   display rate, nothing depends on it being exact. */
+   count costs no shared write on the dispatcher's path. A CPU's icount starts over when it resets
+   (PSCI CPU_ON, a guest reboot), so this adds up each CPU's increase since the last call, and a
+   count that went down is a reset: what it holds now is new. Monotonic, like the old machine-wide
+   count; called about once a second, so a mutex is fine. */
 static uint64_t blocks_entered(void) {
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    static uint64_t last[HV_MAX_CPUS], total;
     HvMachine *m = hv_vm_machine();
-    uint64_t n = 0;
-    for (int i = 0; m && i < m->ncpus; i++)
-        if (m->cpus[i]) n += __atomic_load_n(&m->cpus[i]->icount, __ATOMIC_RELAXED);
+    pthread_mutex_lock(&mu);
+    for (int i = 0; m && i < m->ncpus && i < HV_MAX_CPUS; i++) {
+        if (!m->cpus[i]) continue;
+        uint64_t now = __atomic_load_n(&m->cpus[i]->icount, __ATOMIC_RELAXED);
+        total += now >= last[i] ? now - last[i] : now;
+        last[i] = now;
+    }
+    uint64_t n = total;
+    pthread_mutex_unlock(&mu);
     return n;
 }
 /* A Mac app ran through the translation layer in this launch (henge-tl.c): it may have remapped part of the JIT region. */

@@ -51,9 +51,9 @@ int main(void) {
             native = init;
             hv_native_run(&native, p->native);
             double t1 = now_ms();
-            uint64_t b0 = jit.icount, s0 = m.stats.helper[HV_OP_MEM]; /* icount: per CPU, kept across resets */
+            uint64_t s0 = m.stats.helper[HV_OP_MEM];
             if (run_jit(&m, p, &init, &jit, at_el0)) return 1;
-            entries = jit.icount - b0;
+            entries = jit.icount; /* per CPU, and run_jit resets the CPU (and its count) first */
             slow = m.stats.helper[HV_OP_MEM] - s0;
             double t2 = now_ms();
             if (t1 - t0 < tn) tn = t1 - t0;
