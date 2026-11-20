@@ -74,6 +74,19 @@ jobs:
           make build/test_bench
           for i in 1 2 3; do echo "== run $i"; build/test_bench; done
 
+      - name: Static analysis of the engine (clang --analyze)
+        # Every C file of the engine, its devices and the host side, through clang's static analyzer:
+        # null dereferences, out-of-bounds reads, leaks, use after free. Reported, not fatal.
+        run: |
+          set -uo pipefail
+          SLIRP="$(brew --prefix)/include"
+          for f in core/*.c devices/*.c host/*.c ios/Henge/Native/henge-vm.c; do
+            case "$f" in host/main.c|host/hvf_ref.c|host/libusb_shim.c|host/curl_shim.c|host/install.c) continue;; esac
+            clang --analyze -std=gnu11 -Icore -Ihost -Idevices -Iios/Henge/Native -I"$SLIRP" -I"$SLIRP/glib-2.0" \
+                  -Xanalyzer -analyzer-output=text -o /dev/null "$f" 2>&1 | grep -E "warning:|error:" || true
+          done | sort -u | tee analyze.txt
+          echo "== $(grep -c 'warning:' analyze.txt || true) analyzer warnings"
+
   build:
     runs-on: macos-26
     timeout-minutes: 150
