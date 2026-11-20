@@ -66,6 +66,14 @@ jobs:
           make -j"$(sysctl -n hw.ncpu)" build/test_classify build/test_jit_region build/test_operands
           make test-engine
 
+      - name: Benchmark the JIT against native code
+        # Times typical guest code shapes (calls, loads and stores, an interpreter loop, block exits)
+        # natively and through the JIT: the ratio is what an engine change moves. Three runs, as runners vary.
+        run: |
+          set -euo pipefail
+          make build/test_bench
+          for i in 1 2 3; do echo "== run $i"; build/test_bench; done
+
   build:
     runs-on: macos-26
     timeout-minutes: 150
