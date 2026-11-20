@@ -2,7 +2,7 @@
 
 The Henge X app on Henge's engine (HengeVM). The Xcode project keeps Henge's internal names (target
 `Henge`, `Henge.xcodeproj`, `henge_*` in C), as WindowsiOS X kept WindowsiOS's; what the user sees is
-Henge X (display name, bundle ID `com.iamgasgass.macosiosx`, icon, IPA name).
+Henge X (display name, bundle ID `com.iamgasgass.hengex`, icon, IPA name).
 Build: `ios/scripts/package_ipa.sh` (writes
 `~/Desktop/Henge-X.ipa`; `--trollstore` writes `Henge-X.tipa`, for TrollStore and
 TrollStore Lite, without the entitlements TrollStore bans). Needs Xcode 26 or later, xcodegen,

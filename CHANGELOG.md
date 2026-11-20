@@ -9,8 +9,9 @@ e limiti sono descritti nel [README](README.md).
 
 ### Henge X
 - Nuovo nome **Henge X** ovunque: nome dell'app, testi, JIT helper, IPA `Henge-X.ipa` / `Henge-X.tipa`, variabili
-  `HENGEX_TEAM_ID`, `HENGEX_XCODE`, `HENGEX_HINGE`, tag di release `hengex-v*`, documentazione. Il **bundle ID resta**
-  `com.iamgasgass.macosiosx`: cambiarlo farebbe vedere a iOS un'app nuova e il Mac già installato resterebbe in quella vecchia.
+  `HENGEX_TEAM_ID`, `HENGEX_XCODE`, `HENGEX_HINGE`, tag di release `hengex-v*`, documentazione, e **bundle ID
+  `com.iamgasgass.hengex`** (era `com.iamgasgass.macosiosx`). Per iOS è un'app nuova: un Mac installato con le build
+  precedenti va esportato dalla vecchia app e importato nella nuova (README §9).
 - **Modalità scura come quella di iOS, con il nero vero**: sfondo `#000000`, schede `#1C1C1E`, parti in rilievo `#2C2C2E`,
   testo bianco, grigi di sistema; vale con *Dark* e con *System* quando iOS è scuro.
 - **Colore di accento viola, quello dell'icona** (pulsanti, schede, interruttori, link), al posto del blu.

@@ -7,7 +7,7 @@
 **macOS su iPhone e iPad, senza jailbreak, senza Mac e senza PC.**
 Si installa direttamente sul telefono, dai server di Apple.
 
-`com.iamgasgass.macosiosx` · iOS 17+ · chip A14 / M1 o successivo · licenza GPL
+`com.iamgasgass.hengex` · iOS 17+ · chip A14 / M1 o successivo · licenza GPL
 
 </div>
 
@@ -77,7 +77,7 @@ integrato** nell'app (iOS 26 o successivo, abbinamento sul dispositivo).
 | Interfaccia | verticale = Laptop, orizzontale = Studio | **uguale**, più selettore del deck Laptop / Trackpad / Tastiera |
 | iPhone Duo | sensore cerniera (`UIHingeInteraction`) | **uguale**: piegato a portatile → Laptop |
 | Riga del dispositivo | `IPHONE 14 PRO · 6 GB · 2560 MB / 4 VCPU` | `IPHONE 14 PRO · 6 GB · 3 GB / 5 VCPU` |
-| Firma | firma automatica, bundle ID `com.iamgasgass.windowsiosx` | firma automatica, bundle ID **`com.iamgasgass.macosiosx`** |
+| Firma | firma automatica, bundle ID `com.iamgasgass.windowsiosx` | firma automatica, bundle ID **`com.iamgasgass.hengex`** |
 | Compilazione | GitHub Actions → `WindowsiOS-X.ipa` | GitHub Actions → **`Henge-X.ipa`** e **`Henge-X.tipa`** (TrollStore) |
 | Icona | logo Windows con morso e foglia | **finestra macOS** (barra del titolo, tre "semafori") con morso e foglia |
 | Nome | WindowsiOS X | **Henge X** |
@@ -249,11 +249,14 @@ possono fare da pulsanti (su = clic, giù = clic destro).
 | **Aggiornare** l'IPA sopra l'app esistente (stesso bundle ID) | ✅ sì | niente |
 | **Cancellare** l'app e reinstallarla | ❌ no, iOS cancella i dati | prima esporta il Mac (sotto) |
 | Passare da **Henge** (`com.henge.app` o altro) a **Henge X** | ❌ per iOS è un'altra app | esporta da Henge e importa in Henge X |
+| Passare dalle build precedenti con bundle ID `com.iamgasgass.macosiosx` (chiamate *macOSiOS X* o *Henge X*) | ❌ per iOS è un'altra app | esporta dalla vecchia app e importa nella nuova (sotto); poi cancella la vecchia |
 
 **Esportare / importare un Mac:**
 1. Spegni il Mac. Nella sua scheda tocca **Export** (finisce in File › *Henge X* › *Exports*), poi
    **Move Out of Henge X…** per spostarlo fuori dall'app.
-2. Nella nuova app: **+** › *Bring in a Mac from a computer…* e scegli la cartella esportata.
+2. Nella nuova app: **+** › *Bring in a Mac from a computer…* e scegli la cartella esportata (la copia: serve
+   altrettanto spazio libero). Più rapido: nell'app **File** *sposta* la cartella esportata in
+   *Sul mio iPhone* › *Henge X* (la nuova) e apri Henge X: la prende da sola, spostandola senza copiarla.
    Un Mac creato su un Mac vero si prepara con `tools/export_ios.sh DISK AUX ECID [NOME]`.
 
 ## 10. Risoluzione dei problemi
@@ -299,7 +302,7 @@ make ios-lib
 HENGEX_TEAM_ID=XXXXXXXXXX ios/scripts/package_ipa.sh        # → ~/Desktop/Henge-X.ipa
 ios/scripts/package_ipa.sh --trollstore                         # → ~/Desktop/Henge-X.tipa
 ```
-Il bundle ID è `com.iamgasgass.macosiosx`. Gli entitlement sono `get-task-allow` (JIT),
+Il bundle ID è `com.iamgasgass.hengex`. Gli entitlement sono `get-task-allow` (JIT),
 `dynamic-codesigning`, `increased-memory-limit` (consigliato) ed `extended-virtual-addressing`; con un team
 personale gratuito usa `Henge/Henge.personal.entitlements` (vedi [ios/README.md](ios/README.md)).
 
