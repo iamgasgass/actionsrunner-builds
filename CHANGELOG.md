@@ -7,6 +7,12 @@ e limiti sono descritti nel [README](README.md).
 
 ## Non pubblicata
 
+### Impostazioni › macOS Deck
+- *Henge X*: il deck attuale (colori della modalità scura di iOS, tasti quasi neri nel pozzetto scuro, trackpad grigio,
+  strumenti nella capsula). *Henge ALT*: il deck com'era nel video di macOS 27.2 sull'iPhone Duo (commit `d6267c0`):
+  ardesia-lilla, tasti direttamente sul deck, trackpad viola, strumenti senza capsula; con il centramento corretto
+  della barra a 7 pulsanti. Vale subito; le proporzioni restano quelle di *Aspect*.
+
 ### Proporzioni come WindowsiOS X
 - **Impostazioni › Aspect**: *Henge classic* (il layout esattamente com'era prima delle nuove proporzioni: schermo a
   tutta larghezza in alto, tastiera limitata dalla larghezza, trackpad grande) o *Henge X* (le proporzioni nuove, predefinite).

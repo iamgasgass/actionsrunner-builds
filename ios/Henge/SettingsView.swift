@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(JITBootstrap.codeCacheKey) private var codeCacheMB = JITBootstrap.defaultCodeCacheMB
     @AppStorage(DeskAppearance.key) private var appearance = DeskAppearance.system
     @AppStorage(LayoutAspect.key) private var layoutAspect = LayoutAspect.hengeX
+    @AppStorage(DeckStyle.key) private var deckStyle = DeckStyle.hengeX
     @AppStorage(InstantResume.key) private var instantResume = false
     @AppStorage(MacAppsFeature.key) private var macApps = false
 
@@ -145,6 +146,17 @@ struct SettingsView: View {
                     Text(layoutAspect == .classic
                          ? "Henge classic: the Mac's screen full width at the top, the keyboard and a large trackpad under it."
                          : "Henge X: as WindowsiOS X, the Mac's screen in a panel down to half the \(Device.name), the keyboard bigger and the trackpad under it. For a Mac that fills the panel, choose Laptop in its Screen settings.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                .listRowBackground(Desk.card)
+                Section("macOS Deck") {
+                    Picker("macOS Deck", selection: $deckStyle) {
+                        ForEach(DeckStyle.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(deckStyle == .alt
+                         ? "Henge ALT: the deck as in the video of macOS 27.2 on the half-folded iPhone Duo: slate-violet, the keys straight on it, a violet trackpad, the tools bare on the deck."
+                         : "Henge X: the current deck, in iOS dark mode's colours: near-black keys in a dark well, a grey trackpad, the tools in a capsule.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .listRowBackground(Desk.card)
