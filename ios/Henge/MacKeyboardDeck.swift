@@ -52,17 +52,29 @@ enum DeckStyle: String, CaseIterable, Identifiable {
     var title: String { self == .hengeX ? "Henge X" : "Henge ALT" }
 }
 
-/// Henge ALT's colours, from the video's frames (the camera's exposure divided out: the deck's known colour
-/// against what the camera recorded, about 1.8x). The keys are a neutral dark grey with a faint lighter
-/// edge; the trackpad a muted slate, lighter and bluer than the keys. The deck's background is Henge X's
-/// (iOS dark mode), not the video's violet.
+/// Henge ALT's colours, measured in the video's sharpest frame (a vertical profile through a key, the
+/// camera's ~1.8x exposure divided out). A key is lit from above: a bright line along its top edge, a body
+/// that darkens from top to bottom (the bottom about 60% of the top), a faint reflection on its bottom edge,
+/// and a dark gap round it. The keyboard sits in a darker well with a lighter rim. The trackpad is a muted
+/// slate. The deck's background is Henge X's (iOS dark mode), not the video's violet.
 private enum AltColor {
-    static let key = Color(red: 0.200, green: 0.204, blue: 0.224)
-    static let keyEdge = Color.white.opacity(0.07)
-    static let keyDown = Color(red: 0.330, green: 0.335, blue: 0.365)
-    static let keyLatched = Color(red: 0.280, green: 0.284, blue: 0.310)
+    static let keyTop = Color(red: 0.231, green: 0.239, blue: 0.267)
+    static let keyBottom = Color(red: 0.141, green: 0.149, blue: 0.173)
+    static let keyTopDown = Color(red: 0.330, green: 0.338, blue: 0.368)
+    static let keyBottomDown = Color(red: 0.235, green: 0.243, blue: 0.270)
+    static let keyTopLatched = Color(red: 0.290, green: 0.298, blue: 0.330)
+    static let keyBottomLatched = Color(red: 0.195, green: 0.203, blue: 0.230)
+    /// The top edge's light, fading by the middle, and the bottom edge's faint reflection.
+    static let rim = LinearGradient(stops: [.init(color: Color.white.opacity(0.22), location: 0),
+                                            .init(color: Color.white.opacity(0.03), location: 0.45),
+                                            .init(color: Color.white.opacity(0.03), location: 0.85),
+                                            .init(color: Color.white.opacity(0.09), location: 1)],
+                                    startPoint: .top, endPoint: .bottom)
+    static let well = Color.black.opacity(0.32)
+    static let wellRim = LinearGradient(colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                                        startPoint: .top, endPoint: .bottom)
     static let pad = Color(red: 0.235, green: 0.240, blue: 0.305)
-    static let legend = Color.white.opacity(0.92)
+    static let legend = Color.white.opacity(0.94)
     static let faint = Color.white.opacity(0.55)
     static let button = Color.white.opacity(0.10)
     static let power = Color(red: 1.0, green: 0.27, blue: 0.23)
@@ -482,8 +494,10 @@ struct MacKeyboardDeck: View {
                 }
             }
         }
-        .padding(alt ? 0 : 5) // Henge ALT: the keys straight on the deck, no well
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(alt ? Color.clear : DeckColor.well))
+        .padding(5)
+        .background(RoundedRectangle(cornerRadius: alt ? 11 : 9, style: .continuous).fill(alt ? AltColor.well : DeckColor.well))
+        // Henge ALT: the well's lighter rim, as round the video's keyboard.
+        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).strokeBorder(alt ? AltColor.wellRim : LinearGradient(colors: [.clear], startPoint: .top, endPoint: .bottom), lineWidth: 0.7))
     }
 
     private func row(_ keys: [KeySpec], height: CGFloat, functionRow: Bool) -> some View {
@@ -606,8 +620,11 @@ private struct ArrowStack: View {
     private func half(up: Bool, pressed: Binding<Bool>) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(alt ? (pressed.wrappedValue ? AltColor.keyDown : AltColor.key)
-                          : (pressed.wrappedValue ? DeckColor.arrowDown : DeckColor.arrow))
+                .fill(alt ? AnyShapeStyle(LinearGradient(colors: pressed.wrappedValue ? [AltColor.keyTopDown, AltColor.keyBottomDown]
+                                                                                       : [AltColor.keyTop, AltColor.keyBottom],
+                                                         startPoint: .top, endPoint: .bottom))
+                          : AnyShapeStyle(pressed.wrappedValue ? DeckColor.arrowDown : DeckColor.arrow))
+                .overlay(RoundedRectangle(cornerRadius: 3.5, style: .continuous).strokeBorder(alt ? AltColor.rim : LinearGradient(colors: [.clear], startPoint: .top, endPoint: .bottom), lineWidth: 0.6))
             Image(systemName: up ? "chevron.up" : "chevron.down")
                 .font(.system(size: 7, weight: .bold))
                 .foregroundStyle(alt ? AltColor.legend : Color.white.opacity(0.9))
@@ -638,15 +655,24 @@ private struct Keycap: View {
     @State private var pressed = false
 
     var body: some View {
-        let radius: CGFloat = functionRow ? 4 : 6
+        let radius: CGFloat = functionRow ? 4 : alt ? 5 : 6
         ZStack {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(alt ? (pressed ? AltColor.keyDown : lit ? AltColor.keyLatched : AltColor.key)
-                          : (pressed ? DeckColor.keyDown : lit ? DeckColor.keyLatched : DeckColor.key))
-                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(alt ? AltColor.keyEdge : Color.white.opacity(pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
-                .shadow(color: .black.opacity(pressed ? 0.1 : alt ? 0.45 : 0.5), radius: pressed ? 0.3 : alt ? 1 : 0.8,
-                        y: pressed ? 0 : alt ? 1 : 0.8)
+            if alt {
+                // Lit from above, as the video's keys: lighter at the top, darker at the bottom, a bright top edge.
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(LinearGradient(colors: pressed ? [AltColor.keyTopDown, AltColor.keyBottomDown]
+                                                 : lit ? [AltColor.keyTopLatched, AltColor.keyBottomLatched]
+                                                 : [AltColor.keyTop, AltColor.keyBottom],
+                                         startPoint: .top, endPoint: .bottom))
+                    .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(AltColor.rim, lineWidth: 0.8))
+                    .shadow(color: .black.opacity(pressed ? 0.15 : 0.6), radius: pressed ? 0.3 : 0.6, y: pressed ? 0 : 1)
+            } else {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(pressed ? DeckColor.keyDown : lit ? DeckColor.keyLatched : DeckColor.key)
+                    .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(pressed ? 0.1 : 0.5), radius: pressed ? 0.3 : 0.8, y: pressed ? 0 : 0.8)
+            }
             if alt { altLegend } else { legend }
             if lit {
                 VStack { HStack { Circle().fill(Color.green).frame(width: 3.4, height: 3.4)
@@ -683,68 +709,63 @@ private struct Keycap: View {
         }
     }
 
-    /// Henge ALT's legends, as on the keys in the video (a MacBook's): small, in proportion to the key's
-    /// height. Letters and digits small and centred, the shifted sign above the digit; on the wide keys a
-    /// symbol over a word, against the key's outer edge (tab, caps lock and the left shift to the left;
-    /// delete, return and the right shift to the right); the modifiers' symbol over their name, centred;
-    /// the function row's icons small.
+    /// Henge ALT's legends, as on the video's keys: small and bold, sized to the key's height and all centred,
+    /// the wide keys included. Letters alone (F and J with their homing bar), the shifted sign over the digit,
+    /// a symbol over a word on the wide keys (⇥ tab, ⇪ caps lock, ⇧ shift, delete, ↩ return) and on the
+    /// modifiers (⌃ control, ⌥ option, ⌘ command, 🌐 fn), the function row's icons small.
     private var altLegend: some View {
         GeometryReader { g in
             let h = g.size.height
-            let fg = Color.white.opacity(0.92)
-            let small = max(6, h * (functionRow ? 0.42 : 0.24))
-            let letter = max(7.5, h * 0.33)
+            let fg = AltColor.legend
+            let icon = max(6, h * 0.44)       // the function row's icons and words
+            let sign = max(5.5, h * 0.2)      // the shifted sign, a modifier's name, a wide key's word
+            let letter = max(7.5, h * 0.29)
             ZStack {
                 switch spec.role {
                 case .function(_, let fnHid, let symbol, let text):
                     if fnActive, let fnHid {
-                        Text("F\(Int(fnHid) - 0x39)").font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                        Text("F\(Int(fnHid) - 0x39)").font(.system(size: icon, weight: .bold)).foregroundStyle(fg)
                     } else if let text {
-                        Text(text).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                        Text(text).font(.system(size: icon, weight: .bold)).foregroundStyle(fg)
                     } else if let symbol {
-                        Image(systemName: symbol).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                        Image(systemName: symbol).font(.system(size: icon, weight: .bold)).foregroundStyle(fg)
                     }
                 case .capsLock:
-                    altWide(top: "●", word: "caps lock", right: false, size: small, fg: fg, dot: true)
+                    altStack("⇪", "caps lock", h: h, sign: sign, fg: fg)
                 case .fnGlobe:
-                    VStack(spacing: h * 0.06) {
-                        Image(systemName: "globe").font(.system(size: small)).foregroundStyle(fg)
-                        Text("fn").font(.system(size: small * 0.9, weight: .medium)).foregroundStyle(fg)
+                    VStack(spacing: h * 0.05) {
+                        Image(systemName: "globe").font(.system(size: sign * 1.2, weight: .semibold)).foregroundStyle(fg)
+                        Text("fn").font(.system(size: sign, weight: .bold)).foregroundStyle(fg)
                     }
-                case .modifier(let code, let symbol, let name):
-                    if name == "shift" {
-                        // The right shift is the one after the letters: its legend sits to the right.
-                        altWide(top: "⇧", word: "shift", right: spec.id == "rshift", size: small, fg: fg)
-                    } else {
-                        VStack(spacing: h * 0.04) {
-                            Text(symbol).font(.system(size: small * 1.05)).foregroundStyle(fg)
-                            Text(name).font(.system(size: small * 0.85, weight: .medium)).foregroundStyle(fg)
-                                .lineLimit(1).minimumScaleFactor(0.5)
-                        }
-                        .padding(.horizontal, 2)
-                        .accessibilityHidden(code == 0)
-                    }
+                case .modifier(_, let symbol, let name):
+                    altStack(symbol, name, h: h, sign: sign, fg: fg)
                 case .regular(_, let primary, let shifted, _, let fnLabel):
                     if fnActive, let fnLabel {
-                        Text(fnLabel).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                        Text(fnLabel).font(.system(size: sign * 1.1, weight: .bold)).foregroundStyle(fg)
                     } else if primary == "space" {
                         EmptyView()
                     } else if primary == "←" || primary == "→" {
                         Image(systemName: primary == "←" ? "chevron.left" : "chevron.right")
-                            .font(.system(size: small, weight: .bold)).foregroundStyle(fg)
+                            .font(.system(size: letter * 0.85, weight: .heavy)).foregroundStyle(fg)
                     } else if primary == "tab" {
-                        altWide(top: "⇥", word: "tab", right: false, size: small, fg: fg)
+                        altStack("⇥", "tab", h: h, sign: sign, fg: fg)
                     } else if primary == "return" {
-                        altWide(top: "↩", word: "return", right: true, size: small, fg: fg)
+                        altStack("↩", "return", h: h, sign: sign, fg: fg)
                     } else if primary == "delete" {
-                        altWide(top: nil, word: "delete", right: true, size: small, fg: fg)
+                        Text("delete").font(.system(size: sign * 1.05, weight: .bold)).foregroundStyle(fg)
                     } else if let shifted {
-                        VStack(spacing: h * 0.02) {
-                            Text(shifted).font(.system(size: small)).foregroundStyle(fg)
-                            Text(primary).font(.system(size: small * 1.08, weight: .medium)).foregroundStyle(fg)
+                        VStack(spacing: h * 0.01) {
+                            Text(shifted).font(.system(size: sign, weight: .bold)).foregroundStyle(fg)
+                            Text(primary).font(.system(size: letter * 0.92, weight: .bold)).foregroundStyle(fg)
                         }
                     } else {
-                        Text(primary.uppercased()).font(.system(size: letter, weight: .regular)).foregroundStyle(fg)
+                        VStack(spacing: h * 0.03) {
+                            Text(primary.uppercased()).font(.system(size: letter, weight: .bold)).foregroundStyle(fg)
+                            if primary == "f" || primary == "j" { // the homing bars
+                                Capsule().fill(fg).frame(width: letter * 0.6, height: max(1, h * 0.03))
+                            }
+                        }
+                        .offset(y: primary == "f" || primary == "j" ? h * 0.03 : 0)
                     }
                 case .upDownStack:
                     EmptyView()
@@ -754,17 +775,13 @@ private struct Keycap: View {
         }
     }
 
-    /// A wide key's legend: a symbol over a word, at the key's outer edge.
-    private func altWide(top: String?, word: String, right: Bool, size: CGFloat, fg: Color, dot: Bool = false) -> some View {
-        VStack(alignment: right ? .trailing : .leading, spacing: size * 0.2) {
-            if let top {
-                Text(top).font(.system(size: dot ? size * 0.55 : size * 1.05)).foregroundStyle(fg.opacity(dot ? 0.6 : 1))
-            }
-            Text(word).font(.system(size: size * 0.95, weight: .medium)).foregroundStyle(fg).lineLimit(1).minimumScaleFactor(0.6)
+    /// A symbol over a word, centred, as the video's wide keys and modifiers.
+    private func altStack(_ symbol: String, _ word: String, h: CGFloat, sign: CGFloat, fg: Color) -> some View {
+        VStack(spacing: h * 0.04) {
+            Text(symbol).font(.system(size: sign * 1.25, weight: .bold)).foregroundStyle(fg)
+            Text(word).font(.system(size: sign, weight: .bold)).foregroundStyle(fg).lineLimit(1).minimumScaleFactor(0.5)
         }
-        .padding(.horizontal, 5)
-        .padding(.vertical, 3)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: right ? .bottomTrailing : .bottomLeading)
+        .padding(.horizontal, 2)
     }
 
     @ViewBuilder private var legend: some View {

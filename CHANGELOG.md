@@ -8,10 +8,12 @@ e limiti sono descritti nel [README](README.md).
 ## Non pubblicata
 
 ### Henge ALT come il video, modalità chiara originale, Xcode 27.2
-- **Henge ALT**: i tasti come nel video: simboli piccoli in proporzione al tasto (lettere e numeri piccoli e centrati,
-  sui tasti larghi simbolo sopra la parola contro il bordo esterno: `⇥ tab`, `● caps lock`, `⇧ shift`, `delete`,
-  `↩ return`), grigio scuro neutro con un bordo appena più chiaro, icone piccole nella riga funzioni; trackpad
-  ardesia smorzato come nel video. Lo **sfondo del deck è quello di Henge X** (non più viola/lilla).
+- **Henge ALT**: tastiera ricostruita dal fotogramma più nitido del video, misurando il profilo di un tasto pixel per
+  pixel: tasti **illuminati dall'alto** (linea chiara sul bordo superiore, corpo che sfuma dal grigio medio al grigio
+  scuro, leggero riflesso sul bordo inferiore, fessura scura), tastiera in un **pozzetto più scuro con bordo chiaro**,
+  simboli **piccoli, in grassetto e tutti centrati** anche sui tasti larghi (`⇥ tab`, `⇪ caps lock`, `⇧ shift`,
+  `delete`, `↩ return`, `⌃ control`, `⌥ option`, `⌘ command`), trattini su F e J, icone piccole nella riga funzioni;
+  trackpad ardesia smorzato. Lo **sfondo del deck è quello di Henge X** (non più viola/lilla).
 - **Aspetto Light**: gli sfondi scuri della sessione (che resta scura) e del deck sono esattamente quelli del progetto
   originale Henge (`#0B0C10`, schede `#16181F`, rilievi `#23262F`); con Dark o System restano quelli neri di iOS.
 - **Compilazione con Xcode 27.2 e SDK iOS 27.2** sul runner `xcode-27` di GitHub; la build fallisce se l'SDK non è
