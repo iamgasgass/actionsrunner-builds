@@ -24,9 +24,13 @@ yy, xx = np.mgrid[0:S, 0:S].astype(float)
 # ---- the glyph: Windows' logo, exactly: four square panes with straight edges and sharp corners,
 # with Apple's bite out of the right side and Husk's leaf on top (as Husk did to Android's head).
 # The whole glyph (panes + leaf) is centred in the icon.
-P = S * 0.305                 # one pane's side (WindowsiOS X: glyph 0.64 of the icon, as Henge X)
-GAP = S * 0.030               # the gap between panes (Windows 11 proportions, scaled with the panes)
-W = 2 * P + GAP               # the four panes' square
+# Same size as Henge X's glyph: its leaf + window stand 0.7648 of the icon tall (window 0.64 x 0.512,
+# leaf 0.36 and gap 0.035 of the window's width). Our panes are square, so the same height makes them
+# 0.548 wide: leaf tip and bottom edge land exactly where Henge X's do.
+HENGE_X_GLYPH_H = 0.64 * 0.36 + 0.64 * 0.035 + 0.64 * 0.80
+W = S * HENGE_X_GLYPH_H / (1 + 0.36 + 0.035)   # the four panes' square
+GAP = W * 0.030 / 0.64        # the gap between panes (Windows 11 proportions)
+P = (W - GAP) / 2             # one pane's side
 LEAF_H = W * 0.36             # leaf height
 LEAF_GAP = W * 0.035          # between the leaf's foot and the panes
 gh = LEAF_H + LEAF_GAP + W    # glyph height
