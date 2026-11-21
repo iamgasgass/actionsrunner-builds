@@ -10,8 +10,9 @@
 #
 # "Unsigned" as sideloaders mean it: ad hoc signed with the entitlements embedded (ios/scripts/package_ipa.sh),
 # so SideStore / AltStore re-sign it at install and TrollStore installs the .tipa as it is.
-# Builds with the newest Xcode on the runner, betas included (26 or later; the variable HENGEX_XCODE pins
-# one). The iPhone Duo's hinge sensor (UIHingeInteraction) is compiled in only when that SDK has it.
+# Builds on GitHub's xcode-27 runner with Xcode 27.2 and the iOS 27.2 SDK, and fails if that SDK is not the one
+# used (the variables HENGEX_XCODE and HENGEX_IOS_SDK change them). The iPhone Duo's hinge sensor
+# (UIHingeInteraction, iOS 27.1 SDK and later) is compiled in.
 # The engine links a few iOS libraries built from Leviidev/Husk (glib, libslirp, the pairing library,
 # StikJIT): they are built here and cached, so only the first run is slow.
 
@@ -52,7 +53,8 @@ jobs:
   # The engine's own tests (CPU translator, MMU, exceptions, devices) on Apple silicon: the JIT runs
   # arm64 code natively, so this is the one place every engine change is exercised before a device.
   engine-tests:
-    runs-on: macos-26
+    # GitHub's Xcode 27 image (macOS 27): the only one with Xcode 27.2 and the iOS 27.2 SDK.
+    runs-on: xcode-27
     timeout-minutes: 30
     steps:
       - name: Check out Henge X
@@ -89,7 +91,8 @@ jobs:
           echo "== $(grep -c 'warning:' analyze.txt || true) analyzer warnings"
 
   build:
-    runs-on: macos-26
+    # GitHub's Xcode 27 image (macOS 27): the only one with Xcode 27.2 and the iOS 27.2 SDK.
+    runs-on: xcode-27
     timeout-minutes: 150
 
     steps:
@@ -106,7 +109,10 @@ jobs:
 
       - name: Select Xcode (the newest SDK on the runner)
         env:
-          PIN: ${{ vars.HENGEX_XCODE }}
+          # Henge X builds with Xcode 27.2 and the iOS 27.2 SDK. The repository variables HENGEX_XCODE and
+          # HENGEX_IOS_SDK change them (e.g. to try a newer Xcode when GitHub adds one).
+          PIN: ${{ vars.HENGEX_XCODE || '27.2' }}
+          WANT_SDK: ${{ vars.HENGEX_IOS_SDK || '27.2' }}
         run: |
           set -euo pipefail
           # Every Xcode on the runner, by the version in its own Info.plist (folder names vary: Xcode_27.0.app,
@@ -139,6 +145,9 @@ jobs:
           xcodebuild -version
           ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
           [ "${ver%%.*}" -ge 26 ] || { echo "::error::Xcode $ver is too old: Henge X needs the iOS 26 SDK"; exit 1; }
+          sdk_now="$(xcrun --sdk iphoneos --show-sdk-version)"
+          [ -z "$WANT_SDK" ] || [ "$sdk_now" = "$WANT_SDK" ] || {
+            echo "::error::Xcode $ver has the iOS SDK $sdk_now, not $WANT_SDK: Henge X must build with the iOS $WANT_SDK SDK"; exit 1; }
           sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
           echo "Building with Xcode $ver, iOS SDK $sdk ($app)"
           echo "**Building with Xcode $ver, iOS SDK $sdk**" >> "$GITHUB_STEP_SUMMARY"

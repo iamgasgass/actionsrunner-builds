@@ -52,14 +52,16 @@ enum DeckStyle: String, CaseIterable, Identifiable {
     var title: String { self == .hengeX ? "Henge X" : "Henge ALT" }
 }
 
-/// Henge ALT's colours, exactly those of the video's deck (commit d6267c0).
+/// Henge ALT's colours, from the video's frames (the camera's exposure divided out: the deck's known colour
+/// against what the camera recorded, about 1.8x). The keys are a neutral dark grey with a faint lighter
+/// edge; the trackpad a muted slate, lighter and bluer than the keys. The deck's background is Henge X's
+/// (iOS dark mode), not the video's violet.
 private enum AltColor {
-    static let deck = Color(red: 0.235, green: 0.224, blue: 0.345)
-    static let deckLow = Color(red: 0.200, green: 0.190, blue: 0.300)
-    static let key = Color(red: 0.150, green: 0.150, blue: 0.180)
-    static let keyDown = Color(red: 0.300, green: 0.300, blue: 0.360)
-    static let keyLatched = Color(red: 0.250, green: 0.250, blue: 0.320)
-    static let pad = Color(red: 0.310, green: 0.294, blue: 0.455)
+    static let key = Color(red: 0.200, green: 0.204, blue: 0.224)
+    static let keyEdge = Color.white.opacity(0.07)
+    static let keyDown = Color(red: 0.330, green: 0.335, blue: 0.365)
+    static let keyLatched = Color(red: 0.280, green: 0.284, blue: 0.310)
+    static let pad = Color(red: 0.235, green: 0.240, blue: 0.305)
     static let legend = Color.white.opacity(0.92)
     static let faint = Color.white.opacity(0.55)
     static let button = Color.white.opacity(0.10)
@@ -241,6 +243,8 @@ struct MacKeyboardDeck: View {
     @AppStorage(LayoutAspect.key) private var aspect = LayoutAspect.hengeX
     /// Settings › macOS Deck: Henge X or Henge ALT (the video's deck).
     @AppStorage(DeckStyle.key) private var style = DeckStyle.hengeX
+    /// Settings › Appearance: on Light the deck's background is the original Henge's page, as the rest of the session.
+    @AppStorage(DeskAppearance.key) private var appearance = DeskAppearance.system
     private var alt: Bool { style == .alt }
     let controlsHidden: Bool
     let bottomInset: CGFloat
@@ -318,24 +322,18 @@ struct MacKeyboardDeck: View {
 
     // MARK: Surface
 
-    @ViewBuilder private var deckSurface: some View {
-        if alt {
-            let shape = UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 0,
-                                               bottomTrailingRadius: 0, topTrailingRadius: 24, style: .continuous)
-            shape
-                .fill(LinearGradient(colors: [AltColor.deck, AltColor.deckLow], startPoint: .top, endPoint: .bottom))
-                .overlay(shape.stroke(LinearGradient(colors: [Color.white.opacity(0.18), .clear],
-                                                     startPoint: .top, endPoint: .center), lineWidth: 0.7))
-        } else {
-            let shape = UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 0,
-                                               bottomTrailingRadius: 0, topTrailingRadius: 22, style: .continuous)
-            ZStack {
-                LinearGradient(colors: [DeckColor.top, DeckColor.middle, DeckColor.bottom], startPoint: .top, endPoint: .bottom)
-            }
-            .clipShape(shape)
-            .overlay(shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.14), .clear],
-                                                       startPoint: .top, endPoint: .center), lineWidth: 0.7))
+    /// The deck's background, for Henge X and Henge ALT alike: iOS dark mode's colours, or with Appearance on
+    /// Light the original Henge's dark page (the session is dark over a light app).
+    private var deckSurface: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 0,
+                                           bottomTrailingRadius: 0, topTrailingRadius: 22, style: .continuous)
+        let colors = appearance == .light ? [Desk.page, Desk.page] : [DeckColor.top, DeckColor.middle, DeckColor.bottom]
+        return ZStack {
+            LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
         }
+        .clipShape(shape)
+        .overlay(shape.strokeBorder(LinearGradient(colors: [Color.white.opacity(0.14), .clear],
+                                                   startPoint: .top, endPoint: .center), lineWidth: 0.7))
     }
 
     /// The grab bar in the middle, and in laptop mode the four small buttons at the right, as in the video.
@@ -646,10 +644,10 @@ private struct Keycap: View {
                 .fill(alt ? (pressed ? AltColor.keyDown : lit ? AltColor.keyLatched : AltColor.key)
                           : (pressed ? DeckColor.keyDown : lit ? DeckColor.keyLatched : DeckColor.key))
                 .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(alt ? 0 : pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
+                    .strokeBorder(alt ? AltColor.keyEdge : Color.white.opacity(pressed || lit ? 0.35 : 0.10), lineWidth: 0.5))
                 .shadow(color: .black.opacity(pressed ? 0.1 : alt ? 0.45 : 0.5), radius: pressed ? 0.3 : alt ? 1 : 0.8,
                         y: pressed ? 0 : alt ? 1 : 0.8)
-            legend
+            if alt { altLegend } else { legend }
             if lit {
                 VStack { HStack { Circle().fill(Color.green).frame(width: 3.4, height: 3.4)
                         .shadow(color: .green.opacity(0.8), radius: 2); Spacer() }; Spacer() }
@@ -683,6 +681,90 @@ private struct Keycap: View {
         case .fnGlobe: return "fn"
         case .upDownStack: return "arrows"
         }
+    }
+
+    /// Henge ALT's legends, as on the keys in the video (a MacBook's): small, in proportion to the key's
+    /// height. Letters and digits small and centred, the shifted sign above the digit; on the wide keys a
+    /// symbol over a word, against the key's outer edge (tab, caps lock and the left shift to the left;
+    /// delete, return and the right shift to the right); the modifiers' symbol over their name, centred;
+    /// the function row's icons small.
+    private var altLegend: some View {
+        GeometryReader { g in
+            let h = g.size.height
+            let fg = Color.white.opacity(0.92)
+            let small = max(6, h * (functionRow ? 0.42 : 0.24))
+            let letter = max(7.5, h * 0.33)
+            ZStack {
+                switch spec.role {
+                case .function(_, let fnHid, let symbol, let text):
+                    if fnActive, let fnHid {
+                        Text("F\(Int(fnHid) - 0x39)").font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                    } else if let text {
+                        Text(text).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                    } else if let symbol {
+                        Image(systemName: symbol).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                    }
+                case .capsLock:
+                    altWide(top: "●", word: "caps lock", right: false, size: small, fg: fg, dot: true)
+                case .fnGlobe:
+                    VStack(spacing: h * 0.06) {
+                        Image(systemName: "globe").font(.system(size: small)).foregroundStyle(fg)
+                        Text("fn").font(.system(size: small * 0.9, weight: .medium)).foregroundStyle(fg)
+                    }
+                case .modifier(let code, let symbol, let name):
+                    if name == "shift" {
+                        // The right shift is the one after the letters: its legend sits to the right.
+                        altWide(top: "⇧", word: "shift", right: spec.id == "rshift", size: small, fg: fg)
+                    } else {
+                        VStack(spacing: h * 0.04) {
+                            Text(symbol).font(.system(size: small * 1.05)).foregroundStyle(fg)
+                            Text(name).font(.system(size: small * 0.85, weight: .medium)).foregroundStyle(fg)
+                                .lineLimit(1).minimumScaleFactor(0.5)
+                        }
+                        .padding(.horizontal, 2)
+                        .accessibilityHidden(code == 0)
+                    }
+                case .regular(_, let primary, let shifted, _, let fnLabel):
+                    if fnActive, let fnLabel {
+                        Text(fnLabel).font(.system(size: small, weight: .medium)).foregroundStyle(fg)
+                    } else if primary == "space" {
+                        EmptyView()
+                    } else if primary == "←" || primary == "→" {
+                        Image(systemName: primary == "←" ? "chevron.left" : "chevron.right")
+                            .font(.system(size: small, weight: .bold)).foregroundStyle(fg)
+                    } else if primary == "tab" {
+                        altWide(top: "⇥", word: "tab", right: false, size: small, fg: fg)
+                    } else if primary == "return" {
+                        altWide(top: "↩", word: "return", right: true, size: small, fg: fg)
+                    } else if primary == "delete" {
+                        altWide(top: nil, word: "delete", right: true, size: small, fg: fg)
+                    } else if let shifted {
+                        VStack(spacing: h * 0.02) {
+                            Text(shifted).font(.system(size: small)).foregroundStyle(fg)
+                            Text(primary).font(.system(size: small * 1.08, weight: .medium)).foregroundStyle(fg)
+                        }
+                    } else {
+                        Text(primary.uppercased()).font(.system(size: letter, weight: .regular)).foregroundStyle(fg)
+                    }
+                case .upDownStack:
+                    EmptyView()
+                }
+            }
+            .frame(width: g.size.width, height: h)
+        }
+    }
+
+    /// A wide key's legend: a symbol over a word, at the key's outer edge.
+    private func altWide(top: String?, word: String, right: Bool, size: CGFloat, fg: Color, dot: Bool = false) -> some View {
+        VStack(alignment: right ? .trailing : .leading, spacing: size * 0.2) {
+            if let top {
+                Text(top).font(.system(size: dot ? size * 0.55 : size * 1.05)).foregroundStyle(fg.opacity(dot ? 0.6 : 1))
+            }
+            Text(word).font(.system(size: size * 0.95, weight: .medium)).foregroundStyle(fg).lineLimit(1).minimumScaleFactor(0.6)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: right ? .bottomTrailing : .bottomLeading)
     }
 
     @ViewBuilder private var legend: some View {

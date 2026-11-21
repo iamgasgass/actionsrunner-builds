@@ -9,9 +9,11 @@ import UIKit
 /// (#000000), cards secondarySystemBackground (#1C1C1E), raised parts tertiarySystemBackground (#2C2C2E),
 /// text label (white) and the greys systemGray / systemGray2. The accent is the icon's violet.
 enum Desk {
-    static let page = tone(light: (242, 243, 247), dark: (0, 0, 0))
-    static let card = tone(light: (255, 255, 255), dark: (28, 28, 30))
-    static let raised = tone(light: (228, 230, 236), dark: (44, 44, 46))
+    // Backgrounds. With Settings › Appearance on Light, the dark ones (a running Mac's session is always dark)
+    // are exactly the original Henge's; with Dark or System, iOS dark mode's black.
+    static let page = background(light: (242, 243, 247), original: (11, 12, 16), dark: (0, 0, 0))
+    static let card = background(light: (255, 255, 255), original: (22, 24, 31), dark: (28, 28, 30))
+    static let raised = background(light: (228, 230, 236), original: (35, 38, 47), dark: (44, 44, 46))
     static let text = tone(light: (17, 19, 24), dark: (255, 255, 255))
     static let dim = tone(light: (92, 97, 112), dark: (142, 142, 147))
     static let faint = tone(light: (138, 143, 157), dark: (99, 99, 102))
@@ -23,6 +25,19 @@ enum Desk {
     static let warn = tone(light: (184, 119, 0), dark: (255, 188, 46))
     static let bad = tone(light: (210, 56, 43), dark: (255, 122, 112))
     static let hairline = Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.1) : UIColor(white: 0, alpha: 0.1) })
+
+    /// A background: light in light mode; in dark mode the original Henge's dark when Appearance is Light (the
+    /// session, dark over a light app), else iOS dark mode's. Read as it is drawn, so a change shows at once.
+    private static func background(light: (Int, Int, Int), original: (Int, Int, Int), dark: (Int, Int, Int)) -> Color {
+        func ui(_ c: (Int, Int, Int)) -> UIColor {
+            UIColor(red: CGFloat(c.0) / 255, green: CGFloat(c.1) / 255, blue: CGFloat(c.2) / 255, alpha: 1)
+        }
+        let l = ui(light), o = ui(original), d = ui(dark)
+        return Color(UIColor { traits in
+            guard traits.userInterfaceStyle == .dark else { return l }
+            return UserDefaults.standard.string(forKey: DeskAppearance.key) == DeskAppearance.light.rawValue ? o : d
+        })
+    }
 
     private static func tone(light: (Int, Int, Int), dark: (Int, Int, Int)) -> Color {
         func ui(_ c: (Int, Int, Int)) -> UIColor {
