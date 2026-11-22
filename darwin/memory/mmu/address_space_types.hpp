@@ -33,6 +33,10 @@ struct Mapping final {
 	int protection;
 	bool guest_code;
 	bool guest_writable;
+	/* The kernel's fact that the page belongs to a file system that cannot
+	 * change under the guest (meaningful only with guest_code). It belongs to
+	 * the mapping: a mapping of the same frame without it never shares. */
+	bool guest_immutable;
 };
 
 struct AddressSpaceLifetime final {
@@ -224,11 +228,17 @@ struct GenerationReference final {
 	GenerationState *state{};
 };
 
+/* One generation's translated run, which begin and end bracket on one thread.
+ * While entered it is the thread's entered context (address_space.cpp): the
+ * generation the guest instructions the thread runs belong to, whichever
+ * generation the thread last activated. `previous_entered` is the context it
+ * replaced there, which a nested run gets back. */
 struct ExecutionContext final {
 	std::shared_ptr<GenerationState> state;
 	std::uint64_t generation{};
 	std::uint64_t execution_interrupts{};
 	bool entered{};
+	ExecutionContext *previous_entered{};
 };
 
 } // namespace uml::memory

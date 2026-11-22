@@ -73,10 +73,10 @@ index d4d23097d94637ae990c9f5aa1f4990a66ffcecf..86b98b426ba315425f10d559681e7c77
  
  static void
 diff --git a/src/venus/vkr_image.c b/src/venus/vkr_image.c
-index 56efcc3189cd41867b88e4be2cd5e7de4b54ded6..e800deaa87146a239d0a3a5483f0c2abe6f9785d 100644
+index 23eb8b58cd85a679abeb4c3144cd6e70c3b3a811..e3238a338cbedef8579c9147c62f2dd488a39df2 100644
 --- a/src/venus/vkr_image.c
 +++ b/src/venus/vkr_image.c
-@@ -233,8 +233,20 @@ vkr_dispatch_vkGetImageSparseMemoryRequirements2(
+@@ -235,8 +235,20 @@ vkr_dispatch_vkGetImageSparseMemoryRequirements2(
                                           args->pSparseMemoryRequirements);
  }
  
@@ -98,7 +98,7 @@ index 56efcc3189cd41867b88e4be2cd5e7de4b54ded6..e800deaa87146a239d0a3a5483f0c2ab
                                 struct vn_command_vkBindImageMemory *args)
  {
     struct vkr_device *dev = vkr_device_from_handle(args->device);
-@@ -247,8 +259,11 @@ vkr_dispatch_vkBindImageMemory(UNUSED struct vn_dispatch_context *dispatch,
+@@ -249,8 +261,11 @@ vkr_dispatch_vkBindImageMemory(UNUSED struct vn_dispatch_context *dispatch,
     vn_replace_vkBindImageMemory_args_handle(args);
     args->ret =
        vk->BindImageMemory(args->device, args->image, args->memory, args->memoryOffset);
@@ -112,7 +112,7 @@ index 56efcc3189cd41867b88e4be2cd5e7de4b54ded6..e800deaa87146a239d0a3a5483f0c2ab
  }
  
  struct vkr_metal_image_binding {
-@@ -258,7 +273,7 @@ struct vkr_metal_image_binding {
+@@ -260,7 +275,7 @@ struct vkr_metal_image_binding {
  };
  
  static void
@@ -121,7 +121,7 @@ index 56efcc3189cd41867b88e4be2cd5e7de4b54ded6..e800deaa87146a239d0a3a5483f0c2ab
                                  struct vn_command_vkBindImageMemory2 *args)
  {
     struct vkr_device *dev = vkr_device_from_handle(args->device);
-@@ -268,6 +283,7 @@ vkr_dispatch_vkBindImageMemory2(UNUSED struct vn_dispatch_context *dispatch,
+@@ -270,6 +285,7 @@ vkr_dispatch_vkBindImageMemory2(UNUSED struct vn_dispatch_context *dispatch,
                 args->bindInfoCount);
     if (!bindings) {
        args->ret = VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -129,7 +129,7 @@ index 56efcc3189cd41867b88e4be2cd5e7de4b54ded6..e800deaa87146a239d0a3a5483f0c2ab
        return;
     }
     for (uint32_t i = 0; i < args->bindInfoCount; i++) {
-@@ -287,6 +303,8 @@ vkr_dispatch_vkBindImageMemory2(UNUSED struct vn_dispatch_context *dispatch,
+@@ -289,6 +305,8 @@ vkr_dispatch_vkBindImageMemory2(UNUSED struct vn_dispatch_context *dispatch,
              dev, bindings[i].image, bindings[i].memory,
              bindings[i].memory_offset);
        }

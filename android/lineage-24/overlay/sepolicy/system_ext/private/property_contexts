@@ -23,3 +23,17 @@ persist.sys.kernarium.keyboard_default    u:object_r:kernarium_keyboard_default_
 # application; empty or unset means off. Every application domain reads it, the
 # shell domain sets it (kernarium_oldapp_prop.te).
 persist.sys.kernarium.oldapp.    u:object_r:kernarium_oldapp_prop:s0
+
+# Starts the script that starts the text message service. Its holder sets it, and init, which owns the property
+# service, and no other domain (kernarium_sms_listener.te).
+ctl.start$kernarium_sms_wake    u:object_r:ctl_kernarium_sms_wake_prop:s0 exact
+
+# Every other way to control the holder and the waker is init's alone. init checks ctl.<service> before
+# ctl.<action>$<service>, and the first falls to ctl_default_prop, which system_app may set; the platform labels the
+# qualified start, stop, restart and sigstop keys for init alone, and leaves oneshot_on and oneshot_off to the default.
+ctl.kernarium_sms_wake                  u:object_r:ctl_kernarium_sms_locked_prop:s0 exact
+ctl.kernarium_sms_listener              u:object_r:ctl_kernarium_sms_locked_prop:s0 exact
+ctl.oneshot_on$kernarium_sms_wake       u:object_r:ctl_kernarium_sms_locked_prop:s0 exact
+ctl.oneshot_off$kernarium_sms_wake      u:object_r:ctl_kernarium_sms_locked_prop:s0 exact
+ctl.oneshot_on$kernarium_sms_listener   u:object_r:ctl_kernarium_sms_locked_prop:s0 exact
+ctl.oneshot_off$kernarium_sms_listener  u:object_r:ctl_kernarium_sms_locked_prop:s0 exact

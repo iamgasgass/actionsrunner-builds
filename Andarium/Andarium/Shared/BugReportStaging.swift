@@ -9,13 +9,16 @@ import UIKit
 /// backup. A report is deleted on every outcome of the share sheet, and a
 /// launch removes whatever an ended process left.
 nonisolated enum BugReportStaging {
-    static var directory: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("BugReports", isDirectory: true)
+    static var directory: URL { directory(in: FileManager.default.temporaryDirectory) }
+
+    /// The folder in `temporary`: a test (the launch's sweep) gives a root of its own.
+    static func directory(in temporary: URL) -> URL {
+        temporary.appendingPathComponent("BugReports", isDirectory: true)
     }
 
     /// Removes the folder with everything in it.
-    static func sweep() {
-        try? FileManager.default.removeItem(at: directory)
+    static func sweep(in temporary: URL = FileManager.default.temporaryDirectory) {
+        try? FileManager.default.removeItem(at: directory(in: temporary))
     }
 
     /// The room a write to the volume can use, in bytes: the figure the rest of

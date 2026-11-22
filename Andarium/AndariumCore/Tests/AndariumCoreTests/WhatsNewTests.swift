@@ -101,10 +101,9 @@ struct WhatsNewRulesTests {
         #expect(record == WhatsNewRecord(seenBuild: 6))
     }
 
-    /// The App Store track has no release until its version has notes: a list
-    /// with none announces nothing on any install. (The application keeps no
-    /// record for it either: `AppEntry.announceWhatsNew`.)
-    @Test func aTrackWithNoReleaseAnnouncesNothing() {
+    /// A list with no release announces nothing on any install. (The
+    /// application keeps no record for it either: `AppEntry.announceWhatsNew`.)
+    @Test func notesWithNoReleaseAnnounceNothing() {
         let installs: [(WhatsNewRecord?, Bool)] = [
             (nil, false), (nil, true), (WhatsNewRecord(seenBuild: 5), true),
             (WhatsNewRecord(seenBuild: 9, ribbonBuild: 12, ribbonLaunches: 2), true),
@@ -171,66 +170,44 @@ struct WhatsNewRulesTests {
 
     @Test func aRequirementOfMemoryNeedsMoreThanThatManyMiBAtTheVCPUCount() {
         let requirement = WhatsNewRequirement(memoryAboveMiB: 4096)
-        #expect(!requirement.isMet(by: host(maximumMiB: 4096), vCPUs: 6, features: []))
-        #expect(requirement.isMet(by: host(maximumMiB: 4608), vCPUs: 6, features: []))
-        #expect(WhatsNewRequirement(memoryAboveMiB: 4096).isMet(by: host(maximumMiB: 8192), vCPUs: 1, features: []))
+        #expect(!requirement.isMet(by: host(maximumMiB: 4096), vCPUs: 6))
+        #expect(requirement.isMet(by: host(maximumMiB: 4608), vCPUs: 6))
+        #expect(WhatsNewRequirement(memoryAboveMiB: 4096).isMet(by: host(maximumMiB: 8192), vCPUs: 1))
     }
 
     @Test func aPadRequirementIsMetByAnIPadAndNothingElse() {
         let requirement = WhatsNewRequirement(device: .pad)
-        #expect(requirement.isMet(by: iPad, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: iPhone, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: iPhoneWithoutHaptics, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: mac, vCPUs: 6, features: []))
+        #expect(requirement.isMet(by: iPad, vCPUs: 6))
+        #expect(!requirement.isMet(by: iPhone, vCPUs: 6))
+        #expect(!requirement.isMet(by: iPhoneWithoutHaptics, vCPUs: 6))
+        #expect(!requirement.isMet(by: mac, vCPUs: 6))
     }
 
     @Test func aHapticsRequirementIsMetByADeviceThatReportsHaptics() {
         let requirement = WhatsNewRequirement(device: .haptics)
-        #expect(requirement.isMet(by: iPhone, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: iPhoneWithoutHaptics, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: iPad, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: mac, vCPUs: 6, features: []))
+        #expect(requirement.isMet(by: iPhone, vCPUs: 6))
+        #expect(!requirement.isMet(by: iPhoneWithoutHaptics, vCPUs: 6))
+        #expect(!requirement.isMet(by: iPad, vCPUs: 6))
+        #expect(!requirement.isMet(by: mac, vCPUs: 6))
     }
 
     @Test func aRequirementOfSeveralThingsNeedsAllOfThem() {
         let requirement = WhatsNewRequirement(memoryAboveMiB: 4096, device: .pad)
-        #expect(!requirement.isMet(by: iPad, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: device(.phone, hasHaptics: true), vCPUs: 6, features: []))
+        #expect(!requirement.isMet(by: iPad, vCPUs: 6))
+        #expect(!requirement.isMet(by: device(.phone, hasHaptics: true), vCPUs: 6))
         var big = iPad
         big.memory = MemoryPolicy(maximumsMiB: [8192])
-        #expect(requirement.isMet(by: big, vCPUs: 6, features: []))
+        #expect(requirement.isMet(by: big, vCPUs: 6))
         var bigPhone = iPhone
         bigPhone.memory = MemoryPolicy(maximumsMiB: [8192])
-        #expect(!requirement.isMet(by: bigPhone, vCPUs: 6, features: []))
+        #expect(!requirement.isMet(by: bigPhone, vCPUs: 6))
     }
 
     @Test func aDeviceTheNotesDoNotNameIsOfferedAnEntryWithoutARequirement() {
         let entry = WhatsNewEntry(id: "a", title: "A", text: "T", symbol: "star")
         for host in [iPhone, iPhoneWithoutHaptics, iPad, mac] {
-            #expect(entry.requirement?.isMet(by: host, vCPUs: 6, features: []) ?? true)
+            #expect(entry.requirement?.isMet(by: host, vCPUs: 6) ?? true)
         }
-    }
-
-    @Test func aFeatureRequirementIsMetByABuildThatHasTheFeature() {
-        let requirement = WhatsNewRequirement(feature: .sendFeedback)
-        #expect(requirement.isMet(by: iPhone, vCPUs: 6, features: [.sendFeedback]))
-        #expect(!requirement.isMet(by: iPhone, vCPUs: 6, features: []))
-        // The device does not matter to it, and it matters to nothing else.
-        for host in [iPad, mac, iPhoneWithoutHaptics] {
-            #expect(requirement.isMet(by: host, vCPUs: 6, features: [.sendFeedback]))
-            #expect(!requirement.isMet(by: host, vCPUs: 6, features: []))
-        }
-        #expect(requirement.isPresent(in: [.sendFeedback]) && !requirement.isPresent(in: []))
-        // A requirement that names no feature is present in every build.
-        #expect(WhatsNewRequirement(device: .pad).isPresent(in: []))
-        #expect(WhatsNewRequirement(memoryAboveMiB: 4096).isPresent(in: []))
-    }
-
-    @Test func aFeatureAndADeviceBothNeedToBeThere() {
-        let requirement = WhatsNewRequirement(device: .pad, feature: .sendFeedback)
-        #expect(requirement.isMet(by: iPad, vCPUs: 6, features: [.sendFeedback]))
-        #expect(!requirement.isMet(by: iPad, vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: iPhone, vCPUs: 6, features: [.sendFeedback]))
     }
 
     /// An update from build 8: each device is told its own entries, in the
@@ -249,7 +226,7 @@ struct WhatsNewRulesTests {
         func announced(to host: HostDevice) -> [String] {
             WhatsNewRules.launch(
                 releases: notes, record: WhatsNewRecord(seenBuild: 8), currentBuild: 9, hasGuest: true,
-                offers: { $0.requirement?.isMet(by: host, vCPUs: 6, features: []) ?? true }
+                offers: { $0.requirement?.isMet(by: host, vCPUs: 6) ?? true }
             ).pending.flatMap { $0.entries.map(\.id) }
         }
         #expect(announced(to: iPhone) == ["everyone", "haptics", "last"])
@@ -259,43 +236,7 @@ struct WhatsNewRulesTests {
     }
 }
 
-struct WhatsNewAvailabilityTests {
-    private func entry(_ id: String, _ requirement: WhatsNewRequirement? = nil) -> WhatsNewEntry {
-        WhatsNewEntry(id: id, title: id, text: "T", symbol: "star", requirement: requirement)
-    }
-
-    private let feedback = WhatsNewRequirement(feature: .sendFeedback)
-
-    /// Info's history is the notes as the build has them: the entries about a
-    /// feature it lacks are gone from it as well, and a release they leave
-    /// empty with them. Device and memory requirements stay as written.
-    @Test func aBuildWithoutAFeatureLeavesItsEntriesOut() {
-        let notes = [
-            WhatsNewRelease(
-                build: 7, version: "1.0 (7)",
-                entries: [
-                    entry("a"), entry("feedback", feedback), entry("pad", WhatsNewRequirement(device: .pad)),
-                    entry("memory", WhatsNewRequirement(memoryAboveMiB: 4096)),
-                ]),
-            WhatsNewRelease(build: 6, version: "1.0 (6)", entries: [entry("only-feedback", feedback)]),
-            WhatsNewRelease(build: 5, version: "1.0 (5)", entries: [entry("old")]),
-        ]
-        let without = WhatsNewCatalog.available(notes, features: [])
-        #expect(without.map(\.build) == [7, 5])
-        #expect(without.first?.entries.map(\.id) == ["a", "pad", "memory"])
-        #expect(WhatsNewCatalog.available(notes, features: [.sendFeedback]) == notes)
-    }
-
-    @Test func aReleaseThatHasNoEntryLeftIsNotAnnounced() {
-        let notes = [WhatsNewRelease(build: 6, version: "1.0 (6)", entries: [entry("feedback", feedback)])]
-        let launch = WhatsNewRules.launch(
-            releases: WhatsNewCatalog.available(notes, features: []), record: WhatsNewRecord(seenBuild: 5),
-            currentBuild: 6, hasGuest: true,
-            offers: { $0.requirement?.isMet(by: iPhone, vCPUs: 6, features: []) ?? true })
-        #expect(launch.pending.isEmpty)
-        #expect(launch.record == WhatsNewRecord(seenBuild: 6))
-    }
-
+struct WhatsNewRequirementTests {
     @Test func aRequirementOfACameraIsMetOnlyWhereTheDeviceHasOne() {
         let requirement = WhatsNewRequirement(camera: true)
         func device(hasCamera: Bool) -> HostDevice {
@@ -303,27 +244,62 @@ struct WhatsNewAvailabilityTests {
                 name: "d", processorCount: 6, memory: MemoryPolicy(maximumsMiB: [4096]),
                 freeStorageBytes: 40_000_000_000, hasCamera: hasCamera)
         }
-        #expect(requirement.isMet(by: device(hasCamera: true), vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: device(hasCamera: false), vCPUs: 6, features: []))
+        #expect(requirement.isMet(by: device(hasCamera: true), vCPUs: 6))
+        #expect(!requirement.isMet(by: device(hasCamera: false), vCPUs: 6))
         // A device has no camera unless it says so.
-        #expect(!requirement.isMet(by: host(maximumMiB: 8192), vCPUs: 6, features: []))
+        #expect(!requirement.isMet(by: host(maximumMiB: 8192), vCPUs: 6))
         // Every requirement must hold: a camera is not a compass.
         let both = WhatsNewRequirement(compass: true, camera: true)
-        #expect(!both.isMet(by: device(hasCamera: true), vCPUs: 6, features: []))
-        #expect(both.isMet(by: host(maximumMiB: 4096, hasCompass: true, hasCamera: true), vCPUs: 6, features: []))
+        #expect(!both.isMet(by: device(hasCamera: true), vCPUs: 6))
+        #expect(both.isMet(by: host(maximumMiB: 4096, hasCompass: true, hasCamera: true), vCPUs: 6))
+    }
+
+    /// An entry about a feature is left out where the application's own rule for
+    /// the feature does not offer it. The rule is asked of the application each
+    /// time the notes are drawn, so a launch's question (`isMet`) does not
+    /// include it.
+    @Test func aFeatureRequirementIsAskedWhenTheNotesAreDrawnAndNotWhenALaunchDecides() {
+        let requirement = WhatsNewRequirement(feature: .addToHomeScreen)
+        for host in [iPhone, iPhoneWithoutHaptics, iPad, mac] { #expect(requirement.isMet(by: host, vCPUs: 6)) }
+        #expect(requirement.isShown(by: { $0 == .addToHomeScreen }))
+        #expect(!requirement.isShown(by: { _ in false }))
+        // A requirement that names no feature is shown whatever the features say.
+        #expect(WhatsNewRequirement(device: .pad).isShown(by: { _ in false }))
+        // The device and the feature each have their say.
+        let both = WhatsNewRequirement(device: .pad, feature: .addToHomeScreen)
+        #expect(both.isMet(by: iPad, vCPUs: 6) && !both.isMet(by: iPhone, vCPUs: 6))
+        #expect(both.isShown(by: { $0 == .addToHomeScreen }) && !both.isShown(by: { _ in false }))
+    }
+
+    /// The ribbon's launch keeps an entry about a feature, whatever the device
+    /// is: only the notes drawn later leave it out.
+    @Test func aLaunchKeepsAnEntryAboutAFeatureOnEveryKindOfDevice() {
+        let entries = [
+            WhatsNewEntry(id: "everyone", title: "E", text: "T", symbol: "star"),
+            WhatsNewEntry(
+                id: "feature", title: "F", text: "T", symbol: "star",
+                requirement: WhatsNewRequirement(feature: .addToHomeScreen)),
+        ]
+        let notes = [WhatsNewRelease(build: 9, version: "1.0 (9)", entries: entries)]
+        for host in [iPhone, iPad, mac] {
+            let launch = WhatsNewRules.launch(
+                releases: notes, record: WhatsNewRecord(seenBuild: 8), currentBuild: 9, hasGuest: true,
+                offers: { $0.requirement?.isMet(by: host, vCPUs: 6) ?? true })
+            #expect(launch.pending.flatMap { $0.entries.map(\.id) } == ["everyone", "feature"])
+        }
     }
 
     @Test func aRequirementOfACompassIsMetOnlyWhereTheDeviceCanGiveOne() {
         let requirement = WhatsNewRequirement(compass: true)
-        #expect(requirement.isMet(by: host(maximumMiB: 4096, hasCompass: true), vCPUs: 6, features: []))
-        #expect(!requirement.isMet(by: host(maximumMiB: 4096, hasCompass: false), vCPUs: 6, features: []))
+        #expect(requirement.isMet(by: host(maximumMiB: 4096, hasCompass: true), vCPUs: 6))
+        #expect(!requirement.isMet(by: host(maximumMiB: 4096, hasCompass: false), vCPUs: 6))
         // A device is not given a compass unless it says so.
-        #expect(!requirement.isMet(by: host(maximumMiB: 8192), vCPUs: 6, features: []))
+        #expect(!requirement.isMet(by: host(maximumMiB: 8192), vCPUs: 6))
         // Both requirements must hold.
         let both = WhatsNewRequirement(memoryAboveMiB: 4096, compass: true)
-        #expect(both.isMet(by: host(maximumMiB: 8192, hasCompass: true), vCPUs: 6, features: []))
-        #expect(!both.isMet(by: host(maximumMiB: 4096, hasCompass: true), vCPUs: 6, features: []))
-        #expect(!both.isMet(by: host(maximumMiB: 8192, hasCompass: false), vCPUs: 6, features: []))
+        #expect(both.isMet(by: host(maximumMiB: 8192, hasCompass: true), vCPUs: 6))
+        #expect(!both.isMet(by: host(maximumMiB: 4096, hasCompass: true), vCPUs: 6))
+        #expect(!both.isMet(by: host(maximumMiB: 8192, hasCompass: false), vCPUs: 6))
     }
 }
 
@@ -390,9 +366,31 @@ struct WhatsNewCatalogTests {
             decoded.first?.entries.first?.requirement == WhatsNewRequirement(memoryAboveMiB: 4096, device: .pad))
     }
 
-    @Test func aFeatureRequirementDecodesAlone() throws {
-        let decoded = try decode(notes(entry: entry + #", "requirement": {"feature": "sendFeedback"}"#))
-        #expect(decoded.first?.entries.first?.requirement == WhatsNewRequirement(feature: .sendFeedback))
+    /// A requirement the code does not know refuses the notes: a feature it
+    /// no longer has is one.
+    @Test func aRequirementFieldTheCodeDoesNotKnowRefusesTheNotes() {
+        #expect(throws: (any Error).self) {
+            try decode(notes(entry: entry + #", "requirement": {"feature": "sendFeedback"}"#))
+        }
+        #expect(throws: (any Error).self) {
+            try decode(notes(entry: entry + #", "requirement": {"device": "pad", "mail": true}"#))
+        }
+    }
+
+    @Test func aFeatureRequirementDecodesAloneOrBesideAnotherAndOnlyAsAKnownFeature() throws {
+        let alone = try decode(notes(entry: entry + #", "requirement": {"feature": "addToHomeScreen"}"#))
+        #expect(alone.first?.entries.first?.requirement == WhatsNewRequirement(feature: .addToHomeScreen))
+        let beside = try decode(
+            notes(entry: entry + #", "requirement": {"device": "pad", "feature": "addToHomeScreen"}"#))
+        #expect(
+            beside.first?.entries.first?.requirement
+                == WhatsNewRequirement(device: .pad, feature: .addToHomeScreen))
+        // A word that is not a feature, and one that no longer is, refuse the notes.
+        for feature in [#""Pad""#, #""120Hz""#, #""highRefresh""#, #""""#, "3", "null", #"["addToHomeScreen"]"#, "true"] {
+            #expect(throws: (any Error).self, "\(feature)") {
+                try decode(notes(entry: entry + #", "requirement": {"feature": \#(feature)}"#))
+            }
+        }
     }
 
     /// A key that is present holds a value, or the notes are refused: `null`
@@ -400,8 +398,7 @@ struct WhatsNewCatalogTests {
     @Test func aRequirementFieldSetToNullIsRefused() {
         for requirement in [
             #"{"memoryAboveMiB": 4096, "device": null}"#, #"{"device": "pad", "memoryAboveMiB": null}"#,
-            #"{"memoryAboveMiB": 4096, "feature": null}"#, #"{"device": null}"#, #"{"feature": null}"#,
-            #"{"memoryAboveMiB": null}"#,
+            #"{"device": null}"#, #"{"memoryAboveMiB": null}"#,
         ] {
             #expect(throws: (any Error).self, "\(requirement)") {
                 try decode(notes(entry: entry + #", "requirement": \#(requirement)"#))
@@ -409,44 +406,31 @@ struct WhatsNewCatalogTests {
         }
     }
 
-    @Test func aFeatureTheCodeDoesNotKnowRefusesTheNotes() {
-        for feature in [#""mail""#, #""SendFeedback""#, #""""#, "3", #"["sendFeedback"]"#] {
-            #expect(throws: (any Error).self, "\(feature)") {
-                try decode(notes(entry: entry + #", "requirement": {"feature": \#(feature)}"#))
-            }
-        }
-    }
-
-    /// A track's file, where the application keeps it.
-    private func trackFile(_ name: String) -> URL {
+    /// The notes file, where the application keeps it.
+    private func notesFile() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("Andarium/Shared/\(name)")
+            .deletingLastPathComponent().appendingPathComponent("Andarium/Shared/WhatsNew.json")
     }
 
     /// The application's own notes, read where they are, so a mistake in them
     /// fails `swift test` and does not wait for the hosted run: a release
     /// archive runs no test, and unreadable notes show no ribbon and an empty
-    /// Info. The beta track is the one of Debug, Release and TestFlight.
-    @Test func theBetaTracksBundledNotesDecode() throws {
-        let releases = try WhatsNewCatalog.decode(Data(contentsOf: trackFile("WhatsNew.json")))
+    /// Info.
+    @Test func theBundledNotesDecode() throws {
+        let releases = try WhatsNewCatalog.decode(Data(contentsOf: notesFile()))
         #expect(releases.map(\.build) == releases.map(\.build).sorted(by: >))
         #expect(releases.allSatisfy { !$0.entries.isEmpty })
-        // Every feature and device the notes name is one the code knows: that
-        // is what decoding them proves.
+        // Every device the notes name is one the code knows: that is what
+        // decoding them proves.
         let named = releases.flatMap(\.entries).compactMap(\.requirement)
-        #expect(named.contains { $0.feature == .sendFeedback } && named.contains { $0.device == .pad })
+        #expect(named.contains { $0.device == .pad })
+        // The entry about a feature that only some devices show.
+        #expect(Set(named.compactMap(\.feature)) == Set(WhatsNewFeature.allCases))
     }
 
-    /// The App Store track is a list of releases like the beta track's, keyed
-    /// by the App Store builds; it is empty until the App Store version has
-    /// notes, and an empty list is a track.
-    @Test func theAppStoreTracksBundledNotesDecode() throws {
-        let releases = try WhatsNewCatalog.decode(Data(contentsOf: trackFile("WhatsNewAppStore.json")))
-        #expect(releases.map(\.build) == releases.map(\.build).sorted(by: >))
-        #expect(releases.allSatisfy { !$0.entries.isEmpty })
+    @Test func anEmptyListIsNotes() throws {
         #expect(try decode("[]").isEmpty)
-        #expect(WhatsNewCatalog.available([], features: []).isEmpty)
     }
 
     /// Notes and the code that reads them ship in one build, so a device the

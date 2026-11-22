@@ -245,8 +245,8 @@ struct KeyboardMouseTests {
     // MARK: A guest that registers nothing
 
     @Test func onAGuestThatNeverRegistersTheMouseThePointerStaysATouchAndStillPlugsIt() {
-        // The accepted kernel plugs nothing: no registration ever comes. The
-        // mouse behaves as it does with no mouse support at all.
+        // A kernel without the hot-plug topic plugs nothing: no registration
+        // ever comes. The mouse behaves as it does with no mouse support at all.
         let rig = Rig()
         defer { rig.finish() }
         rig.start()

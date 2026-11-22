@@ -157,7 +157,6 @@ struct CompassHostTests {
     }
 }
 
-#if !APP_STORE
 /// The development build's compass readout: asked for by the launch, one line
 /// a period, and the line the compass check's driver reads.
 struct CompassReadoutTests {
@@ -223,4 +222,3 @@ struct CompassReadoutTests {
                 + "heading=-1.00 fmin=-8.000,3.000,20.500 fmax=-7.000,4.250,22.000 n=7")
     }
 }
-#endif

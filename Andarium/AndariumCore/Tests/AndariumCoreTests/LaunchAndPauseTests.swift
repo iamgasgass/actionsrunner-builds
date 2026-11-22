@@ -278,6 +278,19 @@ struct PauseControllerTests {
         #expect(controller.phase == .foreground)
     }
 
+    @Test func theGuestIsAwakeInTheForegroundOnceResumed() throws {
+        let (controller, effects, _) = try makeController()
+        #expect(controller.guestIsAwake)
+        controller.guestDidStart()
+        #expect(controller.guestIsAwake)
+        controller.didEnterBackground()
+        #expect(!controller.guestIsAwake)
+        controller.willEnterForeground()
+        #expect(!controller.guestIsAwake)
+        effects.pendingResume?()
+        #expect(controller.guestIsAwake)
+    }
+
     @Test func nothingHappensWithoutAGuest() throws {
         let (controller, effects, marker) = try makeController()
         controller.willResignActive()

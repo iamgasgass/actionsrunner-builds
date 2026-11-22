@@ -4,7 +4,9 @@ Andarium is the iOS application that runs one Android (LineageOS 24, Android
 17) guest on the Darwin runtime. Android ships inside the app; what the user
 creates, sizes and erases is the guest. [Kernarium](../Kernarium/README.md)
 stays the developer application for Linux guests and for Android bundles.
-Andarium also runs on an Apple silicon Mac in Designed for iPad mode, and it
+Andarium also runs on an Apple silicon Mac in Designed for iPad mode, whose
+minimum is macOS 27.0 (`LSMinimumSystemVersion`; the iOS minimum alone would
+map to macOS 26.0), and it
 builds for the iOS Simulator, where the guest renders on the CPU for UI tests
 ([`graphics.md`](../docs/graphics.md#ios-simulator-software-renderer)).
 
@@ -21,8 +23,7 @@ AndariumUITests/      UI tests of the device app in the Simulator
 AndariumPreviewUITests/ UI tests of the Simulator preview
 Config/               entitlements, Info.plist, privacy manifest, bridging header,
                       build settings (Andarium.xcconfig)
-scripts/              system staging, the App Store bundle check,
-                      acknowledgements, screen capture
+scripts/              system staging, acknowledgements, screen capture
 Andarium.xcodeproj/   JSON project (project.xcproj) and its shared schemes
 ../GuestHost/Sources  host code shared with Kernarium: the runtime loader, the
                       display and touch view, zstd, the shader caches
@@ -32,11 +33,8 @@ The project file is the JSON format Xcode 27 reads, kept in the canonical form
 `xcrun xcprojformatter --update Andarium/Andarium.xcodeproj` produces: format
 after every hand edit. Every configuration takes its base settings from
 `Config/Andarium.xcconfig`, which includes
-`../GuestHost/Config/Signing.xcconfig` and sets what decides
-[Send feedback](#send-feedback), [Buy me tokens](#buy-me-tokens),
-[Review on the App Store](#review-on-the-app-store),
-[Follow developer on X](#follow-developer-on-x) and the
-[ICP filing number](#icp-filing-number); the
+`../GuestHost/Config/Signing.xcconfig` and sets whether
+[Follow developer on X](#follow-developer-on-x) is compiled in; the
 signer's team is only in the ignored `Signing.local.xcconfig` beside the
 signing file ([`GuestHost/README.md`](../GuestHost/README.md#signing)), so the
 project names no team.
@@ -53,8 +51,7 @@ and the runtime belong to the process (`AndariumProcess`), so a scene that
 connects again shows the same ones.
 
 `AndariumUITests` is the UI-test target of `Andarium`, in the scheme's test
-action. It is never part of the application: an App Store build contains no
-test bundle ([configurations](#configurations)).
+action. It is never part of the application.
 
 `AndariumPreview` is a Simulator-only target built from `Shared` and `Preview`
 with mock data. It embeds no runtime and boots nothing. Its launch arguments
@@ -76,9 +73,8 @@ capability key names the chip, so `UIRequiredDeviceCapabilities` names `metal`
 and the application asks the GPU for the Metal 4 family at launch
 (`HostDevice.runsGuestGraphics`), refusing to start a guest without it; the
 Simulator draws on the CPU and always passes. iPhone and iPad are supported,
-and so is an Apple silicon Mac in Designed for iPad mode: TestFlight and the
-App Store offer the application to Macs, and every configuration sets
-`SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD` to YES, which gives Xcode its Mac
+and so is an Apple silicon Mac in Designed for iPad mode: every configuration
+sets `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD` to YES, which gives Xcode its Mac
 destination and adds nothing to the built application.
 `ITSAppUsesNonExemptEncryption` is NO in `Config/Info.plist`.
 
@@ -162,14 +158,23 @@ xcodebuild -project Andarium/Andarium.xcodeproj -scheme Andarium \
 ```
 
 The frameworks go to `.build/kernarium-xcframeworks`, which Kernarium shares,
-so package the runtime a build needs just before it. The staging script checks
+so package the runtime a build needs just before it. A runtime that links the
+ahead-of-time framework is packaged with `UmlArm64Aot.xcframework`: the
+Simulator runtime takes the accepted AOT artifact, and the device runtime
+takes it only when `accepted-aot.env` accepts it for archives (a device build
+that measures it names an artifact, `-DUML_AOT_ARTIFACT=DIR`, when it
+configures the runtime). The staging script checks
 the accepted release against its manifest and layout and stages the system
 disk, partition layout, kernel command line and manifest into
-`.build/andarium-system`, which the application bundles as it stands.
+`.build/andarium-system`, which the application bundles as it stands. A release
+that carries Magisk root files (a `root/` directory and the manifest's `root`
+record) has them verified by this checkout's `verify-magisk-boot.py`, first at
+the source and again on the staged copy, and staged with the rest; a `root/`
+with no record is refused.
 A developer build can stage an unsigned proof image instead
 (`stage-system-image.py --release DIR --unsigned-proof`), whose manifest stays
 a proof's, completed from the tracked image line and the accepted Android
-kernel, and which the AppStore and TestFlight configurations refuse. The
+kernel, and which a Release archive refuses. The
 application starts it only on a fresh or isolated guest instance
 (`ANDARIUM_GUEST_INSTANCE`): a guest with data of another system cannot start
 until it is erased, and nor can a guest made from a proof start another system.
@@ -195,180 +200,78 @@ destination rules).
 
 ### Configurations
 
-The project has Debug, Release, AppStore and TestFlight. Release is the
-development and harness build: it reads the automation environment and prints
-the console lines the iPad harness reads. AppStore builds as Release does and
-leaves out everything that exists for automation or only pretends. TestFlight
-is AppStore in every respect below (the same compilation condition, runtime,
-embedded-artifact check and bundle check) except in the last item, which
-names the optional features it carries. It also defines `TESTFLIGHT`, which
-only names the configuration in [Send feedback](#send-feedback)'s information
-block.
+The project has Debug and Release. Release is the distributed build, with its
+JIT option; it reads the automation environment and prints the console lines
+the iPad harness reads, as Debug does. A launch that sets no `ANDARIUM_` or
+`KERNARIUM_` name uses none of that.
 
-- `APP_STORE` is a Swift compilation condition that compiles out the launch
-  environment (`Live/LaunchEnvironment.swift`, so no `ANDARIUM_` or
-  `KERNARIUM_` name is in the application or in `AndariumCore`, nor the thermal
-  state a launch can state in place of iOS's), the harness's
+- The launch environment (`Live/LaunchEnvironment.swift`), the harness's
   console lines (`Shared/ConsoleReport.swift`), the launch's deferred work
-  (create, erase, start) and the isolated guest instance.
-- It defines `UML_APP_STORE_APPLICATION` for the loader it compiles, which
-  leaves out the display mirror, console input, the automation lookups and the
-  JIT's preparation entries ([`GuestHost/README.md`](../GuestHost/README.md)).
-  The JIT's policy and words (`Shared/Jit.swift`), debugger side
-  (`Live/JitDebugger.swift`) and Home row are under `!APP_STORE`, in the
-  application and not in AndariumCore, which the package builds without that
-  condition.
-- It embeds the App Store runtime, which reads no environment knob and carries
-  no debugging or automation support (the `kernarium-ios-device-android-app-store`
-  preset, packaged with `package-ios-frameworks.sh --app-store --runtimes
-  android`; [`Kernarium/README.md`](../Kernarium/README.md#automation-runs)).
-- It opens the files of Install APK and of the file browser's Import in place
-  (SwiftUI's `fileImporter`); every other configuration presents the document
-  picker in copy mode (`Shared/CopyDocumentPicker.swift`, compiled out by
-  `APP_STORE`), moves each copy at once into a folder of its own under
-  `tmp/PickedFiles/` and removes it when the install or import that uses it is
-  over (Install anyway and Try Again still find it) and at the next launch. A
-  picker that fails shows an alert in every configuration.
-- The scheme's Archive action uses AppStore. The archive for the App Store is
-  made with `-configuration AppStore` and the archive for TestFlight with
-  `-configuration TestFlight`; both are the builds offered to Macs.
-- The app icon is `DuskJade` (`Shared/DuskJade.icon`) in every configuration
-  but TestFlight, whose icon is `DuskEmber` (`Shared/DuskEmber.icon`).
-  `APP_ICON_NAME` in `Config/Andarium.xcconfig` names the document a build
-  compiles and the other is left out; the bundle check requires each bundle
-  to have its own icon in Info.plist and as the one app icon of the compiled
-  `Assets.car`, so an AppStore bundle holds nothing of DuskEmber.
-- It refuses an embedded artifact that is behind the archived commit: a build
-  phase runs [`scripts/check-embedded-artifacts.py`](../scripts/check-embedded-artifacts.py),
-  which compares the accepted Android release and kernel descriptors with the
-  commit's inputs, and the staged and packaged system and runtime with the
+  (create, erase, start), the isolated guest instance and the UI tests' probes
+  are in both configurations.
+- The JIT's policy and words (`Shared/Jit.swift`), debugger side
+  (`Live/JitDebugger.swift`) and Home row are in the application and not in
+  AndariumCore.
+- The document picker of Install APK and of the file browser's Import is the
+  one in copy mode (`Shared/CopyDocumentPicker.swift`): it moves each copy at
+  once into a folder of its own under `tmp/PickedFiles/` and removes it when
+  the install or import that uses it is over (Install anyway and Try Again
+  still find it) and at the next launch. A picker that fails shows an alert.
+  The build phase "Check document pickers" runs
+  [`scripts/check-document-pickers.py`](scripts/check-document-pickers.py) on
+  every build: the sources hold no SwiftUI `fileImporter` and no document
+  picker made without `asCopy: true` outside that file, and both call sites
+  present the copy-mode picker.
+- A launch removes what an ended process staged in the temporary directory
+  (`BugReports/`, `GuestFiles/`, `PickedFiles/`) and `Feedback/`, where an older
+  build staged the files of an email feedback draft
+  (`Shared/LegacyFeedbackFolder.swift`; the hosted `LaunchSweepTests`).
+- The scheme's Archive action uses Release, the build offered to Macs as an
+  iPad app too. The app icon is `DuskJade` (`Shared/DuskJade.icon`).
+- An archive refuses an embedded artifact that is behind the archived commit: a
+  build phase of Release runs
+  [`scripts/check-embedded-artifacts.py`](../scripts/check-embedded-artifacts.py)
+  when the action is install, which an archive and an explicit install of
+  Release both run, and an ordinary Release build is not checked.
+  The check compares the accepted Android release and kernel descriptors with
+  the commit's inputs, and the staged and packaged system and runtime with the
   descriptors, and fails naming the changed paths and commits. The staged and
   packaged system disk must be the one of the accepted release installed below
-  `.build/android/releases`, not only the one their own layout names. It also
+  `.build/android/releases`, not only the one their own layout names, and the
+  Magisk root files and `root` record they carry are the installed release's
+  (none when it has none). It also
   refuses a packaged kernel whose Linux banner names a build user or host other
-  than the neutral `kernarium@kernarium`. A release that records no input trees, a
+  than the neutral `kernarium@kernarium`. With `--aot` it also checks the AOT
+  artifact: an archive embeds `UmlArm64Aot.framework` (made by the packaging
+  step when the runtime links it, and embedded only then) only when
+  `android/lineage-24/metadata/accepted-aot.env` accepts it for archives, and
+  the framework's blob is the accepted one. A release that records no input trees, a
   dirty input, or a staged or packaged artifact that is not the accepted one
-  (an unsigned proof image included) stops the build; only the user decides to
+  (an unsigned proof image included) stops the archive; only the user decides to
   ship pending changes, by naming the release ID in `PENDING_INPUTS_DECISION`.
-- Its last build phase runs `scripts/check-app-store-bundle.py`, which fails the
-  build on a missing Info.plist key, an environment knob, a symbol or log text
-  of the debugging and automation support, the JIT (its symbols and text and
-  the `brk #0xf00d` instruction), a test bundle or XCTest framework, a
-  trace of the build host, a harness console line, the copy-mode document
-  picker or a missing in-place importer, or a privacy manifest that
-  does not cover a binary
-  ([`scripts/check-privacy-manifests.py`](../scripts/check-privacy-manifests.py));
-  the script's header is the complete list.
-- It alone can carry [Send feedback](#send-feedback), and only when the
-  receiver's address is in the ignored `Config/Feedback.local.xcconfig`,
-  [Buy me tokens](#buy-me-tokens), and only when the four product identifiers
-  are in the ignored `Config/TipJar.local.xcconfig`,
-  [Review on the App Store](#review-on-the-app-store) (with the
-  [rating prompt](#rating-prompt)), and only when the application's App Store
-  identifier is in the ignored `Config/Review.local.xcconfig`, and
-  [Follow developer on X](#follow-developer-on-x), and only when the handle is
-  in the ignored `Config/Developer.local.xcconfig` and the logo in the ignored
-  `Config/Local/`, and the [ICP filing number](#icp-filing-number), and only
-  when the number is in the same file. The five switches are independent,
-  except that the pieces of the Buy me tokens sheet's header (the developer's
-  name, avatar and GitHub and X buttons) are carried only with Buy me tokens.
-  TestFlight carries Send feedback and Follow developer on X under the same
-  conditions, and Buy me tokens, Review on the App Store and the ICP filing
-  number never, whatever the local files hold; its bundle check requires
-  those three absent.
+- [Follow developer on X](#follow-developer-on-x) is carried by Release when
+  the handle is in the ignored `Config/Developer.local.xcconfig` and the logo
+  in the ignored `Config/Local/`. The same build phase runs
+  [`scripts/check-release-archive.py`](scripts/check-release-archive.py), which
+  refuses a handle that is not a handle of X and the placeholder of
+  `Developer.local.xcconfig.example` in any letter case (no handle is no
+  link); a home, volume or temporary-directory path in the host code of the
+  executable or of an embedded framework (the guest's sections are not host
+  code); the linker's debug map in an embedded framework; a test bundle or
+  the frameworks that run tests (XCTest, XCUIAutomation, Swift Testing and the
+  SDK's other test frameworks), embedded or only named by a load command; and
+  a linked test-support library (`AndariumCoreTestSupport`). It refuses an
+  update address the notice cannot read and the example host of
+  `Update.local.xcconfig.example` (see [Update notice](#update-notice)).
 
-```sh
-cmake --preset kernarium-ios-device-android-app-store
-cmake --build --preset kernarium-ios-device-android-app-store
-Kernarium/scripts/package-ios-frameworks.sh --app-store --runtimes android
-Andarium/scripts/stage-system-image.py
-xcodebuild -project Andarium/Andarium.xcodeproj -scheme Andarium \
-    -configuration AppStore -destination 'generic/platform=iOS' build
-```
-
-The same build with `-configuration TestFlight` is the TestFlight product.
+An archive is made after the steps of [Build](#build), with
+`xcodebuild -project Andarium/Andarium.xcodeproj -scheme Andarium archive`.
 
 The privacy manifests of the application (`Config/PrivacyInfo.xcprivacy`) and
-of the frameworks (`Kernarium/PrivacyManifests`) declare exactly what the App
-Store build and the runtimes use. A release or harness build also reads the
-system uptime for its thermal report, which the application's manifest does
-not declare because only an AppStore or TestFlight build is uploaded.
-
-### Send feedback
-
-Home's toolbar menu and a running session's Settings open a sheet that writes
-an email to the developer (`Shared/Feedback/`, the system's Mail composer sends
-it). It is compiled in, under the `FEEDBACK_MAIL` condition, only in an AppStore
-or TestFlight build whose ignored `Config/Feedback.local.xcconfig` (from
-`Feedback.local.xcconfig.example`) names the receiver, so a fork, a sideload or
-a Debug or Release build holds none of it, and every configuration's bundle
-check says whether it does: it also fails on the local receiver's bytes in any
-file of a bundle that does not name it (never printing it), and on an
-`Info.plist` whose values differ from `Config/Info.plist` (the preprocessing
-changes the keys of these features alone).
-Tests and captures turn it on in a Debug build with
-`FEEDBACK_ADDRESS=feedback@example.com` on the `xcodebuild` line, which the
-bundle check accepts in Debug alone; `AndariumPreview` takes that arrangement
-only, never the local receiver, and its hooks into the sheet are not in the
-AppStore product. Its logic (`Shared/Feedback/Logic`) is also built, and
-tested, by AndariumCore's tests through a symlinked target no product links.
-The feature's words are looked up in the `Feedback` string table (zh-Hans,
-zh-Hant and ja are in [Languages](#languages)); the mail's subject prefix and
-its information block are English whatever the interface language, and the bug
-report's overlay text is the app's own.
-
-Send needs both a problem (the mail's subject) and details (its body); white
-space counts as empty, and a file or the start log is neither. Send stays
-enabled while one is empty: its tap opens no composer and shows one alert that
-names what is missing, and the first empty field takes the focus after OK. With
-both written, no bug report attached and one that can be made now, Send asks
-first (Create bug report, which stays in the sheet, or Send without bug report),
-and the bug report's row leads in to read-only pages inside the sheet's own
-navigation (Back, no Done): the file as the mail carries it, its top level as
-folders and files (at most sixteen levels of folders: what a deeper path has
-beyond them is the file's name), a text as one page that scrolls on with a thumb on the edge (only a band
-around it takes a touch, until it is held),
-and the screenshot (a PNG, rebuilt from its critical chunks before it is decoded
-as a bounded thumbnail; a JPEG is not shown). Nothing is
-extracted, and a file that is not text is dimmed and opens nothing. The start
-log's row shows its text the same way
-(`Shared/Feedback/Logic/SendFeedbackArchive*.swift`, `SendFeedbackReportPages.swift`). Once
-the mail is sent, the Feedback sent notice stays over the sheet, which keeps what
-was sent and takes no touch; the notice's Done closes both and ends the draft,
-and a swipe down or the toolbar's close does nothing meanwhile.
-
-The sheet attaches the bug report, a screenshot, photos and videos from the
-photo library, and any number of files from Files, except an Android package
-(`.apk`, `.apks`, `.xapk`, `.apkm`, told by the name or the type a provider
-gives, never by opening it), which mail services reject: one alert per pick
-says so and asks for a download link in the details. The bar has three buttons:
-Bug report, Screenshot and Add, a paperclip whose menu offers Photos and Files
-(the system's menu, anchored on the button). A file is opened where it is kept
-(the document picker in place,
-`Shared/Feedback/SendFeedbackFilePicker.swift`), never copied
-first: the sheet holds the access the picker gave it from the pick until the
-row is removed or the sheet closes (a file still being looked at keeps its own
-until that ends), each start stopped once, and Send maps the file from there
-for the composer, so a file of any size is never read into memory. A file that
-cannot be used in place (its provider has not downloaded it, or its volume
-refuses mapping) is copied into the sheet's folder instead, after a free-space
-check, under the app's progress overlay with Cancel; a copy that is cancelled or
-fails leaves nothing. Cancel ends the whole batch: what was attached before it
-stays, the files that were not yet taken in are not. Send looks at every file
-again and maps it before the composer opens: one that is gone or can no longer
-be mapped is taken out of the list, and nothing is sent. The mail names
-what the app makes itself `bugreport-yyyyMMdd-HHmmss.zip` and
-`screenshot-yyyyMMdd-HHmmss.png`: fixed English words and a fixed date (Gregorian,
-ASCII digits, the device's time zone) whatever the interface language or the
-device's calendar and digits. The mail carries a picked
-file's name as written, in any script; only path separators, control
-characters (the ones that reverse text among them) and a leading dot are
-replaced or removed, and a long name is cut to 100 characters and 200 bytes
-with its extension kept; a name another attachment has is numbered. The row
-keeps the name as the person knows it. Above 20 MiB in all, files included,
-the sheet warns that a mail service may refuse the mail; Send is never
-blocked. Nothing about a picked file (name, size, place) is logged or kept
-once the sheet closes.
+of the frameworks (`Kernarium/PrivacyManifests`) declare the required-reason
+APIs the binaries use, which `scripts/check-privacy-manifests.py` checks for
+the frameworks as they are packaged. The application also reads the system
+uptime for its thermal report, which its manifest does not declare.
 
 ### Follow developer on X
 
@@ -380,176 +283,69 @@ remembered about a tap. The name X in its text is the service's logo, drawn
 inline at the text's size and colour as a template image, and the same logo is
 the row's leading icon; VoiceOver reads "Follow developer on X" with the link
 trait. The profile and the logo belong to the developer and are tracked nowhere:
-the row is compiled in, under the `FOLLOW_X` condition, only in an AppStore or
-TestFlight build whose ignored `Config/Developer.local.xcconfig` (from
+the row is compiled in, under the `FOLLOW_X` condition, only in a Release build
+whose ignored `Config/Developer.local.xcconfig` (from
 `Developer.local.xcconfig.example`) names the handle (`DEVELOPER_X_HANDLE`: a
 handle, never an address, as `//` starts an xcconfig comment; the code builds
 the address) and whose ignored `Config/Local/` directory holds `x-logo.svg`, a
 single-colour vector that `XLogoLocal.xcassets` links to. A build with the
-handle and without the logo fails its first build phase. A fork, a sideload or a
-Debug or Release build holds none of it (no row, handle, logo or `FollowX`
-strings table), and the bundle check asserts both directions as it does for Send
-feedback: it also fails on the local handle as a profile address, or as a whole
-string of a property list, in any file of a bundle that does not name it (never
-printing it), and on the arranged handle in any product that does not arrange
-it. Tests and captures turn the row on in a Debug build with
+handle and without the logo fails its first build phase, and an archive
+refuses a handle that is no handle of X and the example one
+(`scripts/check-release-archive.py`). A fork or a Debug
+build holds none of it (no row, handle, logo or `FollowX` strings table).
+Tests and captures turn the row on in a Debug build with
 `FOLLOW_X_HANDLE=example_handle` on the `xcodebuild` line, with a glyph drawn
 for them (`XLogoGlyph.xcassets`) in place of the logo; adding
 `FOLLOW_X_LOGO_SOURCE=local` takes the logo from `Config/Local/`.
 `AndariumPreview` takes the arrangement only, never the local handle. The
 handle's shape and the address are in `Shared/FollowX/Logic`, which
 AndariumCore's tests build through a symlinked target no product links, and the
-words are in the `FollowX` string table. The [Buy me tokens](#buy-me-tokens)
-header's X button shares the logo and `FollowXProfile` and is keyed on a handle
-of its own, so a build with the button and without the row holds the logo and
-the address's builder and nothing else of the row.
+words are in the `FollowX` string table.
 
-### ICP filing number
+### Update notice
 
-For users whose App Store storefront is mainland China's, the last line of
-Info is the developer's ICP filing number, as the law asks: a centred
-footnote, shown as stored (not translated), linking to MIIT's filing site
-(`Shared/ICP/`). It shows only when StoreKit 2's `Storefront.current` is
-`CHN`, kept current through `Storefront.updates` while Info is open; an
-unknown storefront hides it, and nothing else decides (no locale, region,
-time zone or address).
+A sideloaded build tells the person when a newer version exists: Home's first
+notice (`Shared/AppUpdateCard.swift`: a title, one line, one button, and a close
+button that puts away that build only), a detail the button opens, and Info's
+Updates section with the Check for Updates switch (on by default). Which
+version exists comes from one AltStore-format file the maker hosts; what is
+read, checked and sent is
+[GuestHost's Update notice](../GuestHost/README.md#update-notice), whose
+`GuestHostCore` model and `GuestHost/Sources/UpdateNoticeViews.swift` the
+Kernarium application can use as well. Andarium supplies its name, the moment
+and the launch (`Live/AppUpdateLaunch.swift`).
 
-The number is the developer's and is tracked nowhere: the line is compiled in,
-under the `ICP_FILING` condition, only in an AppStore build (not TestFlight)
-whose ignored `Config/Developer.local.xcconfig` (from
-`Developer.local.xcconfig.example`) names `DEVELOPER_ICP_NUMBER`; it needs no
-tip, review or X value. The bundle check asserts both directions as for Follow
-developer on X: the number and its Info.plist key (`AndariumICPNumber`) are in
-no other product, the number is in no other file of one that names it, the local
-number is in no file of one that does not (as UTF-8 or UTF-16, never printed),
-and the arranged placeholder is in no product but Debug's. Tests and captures
-turn it on in a Debug build with `ICP_NUMBER=示例ICP备00000000号-0A`; the hosted
-tests inject the storefront. Whether `Storefront.updates` fires when the
-storefront first becomes known while Info is open only a device shows; otherwise
-the line appears at the next opening.
-
-### Buy me tokens
-
-A sheet in the shape of a chat offers four one-time tips, Lite, Pro, Max and
-Ultra (`Shared/TipJar/`), as consumable In-App Purchases through StoreKit 2.
-A tip is voluntary and unlocks nothing: every feature is free either way, and
-nothing about a tip is remembered, counted or shown outside the sheet. Its
-one entrance is the item in [Home's toolbar menu](#home-toolbar-menu), offered
-once a virtual machine is set up. The words never use "donate", "plan" or
-"subscribe" and name no token amount: `scripts/check-tip-words.py`
-(`andarium-tip-words`) checks every language of the `TipJar` string table, and
-each price is the store's own. The last words of a longer text are tied (a
-no-break space in English, U+2060 between the last characters in Chinese and
-Japanese) so that no short word or lone mark wraps alone; the word check reads
-a tie as a space or as nothing. The tier names are the products' own in App
-Store Connect; no tracked text assumes they appear on the system's purchase
-sheet.
-
-The feature is compiled in, under the `TIP_JAR` condition, only in an AppStore
-build (not TestFlight) whose ignored `Config/TipJar.local.xcconfig` (from
-`TipJar.local.xcconfig.example`) names all four products, so a fork, a sideload
-or a Debug, Release or TestFlight build holds none of it: no entrance, StoreKit
-use, string table, header piece or identifier. The bundle check says for every
-configuration whether it does, fails on identifiers without the code or the code
-without identifiers, and fails on the local identifiers in any file of a bundle
-that does not name them (as UTF-8 or UTF-16, never printed). Tests and captures
-turn it on in a Debug build with `TIP_LITE=com.example.andarium.tip.lite` and
-the same for `TIP_PRO`, `TIP_MAX` and `TIP_ULTRA`, which the check accepts in
-Debug alone.
-
-The sheet's states live in `Shared/TipJar/Logic` behind a store seam, which
-AndariumCore's tests build through a symlinked target no product links; the
-hosted StoreKit tests play purchases, Ask to Buy and unfinished transactions
-against `AndariumTests/TipJar.storekit` (example identifiers only), never the
-App Store. A listener from launch finishes every transaction the store holds
-unfinished, verified or not, because nothing is unlocked and an unfinished
-consumable blocks buying it again; a purchase that comes back unverified is
-thanked like any other. Nothing is collected, so the privacy manifest
-declares nothing for it.
-
-The sheet opens on a sender line (`Shared/TipJar/TipJarHeader.swift`): the
-developer's name, role and avatar, with a GitHub and an X button that open the
-profiles through `openURL`. Each piece follows what the build holds: no avatar
-keeps the application's mark, no name reads the role alone, and a button
-exists only where its handle does. The name, handles and artwork are the
-maker's own, in the ignored `Config/Developer.local.xcconfig` and
-`Config/Local/` (`developer-avatar.jpeg`, `github-logo.svg`, `x-logo.svg`),
-the same file and directory as [Follow developer on X](#follow-developer-on-x);
-they reach only an AppStore build that has Buy me tokens, as Info.plist keys
-and linked asset catalogs. A value without its artwork file fails the first
-build phase, so a name needs the avatar file and a handle its logo; nothing
-falls back. The avatar is compiled as it is, so its metadata goes into the
-product: strip it (an EXIF location, for one) before an archive. The bundle
-check compares keys and asset names, refuses the placeholders of every value
-in an AppStore build, and fails on an artwork file or a profile address in any
-bundle that does not name it. The tests' arrangement states
-`SHEET_DEVELOPER_NAME` and `SHEET_DEVELOPER_GITHUB` as `example` and
-`SHEET_DEVELOPER_X` as `example_handle`, with plain glyph catalogs in place of
-artwork; `SHEET_ARTWORK_SOURCE=local` and `FOLLOW_X_LOGO_SOURCE=local` take it
-from `Config/Local/`, for a capture.
-
-### Review on the App Store
-
-An item of [Home's toolbar menu](#home-toolbar-menu), offered once a virtual
-machine is set up, opens this application's App Store page at its write-review
-address through the system (`Shared/Review/`); it shows no prompt and no web
-view. It is compiled in, under the `APP_REVIEW` condition, only in an AppStore
-build (not TestFlight) whose ignored `Config/Review.local.xcconfig` (from
-`Review.local.xcconfig.example`) names the application's App Store identifier
-(`id` and its digits), so a fork, a sideload or a Debug, Release or TestFlight
-build holds no item, address or text. The bundle check says for every
-configuration whether it is compiled in, fails on the code without the
-identifier or the identifier without the code, refuses the all-zero placeholder
-in an App Store build, and fails on the identifier's digits in any file of a
-bundle that does not name it (as UTF-8 or UTF-16, never printed). Tests turn it
-on in a Debug build with `REVIEW_ID=id0000000000`, which the check accepts in
-Debug alone. Its word is the `Review` string table. Opening it answers the
-[Rating prompt](#rating-prompt).
-
-### Rating prompt
-
-The system's own rating prompt (`AppStore.requestReview(in:)`), requested once
-per device. It shows nothing of the application's own, is never tied to Buy me
-tokens, and shares the build switch of Review on the App Store: a product
-without that feature holds no request, counter or stored record.
-
-- **When.** The virtual machine has run five hours in the foreground (past
-  boot, scene active, not paused for space; the counter is written at each
-  state change and once a minute and never decreases); Home shows with a
-  virtual machine set up and none running or starting; the most recent run
-  ended normally (the run's end when the application saw it, else the previous
-  session record's `orderly`); no notice, sheet, alert, dialog or release-notes
-  ribbon is up; the scene is active; and Home has stayed so for a second.
-  Otherwise the next arrival at Home tries again.
-- **Once.** The request is recorded before it is made, and the application
-  does not look at what the system did: iOS decides whether anything shows, so
-  the person is asked once whether or not it did. Opening Review on the App
-  Store sets the same record. A record that cannot be read asks nothing.
-- **Storage.** The counter and the run's end are in `UserDefaults`; the record
-  is in `UserDefaults` and in a Keychain generic-password item of the
-  application's default access group (named after the bundle identifier),
-  device-only and not synchronized, read back as the furthest of the two. The
-  item survives deleting the application, so a reinstall is not asked again,
-  needs no entitlement, and is not touched by Erase guest, which deletes the
-  adb key only. Nothing about it leaves the device or enters a bug report, and
-  no privacy manifest or App Store metadata entry changes.
-- **Debug.** A Debug build sets the counter from `ANDARIUM_REVIEW_ASK_SECONDS`
-  and clears the record with `ANDARIUM_REVIEW_ASK_RESET=1` (`Live/`), for the
-  maker's own check; an App Store build compiles both out, which the bundle
-  check's knob scan covers. The application's own launch is the only one that
-  asks: the Simulator preview and a hosted test build their own.
-
-### Home toolbar menu
-
-When Send feedback, Review on the App Store or Buy me tokens is compiled in,
-Home's toolbar holds one menu in place of the Info button: it keeps Info's
-glyph and accessibility label, so the toolbar looks as it does without a menu,
-and holds Info, a separator, then Send feedback, Review on the App Store and
-Buy me tokens, each present only when its own feature is
-(`Shared/HomeMenu.swift`). Welcome has the menu too, so Send feedback is
-reachable before a virtual machine is set up; the other two need one. Without
-a feature, or with only Info to offer, Info stays the plain button and the
-build holds no menu code that names a feature.
+- `sideload/source.json` is that file for Andarium: the AltStore source that
+  [the README's sideloading section](../README.md#sideloading) tells people to
+  add, served from `main`, whose newest version's `size` and `date` are those of
+  its release's IPA (`guest-host-core` reads it with the application's own reader).
+- The address is compiled in, under the `UPDATE_NOTICE` definition, only in a
+  Release build whose ignored `GuestHost/Config/Update.local.xcconfig` (from
+  `Update.local.xcconfig.example`: a host, a path and the hosts links may name
+  besides the file's own, never a whole address) names a host. The build writes
+  the `UpdateSourceHost`, `UpdateSourcePath`, `UpdateLinkHosts` and
+  `UpdateAppIdentifier` keys of `Info.plist`, with the original bundle
+  identifier, and the two `LSApplicationQueriesSchemes` (`altstore`,
+  `sidestore`) that let the detail offer an installed tool. A fork or a Debug
+  build has no address, no read and no notice. An archive refuses the
+  example host and a malformed address
+  (`scripts/check-release-archive.py`). Tests and captures name
+  `UPDATE_SOURCE_HOST=example.com UPDATE_SOURCE_PATH=/source.json` on the
+  `xcodebuild` line to build the keys into a Debug build; `AndariumPreview`
+  sets the host empty and shows a made-up file through the real reader.
+- The read is at most one a day, a few seconds after Home shows, while no run
+  is active, starting or pending, and never in a test or harness launch
+  (`announcesWhatsNew` is false there) or under Low Data Mode. Nothing waits
+  for it: a start cancels it.
+- The detail lists the version, its day, its size, the iOS it needs and the
+  installed version; "Update with AltStore" and "Update with SideStore" appear
+  only for an installed tool, then the app file and the release page, and Skip
+  This Version. On a Mac or Vision Pro the card shows and the detail offers the
+  app file and the release page, with the steps in words instead of the tool
+  rows.
+- The sentences are `UpdateWords` in the package's catalog, in the four
+  languages; the application's name is the only value inserted besides the
+  version, its build and its day.
 
 ## Model and storage
 
@@ -570,7 +366,11 @@ control out.
   from 1.5 GiB, so a guest has at least that (`Limits.minimumMemoryMiB`,
   Andarium's own: the runtime still accepts less for Kernarium's guests); a
   stored smaller size is raised to it on load, and a device whose bound is
-  lower offers the bound alone. The runtime starts every size the picker
+  lower offers the bound alone, and a bound of zero (the loader's answer where
+  the process has no room for even the smallest window) offers none: the
+  System sheet leaves the memory row out, and the guest shows zero for that
+  run alone: a save keeps the size the person had, and a guest set up there
+  takes the default once there is room. The runtime starts every size the picker
   offers: a start whose memory the loader refuses
   (`kernarium_runtime_loader_guest_memory_admitted`) ends before the run with
   that reason. `MemoryPolicy` holds those bounds, defaults
@@ -656,34 +456,21 @@ control out.
   `SnapshotWords` says every refusal, plan and figure in one place. A restore
   closes the sheet and Home says what happened, Start being next. The preview
   plays the same screens on mock snapshots (`-screen snapshots-…`).
-- **Release notes.** The notes have two tracks, each a file of `Shared`
-  that lists them per build: the beta track, `WhatsNew.json`, for Debug,
-  Release and TestFlight builds (from build 9: build 5, the first public
-  release, and builds 6 to 8 and 10 have none), and the App Store track,
-  `WhatsNewAppStore.json`, for AppStore builds (empty until the App Store
-  version has notes, and then keyed by its own builds). A build bundles and
-  reads its configuration's track alone (`WHATS_NEW_TRACK` in
-  `Config/Andarium.xcconfig` leaves the other's file out and picks the file
-  `WhatsNewTrack` loads, and any value but `BETA` or `APP_STORE` stops the
-  compile), which the bundle check of an AppStore or TestFlight build
-  requires; `andarium-whats-new-track` runs the loader's source under each
-  configuration's resolved condition and holds the icon settings. One string table, `Localization/WhatsNew.xcstrings`,
-  serves both.
+- **Release notes.** The notes are one file of `Shared`, `WhatsNew.json`, that
+  lists them per build, for every build (from build 9: build 5, the first
+  public release, and builds 6 to 8 and 10 have none). One string table,
+  `Localization/WhatsNew.xcstrings`, serves them.
   The first launch of an update that carries notes shows a ribbon above Start,
   on at most three launches, that opens them; a build shows the notes up to its
   own number and no later ones. An entry can name the devices it is for (more
   guest memory than a limit, an iPad, a device with haptics, a compass or a
   camera): the ribbon and its sheet announce only the entries the device meets.
-  An entry can also name a feature the build may lack (Send feedback): a build
-  without it shows the entry nowhere, though the notes and their strings are
-  bundled whole, so the bundle check leaves that entry's strings, and no other
-  of the notes' table, out of its search for Send feedback text (the table of
-  an AppStore bundle holds the beta track's strings too, which the check names
-  from `WhatsNew.json` in the source). Info keeps
-  every other entry as written (`WhatsNewRules`, `WhatsNewStore`). A launch
-  with a launch setting, or one a test runs, shows no ribbon and keeps no
-  record, and neither does a track with no notes, whose build also has no
-  What's New row in Info.
+  An entry can also name the feature it is about (Add to Home Screen); the
+  ribbon and its sheet show it only where the feature's own rule offers it,
+  asked each time they are drawn. Info keeps every entry as written
+  (`WhatsNewRules`, `WhatsNewStore`). A launch with a launch setting, or one a
+  test runs, shows no ribbon and keeps no record, and neither does a launch
+  whose notes cannot be read, which also has no What's New row in Info.
 
 ## Runtime
 
@@ -693,22 +480,25 @@ ready, on a thread of its own. Android's clean power-off releases the kernel's
 resources and guest RAM and returns to Home, which states the storage the data
 disk then holds and where Start boots again in the same process; an unclean
 shutdown, a host stop or a cleanup that fails keeps the failure screen and
-requires reopening Andarium.
+requires reopening Andarium. A run the host cannot give the guest's memory
+ends before the kernel starts with a result of its own
+(`KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED`), which the library's bare
+out-of-memory status is not, and the failure screen names the
+memory and says to lower it; the settings offer only sizes the process's
+address space holds, so this is a fallback.
 
 - **No Google apps, on purpose.** The boot screen of a new installation's
   first Android boot (a first start, and the retry of one that ended before
-  Android booted) carries a panel saying that Android has no Google apps.
-  Every presentation of Send feedback opens with a line that answers the same
-  question in place, closed; closing it takes it away from that presentation
-  alone, and nothing about it is kept. Their strings are the only ones that
-  name Google, which `scripts/localization.py` allows by key.
+  Android booted) carries a panel saying that Android has no Google apps. Its
+  strings are the only ones that name Google, which `scripts/localization.py`
+  allows by key.
 - **Slow start.** A start still on the boot screen after three minutes
   (`SlowStart`; eight for a guest's first start and the first start after an
   update, which also get a title that does not say the start is slower than
   usual; a first start that ended before Android booted is still the first,
   by the guest's `first-boot-pending` record, kept until `sys.boot_completed`
-  is seen) puts a notice above the steps: the step under way and the time, Stop
-  and, where Send feedback is compiled in, Send feedback. The boot goes on
+  is seen) puts a notice above the steps: the step under way and the time, and
+  Stop. The boot goes on
   behind it and the notice goes with the boot; it has no dismissal. It sits
   above the steps and pushes them down; where the screen is short, the screen
   scrolls. The time is the start's, on the runtime's pause-aware run clock
@@ -716,8 +506,8 @@ requires reopening Andarium.
   application is away before the runtime runs) and kept through the restarts
   of a start that had not finished. Stop asks first (an alert with Stop and Cancel, in the
   screen's own appearance: the boot's dark screen asks the window for dark, so the
-  alert and the Send feedback sheet over it are dark whatever the system's is, and Recovery's
-  light screen leaves them to the system), then the
+  alert over it is dark whatever the system's is, and Recovery's
+  light screen leaves it to the system), then the
   application states the intent at once and the runtime's stop is requested
   off the main actor, on the queue of the runtime's other waiting calls, again
   every second until the run has ended (`RunStop`: the runtime drops a stop
@@ -731,32 +521,10 @@ requires reopening Andarium.
   (`RunEnd.stoppedByUser`), not Home, and a stop before the runtime runs ends
   at Home. A start the person stopped leaves its preparation to end: the
   guest's files stay its own until then, and a start asked for since, Erase,
-  Create, the update's Restore and a snapshot rename wait for it. Send
-  feedback opens the sheet the root presents (`feedbackFromBoot`), which stays
-  up with its draft when the boot completes or the run ends. During the start
-  its tip says that a bug report and a screenshot wait for the start to finish
-  and that the start log is attached, and the sheet attaches the log
-  once, when it opens: the step, the time on the notice's clock, the kind of
-  start and this boot's printed output, from the session record's last 4 KiB.
-  Only the running record of the boot under way counts (this process, with the
-  run's count of the guest's restarts, and not the record the file held as the
-  run began: `BootRecordBinding`, which compares no clock); an ended record,
-  another process's or an earlier boot's gives "(nothing yet)". What
-  identifies the installation is masked: the serial, the adb key, the hardware
-  address and the time zone the application knows, wherever they stand, and by
-  shape every `adb_key=`, `serialno=` and `timezone=` value,
-  init's `Init cannot set 'NAME' to 'VALUE'`, any UUID, any IPv6 address
-  (`::1` stays), any colon hardware address and the application's folders. Its
-  name in the mail is
-  `start-log-yyyyMMdd-HHmmss.txt`, the moment it was made, in the device's
-  clock and never localized (English, Gregorian, ASCII digits). It is a row the person can remove, counted in the total;
-  a removed log is not made again, and the file is not refreshed while the sheet
-  is open. When the boot completes the tip becomes the running one and the log
-  stays. The information block gains a Boot line with the step, the time and
-  the restarts. A process that ended in the
-  boot leaves the runtime's session record with the console's last output of
-  that boot, which the next bug report carries as the previous session's
-  record.
+  Create, the update's Restore and a snapshot rename wait for it. A process
+  that ended in the boot leaves the runtime's session record with the console's
+  last output of that boot, which the next bug report carries as the previous
+  session's record.
 - **Recovery the guest asked for.** `init: starting service 'recovery'` on the
   console (`ConsoleScanner.recoveryStartedCount`) makes the session a recovery
   session, as the launch's recovery mode does, whatever the start was: `adb
@@ -795,13 +563,11 @@ requires reopening Andarium.
   nothing of, serious included, has no hold. While critical is told Android
   lowers the guest's frame rate to 30, and the first time in a run that this
   starts the session screen says so once. The session and stall records, the
-  statistics and the feedback information keep iOS's real state, serious
-  included. A system without the HAL hears nothing and shows no notice; the
+  statistics keep iOS's real state, serious included. A system without the HAL hears nothing and shows no notice; the
   [Android README](../android/lineage-24/README.md) owns the HAL.
   Settings' Performance section, after Stats in a normal session, has "When
   hot": Limit frame rate, the default, or Full frame rate
-  (`HeatLimitPreference`, stored until it is turned back on; the feedback
-  information says it in "Frame rate limit when hot"). Full frame rate tells
+  (`HeatLimitPreference`, stored until it is turned back on). Full frame rate tells
   Android none at every state of iOS's, critical included, at once when it is
   chosen, and shows no notice at any heat; Limit frame rate again tells it the
   policy's severity at once. The policy runs either way (`deviceIsHot` says
@@ -810,6 +576,30 @@ requires reopening Andarium.
   rate in one tap; Dismiss only dismisses. A harness launch runs with the
   default and keeps nothing; `ANDARIUM_HEAT_LIMIT` (`1` or `0`) states it for
   the run ([Automation](#automation)).
+  Home's Performance section has "120 Hz" (`HighRefreshPreference`, off by
+  default) above JIT, drawn only where the screen shows at least 100 frames a
+  second (an iPhone Pro, an iPad Pro; a screen between 61 and 99 does not
+  qualify), where the display size the next start would have can carry the 120
+  Hz mode, and never on a Mac or Vision Pro; Settings has no row of it,
+  because Home, which shows only while no guest runs, is where the guest's
+  configuration is. The section is one heading over a group for each setting
+  that has an explanation (120 Hz, AOT, JIT), each a panel of the switch with
+  its note beneath it, closer together than two sections are. The heading is
+  drawn when one of the groups is, and a group that is not offered leaves out
+  its note too.
+  Turned on, the next start of Android asks the runtime for the 120 Hz display
+  ([Display refresh rate](../Kernarium/README.md#display-refresh-rate)); a
+  change applies at that start. The runtime
+  decides once, at boot, whether the run has the mode, and the application
+  uses what it granted (`display_refresh_hz` of the runtime's statistics) for
+  the run. While iOS is in Low Power Mode, or after the window moves to a
+  screen that shows under 100 frames a second, a granted run tells Android
+  MODERATE (the thermal wire's severity between light and severe), which holds
+  Android's render rate to 60 Hz; "When hot" still decides the heat levels,
+  and the heavier severity wins. The screen's maximum is read again at each
+  geometry update. A harness launch starts with the setting off, and
+  `ANDARIUM_HIGH_REFRESH` (`1` or `0`) states it for the run, which keeps
+  nothing.
 - **Game controllers.** Each game controller iOS has connected is a HID
   device in the guest, made through the guest's relay over vsock 5558
   (`GamepadSession`; the wire is `GamepadProtocol`, whose golden frames the
@@ -856,7 +646,9 @@ requires reopening Andarium.
   camera shows the row off and disabled with a note and keeps the person's
   choice; a device has one when it has a built-in front camera, the rule the
   guest's layout follows, and the iPad app running on a Mac or on an Apple
-  Vision Pro has none and looks for none (`CameraAvailability`). On an iPad, a
+  Vision Pro has none and looks for none (`CameraAvailability`; the system
+  answers for a Vision Pro from iOS 26.1, and below it the hardware's name
+  does: `IPadAppHost`). On an iPad, a
   session that other apps share the screen with pauses the camera (black
   frames) and shows a notice that goes with the interruption. When a guest app
   opens a camera while the session is blocked, the runtime reports it
@@ -885,13 +677,81 @@ requires reopening Andarium.
   changed; until the first answer, and where the runtime cannot discover the
   cameras, the sheet uses the tier's ceiling. The Simulator has
   no camera: the preview states the access (`-systemCamera` reads the
-  Simulator's own permission) and the non-App Store runtime serves a synthetic
-  camera (`KERNARIUM_CAMERA_SOURCE`) to a run that has none, and no camera at
-  all for a value it does not know; an App Store build has neither. No test
+  Simulator's own permission) and the runtime serves a synthetic camera
+  (`KERNARIUM_CAMERA_SOURCE`) to a run that has none, and no camera at all for a
+  value it does not know. No test
   captures a real camera. The default suites boot no guest; the opt-in
   `CameraGuestTests` boots one through this runtime on the synthetic camera and
   reads the vendor SKU, the camera IDs and the lens cover of a live and a
   blocked session.
+- **Root.** Root is a per-guest switch in a section of its own on Home, after
+  Capabilities (`RootSection`; the guest's `RootState`, off for a new guest and
+  for one stored before). Home shows only while Android is stopped, so a change
+  applies at the next start. Turning it on asks first (what an app allowed in
+  Magisk can do); turning it off applies at once. The row exists only where the
+  release this copy carries holds root (`RootRelease`: the manifest's `root`
+  object and the files in the release's `root/`, which the
+  [Android release](../android/lineage-24/README.md) makes and
+  `stage-system-image.py` stages); without it nothing of the feature shows and a
+  start boots the release's own ramdisk. A start with root asks the runtime for
+  the release's Magisk-patched ramdisk (`android_root`, runtime API 46;
+  [boot selection](../darwin/device/block/README.md#boot-selection)).
+  Before the boot screen ends, a start with root asks the guest whether the
+  official Magisk app is there (`RootAppStep`, over the application's adb
+  channel) and puts the release's own copy in when it is not (a regular file
+  reached under `root/` with no link in its path, opened once without following
+  one and sent from that descriptor, `RootRelease.openApk`): the screen adds
+  a fifth step, Magisk app, after Startup only for a start that installs, and
+  the check, the install and the opening of the app are bound together to
+  45 s. The app is opened by the activity the package manager names as its
+  launcher (`MagiskAppOpening`: `am start` resolves default activities only, so
+  the launcher intent never resolves): after a bounded wait for user 0's unlock,
+  up to five tries, each checked against the activity manager's one current
+  focus record. The tries run even when the unlock never shows: a start while
+  locked either fails, and is recorded as not opened, or succeeds. An app that
+  does not open is no failure and no alert; `andarium/root.txt` says so. The step belongs to its boot and to the period of the switch it began in:
+  after a Stop, a restart, a later start or a change of the switch its result
+  adds nothing to the state and raises no alert or step (an app that is in
+  the guest and not recorded is installed over at the next start). A package of that name at the
+  carried version that the application did not put in is installed over like
+  an older one, since only its signature says whose it is and the package
+  manager checks it and refuses another signer; a newer one is left alone,
+  since Android refuses a downgrade, and none is ever uninstalled. A failure is an alert and
+  the boot goes on with root on. A start with root that ends before Android
+  boots (a guest panic or exit the previous session's record shows, a restart
+  loop, or a Stop by the person) is the fallback's: starts boot without root
+  until the person chooses, and a Home card offers Try with root again, which
+  also starts Android with root through the Start button's path, and Turn
+  off root (or, after a Stop, Start without root); a panic ends the process, so
+  the next launch reads the previous session's record, which names the ramdisk
+  of the boot that ended (`SessionRecord.ramdisk`) and how far it got: a boot
+  with the Magisk ramdisk that ended in a guest panic or an error exit before
+  Android's boot completed, whether or not init had printed anything, is a
+  failed start, and one that restarted into recovery or never began is not.
+  What a start asks for (`RootState.startRooted`) is never saved. The same
+  record decides the rest: the Magisk app step and a stopped start's card
+  follow the boot the record names (a boot that restarted in place into
+  recovery, or never began, installs nothing), the end of a run reads it too
+  (a kernel's error exit pauses root without a relaunch), and the bug report
+  says from it which ramdisk the last boot used. The previous session's record
+  stays where the runtime wrote it until the pause decided from it is saved,
+  no run begins while that save is owed, and a start with root whose settings
+  cannot be saved begins without root. The record of a run is moved aside as
+  the next run is asked for (`RunRecord`), so the one at its place is always
+  the current run's and no time has to tell them apart; one that cannot be
+  moved is emptied, and one that can be neither moved nor emptied is not read.
+  The record a failed start's pause was decided from is moved aside as soon as
+  the pause is saved, so that a relaunch after Try with root again does not
+  read it again. Restoring a snapshot forgets what the application
+  remembers of the Magisk app (`RootState.dataDiskReplaced`), since the
+  snapshot's disk may not have it, and so does a restore that replaced the
+  disk and could not finish, at once and not at the recovery that ends it; the
+  switch stays. The bug report carries `andarium/root.txt` (the
+  switch, the ramdisk of the last start, the Magisk version the release
+  carries, why the last install of the Magisk app was made and whether the app was then on the screen). The wording is in `RootWords`. Three rules are one constant each in AndariumCore:
+  when an absent Magisk app is installed again (`RootInstallRule`), what becomes
+  of the app when root is off (`RootOffRule`), and what a failed start with root
+  does to the switch (`RootFallbackRule`).
 - **Input.** The shared [GuestHost input](../GuestHost/README.md) maps up to
   ten fingers onto the guest's display; the hardware keyboard and mouse are
   the next item. A touch the system takes over reaches
@@ -907,10 +767,17 @@ requires reopening Andarium.
   closed side keys carry actions that move them. Android's display is one
   element (`GuestDisplayAccessibility`) whose value is Android's screen reader's
   state and whose activation sends Android no touch; while the screen reader is
-  on it is a direct-touch area, so touches reach Android and it speaks instead of
-  VoiceOver ([Android's screen reader](#android-operations)). Each option row on
-  Home reads as one element, its control, which carries the row's title as its
-  label (the title is no second stop), followed by the line under it.
+  on the display is a container of one direct-touch element, so touches reach
+  Android and it speaks instead of VoiceOver, with no rotor setting needed
+  ([Android's screen reader](#android-operations)). The sentence of a run's
+  start is announced at high priority, which VoiceOver's own speech of the
+  element its cursor lands on after the screen change does not cut off; the
+  display's element takes VoiceOver's focus once it has been spoken, with
+  nothing over the display, and the card that asks waits for it too (at most 15
+  seconds, where VoiceOver reports no end); the card then takes the focus on its
+  own title. Each option row on Home
+  reads as one element, its control, which carries the row's title as its label
+  (the title is no second stop), followed by the line under it.
 - **Keyboard and mouse.** The guest has a hardware keyboard and a mouse
   (virtio-input devices, plugged and unplugged at run time) while iOS has the
   hardware. Every key goes to Android as its position (the usage on the HID
@@ -933,8 +800,9 @@ requires reopening Andarium.
   when a boot ends); until then, and for good on a kernel that never registers
   it, the system pointer's clicks are touches and its use only plugs the mouse.
   The devices need a kernel that follows configuration changes (the hot-plug
-  topic of the virtio-input devices); on the accepted kernel they plug and
-  nothing sees them, and input sent is dropped. A touch of the pointer is the
+  topic of the virtio-input devices), which the accepted kernels have; on a
+  kernel without it they plug and nothing sees them, and input sent is
+  dropped. A touch of the pointer is the
   mouse's or a finger's from its beginning to its end. An iPhone has no pointer
   to give the guest, and Settings' "Use the pointer as touch" (off for a fresh
   install, kept as `PointerPreference`, absent on an iPhone) leaves the guest
@@ -972,8 +840,9 @@ requires reopening Andarium.
   is stored as a scale and stays. Native's host allocations count against the
   same iOS process limit as guest RAM; neither the graphics-memory estimate
   nor the memory default counts the display's pixels.
-- **JIT.** A development build on a device has a JIT row on Home, off until
-  the person turns it on and kept for the install (`JitPreference`). An iOS
+- **JIT.** A build on a device has a JIT row in Home's Performance section,
+  off until the person turns it on and kept for the install
+  (`JitPreference`). An iOS
   device gives the JIT its executable memory only through a debugger attached to
   the process ([`docs/architecture.md`](../docs/architecture.md#executable-code)):
   the person assigns StikDebug's universal script to Andarium once in StikDebug
@@ -987,7 +856,8 @@ requires reopening Andarium.
   memory prepared at launch (or waits for the attempt, with "Preparing JIT" on
   the boot screen) and boots on the JIT engine; without a debugger, or if the
   preparation fails, it boots on gadgets and says why on the boot screen and
-  under the row. A guest changed after the memory was prepared needs Andarium
+  under the row. The note's ready sentence shows only while the row is on. A
+  guest changed after the memory was prepared needs Andarium
   opened from StikDebug again, and the memory stays wired for the process
   whether the start uses it or not (the runtime's GPU plan counts it). No
   debugger request is made while none is attached, and one that goes unanswered
@@ -999,9 +869,32 @@ requires reopening Andarium.
   starts it off. The JIT compiles every process's code again for itself
   ([cold code](../darwin/cpu/arm64/jit/README.md#cold-code)), so an Android
   guest's boot, application launches and background work run several times
-  slower than on gadgets, and a long single-process computation runs faster. An
-  App Store build carries none of this: its runtime has no JIT and the
-  application has no row, preference, entries or sentences.
+  slower than on gadgets, and a long single-process computation runs faster.
+- **AOT.** Android's system libraries and boot image run from machine code
+  translated ahead of time
+  ([`docs/architecture.md`](../docs/architecture.md#ahead-of-time-code)). A
+  build that embeds `UmlArm64Aot.framework` (what Acknowledgements reads) has an
+  AOT group in Home's Performance section, between the 120 Hz group and the
+  JIT group: a switch, on by default and kept for the install
+  (`TranslatedLibrariesPreference`), with the note beneath its panel; a fresh
+  install and an update start on, and a harness launch starts on and keeps
+  nothing. The choice is read at each start. Off, the boot request keeps the
+  release out of the launch (`android_aot_disabled`,
+  [Kernarium](../Kernarium/README.md#automation-runs)) and Android runs on
+  the engine alone, as in a build without the framework; a running Android is
+  not changed. While the next start runs on the JIT, which does not use the
+  translated code, the row is dimmed, its switch cannot be changed and the line
+  beneath the group says so. Each start writes what it chose beside the session
+  record (`start.txt`, `StartRecord`), kept with it at the next launch, and a
+  bug report carries both as `andarium/start-current.txt` and
+  `andarium/start-previous.txt`: `translated-libraries` is `on`, `off`,
+  `not-used-with-jit` or `unavailable` (a build without the framework). The
+  record names the process and the second of its start, and is a session's
+  only when that session's record names the same process and began no earlier;
+  a choice whose start left no session record is copied as
+  `andarium/start-current-unmatched.txt` or
+  `andarium/start-previous-unmatched.txt`, and the session records are always
+  copied.
 - **Motion.** The guest has the device's accelerometer and gyroscope wherever
   the device has them, with no setting and no permission. An iPad app on a Mac
   and the Simulator have none, so nothing is read there, and Android still
@@ -1022,16 +915,14 @@ requires reopening Andarium.
   accelerometer and gyroscope are tried again as above. A run ends with the
   foreground, a changed mount or a restart, not with a reconnect. From iOS 27.2
   a motion status of denied or restricted hides it from the guest; nothing is
-  requested. A development build launched with `ANDARIUM_COMPASS_READOUT=1`
+  requested. A launch with `ANDARIUM_COMPASS_READOUT=1`
   prints, at most about twice a second, the Core Motion sample behind the
-  guest's field with iOS's own attitude and heading; App Store builds compile it
-  out.
+  guest's field with iOS's own attitude and heading.
 - **Text messages.** The Developer section of Settings has Send text
-  message… under ADB over network, in every build configuration, but the
-  device application holds the capability back until an accepted release image
-  carries the service (`Capabilities.device`); no shipped configuration offers
-  it. Pressed, the row closes Settings and a bar rises over the running
-  Android, above the keyboard, which does not move Android. The bar has a
+  message… under ADB over network, in every build configuration, while Android
+  runs in a normal start (`Capabilities.device`). Pressed, the row closes
+  Settings and a bar rises over the running Android, above the keyboard, which
+  does not move Android. The bar has a
   title (the row's symbol, "Text message" as the heading VoiceOver starts on,
   and a line saying Android receives it as an incoming text) with Close, a
   sender (the last one used, else Andarium; it is cleaned before it is judged),
@@ -1052,7 +943,9 @@ requires reopening Andarium.
   message goes to the guest over vsock port 5560 (`GuestSmsChannel`), not over
   adb. The sender and text rules and the limits are `GuestSms`'s; the system
   image must include the
-  [SMS service](../android/lineage-24/README.md#text-messages).
+  [SMS service](../android/lineage-24/README.md#text-messages). The row does
+  not check for it: a running image without the service leaves the connection
+  unanswered, and the bar says the message was not sent after about 5 s.
 - **Free space.** Free space is the space a write can use (`HostStorage`,
   `statfs(2)`), the one figure the watch, the start and transfer checks and
   every screen use; it leaves out the purgeable space iOS Settings counts, so
@@ -1135,10 +1028,15 @@ requires reopening Andarium.
   ([`docs/architecture.md`](../docs/architecture.md)). The next launch keeps
   that record as the previous session's (`PreviousSession`) and, after an end
   that was neither Android's own nor a stop, Home shows a notice with its cause
-  (`SessionRecord.notice`). The runtime writes the record without the serial
+  (`SessionRecord.notice`). A bug report carries the previous process's record
+  for the whole life of the process, and beside it the last earlier run of
+  this process (`RunRecord`), kept apart from it. At launch, an earlier run
+  the process before left is not this process's: it becomes the previous
+  session's when that process left no other record (a failed start whose
+  pause was saved), and is dropped otherwise (`PreviousSession`). The runtime writes the record without the serial
   number, the adb key and the time zone the launch stated and without any
-  hardware address in its colon spelling (masked as the start log masks them),
-  so neither the bug report nor the previous session's copy has them.
+  hardware address in its colon spelling, so neither the bug report nor the
+  previous session's copy has them.
   `ExitReports` keeps the exit and diagnostic reports
   MetricKit delivers beside the records. The record's stall slot (`StallRecord`)
   says when the guest's vCPUs stopped running on the host and what the host was
@@ -1186,12 +1084,13 @@ is on. `AndariumCore/Adb` speaks the protocol.
   asks; nothing turns the screen reader on but the person's own action, and
   turning it off, in Settings or in Android, ends the asking for the run.
   Turning it on says so with the way back, and so does the first read of a run
-  that finds it on already; the display's hint ends with the way back too. The
-  card that says a system has no screen reader shows once per run, not once per
-  virtual machine. The system image carries TalkBack and eSpeak NG
-  ([Android README](../android/lineage-24/README.md#accessibility)); a virtual
-  machine whose system has none shows the switch as unavailable and the card says
-  so.
+  that finds it on already while something covers the display; where the
+  display takes VoiceOver's focus its own words carry it, and its hint ends with
+  the way back. The card that says a system has no screen reader shows once per
+  run, not once per virtual machine. The system image carries TalkBack and
+  eSpeak NG ([Android README](../android/lineage-24/README.md#accessibility)); a
+  virtual machine whose system has none shows the switch as unavailable and the
+  card says so.
 - **Create bug report and Install APK** are in every build, in a normal
   session. Settings lists Install APK and the file browser first, above the
   statistics, and the side keys' tip adds a line saying where Install APK is
@@ -1288,6 +1187,60 @@ is on. `AndariumCore/Adb` speaks the protocol.
   the switch is when the listing taken as the file went again and the one after
   the install differ by an app: the card's detail gains two sentences. The
   switch is the person's choice per app; Andarium keeps nothing of it.
+- **Add to Home Screen** (Settings > Apps) puts an Android app's own icon and
+  name on the iOS Home Screen, through Apple's Shortcuts. An App Intent
+  (`OpenAndroidAppIntent`, `Shared/AndroidAppIntents.swift`) has one entity per
+  launchable app, `AndroidAppEntity`, identified by the `package/class` of its
+  launcher activity, so an icon made before Android was erased finds its app
+  again once the app is reinstalled. A held tile in Shortcuts adds the icon; the
+  row opens a chooser and a guide with Apple's Shortcuts button. There is no URL
+  scheme, extension or shared container: the intent runs in Andarium's process.
+  The list comes from the image's `kernarium_apps` tool
+  ([`android/lineage-24`](../android/lineage-24/README.md)) through
+  `AndroidAppsTool` and `AndroidAppRefresh` in `AndariumCore`, and is cached by
+  `AndroidAppStore` (catalog, icons, and a small record per icon that survives
+  an erase), so the tiles and the chooser answer while Android is off. The
+  automatic listing of a run is its first: it is made 60 s after Android
+  reports its boot complete, so that nothing starts in the guest while it
+  settles, and again when a pause for space that kept it from being made is
+  over. Earlier asks come from opening the chooser, from an installed app, from
+  a launch that found its app missing, and, at once and with its app still
+  opening, from the request that began the boot for an app the cached list does
+  not name. The row is offered in a normal session until a listing finds that
+  the image has no tool. A Mac and a Vision Pro have no Home Screen: there the
+  intent runs, but the apps are no entities, nothing is written to Spotlight,
+  the tiles are not told of them, and Android is asked only when an app is
+  opened by name: every open takes one listing, with no icons, before it
+  resolves the app, and a launch that found its app missing lists again to
+  learn why. The guest is asked for one listing at a time. An icon
+  is stored only as a picture the host drew itself (`FlatteningAppsTool`), and a
+  label as the tool's own sanitising makes it, whatever the tool or the cache
+  file says.
+  A request from an icon follows the Start button's rules (`AppOpenPlanner`): a
+  running Android opens the app once `AndroidAppReadiness` says it is ready
+  (setup finished for the foreground user; for a request that began the boot or
+  arrived during it, the home screen's first resume observed, and once the boot
+  is over another app in front is no obstacle; a launch that was sent is never
+  sent again), a stopped one is started, and a
+  start that needs the person's answer (an unfinished update, too little space,
+  a restore under way) waits for it in a card above Home's notice; a request
+  during an erase is dropped. The request is in memory only and Don't open
+  drops it. A failure is a banner over Android. The switch on the chooser governs Spotlight (Search) only: every
+  write to the index takes one ordered path (`AndroidAppsIndexWriter`), judged
+  against the switch and the catalog as they are when it runs, and a launch
+  finishes a write that failed. The tiles, the entities and the Siri phrase do
+  not follow the switch. Shortcuts shows a tile for each app from iOS 27 only,
+  so the host offers the feature from there
+  (`IPadAppHost.offersAddToHomeScreen`): an iOS 26 host is treated as a Mac or a
+  Vision Pro is, and the entity, its query, the action and its automatic
+  shortcut are all declared `@available(iOS 27.0, *)`, so Shortcuts lists no
+  Android action before it, the Find action the system makes for an entity
+  included (`andarium-open-intent-availability` reads the declarations and, for
+  a built application, its extracted App Intents metadata). The feature is in every build
+  configuration. Tests:
+  `AndariumCore`'s `AppOpen*`, `AndroidApp*` suites, the hosted
+  `AndroidApps*Tests` and the preview's `AddToHomeUITests`
+  (`-screen add-home-*`, `Preview/AddToHomePreview.swift`).
 - **File browser** in Settings browses the guest's internal storage
   (`/storage/emulated/0/`, the guest Files app's root) and imports and exports
   files over the same channel, in a normal session and whatever the guest's USB
@@ -1344,7 +1297,20 @@ kernel's license files (never fetched; `--verify` compares the resource with
 them). A tooling test fails when the Andarium project embeds a framework, or an
 iOS device prefix contract declares a component, that no entry covers
 ([`docs/testing.md`](../docs/testing.md#andarium)). Adding a library therefore
-means adding its entry to the script's table and running it.
+means adding its entry to the script's table and running it. Magisk and BusyBox,
+which the Android release carries only with root, are listed only where the
+release the application carries has root (`requires_root`, answered from
+`AppModel.rootAvailable`): Magisk's page holds the GPL-3.0 text, which the
+generator takes from two upstream projects' own copies and refuses unless they
+agree, and each page says where the source of both is available (the Magisk
+project, at the tag of the version the release carries). The machine code
+translated from the Android libraries (`UmlArm64Aot.framework`) carries its own
+notices: the generator reads the AOT artifact's `licences.json`
+(`--aot-artifact`, else the accepted artifact installed below
+`.build/android/aot`) and lists each distinct notice once as "Translated system
+libraries", a page opened from the page of Android Open Source Project, with the
+paragraph the application's code carries above its row, in an application that
+embeds the framework only.
 
 ## Languages
 
@@ -1352,18 +1318,9 @@ Andarium is in English, Simplified Chinese, Traditional Chinese (Taiwan usage)
 and Japanese, and follows the language of iOS and the per-app language setting.
 The strings are String Catalogs in `Localization/` (screens, permission texts,
 What's New notes) and in `AndariumCore`'s resources. The JIT texts are their own
-catalog, table `JIT`, which the App Store configuration leaves out of the
-bundle and its check asserts is absent. The texts of Send feedback, Buy me
-tokens, Review on the App Store and Follow developer on X are catalogs of their
-own, tables `Feedback`, `TipJar`, `Review` and `FollowX`, built only where their
-feature is compiled in (`EXCLUDED_SOURCE_FILE_NAMES` in `Config/Andarium.xcconfig`);
-the bundle check refuses a table, by its file name, in a product without its
-feature and asks for it in every language of one with it. The tip's words keep
-to its rules in each language (`scripts/check-tip-words.py`): no donation, plan
-or subscription word (nor unlock, upgrade, premium, credits or balance) and no
-token amount, and the statement says in each language that a tip is voluntary,
-one-time, a purchase and free either way; the tier names are not checked.
-English is the key (a readout or a
+catalog, table `JIT`. The text of Follow developer on X is a
+catalog of its own, table `FollowX`, built only where the feature is compiled
+in (`EXCLUDED_SOURCE_FILE_NAMES` in `Config/Andarium.xcconfig`). English is the key (a readout or a
 joined list has a named key whose comment says which readout it serves), and
 the person's virtual machine is "virtual machine" in English, 虚拟机, 虛擬機器
 and 仮想マシン, and its storage is 存储空间 in Simplified Chinese; the name of
@@ -1377,11 +1334,9 @@ short quoted Chinese or Japanese name is not cut across two lines.
 `SWIFT_EMIT_LOC_STRINGS=YES`, `scripts/localization.py sync --check
 --stringsdata <DerivedData>` fails on a key the code uses and a catalog lacks,
 or the reverse. It runs on a development build made with
-`FEEDBACK_ADDRESS=feedback@example.com`, the four `TIP_*` identifiers,
-`REVIEW_ID=id0000000000`, `FOLLOW_X_HANDLE=example_handle` and
-`ICP_NUMBER=示例ICP备00000000号-0A` (the output of
-`Andarium` and `AndariumPreview` together; one without a feature has none of its
-strings and fails) and on an App Store build with `--app-store`. A
+`FOLLOW_X_HANDLE=example_handle` (the output of
+`Andarium` and `AndariumPreview` together; one without the feature has none of
+its strings and fails). A
 string no catalog reaches (a `String` built in code) shows as English under
 Xcode's Accented Pseudolanguage, so a run with it on is part of adding a
 screen.
@@ -1390,8 +1345,8 @@ screen.
 
 A harness launch (`xcrun devicectl device process launch`, environment given
 as `DEVICECTL_CHILD_` variables) reaches a state without touching the screen.
-The names are the application's, in `Live/LaunchEnvironment.swift`, which the
-App Store configuration leaves out; `AndariumCore` knows the settings
+The names are the application's, in `Live/LaunchEnvironment.swift`;
+`AndariumCore` knows the settings
 (`LaunchOverrides.Setting`) and not the names. The `KERNARIUM_` names mean what
 they mean in Kernarium; the automation Android runtime
 (`package-ios-frameworks.sh --runtimes android --android-automation`)
@@ -1403,13 +1358,11 @@ one pixel to a point) is read where it is not stated.
 `ANDARIUM_THERMAL_STATE` (`nominal`, `fair`, `serious` or `critical`) stands
 for iOS's thermal state in the Simulator and in automation; only `critical`
 reaches the guest as heat. `ANDARIUM_HEAT_LIMIT` (`1` or `0`) states
-Settings' "When hot" for the run: `0` tells the guest nothing of the heat. A
+Settings' "When hot" for the run: `0` tells the guest nothing of the heat.
+`ANDARIUM_HIGH_REFRESH` (`1` or `0`) states Home's "120 Hz" for the run. A
 UI test's probe session (`ANDARIUM_INPUT_PROBE`) that states the thermal state
 runs the thermal session against a stand-in for the guest's HAL, and its log
 says what the guest would be told (`heat told <severity>`).
-`ANDARIUM_REVIEW_ASK_SECONDS` and `ANDARIUM_REVIEW_ASK_RESET=1` set the rating
-prompt's counter and clear its record, in a build that has the prompt
-([Rating prompt](#rating-prompt)).
 `ANDARIUM_FOLLOW_ORIENTATION` (`1` or `0`) states whether the guest follows the
 device's orientation, where the device's idiom (an iPhone follows) would
 otherwise decide.
@@ -1433,9 +1386,9 @@ nothing.
 session a scripted list of two made-up old apps in place of the image's command:
 `apps` lists them (one on and open), `refuse` also refuses every change, `none` is
 an image without the command.
-`ANDARIUM_TEXT_MESSAGES=1` turns on the Text message entrance that the device
-application holds back until an accepted release image carries the service
-(`Capabilities.device`); tests and proof images use it.
+`ANDARIUM_ANDROID_APPS_PROBE=1`, with the probe, gives its session the played list of
+made-up Android apps that Add to Home Screen's preview screens use, in the cache and
+the App Shortcuts, so that Apple's Shortcuts shows their tiles under Andarium.
 `ANDARIUM_GUEST_INSTANCE=<name>` runs an isolated guest under
 `Library/TestGuests/<name>`, for tests that need a fresh guest while the
 ordinary guest or its pending update must be preserved. A file `free-space-mib`
@@ -1455,7 +1408,7 @@ setting given as a `TEST_RUNNER_`-prefixed variable. The test run ends the
 application, so `TEST_RUNNER_ANDARIUM_HOLD_SECONDS` keeps the host up that
 long. The opt-in test switches are in
 [`docs/testing.md`](../docs/testing.md#andarium). The console lines the harness
-reads are `Shared/ConsoleReport.swift`'s, and an App Store build prints none.
+reads are `Shared/ConsoleReport.swift`'s.
 
 The container's `Documents` is the harness's; Andarium never deletes a file it
 did not create. The guest is under `Library/Guest/` and is not the harness's to

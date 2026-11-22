@@ -157,6 +157,17 @@ if(TARGET uml_third_party_kosmickrisp)
         LIBRARIES UML::ThirdPartyKosmicKrisp
         VULKAN TIMEOUT 120)
 
+    # What a caller of the pipeline binary commands chooses is checked before
+    # it is read, copied or dereferenced: the size of an imported key, the
+    # size of its data, and which of the three sources a create request
+    # names, and what chain a pipeline key request begins with. Each row runs in
+    # a process of its own.
+    uml_add_gpu_unit_test(gpu-kosmickrisp-pipeline-binary-requests
+        uml_gpu_kosmickrisp_pipeline_binary_requests_tests
+        kosmickrisp_pipeline_binary_requests_tests.cpp
+        LIBRARIES UML::ThirdPartyKosmicKrisp
+        VULKAN TIMEOUT 300)
+
     add_library(uml_gpu_vulkan_draw_test_support STATIC
         vulkan_draw_test.cpp)
     target_link_libraries(uml_gpu_vulkan_draw_test_support PUBLIC
@@ -276,6 +287,52 @@ if(TARGET uml_gpu_service)
         venus_bind_failure_tests.cpp
         LIBRARIES ${_uml_host_gl_libraries}
         VULKAN UNIT_DIRECTORY TIMEOUT 120)
+
+    # The renderer serves no VK_KHR_pipeline_binary, which imports a binary under
+    # a key and data the guest names and builds a pipeline from it: it does not
+    # offer the extension, and every command of it, and every pipeline creation
+    # that chains binaries, ends the context of a guest that enabled it by name
+    # anyway. The rows of the renderer's object table that the binaries once
+    # served as the vehicle of stay. The faults lie past the end of a heap block
+    # or in freed memory, so the test runs each row in a child under Guard
+    # Malloc, and the rows that name an object the renderer must free again under
+    # the leak checker.
+    uml_add_gpu_unit_test(gpu-venus-pipeline-binary-requests
+        uml_gpu_venus_pipeline_binary_requests_tests
+        venus_pipeline_binary_requests_tests.cpp
+        LIBRARIES ${_uml_host_gl_libraries}
+        VULKAN UNIT_DIRECTORY TIMEOUT 600)
+    set_tests_properties(gpu-venus-pipeline-binary-requests PROPERTIES
+        SKIP_RETURN_CODE 77)
+
+    # A guest chooses the data of a pipeline cache, which the host driver parses
+    # as if its own serializer had written it, so the renderer makes every cache
+    # empty and answers a read of one with the blob of an empty cache. The
+    # faults lie past the end of a heap block or at address zero, so the test
+    # runs each row in a child under Guard Malloc.
+    uml_add_gpu_unit_test(gpu-venus-pipeline-cache-bytes
+        uml_gpu_venus_pipeline_cache_bytes_tests
+        venus_pipeline_cache_bytes_tests.cpp
+        LIBRARIES ${_uml_host_gl_libraries}
+        VULKAN UNIT_DIRECTORY TIMEOUT 600)
+    set_tests_properties(gpu-venus-pipeline-cache-bytes PROPERTIES
+        SKIP_RETURN_CODE 77)
+
+    # A handle the specification does not allow to be VK_NULL_HANDLE reaches its
+    # handler as a null pointer when the guest sends object id 0, because the
+    # codec refuses id 0 only for the first argument of a command; a shader
+    # stage that names no shader or entry point reaches the runtime's hash, and
+    # a host image copy names a mip level, aspect, region and row length the
+    # image does not have. Each is refused and the host lives on, and a request
+    # the specification allows is served. The faults lie past the end of a
+    # heap block, so the test runs each row in a child under Guard Malloc.
+    uml_add_gpu_unit_test(gpu-venus-required-handles
+        uml_gpu_venus_required_handles_tests
+        venus_required_handles_tests.cpp
+        LIBRARIES ${_uml_host_gl_libraries}
+        VULKAN UNIT_DIRECTORY TIMEOUT 900)
+    set_tests_properties(gpu-venus-required-handles PROPERTIES
+        SKIP_RETURN_CODE 77)
 
     # A blob larger than the shared memory behind it is refused where it is
     # created, for Venus memory (POSIX shared memory and the unlinked files iOS
@@ -821,6 +878,22 @@ if(TARGET uml_gpu_service)
 endif()
 
 if(TARGET uml_gpu_display)
+    # The decisions of the 120 Hz display link: a state machine, no clock.
+    uml_add_gpu_unit_test(gpu-present-pacer
+        uml_gpu_present_pacer_tests present_pacer_tests.cpp
+        LIBRARIES uml_gpu_display
+        UNIT_DIRECTORY)
+
+    # The sizes whose 120 Hz mode the EDID can state, against the table that
+    # the application's offer reads too (the fixture's path is the test's
+    # argument, so the file has one copy).
+    add_executable(uml_gpu_edid_timing_tests edid_timing_tests.cpp)
+    target_link_libraries(uml_gpu_edid_timing_tests PRIVATE uml_gpu_display)
+    uml_add_unit_test(NAME gpu-edid-timing
+        COMMAND uml_gpu_edid_timing_tests
+            ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/edid-120hz-sizes.txt
+        LABELS gpu)
+
     # The resize path's objects come from the shipped display library.
     uml_add_gpu_unit_test(gpu-display-resize
         uml_gpu_display_resize_tests display_resize_tests.cpp

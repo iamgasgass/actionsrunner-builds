@@ -45,34 +45,6 @@ check above refuses, so the shots that raise the alert run last, and
 SpringBoard is restarted after each: rotate the iPad again before the next
 run.
 
-The shots of Send feedback exist only in a Preview built with the arrangement
-that turns the feature on, which gives it the example receiver and never reads
-the local file:
-
-    xcodebuild -project Andarium/Andarium.xcodeproj -scheme AndariumPreview \\
-        -destination 'generic/platform=iOS Simulator' \\
-        FEEDBACK_ADDRESS=feedback@example.com build
-
-Without it the Preview has no Send feedback, its shots are skipped and said
-so, and the rest is unaffected. The shots of Buy me tokens are the same: they
-need the four settings of its arrangement, which carry the example product
-identifiers and never read the local file:
-
-        TIP_LITE=com.example.andarium.tip.lite TIP_PRO=com.example.andarium.tip.pro \\
-        TIP_MAX=com.example.andarium.tip.max TIP_ULTRA=com.example.andarium.tip.ultra
-
-The header of Buy me tokens shows the developer's avatar, name and profile
-logos in a Preview built with `SHEET_DEVELOPER_NAME=example
-SHEET_DEVELOPER_GITHUB=example SHEET_DEVELOPER_X=example_handle` (and
-`SHEET_ARTWORK_SOURCE=local` with `FOLLOW_X_LOGO_SOURCE=local` for the files of
-`Config/Local/`); without them it reads the role alone.
-
-The shots of Info's filing number (`info-icp…`) need a Preview built with
-`ICP_NUMBER=示例ICP备00000000号-0A`, which is the placeholder and never the
-local file's number; without it they are skipped and said so. The storefront is
-the Preview's own (`-icpStorefront CHN|USA|none`), so that a shot does not depend
-on the Simulator's account.
-
 The Info shots show Follow developer on X in a Preview built with
 `FOLLOW_X_HANDLE=example_handle` (and `FOLLOW_X_LOGO_SOURCE=local` for the real
 logo from `Config/Local/`); without it the row is absent from them.
@@ -131,12 +103,6 @@ class Shot:
     # The shot raises the system's own alert, which stays up over whatever launches next: it runs last, and
     # SpringBoard is restarted after it.
     alert: bool = False
-    # The screen is Send feedback's, which only a Preview built with FEEDBACK_ADDRESS has.
-    feedback: bool = False
-    # The screen is Buy me tokens', which only a Preview built with the four TIP_ settings has.
-    tipjar: bool = False
-    # The screen shows the ICP filing number, which only a Preview built with ICP_NUMBER has.
-    icp: bool = False
 
     def launch_arguments(self, language: str | None = None) -> list[str]:
         arguments = ["-screen", self.screen, *self.args]
@@ -147,21 +113,6 @@ class Shot:
 
 def s(id: str, group: str, screen: str, description: str, *args: str, dark: bool = False, wait: float = 3.0) -> Shot:
     return Shot(id, group, screen, description, tuple(args), dark, wait)
-
-
-def feedback(id: str, screen: str, description: str, *args: str, dark: bool = False, wait: float = 14.0) -> Shot:
-    """A shot of Send feedback, which exists only in a Preview built with `FEEDBACK_ADDRESS=feedback@example.com`."""
-    return Shot(id, "Feedback", screen, description, tuple(args), dark, wait, feedback=True)
-
-
-def tipjar(id: str, screen: str, description: str, *args: str, dark: bool = False, wait: float = 8.0) -> Shot:
-    """A shot of Buy me tokens, which exists only in a Preview built with the arrangement of the four `TIP_` settings."""
-    return Shot(id, "Buy me tokens", screen, description, tuple(args), dark, wait, tipjar=True)
-
-
-def icp(id: str, screen: str, description: str, *args: str, dark: bool = False, wait: float = 4.0) -> Shot:
-    """A shot of Info's filing number, which exists only in a Preview built with the arranged `ICP_NUMBER`."""
-    return Shot(id, "Info", screen, description, tuple(args), dark, wait, icp=True)
 
 
 SYSTEM = ("-systemMicrophone", "YES")
@@ -219,13 +170,26 @@ SHOTS: list[Shot] = [
     s("home-resolution-middle", "Home", "home-resolution", "The Resolution row with a choice between the ends: the pixels alone.", "-displayScale", "1.5"),
     s("home-resolution-one-choice", "Home", "home-resolution", "The Resolution row on a screen with one choice (native scale 1.0): the resolution without a name, and Change dimmed.", "-displayNative", "1"),
     s("home-capabilities", "Home", "home-capabilities", "Home scrolled to Capabilities: Location off, Microphone off, Camera off and, on an iPhone, Haptics on (their defaults), no notes.", dark=True),
-    s("home-jit", "Home", "home-jit", "Home scrolled to JIT: the toggle on and a debugger attached, so the note says it is ready for the next start.", dark=True),
+    s("home-jit", "Home", "home-jit", "Home scrolled to Performance on a screen that shows 60 frames a second: JIT alone, the toggle on and a debugger attached, so the note says it is ready for the next start.", dark=True),
     s("home-jit-no-debugger", "Home", "home-jit-no-debugger", "JIT on with no debugger attached: the note says to open Andarium from StikDebug."),
     s("home-jit-fallback", "Home", "home-jit-fallback", "Home after a start that ran without the JIT it was asked for: the note says StikDebug was not connected."),
+    s("home-aot", "Home", "home-aot", "Home scrolled to Performance on a screen that shows 120 frames a second, in a build that carries the translated libraries: 120 Hz off, the AOT row below it with its switch on (the default) and its note, then JIT.", dark=True),
+    s("home-aot-off", "Home", "home-aot-off", "The AOT row with its switch off."),
+    s("home-aot-60hz", "Home", "home-aot-60hz", "Performance on a screen that shows 60 frames a second, in a build that carries the translated libraries: the AOT group and the JIT group only."),
+    s("home-aot-jit", "Home", "home-aot-jit", "The AOT row while the next start runs on JIT: the row is dimmed and the line under the title says it is not used."),
     s("home-capabilities-mic-on", "Home", "home-mic-on", "Capabilities with Microphone on, iOS having allowed it."),
     s("home-capabilities-mic-denied", "Home", "home-mic-denied", "Capabilities after iOS refused the microphone or its app permission was removed: the row is dimmed and says it is not allowed in Settings.", dark=True),
     s("home-capabilities-mic-alert", "Home", "home-mic-alert", "Turning Microphone on while iOS refuses it: the alert that offers Settings."),
     s("home-capabilities-haptics-off", "Home", "home-haptics-off", "Capabilities on an iPhone after Haptics was turned off; an iPad has no Haptics row.", dark=True),
+    s("home-root", "Home", "home-root", "Home with the Root section after Capabilities: Root access with its switch off, and the note that apps allowed in Magisk can run as root from the next start.", dark=True),
+    s("home-root-on", "Home", "home-root-on", "The Root section with the switch on.", dark=True),
+    s("home-root-warning", "Home", "home-root-warning", "The alert that asks before root is turned on: what apps allowed in Magisk can do, Turn On and Cancel."),
+    s("home-root-paused", "Home", "home-root-paused", "The Root section after a start with root failed: the switch is still on and the line under it says Paused after a failed start."),
+    s("home-root-notice-paused", "Home", "home-root-notice-paused", "Home's card after a start with root ended before Android booted: Root is paused, with Try with root again and Turn off root."),
+    s("home-root-notice-turned-off", "Home", "home-root-notice-turned-off", "Home's card after a start with root ended before Android booted and root was turned off with it (the alternative behaviour)."),
+    s("home-root-notice-stopped", "Home", "home-root-notice-stopped", "Home's card after the person stopped a start with root before Android booted: Start without root."),
+    s("home-root-app-alert", "Home", "home-root-app-alert", "The alert after a start with root could not put the official Magisk app in the virtual machine."),
+    s("boot-root", "Boot", "boot-root", "The boot screen of a start with root at its fifth step, Magisk app, which installs the official Magisk app before the screen ends.", wait=3.0),
     s("home-capabilities-location-on", "Home", "home-location-on", "Capabilities with Location on, iOS having allowed it with the exact position."),
     s("home-capabilities-location-approximate", "Home", "home-location-approximate", "Location on while iOS gives only an approximate location: the line under it says Approximate location, with an info mark that explains.", dark=True),
     s("home-capabilities-location-approximate-alert", "Home", "home-location-approximate-alert", "The explanation behind Approximate location: Precise Location is off for Andarium, with Open Settings."),
@@ -281,23 +245,33 @@ SHOTS: list[Shot] = [
     s("resolution-sheet-native-2-61", "Sheets", "resolution-sheet", "The sheet on a screen whose native scale is 2.61: 2.5 is left out for being near native, so 1.0, 1.5, 2.0 and 2.61, with 2.0 ticked.", "-displayNative", "2.61"),
     s("erase-alert", "Alerts", "erase", "Erase virtual machine: the standard destructive confirmation over Home. Confirming returns to the first-launch screen (home-welcome).", dark=True),
     s("info", "Info", "info", "Info: the app and version, System info (Build, Android version, Security patch, Kernel, Architecture, Supported architectures), Project on GitHub and Acknowledgements.", dark=True),
-    icp("info-icp", "info-bottom", "Info scrolled to its end in mainland China's storefront: the filing number as one centred footnote line in the secondary colour, below every section, a link to MIIT's filing site.", "-icpStorefront", "CHN", dark=True),
-    icp("info-icp-other-storefront", "info-bottom", "Info scrolled to its end in another storefront: no footnote.", "-icpStorefront", "USA"),
-    icp("info-icp-unknown-storefront", "info-bottom", "Info scrolled to its end while the storefront is not known: no footnote.", "-icpStorefront", "none"),
     s("info-acknowledgements", "Info", "info-acknowledgements", "Acknowledgements: projects by group; the names and marks line is at the bottom.", dark=True),
     s("info-license", "Info", "info-license", "A project's page: copyright holders, the license name and the license text (Mesa, MIT).", dark=True),
     s("info-license-long", "Info", "info-license-gpl", "A page with a long license text (Linux: syscall exception and GPL v2)."),
+    s("info-acknowledgements-root", "Info", "info-acknowledgements-root", "Acknowledgements in a copy whose release carries root: Magisk and BusyBox are listed with the system projects.", dark=True),
+    s("info-license-magisk", "Info", "info-license-magisk", "Magisk's page: the contributors, GNU GPL v3 or later, where its source is available, and the full license text."),
     # Snapshots and What's New (more of each are in the Preview: see SnapshotPreview and WhatsNewPreview)
     s("snapshots", "Snapshots", "snapshots", "The Snapshots sheet over Home with mock snapshots: the list newest first, the space they use and Take snapshot at the foot.", dark=True),
     s("snapshots-detail", "Snapshots", "snapshots-detail", "One snapshot's page: its name, when it was taken, what deleting frees, Restore and Delete."),
     s("whatsnew-open", "What's New", "whatsnew-open", "The notes of the update, opened from the ribbon above Start."),
+    s("whatsnew-open-unsupported", "What's New", "whatsnew-unsupported-open", "The notes of the update on a 60 Hz screen with iOS 26: the Add to Home Screen entry, which that device does not show, is left out; the 120 Hz entry stays."),
+    # The update notice of a sideloaded build (Preview/UpdatePreview.swift: a made-up version file read by the real rules)
+    s("update-card", "Update notice", "update-card", "Home with the update card first among the notices: Update available, one line with the installed and the new version, Get Update and the close button.", dark=True),
+    s("update-card-closed", "Update notice", "update-card-closed", "Home after the card was put away: no card, Home as always.", dark=True),
+    s("update-detail", "Update notice", "update-detail", "The detail the card's button opens, with AltStore and SideStore installed: the version, its day, size, the iOS it needs and the installed version, then Update with AltStore, Update with SideStore, Download App File, Open Release Page, and Skip This Version.", dark=True),
+    s("update-detail-altstore", "Update notice", "update-detail-altstore", "The detail with only AltStore installed: one tool row.", dark=True),
+    s("update-detail-steps", "Update notice", "update-detail-steps", "The detail with neither sideloading app installed: the steps in words in place of the tool rows, then the app file and the release page.", dark=True),
+    s("update-detail-mac", "Update notice", "update-detail-mac", "The detail of an iPad app on a Mac or Vision Pro: no tool rows, the steps in words, the app file and the release page.", dark=True),
+    s("update-info", "Update notice", "update-info", "Info with its Updates section while a newer version exists: Update Available with the version, the Check for Updates switch on, and the sentence under it.", dark=True),
+    s("update-info-current", "Update notice", "update-info-current", "Info's Updates section with nothing newer: the Check for Updates switch alone and its sentence.", dark=True),
+    s("update-info-off", "Update notice", "update-info-off", "Info's Updates section with the switch off: no update row.", dark=True),
     # Boot
     *boot_stages("boot", "boot", ["System image", "Linux kernel", "Storage", "Startup"], "Normal boot over the dimmed guest display, no progress bar"),
     s("boot-single-vcpu", "Boot", "boot-single-vcpu", "Normal boot of a guest with a single vCPU: the Linux kernel line says \"1 vCPU\"."),
     s("boot-first-start", "Boot", "boot-first", "First start: Storage prepares the disk and Startup sets up for the first time; the panel last in the column, below the note, says Android has no Google apps, on purpose."),
     s("boot-update", "Boot", "boot-upgrade", "The first start after an update: Startup updates the apps."),
     s("boot-restart", "Boot", "boot-restart", "The guest restarting."),
-    s("boot-slow", "Boot", "boot-slow", "A start that has run 3 minutes 17 seconds, still at Startup: the notice above the steps says it is taking longer than usual, that it can be waited out or stopped, and that stopping needs Andarium closed in the App Switcher and opened again to start again; a red Stop and, in a build with Send feedback, Send feedback, both of one width. The steps stay in view below it.", dark=True),
+    s("boot-slow", "Boot", "boot-slow", "A start that has run 3 minutes 17 seconds, still at Startup: the notice above the steps says it is taking longer than usual, that it can be waited out or stopped, and that stopping needs Andarium closed in the App Switcher and opened again to start again; a red Stop. The steps stay in view below it.", dark=True),
     s("boot-slow-clock-early", "Boot", "boot-slow-live", "The notice over a start that began 3 minutes 17 seconds ago, the clock running, 3 seconds after the launch: the status line and the notice show one time.", wait=3.0),
     s("boot-slow-clock-later", "Boot", "boot-slow-live", "The same launch 9 seconds after it: the status line and the notice have both moved on by the same seconds.", wait=9.0),
     s("boot-slow-first-start", "Boot", "boot-slow-first", "A first start 8 minutes 17 seconds in: the notice comes at eight minutes and its title does not say the start is slower than usual; the first-start note stays under the steps."),
@@ -307,11 +281,6 @@ SHOTS: list[Shot] = [
     s("boot-slow-recovery-stop-dialog", "Boot", "boot-slow-recovery-stop", "Stop chosen on a Recovery start's notice: the same dialog over Recovery's own screen, which follows the system's appearance, and so does the dialog.", dark=True),
     s("boot-slow-storage", "Boot", "boot-slow-storage", "The notice over an earlier step (Storage under way): the step and the time name where the start is.", "-bootStage", "2"),
     s("boot-slow-stopping", "Boot", "boot-slow-stopping", "Stop confirmed: the status line says Stopping\u2026, Stop's label says it too (with a spinner where the buttons are side by side) and is disabled until the run ends, and the buttons keep their size."),
-    feedback("feedback-boot", "feedback-boot", "Send feedback opened from the slow-start notice: the sheet the root presents over the boot screen. The card says a bug report and a screenshot need the virtual machine to finish starting and that the start log is attached; the log is a row of its own with its size and a remove button, and the information block carries the start's step, time and restarts."),
-    feedback("feedback-boot-filled", "feedback-boot-filled", "The same sheet with a typed problem, details and a photo: the start log stays the first row, counted in the total."),
-    feedback("feedback-boot-details", "feedback-boot-details", "The same sheet with the information block expanded: the Boot line says the step and time of the start."),
-    feedback("feedback-boot-removed", "feedback-boot-removed", "The same sheet after the start log was taken out: no row, no total, and the sheet does not attach it again."),
-    feedback("feedback-boot-finished", "feedback-boot-finished", "The sheet opened over the boot screen with a typed draft, after the start finished: it is still open, with the draft and the start log, over the running session, where the card now offers the bug report."),
     s("boot-jit", "Boot", "boot-jit", "The debugger preparing the JIT: the System image step says Preparing JIT."),
     s("boot-jit-fallback", "Boot", "boot-jit-fallback", "A boot that ran without the JIT it was asked for: a note under the steps says why."),
     *boot_stages("boot-recovery", "boot-recovery", ["System image", "Linux kernel", "Storage", "Recovery"], "Recovery boot (opaque, own stage list, no progress bar)", dark_step=3),
@@ -355,6 +324,9 @@ SHOTS: list[Shot] = [
     s("settings-performance-off", "Settings", "settings-performance-off", "Performance with the limit off: When hot reads Full frame rate, and the footnote warns what it costs."),
     s("settings-performance-hot", "Settings", "settings-performance-hot", "Performance while the device is held hot and the limit is on: an orange tile, a thermometer line that the frame rate is limited until it cools, and Frame rate at 30 fps."),
     s("settings-performance-hot-off", "Settings", "settings-performance-hot-off", "Performance while the device is held hot and the limit is off: the thermometer line says the frame rate is not limited, with the warning under it."),
+    s("settings-performance-120", "Settings", "settings-performance-120", "Settings' Performance on a screen that shows 120 frames a second: When hot alone, with no 120 Hz switch (it is on Home)."),
+    s("home-performance", "Home", "home-performance", "Home on a screen that shows 120 frames a second: Performance holds the 120 Hz switch (off), with its short footnote, above JIT, whose note is beneath the panel."),
+    s("home-performance-on", "Home", "home-performance-on", "The 120 Hz switch on."),
     system_mic("home-mic-system-prompt", "Capabilities", "home-mic-alert", "The system's own question when Microphone is turned on for the first time (the Simulator's alert).", "reset"),
     system_mic("home-mic-system-allowed", "Capabilities", "home-mic-on", "Microphone on after iOS allowed it.", "grant"),
     system_mic("home-mic-system-refused", "Capabilities", "home-capabilities", "Microphone after iOS refused it: the row is dimmed and says it is not allowed in Settings.", "revoke"),
@@ -399,60 +371,27 @@ SHOTS: list[Shot] = [
     s("overlay-install-damaged", "Operations", "install-damaged", "A file that is damaged, cut short, or whose parts do not fit together, refused once it is read."),
     s("overlay-install-missing-split", "Operations", "install-missing-split", "The package manager's refusal of an app that lacks parts it requires."),
     s("overlay-install-part-too-large", "Operations", "install-part-too-large", "An app with a part of 4 GiB or more, which Android cannot install, refused once the file is read."),
-    # Send feedback: needs a Preview built with FEEDBACK_ADDRESS=feedback@example.com (see --help)
-    feedback("feedback-menu-home", "home-menu", "Home's toolbar menu open on a configured guest: Info, then Send feedback after a separator.", dark=True, wait=3.0),
-    feedback("feedback-menu-welcome", "welcome-menu", "The same menu open on the welcome screen, before any guest exists: Send feedback is reachable from the first screen.", dark=True, wait=3.0),
-    feedback("feedback-entrance-settings", "settings-feedback", "Settings scrolled to Diagnostics: Send feedback is the first row, above Create bug report.", dark=True, wait=3.0),
-    feedback("feedback-empty", "feedback", "Send feedback opened from a running session's Settings, empty: the subject and body lines, the information block folded, the card that asks for a bug report and the bar (Bug report, Screenshot, Add, Send feedback). Send is enabled: a tap with the problem or the details empty says which."),
-    feedback("feedback-filled", "feedback-filled", "Send feedback from a session with a problem and details, and three attachments (bug report, screenshot, photo) with their sizes and remove buttons and the total under them; the bar shows the bug report as attached.", dark=True),
-    feedback("feedback-ask", "feedback-ask", "Send tapped with the problem and the details written, no bug report attached and the virtual machine running: the alert asks before the mail opens, with two buttons, Create bug report (the preferred one) and Send without bug report, and says that without a bug report a problem will most likely not get fixed."),
-    feedback("feedback-report", "feedback-report", "Send feedback after Create bug report from that alert: the report is attached, its row leads in (a chevron, a hairline, then its remove button) and says its size and how many files it holds, and the sheet is still open with the draft as it was; no mail composer."),
-    feedback("feedback-viewer", "feedback-viewer", "The bug report's row opened inside the sheet's own navigation (Back, no Done): the file as it goes with the mail (its name, size, file count, unpacked size and the sentence that it goes as it is), then its top level as folders and files; a folder that holds one folder is one row, a text, a picture and an archive open, and a file that is not text is dimmed, says so and opens nothing.", dark=True),
-    feedback("feedback-viewer-folder", "feedback-viewer-folder", "A folder of the bug report opened: its files, each with its size and what it is, as Files shows a folder."),
-    feedback("feedback-viewer-text", "feedback-viewer-text", "A long text of the bug report opened: one page of plain lines that scrolls on, with its name and size in the bar and the thumb on the trailing edge held, saying where it points (a percentage and the bytes of the whole)."),
-    feedback("feedback-viewer-picture", "feedback-viewer-picture", "The screenshot of the bug report opened as a picture, scaled to fit with its pixels and size under it; nothing to zoom, share or save."),
-    feedback("feedback-viewer-nested", "feedback-viewer-nested", "An archive stored inside the bug report, opened like a folder: its name, size and file count, then its files."),
-    feedback("feedback-viewer-damaged", "feedback-viewer-damaged", "A bug report that is damaged (cut short): the first page says it can't be read, and the row on the sheet says nothing of files."),
-    feedback("feedback-details", "feedback-details", "Send feedback filled, with the app and device details opened in full at the end of the mail."),
-    feedback("feedback-large", "feedback-large", "Send feedback with attachments over 20 MiB: the total turns orange and says some mail services refuse mail over 20 MiB; Send still works."),
-    feedback("feedback-file", "feedback-file", "Send feedback with one file from Files attached, a ZIP: a document tile, its name and size, a remove button and the total under it. The bar has three buttons, Bug report, Screenshot and Add (a paperclip whose menu offers Photos and Files).", dark=True),
-    feedback("feedback-file-bar-xxxlarge", "feedback-file", "The same sheet at the largest standard text size: no label is cut in the bar.", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"),
-    feedback("feedback-file-long", "feedback-file-long", "A file with a long name (the end of the base cut in the middle, the extension kept) at the default text size."),
-    feedback("feedback-file-names", "feedback-file-names", "Two files named in Chinese and in Japanese: the rows keep the names as written, and so does the mail."),
-    feedback("feedback-file-mixed", "feedback-file-mixed", "Send feedback with a bug report, a screenshot, a photo and a file together, in the order they were added, one total under them."),
-    feedback("feedback-file-large", "feedback-file-large", "A file of about 1.9 GiB attached: its size is its own and the total turns orange with the warning that some mail services refuse mail over 20 MiB; Send still works. The file is mapped, never read, for the size.", dark=True),
-    feedback("feedback-file-copying", "feedback-file-copying", "The card over the sheet while a file that cannot be used where it is kept (not downloaded from its cloud storage) is copied first: a progress bar and Cancel. Send and the bar are dimmed and the file's row is not there yet; the screenshot attached before stays.", dark=True),
-    feedback("feedback-file-refused", "feedback-file-refused", "The alert after a folder and an empty file were chosen: two items weren't added, one line for each reason.", dark=True),
-    feedback("feedback-file-refused-one", "feedback-file-refused-one", "The alert for one file that was not added: the title for one item and its reason."),
-    feedback("feedback-file-refused-four", "feedback-file-refused-four", "The alert for four items that were not added for four different reasons: not enough space, a folder or a package, an empty file and a file that could not be read, a line each.", dark=True),
-    feedback("feedback-file-apk", "feedback-file-apk", "One pick of an ordinary file and an APK: the file is attached, and the alert says that mail services reject a message that carries an APK, so the APK was not attached, and asks for a download link in the details."),
-    feedback("feedback-file-apk-several", "feedback-file-apk-several", "One pick of a file and three Android packages (.apk, .apks, .xapk): the file is attached, and one alert says the packages were not attached, in the plural."),
-    feedback("feedback-file-gone", "feedback-file-gone", "Send, after the only file attached was deleted from where it was kept: Attachment not available, the file taken out of the list.", dark=True),
-    feedback("feedback-file-picker", "feedback-file-picker", "The system's document picker over the sheet, as a tap on Files in the Add menu opens it.", wait=20.0),
-    feedback("feedback-file-menu", "feedback-file-menu", "The bar's Add menu open: Photos and Files, anchored on the button."),
-    feedback("feedback-generating", "feedback-generating", "Send feedback while the bug report is made: the app's progress overlay with Cancel over the whole sheet, Settings still open beneath."),
-    feedback("feedback-sent", "feedback-sent", "Send feedback once the mail was sent: the Feedback sent card with Done over the sheet, which still shows the problem, the details, the attachments and the information block that were sent."),
-    feedback("feedback-missing-both", "feedback-missing-both", "Send tapped with the problem and the details both empty: Can't send yet, and what to write in each.", dark=True),
-    feedback("feedback-missing-problem", "feedback-missing-problem", "Send tapped with the details written and the problem empty: the alert asks for the Problem line."),
-    feedback("feedback-missing-details", "feedback-missing-details", "Send tapped with the problem written and the details empty: the alert asks for what was done and what happened."),
-    feedback("feedback-discard", "feedback-discard", "Cancel after something is typed or attached: Discard or Keep editing."),
-    feedback("feedback-nomail", "feedback-nomail", "Send feedback where Mail cannot send (no account): the error and the way to fix it, and every control disabled."),
-    feedback("feedback-home", "feedback-home", "Send feedback opened from Home's toolbar menu, where no virtual machine runs: the no-Google-apps line is at the top, collapsed; the card says that without a bug report a problem will most likely not get fixed and gives three steps to one (start the virtual machine, make the problem happen again, open Send feedback from there with a bug report attached); the rest of the form works.", dark=True),
-    feedback("feedback-home-answer", "feedback-home-answer", "Send feedback from Home with the no-Google-apps line opened in place: the question, That's on purpose, and the reason."),
-    feedback("feedback-home-filled", "feedback-home-filled", "Feedback that is not a bug, from Home: a suggestion with a photo; Send is ready."),
-    # Buy me tokens: needs a Preview built with the four TIP_ settings (see --help)
-    tipjar("tipjar-entrance-home", "tipjar-home", "Home's toolbar after a virtual machine is set up: the one menu button where Info was, which holds Info, Send feedback, Review on the App Store and Buy me tokens (the menu itself is not captured).", dark=True, wait=3.0),
-    tipjar("tipjar", "tipjar", "Buy me tokens over Home: the chat with Andarium's developer (the header shows the developer's avatar, name and two profile logos where the Preview is given them), the plain statement and the four tiers with the store's prices.", dark=True),
-    tipjar("tipjar-tall", "tipjar", "Buy me tokens at the full height of a page, taller than its conversation: the conversation stands at the top, under the title, and the tiers stay at the foot.", "-tipHeight", "full"),
-    tipjar("tipjar-loading", "tipjar-loading", "The store has not answered yet: the four tiers with a spinner for each price."),
-    tipjar("tipjar-missing", "tipjar-missing", "The store knows three of the four: the others are offered, Max is left out."),
-    tipjar("tipjar-unavailable", "tipjar-unavailable", "The store gave nothing: a note that tips are not available and Try again."),
-    tipjar("tipjar-restricted", "tipjar-restricted", "Purchases are not allowed on this device: the tiers dimmed with their prices and one line, no way to lift the restriction."),
-    tipjar("tipjar-purchasing", "tipjar-purchasing", "A purchase of Pro is under way: the person's reply with a spinner while the store's own sheet is up."),
-    tipjar("tipjar-thanks", "tipjar-thanks", "After a tip: the developer's thanks inside the sheet, and Done as the one control; the tiers are not offered again.", dark=True),
-    tipjar("tipjar-pending", "tipjar-pending", "A tip that waits for a family organiser's approval (Ask to Buy): the note says it can be closed meanwhile."),
-    tipjar("tipjar-failed", "tipjar-failed", "A purchase that failed: the store's own message under a note, the tiers still offered."),
-    tipjar("tipjar-prices", "tipjar", "The tiers with four prices of very different widths, as different storefronts format them.", "-tipPrices", "mixed"),
+    s("add-home-row", "Add to Home Screen", "add-home-row", "Settings as the side keys open it while Android runs and lists apps: the Apps section has the Add to Home Screen row, Shortcuts on its right.", dark=True),
+    s("add-home-page", "Add to Home Screen", "add-home-page", "The chooser: the apps Android lists with their icons, installed ones first and the ones built into Android after, each leading to the guide.", dark=True, wait=4.0),
+    s("add-home-page-search", "Add to Home Screen", "add-home-page-search", "The chooser with a short list, so that its last section is in view: the switch for Search, on, and the sentence under it that the apps stay available in Shortcuts and Siri when it is off.", dark=True, wait=4.0),
+    s("add-home-page-refreshing", "Add to Home Screen", "add-home-page-refreshing", "The chooser while Android is asked for a fresher list: the remembered list under a line that says so.", wait=4.0),
+    s("add-home-page-loading", "Add to Home Screen", "add-home-page-loading", "The chooser with no list yet and none remembered: only the note that the list is being read from Android.", wait=4.0),
+    s("add-home-page-failed", "Add to Home Screen", "add-home-page-failed", "The chooser when Android did not answer: the last list it gave, dated, with Try again.", wait=4.0),
+    s("add-home-page-failed-empty", "Add to Home Screen", "add-home-page-failed-empty", "The chooser when Android did not answer and no list is remembered: its own title, that the apps could not be read, and Try again.", wait=4.0),
+    s("add-home-page-empty", "Add to Home Screen", "add-home-page-empty", "The chooser when Android lists no app with an icon.", wait=4.0),
+    s("add-home-page-search-none", "Add to Home Screen", "add-home-page-search-none", "A search of the chooser that finds nothing: No Results for the typed words.", wait=4.0),
+    s("add-home-page-search-off", "Add to Home Screen", "add-home-page-search-off", "The chooser with the switch for Search off.", wait=4.0),
+    s("add-home-guide", "Add to Home Screen", "add-home-guide", "The guide of one app: the four steps of Apple's Shortcuts as they look, the note about what a tap on the icon does, and Apple's Shortcuts button at the foot.", dark=True, wait=4.0),
+    s("add-home-boot", "Add to Home Screen", "add-home-boot", "The boot screen while Android starts for a tap on an icon: the card with the app, when it opens and Don't open, above the steps.", dark=True),
+    s("add-home-wait-update", "Add to Home Screen", "add-home-wait-update", "Home with an unfinished update and a request waiting for the answer: the card above the update's notice.", dark=True),
+    s("add-home-wait-space", "Add to Home Screen", "add-home-wait-space", "Home with too little free space and a request waiting: the card says to free up space, then tap Start."),
+    s("add-home-pill", "Add to Home Screen", "add-home-pill", "The capsule over Android while the app is being opened.", dark=True),
+    s("add-home-banner-gone", "Add to Home Screen", "add-home-banner-gone", "The banner when the app is not in Android: no Try again."),
+    s("add-home-banner-slow", "Add to Home Screen", "add-home-banner-slow", "The banner when Android took too long: Try again and the close mark.", dark=True),
+    s("add-home-banner-recovery", "Add to Home Screen", "add-home-banner-recovery", "The banner when Android is in recovery mode."),
+    s("add-home-banner-setup", "Add to Home Screen", "add-home-banner-setup", "The banner when Android's first-run setup is not finished: it names the app and offers Try again."),
+    s("add-home-banner-tool", "Add to Home Screen", "add-home-banner-tool", "The banner when the installed Android has no tool that opens apps: a short title with the app, the text that says to update Andarium, and no Try again."),
+    s("add-home-alert-no-android", "Add to Home Screen", "add-home-alert-no-android", "An icon used when there is no virtual machine (erased, or never set up): the alert that the app is not in Android and the icon works again once it is installed in a new virtual machine."),
     # End: a clean power-off returns to Home; only a failed run keeps an end screen
     s("end-failed", "End", "failed", "The screen after the guest stopped unexpectedly."),
     s("end-stopped", "End", "stopped", "The screen after Stop on the slow-start notice: it says the person stopped the virtual machine and that Andarium must be closed in the App Switcher and opened again to start it; no fault mark, the report block starts Virtual machine ended.", dark=True),
@@ -553,14 +492,6 @@ def not_in_front(udid: str, pid: int, shot: Shot, *, after: bool = False) -> str
         return f"the app that reported is process {state.get('pid')}, not the launched {pid}"
     if state.get("screen") != shot.screen:
         return f"the app reported screen {state.get('screen')!r}, not {shot.screen!r}"
-    if shot.feedback and state.get("feedback") is not True:
-        return "this Preview has no Send feedback: build it with FEEDBACK_ADDRESS=feedback@example.com on the command line"
-    if shot.feedback and shot.screen.startswith("feedback") and state.get("feedbackReady") is not True:
-        return "the sheet of Send feedback is not open with its draft made"
-    if shot.tipjar and state.get("tipjar") is not True:
-        return "this Preview has no Buy me tokens: build it with the four TIP_ settings of the arrangement on the command line"
-    if shot.icp and state.get("icp") is not True:
-        return "this Preview has no filing number: build it with ICP_NUMBER of the arrangement on the command line"
     if state.get("state") != "active" and not (after and shot.alert):
         return f"the app is {state.get('state')}, not active: a system alert, another app or the Home screen is in front"
     return None
@@ -806,23 +737,7 @@ def capture_all(args: argparse.Namespace) -> int:
             print(f"capture-screens.py: {name} ({udid}): the Preview does not come to the front; nothing captured", file=sys.stderr)
             status = 1
             continue
-        # The Preview reports (from the launch that preflight made) whether it was built with Send feedback and
-        # with Buy me tokens.
-        reported = app_state(udid) or {}
-        has_feedback = reported.get("feedback") is True
-        has_tipjar = reported.get("tipjar") is True
-        has_icp = reported.get("icp") is True
-        wanted = [shot for shot in selected
-                  if (has_feedback or not shot.feedback) and (has_tipjar or not shot.tipjar) and (has_icp or not shot.icp)]
-        for label, present, flagged in (("Send feedback", has_feedback, lambda shot: shot.feedback),
-                                        ("Buy me tokens", has_tipjar, lambda shot: shot.tipjar),
-                                        ("the filing number", has_icp, lambda shot: shot.icp)):
-            skipped = sum(1 for shot in selected if flagged(shot) and not present)
-            if skipped:
-                print(
-                    f"{name}: skipping {skipped} shots of {label}: this Preview was built without it (see --help)",
-                    file=sys.stderr,
-                )
+        wanted = selected
         # The shot of the system's own alert runs last: the alert outlives its shot and covers whatever launches next.
         plain = [shot for shot in wanted if not shot.alert]
         passes = [("light", plain), ("dark", [shot for shot in plain if shot.dark]),

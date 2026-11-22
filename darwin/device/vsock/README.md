@@ -76,7 +76,9 @@ repeatable. Each forward is a loopback TCP listener, and each accepted
 connection is attached to the guest port, so a stock client of a guest service
 reaches it: `adb connect 127.0.0.1:<port>` for adbd on 5555. Only a loopback
 address is accepted. The device exists, appended last, only when a forward is
-given.
+given. The listeners belong to the launch: a guest that restarts in the same
+process keeps every host port, and a connection that arrives before the new
+boot is attached is closed.
 
 ## Tests
 

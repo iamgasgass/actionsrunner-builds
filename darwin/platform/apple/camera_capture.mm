@@ -15,6 +15,8 @@
 #include "photo_dimensions.hpp"
 #include "rotation_angles.h"
 #include "still_exposure.hpp"
+#include "turned_still.hpp"
+#include "video_encoder.hpp"
 #include "video_stabilization.hpp"
 
 #import <AVFoundation/AVFoundation.h>
@@ -427,10 +429,10 @@ void logFormatTables(const std::vector<Entry>& entries)
         // How the camera is presented (presentedMountingOf): the rotation coordinator's angles for portrait, portrait upside
         // down, landscape right and landscape left, the orientation stated, and the turn set on the video connection.
         const CameraPresentation& mounted = entries[camera].discovered;
-        std::fprintf(stderr, "Camera: camera %zu mounting: angles %d %d %d %d, stated %u, video turn %u%s\n", camera,
+        std::fprintf(stderr, "Camera: camera %zu mounting: angles %d %d %d %d, stated %u, video turn %u, picture turn %u%s\n", camera,
                      int(mounted.coordinatorAngles[0]), int(mounted.coordinatorAngles[1]), int(mounted.coordinatorAngles[2]),
                      int(mounted.coordinatorAngles[3]), unsigned(mounted.stated), unsigned(mounted.turn),
-                     mounted.earlier ? " (presented like an earlier front camera)" : "");
+                     unsigned(mounted.presentationTurn), mounted.earlier ? " (presented like an earlier front camera)" : "");
     }
 }
 
@@ -523,10 +525,15 @@ std::vector<Entry> discover()
             for (std::size_t index = 0; index < angles->size(); ++index) entry.discovered.coordinatorAngles[index] = angleNumber((*angles)[index]);
             entry.mounting = presentedMountingOf(info.position, (*angles)[0]);
             info.sensorOrientation = entry.mounting.stated;
+            info.presentationTurn = entry.mounting.presentationTurn;
         }
 #endif
         entry.discovered.stated = std::uint16_t(entry.mounting.stated);
         entry.discovered.turn = std::uint16_t(entry.mounting.connectionTurn);
+        entry.discovered.presentationTurn = std::uint16_t(entry.mounting.presentationTurn);
+        // A camera whose stills are turned half around (turnedStillOf) needs the hardware encoder's capabilities at its
+        // first still: discovery starts now, off this thread.
+        if (entry.mounting.presentationTurn == 180) prepareVideoEncodeCapabilities();
         entry.discovered.earlier = entry.mounting.emulatesEarlierFront;
 #if TARGET_OS_IOS
         // Only a zoom camera's factor is scaled (see zoomRatioScale): every range holds 1.0.
@@ -717,6 +724,9 @@ using uml::platform::SessionState;
                       jpegSize:(uml::platform::CameraStillSize)jpegSize
                   maximumBytes:(uint64_t)maximumBytes
                        wantRaw:(BOOL)wantRaw
+                      turnHalf:(BOOL)turnHalf
+                captureIsSrgb:(BOOL)captureIsSrgb
+                   jpegQuality:(unsigned)jpegQuality
                        attempt:(unsigned)attempt
                          state:(std::shared_ptr<SessionState>)state;
 @end
@@ -953,6 +963,27 @@ bool activate(AVCaptureDevice* device, const Anchor& anchor, const std::optional
     return ok;
 }
 
+#if TARGET_OS_IOS
+// The photos of a camera whose stills the host turns are encoded with no colour profile, which a reader takes as sRGB, so its
+// capture stays in that colour space: selected here where the active format supports it (the session does not choose a
+// wide one over it, see AppleSession), and checked on every photo (turned_still.mm), which is refused when it states
+// other colours, or none and the capture was not held in sRGB. Whether the device's capture is in sRGB afterwards.
+bool keepSrgbColourSpace(AVCaptureDevice* device)
+{
+    NSError* error = nil;
+    if ([device lockForConfiguration:&error]) {
+        @try {
+            if (device.activeColorSpace != AVCaptureColorSpace_sRGB &&
+                [device.activeFormat.supportedColorSpaces containsObject:@(AVCaptureColorSpace_sRGB)])
+                device.activeColorSpace = AVCaptureColorSpace_sRGB;
+        } @catch (NSException*) {
+        }
+        [device unlockForConfiguration];
+    }
+    return device.activeColorSpace == AVCaptureColorSpace_sRGB;
+}
+#endif
+
 class AppleCamera;
 
 class AppleSession final : public CameraSession {
@@ -1077,7 +1108,7 @@ public:
         onQueue([&] {
             limits_ = limits;
             anchors_.assign(entries_.size(), nullptr);
-            refusals_ = RefusalLog {};
+            refusals_.clear();
             {
                 std::lock_guard lock(notesMutex_);
                 notes_.assign(entries_.size(), CameraPresentation {});
@@ -1238,7 +1269,16 @@ public:
 #if TARGET_OS_IOS
         @try {
             const CameraInfo& info = entry.info;
-            // Exposure.
+            // A region is in the picture the camera delivers, which its video connection has turned (the square front
+            // camera's): the point of interest is in the device's own, so it is mapped back through that turn.
+            const auto pointOf = [&](const CameraRegion& region) {
+                const CameraRegion own = regionBeforeTurn(region, entry.mounting.connectionTurn);
+                return CGPointMake(own.x + own.width / 2, own.y + own.height / 2);
+            };
+            // Exposure. The point of interest comes first, as the focus's does: the device takes it up when the exposure
+            // mode is set, so a tap that moves only the region must not set the mode ahead of the point.
+            if (settings.aeRegion && settings.aeRegion->weight > 0 && device.exposurePointOfInterestSupported)
+                device.exposurePointOfInterest = pointOf(*settings.aeRegion);
             if (settings.exposureMode == CameraExposureMode::manual && info.manualExposure) {
                 const CMTime duration = CMTimeMake(std::int64_t(settings.exposureNanoseconds), 1'000'000'000);
                 const float iso = std::clamp<float>(float(settings.iso), device.activeFormat.minISO, device.activeFormat.maxISO);
@@ -1253,9 +1293,6 @@ public:
                 [device setExposureTargetBias:std::clamp(settings.exposureBiasStops, device.minExposureTargetBias,
                                                          device.maxExposureTargetBias)
                             completionHandler:nil];
-            if (settings.aeRegion && settings.aeRegion->weight > 0 && device.exposurePointOfInterestSupported)
-                device.exposurePointOfInterest = CGPointMake(settings.aeRegion->x + settings.aeRegion->width / 2,
-                                                             settings.aeRegion->y + settings.aeRegion->height / 2);
             // Focus. The point of interest comes first: the device takes it up when the
             // focus mode is set. A new trigger runs one scan in any mode (the device
             // locks where it ends). Otherwise a manual lens goes to the distance only
@@ -1266,8 +1303,7 @@ public:
             // back.
             if (info.autofocus) {
                 if (settings.afRegion && settings.afRegion->weight > 0 && device.focusPointOfInterestSupported)
-                    device.focusPointOfInterest = CGPointMake(settings.afRegion->x + settings.afRegion->width / 2,
-                                                              settings.afRegion->y + settings.afRegion->height / 2);
+                    device.focusPointOfInterest = pointOf(*settings.afRegion);
                 const bool scan = settings.focusTriggerSerial != running.focusSerial;
                 const bool move = settings.focusDistanceSerial != running.focusDistanceSerial ||
                     (force && settings.focusDistanceSerial != 0);
@@ -1381,6 +1417,15 @@ public:
             AVVideoCodecKey: AVVideoCodecTypeJPEG,
             AVVideoCompressionPropertiesKey: @{AVVideoQualityKey: @(request.jpegQuality / 100.0)},
         };
+        // A camera whose pictures the host presents half around (CameraInfo::presentationTurn) gives its still as a photo
+        // that is turned and encoded here (turnedStillOf), or none: a Bayer still is not turned, and an unturned still is
+        // never passed on.
+        const bool turnsStill = entry.mounting.presentationTurn == 180;
+        if (turnsStill && request.raw) {
+            refuse(camera, Refusal::stillNotTurned, "a Bayer still is not turned");
+            return false;
+        }
+        const bool turnsJpeg = turnsStill && request.jpegWidth != 0;
         if (request.raw) {
 #if TARGET_OS_IOS
             OSType rawFormat = 0;
@@ -1400,6 +1445,14 @@ public:
             refuse(camera, Refusal::rawUnavailable, "macOS has no Bayer still");
             return false;
 #endif
+        } else if (turnsJpeg) {
+            // The photo's pixels, full range 4:2:0: JFIF's own samples, which the encoder takes as they are.
+            NSNumber* format = @(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange);
+            if (![output.availablePhotoPixelFormatTypes containsObject:format]) {
+                refuse(camera, Refusal::stillNotTurned, "the photo output makes no full-range 4:2:0 photo");
+                return false;
+            }
+            settings = [AVCapturePhotoSettings photoSettingsWithFormat:@{(id)kCVPixelBufferPixelFormatTypeKey: format}];
         } else {
             settings = [AVCapturePhotoSettings photoSettingsWithFormat:jpeg];
         }
@@ -1429,12 +1482,21 @@ public:
             return false;
         }
         if (chosen) settings.maxPhotoDimensions = CMVideoDimensions {std::int32_t(chosen->width), std::int32_t(chosen->height)};
+        // What the photo's colours are when it states none: the device's sRGB, if it is held.
+#if TARGET_OS_IOS
+        const BOOL captureIsSrgb = entry.device.activeColorSpace == AVCaptureColorSpace_sRGB;
+#else
+        const BOOL captureIsSrgb = NO;
+#endif
         UMLPhotoDelegate* delegate = [[UMLPhotoDelegate alloc] initWithCamera:camera
                                                                          token:request.token
                                                                       wantJpeg:request.jpegWidth != 0
                                                                       jpegSize:wanted
                                                                   maximumBytes:request.maximumJpegBytes
                                                                        wantRaw:request.raw
+                                                                      turnHalf:turnsJpeg
+                                                                 captureIsSrgb:captureIsSrgb
+                                                                   jpegQuality:request.jpegQuality
                                                                        attempt:attempt
                                                                          state:state_];
         // The photo output holds its delegate weakly, so the session keeps it
@@ -1818,6 +1880,13 @@ public:
         note(camera, [&](CameraPresentation& held) { held.exifOrientation = orientation; });
     }
 
+    // A photo that could not be turned half around and encoded (turnedStillOf): the still failed, and the reason is
+    // recorded as a refusal of the camera.
+    void noteStillNotTurned(std::size_t camera, TurnedStillFailure failure)
+    {
+        refuse(camera, Refusal::stillNotTurned, std::string(turnedStillFailureName(failure)));
+    }
+
     // The completion of a dynamic aspect ratio change arrives (the device's own queue), under the state's mutex: `operation`
     // is the change it belongs to, and `completion.code` is `ratioPending` when the change is asked for, before the device
     // is told. The camera's frames are held until the change has completed without an error, and the samples made before
@@ -2062,7 +2131,7 @@ private:
                 std::fprintf(stderr, "Camera: camera %zu: the photo output kept its orientation compensation: %s\n", camera,
                              exception.reason != nil ? exception.reason.UTF8String : "");
             }
-            [session_ commitConfiguration];
+            commitConfiguration();
             photoPipelinesSettle();
             facts = readCompensation(output, CameraReading::afterCommit);
             step = stillCompensationStep(true, facts.compensationSupported, facts.compensationEnabled, facts.reading);
@@ -2287,7 +2356,7 @@ private:
         AdmitSteps steps;
         steps.begin = [&] { [session_ beginConfiguration]; };
         steps.commit = [&] {
-            [session_ commitConfiguration];
+            commitConfiguration();
             photoPipelinesSettle();
         };
         steps.addInput = [&] { return guarded(camera, [&] { return addInput(entry, running); }); };
@@ -2297,6 +2366,15 @@ private:
             return guarded(camera, [&] {
                 const bool activated = activate(entry.device, *anchor, rate, true, ratioDone(camera));
 #if TARGET_OS_IOS
+                if (activated && entry.mounting.presentationTurn == 180) {
+                    // The session's own choice ends here, before the selection: while it is on, a device reads back the wide
+                    // colour space the session picks at once, whatever it is set to (commitConfiguration keeps it off while
+                    // the camera is in the session).
+                    session_.automaticallyConfiguresCaptureDeviceForWideColor = NO;
+                    if (!keepSrgbColourSpace(entry.device))
+                        std::fprintf(stderr, "Camera: camera %zu: the capture is not held in sRGB (colour space %ld): a photo that states no colours is refused\n",
+                                     camera, long(entry.device.activeColorSpace));
+                }
                 if (anchor->facts.pinnedRatio != CameraAspectRatio::none) ratioFacts = ratioFactsOf(entry.device, anchor->facts.pinnedRatio);
 #endif
                 return activated;
@@ -2530,7 +2608,7 @@ private:
         ResizeSteps steps;
         steps.begin = [&] { [session_ beginConfiguration]; };
         steps.commit = [&] {
-            [session_ commitConfiguration];
+            commitConfiguration();
             photoPipelinesSettle();
         };
         steps.snapshotTiming = [&] { held = timingOf(entry.device); };
@@ -2663,7 +2741,7 @@ private:
                     running.photoOutput.maxPhotoDimensions = CMVideoDimensions {std::int32_t(maximum->width), std::int32_t(maximum->height)};
             return true;
         });
-        [session_ commitConfiguration];
+        commitConfiguration();
         photoPipelinesSettle();
 #if TARGET_OS_IOS
         noteRepair(camera, running, ratioFacts);
@@ -2674,6 +2752,22 @@ private:
         // The ratio pinned again is under way until its completion: the time it may take begins now.
         armRatioWatch(camera);
         return ok;
+    }
+
+    // Commits the session's configuration. A session sets its devices to wide colour (Display P3, preferred for photos) at a
+    // commit, and a device's own colour space selection does not hold against it. The stills of a camera whose stills the
+    // host turns are encoded with no colour profile, so its capture is held in sRGB (keepSrgbColourSpace): the session's
+    // choice is the host's while such a camera's input is in the session, set before the commit that applies it, and is the
+    // system's for every other session (back-only and external-only ones included), as it always was.
+    void commitConfiguration()
+    {
+#if TARGET_OS_IOS
+        std::vector<std::uint32_t> turns;
+        for (const auto& [index, running] : cameras_)
+            if (running.input != nil) turns.push_back(entries_[index].mounting.presentationTurn);
+        session_.automaticallyConfiguresCaptureDeviceForWideColor = !sessionHoldsColourSpaces(turns);
+#endif
+        [session_ commitConfiguration];
     }
 
     void startSession()
@@ -2754,7 +2848,7 @@ private:
             running.format = nil;
             forgetRatio(camera);
         }
-        [session_ commitConfiguration];
+        commitConfiguration();
         photoPipelinesSettle();
     }
 
@@ -2959,6 +3053,7 @@ public:
     std::unique_ptr<Nv12Transformer> makeFrameTransformer() const override { return makeAcceleratedNv12Transformer(); }
 
     std::uint32_t stillWorkingBytesPerPixel() const noexcept override { return systemCameraStillWorkingBytesPerPixel; }
+    std::uint32_t turnedStillWorkingBytesPerPixel() const noexcept override { return systemCameraTurnedStillWorkingBytesPerPixel; }
 
     std::unique_ptr<CameraSession> openSession(CameraSessionDelegate& delegate) override
     {
@@ -3066,6 +3161,13 @@ void noteCompensation(uml::platform::CameraStillFailure& failure, AVCapturePhoto
     // The largest file the host takes; zero for no bound.
     uint64_t _maximumBytes;
     BOOL _wantRaw;
+    // The photo is uncompressed and turned half around into the JPEG (turnedStillOf), at the guest's quality; why it was
+    // not, if it was not.
+    BOOL _turnHalf;
+    // The capture's colour space was the device's sRGB when the photo was asked for.
+    BOOL _captureIsSrgb;
+    unsigned _jpegQuality;
+    uml::platform::TurnedStillFailure _turnFailure;
     // Which capture of the request this is (from one); a photo of another size makes the next.
     unsigned _attempt;
     std::shared_ptr<SessionState> _state;
@@ -3086,10 +3188,17 @@ void noteCompensation(uml::platform::CameraStillFailure& failure, AVCapturePhoto
                       jpegSize:(uml::platform::CameraStillSize)jpegSize
                   maximumBytes:(uint64_t)maximumBytes
                        wantRaw:(BOOL)wantRaw
+                      turnHalf:(BOOL)turnHalf
+                captureIsSrgb:(BOOL)captureIsSrgb
+                   jpegQuality:(unsigned)jpegQuality
                        attempt:(unsigned)attempt
                          state:(std::shared_ptr<SessionState>)state
 {
     if ((self = [super init])) {
+        _turnHalf = turnHalf;
+        _captureIsSrgb = captureIsSrgb;
+        _jpegQuality = jpegQuality;
+        _turnFailure = uml::platform::TurnedStillFailure::none;
         _attempt = attempt;
         _camera = camera;
         _token = token;
@@ -3115,6 +3224,10 @@ void noteCompensation(uml::platform::CameraStillFailure& failure, AVCapturePhoto
         // without this part. A photo that is not there at all is missing data.
         noteFrameworkError(_result.failure, error);
         noteStillFailure(_result.failure, uml::platform::CameraStillStage::missingData);
+        return;
+    }
+    if (_turnHalf) {
+        [self takeTurnedPhoto:photo];
         return;
     }
     NSData* data = photo.fileDataRepresentation;
@@ -3183,6 +3296,30 @@ void noteCompensation(uml::platform::CameraStillFailure& failure, AVCapturePhoto
     }
 }
 
+// The camera's pictures are presented half around, so the photo was asked for uncompressed: its pixels are turned and
+// encoded here, and its readings are those of its metadata (an uncompressed photo has no file to read them from).
+- (void)takeTurnedPhoto:(AVCapturePhoto*)photo
+{
+#if TARGET_OS_IOS
+    const auto readings = uml::platform::photoReadingsOf((__bridge CFDictionaryRef)photo.metadata);
+#else
+    const uml::platform::PhotoReadings readings;
+#endif
+    if (readings.orientation && *readings.orientation >= 1 && *readings.orientation <= 8) _exifOrientation = uint8_t(*readings.orientation);
+    // The same bound as a photo's own file (takeJpegFile), kept by the encoder: a file larger than the guest's buffer is
+    // not copied out of it, and none of the host's copies of it is made.
+    auto turned = uml::platform::turnedStillOf(photo.pixelBuffer, _jpegQuality, _maximumBytes, _captureIsSrgb);
+    if (turned.failure != uml::platform::TurnedStillFailure::none) {
+        _turnFailure = turned.failure;
+        std::fprintf(stderr, "Camera: camera %zu: the photo could not be turned half around: %s\n", _camera,
+                     std::string(uml::platform::turnedStillFailureName(turned.failure)).c_str());
+        noteStillFailure(_result.failure, uml::platform::CameraStillStage::missingData);
+        return;
+    }
+    _result.jpeg = std::move(turned.jpeg);
+    _jpegReadings = readings;
+}
+
 - (void)captureOutput:(AVCapturePhotoOutput*)output
     didFinishCaptureForResolvedSettings:(AVCaptureResolvedPhotoSettings*)resolvedSettings
                                   error:(NSError*)error
@@ -3238,6 +3375,7 @@ void noteCompensation(uml::platform::CameraStillFailure& failure, AVCapturePhoto
     auto* session = static_cast<uml::platform::AppleSession*>(_state->session);
     _result.failure.hostExifOrientation = _exifOrientation;
     if (_wantJpeg && _exifOrientation != 0) session->noteStillExif(_camera, _exifOrientation);
+    if (_turnFailure != uml::platform::TurnedStillFailure::none) session->noteStillNotTurned(_camera, _turnFailure);
     const bool haveJpegReadings = _jpegReadings.exposureSeconds || _jpegReadings.iso || _jpegReadings.fNumber ||
         _jpegReadings.focalLengthMillimetres || _jpegReadings.flash;
     // The photo's own readings come from its Exif. The 3A states, white balance,

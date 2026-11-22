@@ -485,7 +485,6 @@ struct StatisticsLoopTests {
         model.statistics(.pill, visible: false)
     }
 
-    #if !APP_STORE
     @Test func theConsoleReportStillPrintsEveryReadingWhateverTheViewsShow() async {
         let gate = SleepGate()
         let driver = StubDriver(plan: .normal)
@@ -506,5 +505,4 @@ struct StatisticsLoopTests {
         #expect(lines.count == readingsMade, "the harness reads one a second")
         #expect(publications.count == StatsMeter.historyLength + 1, "the views were given far fewer")
     }
-    #endif
 }

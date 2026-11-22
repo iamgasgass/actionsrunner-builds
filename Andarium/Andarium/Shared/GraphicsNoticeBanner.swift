@@ -65,14 +65,16 @@ struct SessionNoticesOverlay: View {
 
     var body: some View {
         let denial = model.networkDenialShowing
+        let opening = model.androidApps.open.pending.flatMap { $0.stage == .opening || $0.stage == .launching ? $0.request : nil }
+        let failure = model.androidApps.open.banner
         let showing = denial != nil || model.graphicsNotice.isShowing || model.thermalNotice.isShowing
-            || model.cameraNoticeShowing
+            || model.cameraNoticeShowing || opening != nil || failure != nil
         ViewThatFits(in: .vertical) {
-            column(denial: denial)
+            column(denial: denial, opening: opening, failure: failure)
             ScrollView(.vertical) {
                 // The scroll view is as wide as the glass, and not the
                 // padding around it, which would take touches too.
-                column(denial: denial)
+                column(denial: denial, opening: opening, failure: failure)
                     .padding(.horizontal, -Self.bannerInset)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -83,6 +85,8 @@ struct SessionNoticesOverlay: View {
         .animation(.easeInOut(duration: 0.2), value: model.graphicsNotice.isShowing)
         .animation(.easeInOut(duration: 0.2), value: model.thermalNotice.isShowing)
         .animation(.easeInOut(duration: 0.2), value: model.cameraNoticeKind)
+        .animation(.easeInOut(duration: 0.2), value: opening)
+        .animation(.easeInOut(duration: 0.2), value: failure)
         // The thermal notice's words ask before the frame rate limit goes. The
         // alert is the overlay's, not the notice's, so a notice that changes
         // its layout does not take it down.
@@ -109,8 +113,18 @@ struct SessionNoticesOverlay: View {
         if model.askingToTurnOffHeatLimit && !alertIsUp() { model.cancelTurnOffHeatLimit() }
     }
 
-    private func column(denial: NetworkDenial?) -> some View {
+    private func column(denial: NetworkDenial?, opening: AppOpenRequest?, failure: AppOpenBanner?) -> some View {
         VStack(spacing: StatsPlacement.noticeGap) {
+            if let opening {
+                AppOpenPill(request: opening)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            if let failure {
+                AppOpenFailureBanner(
+                    banner: failure, retry: { model.retryAndroidAppOpen() },
+                    dismiss: { model.dismissAndroidAppBanner() })
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             if let denial {
                 NetworkNoticeBanner(
                     denial: denial, openSettings: { model.openSettings() },

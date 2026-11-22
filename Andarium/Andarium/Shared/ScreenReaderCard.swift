@@ -11,6 +11,10 @@ struct ScreenReaderCard: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
     let card: ScreenReaderSession.Card
+    /// VoiceOver's focus on the title: the card is what the person is to deal
+    /// with, so it takes the focus as it appears, where a screen change posted
+    /// before it was on screen left the cursor on the display.
+    @AccessibilityFocusState private var titleFocused: Bool
 
     var body: some View {
         let reader = model.session.reader
@@ -38,12 +42,18 @@ struct ScreenReaderCard: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
         .accessibilityIdentifier("screen-reader-card")
+        .task {
+            // The focus can move only to an element VoiceOver has been told of.
+            try? await Task.sleep(for: .milliseconds(300))
+            titleFocused = true
+        }
     }
 
     private func title(_ text: String) -> some View {
         Text(text.keepingTogether)
             .font(.title3.weight(.bold))
             .accessibilityAddTraits(.isHeader)
+            .accessibilityFocused($titleFocused)
     }
 
     /// The card's text is primary: it is read over a screen the person cannot

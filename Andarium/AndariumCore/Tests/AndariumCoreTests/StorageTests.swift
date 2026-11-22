@@ -475,3 +475,78 @@ struct DiskPathTests {
         await #expect(throws: StorageError.unusableDiskPath(release.path)) { try await storage.create(Guest.fresh(on: host)) }
     }
 }
+
+/// A launch where no size can start (`MemoryPolicy.hasRoom`) shows a memory of
+/// zero for that run alone: the guest it saves does not replace the size the
+/// person had, so that a later launch with room starts from that size, or from
+/// the default where none was ever kept, and not from the least size.
+struct NoRoomMemoryIsNotKeptTests {
+    private let none = MemoryPolicy(
+        processorCount: 6, bound: { _ in 0 }, defaultMemory: { _ in 0 }, safeMemory: { _ in 0 },
+        graphicsMemory: { _, _ in 1000 })
+    private let room = MemoryPolicy(maximumsMiB: [4096, 4096, 4096, 4096, 4096, 4096])
+
+    private func device(_ memory: MemoryPolicy) -> HostDevice {
+        HostDevice(name: "iPad", processorCount: 6, memory: memory, freeStorageBytes: 40_000_000_000)
+    }
+
+    @Test func aLaunchWithNoRoomDoesNotReplaceTheSizeThePersonHad() async throws {
+        let (storage, root) = try makeStorage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await storage.create(Guest(cores: 4, memoryMiB: 3072, capacityGiB: 8))
+        let shown = LaunchOverrides().applied(to: try #require(try storage.load()), on: device(none))
+        #expect(shown.memoryMiB == 0)
+        // The run's end saves the guest it shows.
+        try storage.save(shown)
+        #expect(try #require(try storage.load()).memoryMiB == 3072)
+        // Every other choice is saved as it is.
+        var changed = shown
+        changed.cores = 2
+        try storage.save(changed)
+        let reread = try #require(try storage.load())
+        #expect(reread.cores == 2 && reread.memoryMiB == 3072)
+        let later = LaunchOverrides().applied(to: reread, on: device(room))
+        #expect(later.memoryMiB == 3072)
+    }
+
+    /// A record that cannot be read, or decoded, is not "nothing stored": the
+    /// save of a memory of zero fails with the error and the record stays as it
+    /// is, for the size in it is the person's.
+    @Test func aRecordThatCannotBeReadIsNotReplacedByTheZeroOfALaunchWithNoRoom() async throws {
+        let (storage, root) = try makeStorage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await storage.create(Guest(cores: 4, memoryMiB: 3072, capacityGiB: 8))
+        let file = storage.locations.settings
+        let shown = LaunchOverrides().applied(to: try #require(try storage.load()), on: device(none))
+        #expect(shown.memoryMiB == 0)
+
+        // Denied.
+        let record = try Data(contentsOf: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: file.path)
+        #expect(throws: (any Error).self) { try storage.save(shown) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        #expect(try Data(contentsOf: file) == record)
+        #expect(try #require(try storage.load()).memoryMiB == 3072)
+
+        // Not a record.
+        let garbage = Data("{ not a record".utf8)
+        try garbage.write(to: file)
+        #expect(throws: (any Error).self) { try storage.save(shown) }
+        #expect(try Data(contentsOf: file) == garbage)
+
+        // A size to keep needs no reading, and is saved as it is.
+        try storage.save(Guest(cores: 4, memoryMiB: 2048, capacityGiB: 8))
+        #expect(try #require(try storage.load()).memoryMiB == 2048)
+    }
+
+    @Test func aGuestSetUpWithNoRoomTakesTheDefaultOnceThereIsRoom() async throws {
+        let (storage, root) = try makeStorage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try await storage.create(Guest.fresh(on: device(none)))
+        let stored = try #require(try storage.load())
+        let later = LaunchOverrides().applied(to: stored, on: device(room))
+        let wanted = room.defaultMemoryMiB(vCPUs: later.cores)
+        #expect(wanted > Limits.minimumMemoryMiB)
+        #expect(later.memoryMiB == wanted)
+    }
+}

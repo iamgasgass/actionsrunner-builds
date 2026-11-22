@@ -27,11 +27,9 @@ struct SessionView: View {
             .onChange(of: model.spacePause != nil) { _, paused in
                 if paused { model.sessionSettingsOpen = false }
             }
-            #if !APP_STORE
             .overlay(alignment: .bottomLeading) {
                 if let probe = model.inputProbe { InputProbeReadout(probe: probe) }
             }
-            #endif
     }
 
     /// Andarium's pieces over the guest: on a display that folds where the plan
@@ -84,8 +82,6 @@ struct SessionView: View {
     }
 }
 
-#if !APP_STORE
-
 /// What the guest's keyboard and mouse received, for a UI test to read: one
 /// accessibility element whose label is the log. It is small and takes no
 /// touch.
@@ -105,5 +101,3 @@ private struct InputProbeReadout: View {
             .allowsHitTesting(false)
     }
 }
-
-#endif

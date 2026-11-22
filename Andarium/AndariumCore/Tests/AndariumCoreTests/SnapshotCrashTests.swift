@@ -144,6 +144,7 @@ struct SnapshotCrashTests {
             var choices = fixture.guest
             choices.capacityGiB = 4
             choices.pendingCapacityGiB = 6
+            choices.root = Self.rootAfterTheDivergence
             try app.save(choices)
             return Scenario(fixture: fixture, app: app, snapshot: made.id, record: record, other: other)
         }
@@ -153,7 +154,18 @@ struct SnapshotCrashTests {
             var choices = fixture.guest
             choices.capacityGiB = 4
             choices.pendingCapacityGiB = 6
+            choices.root = Self.rootAfterTheDivergence
             return choices
+        }
+
+        /// Root on, with the Magisk app put in after the snapshot was taken:
+        /// the snapshot's data disk does not have it.
+        static var rootAfterTheDivergence: RootState {
+            var root = RootState()
+            root.on = true
+            root.appVersionCode = 31_100
+            root.appEverHandled = true
+            return root
         }
 
         /// The same guest and files with other file calls.
@@ -175,6 +187,10 @@ struct SnapshotCrashTests {
         // The capacity is the snapshot's disk and the stale growth is gone.
         let settings = try #require(try scenario.app.load(), sourceLocation: sourceLocation)
         #expect(settings.capacityGiB == 8 && settings.pendingCapacityGiB == nil, sourceLocation: sourceLocation)
+        // The data disk is the snapshot's, so the Magisk app the application
+        // put in later is not on it; the person's switch stays as it was.
+        #expect(settings.root.on, sourceLocation: sourceLocation)
+        #expect(settings.root.appVersionCode == nil && !settings.root.appEverHandled, sourceLocation: sourceLocation)
         // The snapshot is still whole and can be restored again.
         let items = scenario.app.snapshotListing().items
         #expect(items.map(\.id) == [scenario.snapshot] && items.first?.isDamaged == false, sourceLocation: sourceLocation)

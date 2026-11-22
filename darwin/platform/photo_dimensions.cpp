@@ -149,10 +149,40 @@ std::uint32_t sensorOrientationOf(CameraPosition position, double portraitAngle)
 
 PresentedMounting presentedMountingOf(CameraPosition position, double portraitAngle) noexcept
 {
-    const std::uint32_t stated = sensorOrientationOf(position, portraitAngle);
-    if (position != CameraPosition::front || !std::isfinite(portraitAngle) || (stated != 0 && stated != 180))
-        return {stated, 0, false};
-    return {90, (stated + 270) % 360, true};
+    const std::uint32_t own = sensorOrientationOf(position, portraitAngle);
+    if (position != CameraPosition::front || !std::isfinite(portraitAngle)) return {own, 0, false, 0};
+    // An imitated camera is at 90 once its connection has turned it; a camera at 90 is turned half around to state 270, the
+    // front cameras' own angle, and one at 270 is there already.
+    if (own == 0 || own == 180) return {frontCameraOrientation, (own + 270) % 360, true, 180};
+    return {frontCameraOrientation, 0, false, own == 90 ? 180u : 0u};
+}
+
+CameraRegion regionBeforeTurn(const CameraRegion& region, std::uint32_t turn) noexcept
+{
+    CameraRegion before = region;
+    switch (turn) {
+    case 90:
+        // The point (x, y) of the picture is (1 - y, x) of the turned one.
+        before.x = region.y;
+        before.y = 1.0f - region.x - region.width;
+        before.width = region.height;
+        before.height = region.width;
+        break;
+    case 180:
+        before.x = 1.0f - region.x - region.width;
+        before.y = 1.0f - region.y - region.height;
+        break;
+    case 270:
+        // The point (x, y) of the picture is (y, 1 - x) of the turned one.
+        before.x = 1.0f - region.y - region.height;
+        before.y = region.x;
+        before.width = region.height;
+        before.height = region.width;
+        break;
+    default:
+        break;
+    }
+    return before;
 }
 
 CompensationStep stillCompensationStep(bool imitatesEarlierFront, CameraFact supported, CameraFact enabled,
@@ -826,12 +856,14 @@ std::string_view refusalName(Refusal reason) noexcept
     case Refusal::stillsNotTurned: return "the photo output does not turn its stills";
     case Refusal::ratioFailed: return "the device's aspect ratio change failed";
     case Refusal::ratioTimedOut: return "the device's aspect ratio change did not complete in time";
+    case Refusal::stillNotTurned: return "the still cannot be turned half around";
     }
     return "unknown";
 }
 
 bool RefusalLog::first(std::size_t camera, Refusal reason)
 {
+    std::lock_guard lock(mutex_);
     std::uint32_t& seen = seen_[camera];
     const std::uint32_t bit = 1u << static_cast<unsigned>(reason);
     if ((seen & bit) != 0) return false;
@@ -841,7 +873,14 @@ bool RefusalLog::first(std::size_t camera, Refusal reason)
 
 void RefusalLog::reset(std::size_t camera)
 {
+    std::lock_guard lock(mutex_);
     seen_.erase(camera);
+}
+
+void RefusalLog::clear()
+{
+    std::lock_guard lock(mutex_);
+    seen_.clear();
 }
 
 } // namespace uml::platform

@@ -1700,8 +1700,32 @@ void aRefusalIsLoggedOncePerCameraAndReasonUntilTheCameraChanges()
     for (const auto reason : {Refusal::noAnchor, Refusal::formatChanged, Refusal::notJoinable, Refusal::inputRefused, Refusal::outputRefused,
                               Refusal::overBudget, Refusal::stillNotMade, Refusal::rawUnavailable, Refusal::raised, Refusal::notRestored,
                               Refusal::ratioMoved, Refusal::turnNotHeld, Refusal::stillsNotTurned, Refusal::ratioFailed,
-                              Refusal::ratioTimedOut})
+                              Refusal::ratioTimedOut, Refusal::stillNotTurned})
         require(!refusalName(reason).empty() && refusalName(reason) != "unknown", "every reason has a name");
+}
+
+// The photo callback's thread logs a still that failed while the session's queue resets the camera (a stream stops, a still
+// is captured): one log, two threads. Under a thread sanitizer this is a data race on the map without the log's lock.
+void theRefusalLogIsUsedFromTwoThreads()
+{
+    RefusalLog log;
+    std::atomic<bool> stop {false};
+    std::thread queue([&] {
+        for (std::size_t round = 0; !stop.load(); ++round) {
+            if (round % 16 == 15) log.clear();
+            else log.reset(round % 4);
+        }
+    });
+    std::size_t logged = 0;
+    for (std::size_t round = 0; round < 20000; ++round) {
+        logged += log.first(round % 4, Refusal::stillNotTurned) ? 1 : 0;
+        logged += log.first(round % 4, Refusal::stillNotMade) ? 1 : 0;
+    }
+    stop = true;
+    queue.join();
+    require(logged > 0, "a refusal is logged while the camera is reset from another thread");
+    log.clear();
+    require(log.first(0, Refusal::stillNotTurned) && !log.first(0, Refusal::stillNotTurned), "a cleared log logs again, once");
 }
 
 // ---------------------------------------------------------------------------
@@ -2122,17 +2146,17 @@ void theFrontStillLimitLeavesTheVideoOfferAndDecidesNoConcurrency()
     require(keepsConcurrency(limited, rules), "it would on the limited formats: the limit must not be what decides it");
 }
 
-// Each camera states the platform's own mounting, the rotation coordinator's angle for portrait. An iPhone 15 Pro Max
-// states 90 for its front camera as for its back ones (the front camera is upright with the port on the left, the back
-// ones with the port on the right): the 270 a front camera was once told by position turned its pictures by 180
-// degrees in the guest.
-void aCameraStatesThePlatformsOwnMounting()
+// The platform's own mounting is the rotation coordinator's angle for portrait: an iPhone 15 Pro Max states 90 for its
+// front camera as for its back ones (the front camera is upright with the port on the left, the back ones with the port on
+// the right). A back camera states it as it is. A front camera states 270, the angle Android's front cameras have, and the
+// host turns every picture of it by the half turn that brings its own mounting there (`presentationTurn`).
+void aCameraStatesThePlatformsMountingAndAFrontCameraStates270()
 {
     require(sensorOrientationOf(CameraPosition::back, 90) == 90, "a back camera upright with the port on the right states 90");
-    require(sensorOrientationOf(CameraPosition::front, 90) == 90, "a front camera upright with the port on the left states 90, not 270");
+    require(sensorOrientationOf(CameraPosition::front, 90) == 90, "the platform's angle of a front camera at the port on the left is 90");
     for (const double angle : {0.0, 90.0, 180.0, 270.0})
         for (const auto position : {CameraPosition::back, CameraPosition::front})
-            require(sensorOrientationOf(position, angle) == std::uint32_t(angle), "a quarter turn is stated as the platform gives it");
+            require(sensorOrientationOf(position, angle) == std::uint32_t(angle), "a quarter turn is the angle the platform gives");
     require(sensorOrientationOf(CameraPosition::front, 360) == 0 && sensorOrientationOf(CameraPosition::front, -90) == 270,
             "an angle is taken within one turn");
     require(sensorOrientationOf(CameraPosition::back, 89.6) == 90 && sensorOrientationOf(CameraPosition::back, 314) == 270,
@@ -2140,47 +2164,173 @@ void aCameraStatesThePlatformsOwnMounting()
     require(sensorOrientationOf(CameraPosition::external, 0) == 90 && sensorOrientationOf(CameraPosition::external, 180) == 90,
             "an external camera states 90 whatever the angle");
     require(sensorOrientationOf(CameraPosition::front, std::numeric_limits<double>::quiet_NaN()) == 0, "no angle states none");
+
+    // What the guest is told: a front camera upright with the port on the left (90) states 270 and its pictures are turned
+    // by 180 degrees; the back cameras state the platform's own angle and are not turned.
+    require(presentedMountingOf(CameraPosition::front, 90).stated == 270, "a front camera at 90 states 270, not 90");
+    require(presentedMountingOf(CameraPosition::front, 90).presentationTurn == 180, "and its pictures are turned by 180 degrees");
+    for (const double angle : {0.0, 90.0, 180.0, 270.0}) {
+        const auto back = presentedMountingOf(CameraPosition::back, angle);
+        require(back.stated == std::uint32_t(angle) && back.connectionTurn == 0 && !back.emulatesEarlierFront && back.presentationTurn == 0,
+                "a back camera states the platform's angle and is not turned at any angle");
+    }
 }
 
 // A front camera whose coordinator states portrait 0 or 180 is mounted with its sensor's top at the device's top, where an
-// earlier front camera's is at the side (90). It is presented as one of those: the guest is told 90 and the platform
-// turns the video connection by the difference, so that the buffers are upright where the earlier cameras' are. Nothing
-// else changes: not a front camera at 90 or 270, not a back camera at any angle, not an external camera, not an angle
-// that is not a number.
-void aFrontCameraMountedAtTheTopIsPresentedLikeAnEarlierOne()
+// earlier front camera's is at the side (90). It is presented as one of those first: the platform turns the video connection
+// by the difference, so that the buffers are upright where the earlier cameras' are, and the host then turns every picture by
+// 180 degrees like that of any front camera at 90. A front camera states 270 whatever its mounting; the half turn is for the
+// mountings that put it at 90 and not for 270, which is the angle itself. Nothing else changes: not a back camera at any
+// angle, not an external camera, not an angle that is not a number.
+void aFrontCameraStates270AndIsTurnedHalfAroundUnlessItAlreadyIs()
 {
     const auto of = [](CameraPosition position, double angle) { return presentedMountingOf(position, angle); };
-    require(of(CameraPosition::front, 90) == PresentedMounting({90, 0, false}), "a front camera at 90 is as it states");
-    require(of(CameraPosition::front, 0) == PresentedMounting({90, 270, true}), "a front camera at 0 states 90 and is turned 270");
-    require(of(CameraPosition::front, 180) == PresentedMounting({90, 90, true}), "a front camera at 180 states 90 and is turned 90");
-    require(of(CameraPosition::front, 270) == PresentedMounting({270, 0, false}), "a front camera at 270 is as it states");
-    require(of(CameraPosition::back, 90) == PresentedMounting({90, 0, false}), "a back camera at 90 is as it states");
-    require(of(CameraPosition::back, 0) == PresentedMounting({0, 0, false}), "a back camera at 0 is not imitated");
-    require(of(CameraPosition::back, 180) == PresentedMounting({180, 0, false}) && of(CameraPosition::back, 270) == PresentedMounting({270, 0, false}),
+    require(of(CameraPosition::front, 90) == PresentedMounting({270, 0, false, 180}), "a front camera at 90 states 270 and is turned 180");
+    require(of(CameraPosition::front, 0) == PresentedMounting({270, 270, true, 180}),
+            "a front camera at 0 is imitated (video connection 270) and then turned 180");
+    require(of(CameraPosition::front, 180) == PresentedMounting({270, 90, true, 180}),
+            "a front camera at 180 is imitated (video connection 90) and then turned 180");
+    require(of(CameraPosition::front, 270) == PresentedMounting({270, 0, false, 0}), "a front camera at 270 states it already and is not turned");
+    require(of(CameraPosition::back, 90) == PresentedMounting({90, 0, false, 0}), "a back camera at 90 is as it states");
+    require(of(CameraPosition::back, 0) == PresentedMounting({0, 0, false, 0}), "a back camera at 0 is not imitated");
+    require(of(CameraPosition::back, 180) == PresentedMounting({180, 0, false, 0}) && of(CameraPosition::back, 270) == PresentedMounting({270, 0, false, 0}),
             "nor at 180 or 270");
-    require(of(CameraPosition::external, 0) == PresentedMounting({90, 0, false}) && of(CameraPosition::external, 180) == PresentedMounting({90, 0, false}),
+    require(of(CameraPosition::external, 0) == PresentedMounting({90, 0, false, 0}) && of(CameraPosition::external, 180) == PresentedMounting({90, 0, false, 0}),
             "an external camera states 90 and is not turned");
-    require(of(CameraPosition::front, std::numeric_limits<double>::quiet_NaN()) == PresentedMounting({0, 0, false}), "no angle is not imitated");
-    require(of(CameraPosition::front, std::numeric_limits<double>::infinity()) == PresentedMounting({0, 0, false}), "nor an infinite one");
+    require(of(CameraPosition::front, std::numeric_limits<double>::quiet_NaN()) == PresentedMounting({0, 0, false, 0}), "no angle is not imitated or turned");
+    require(of(CameraPosition::front, std::numeric_limits<double>::infinity()) == PresentedMounting({0, 0, false, 0}), "nor an infinite one");
     require(of(CameraPosition::front, 0.4) == of(CameraPosition::front, 0) && of(CameraPosition::front, 359.7) == of(CameraPosition::front, 0),
             "an angle is rounded to a quarter turn first");
-    require(of(CameraPosition::front, 89.6) == PresentedMounting({90, 0, false}), "so a front camera at 89.6 is at 90");
+    require(of(CameraPosition::front, 89.6) == PresentedMounting({270, 0, false, 180}), "so a front camera at 89.6 is at 90");
     require(of(CameraPosition::front, -180) == of(CameraPosition::front, 180), "and taken within one turn");
-    // Whatever the angle: an imitated camera states 90 and its turn brings its own angle to that, a camera that is not
-    // imitated states what sensorOrientationOf does and is not turned.
+    // Whatever the angle: a built-in front camera with an angle states 270, and the turns the platform and the host apply
+    // take its own angle there (the connection's turn first, which brings an imitated camera to 90, then the half turn); a
+    // camera that is not a front one states what sensorOrientationOf does and is not turned at all.
     for (const auto position : {CameraPosition::back, CameraPosition::front, CameraPosition::external})
         for (double angle = -720; angle <= 720; angle += 22.5) {
             const auto mounting = presentedMountingOf(position, angle);
-            if (mounting.emulatesEarlierFront) {
-                require(position == CameraPosition::front && mounting.stated == 90 && mounting.connectionTurn % 90 == 0,
-                        "an imitated camera is a front camera and states 90");
-                require((mounting.connectionTurn + 90) % 360 == sensorOrientationOf(position, angle),
-                        "its turn takes its own angle to 90");
+            require(mounting.presentationTurn == 0 || mounting.presentationTurn == 180, "the host's turn is a half turn or none");
+            if (position == CameraPosition::front && std::isfinite(angle)) {
+                require(mounting.stated == 270, "a front camera states 270");
+                require((sensorOrientationOf(position, angle) + 720 - mounting.connectionTurn - mounting.presentationTurn) % 360 ==
+                            mounting.stated,
+                        "the turns take the camera's own angle to the stated one");
+                require(mounting.emulatesEarlierFront == (sensorOrientationOf(position, angle) % 180 == 0), "only a camera at the top is imitated");
+                require(mounting.connectionTurn == (mounting.emulatesEarlierFront ? (sensorOrientationOf(position, angle) + 270) % 360 : 0),
+                        "the connection's turn is the imitation's, as before");
             } else {
-                require(mounting.stated == sensorOrientationOf(position, angle) && mounting.connectionTurn == 0,
-                        "a camera that is not imitated states the platform's angle and is not turned");
+                require(!mounting.emulatesEarlierFront && mounting.connectionTurn == 0 && mounting.presentationTurn == 0 &&
+                            mounting.stated == sensorOrientationOf(position, angle),
+                        "a camera that is not a front one with an angle states the platform's angle and is not turned");
             }
         }
+}
+
+// A metering or focus region of the picture the guest sees is the same area of the picture before the host turned it: each
+// layer that turned the picture maps the guest's region back through its own turn, the device through the camera's half
+// turn and the backend through its video connection's quarter turn.
+void aRegionIsMappedBackThroughATurnOfThePicture()
+{
+    const auto near = [](float a, float b) { return std::fabs(a - b) < 1e-6f; };
+    const auto same = [&](const CameraRegion& a, const CameraRegion& b) {
+        return near(a.x, b.x) && near(a.y, b.y) && near(a.width, b.width) && near(a.height, b.height) && a.weight == b.weight;
+    };
+    const CameraRegion region {0.25f, 0.5f, 0.125f, 0.25f, 7};
+    require(same(regionBeforeTurn(region, 0), region), "no turn leaves a region as it is");
+    // 180: the area opposite, of the same size.
+    require(same(regionBeforeTurn(region, 180), {0.625f, 0.25f, 0.125f, 0.25f, 7}), "a half turn mirrors both axes");
+    // 90 clockwise: the picture's left edge is the turned picture's top, read from the bottom. The region's top-left corner
+    // (0.25, 0.5) of the turned picture is, before the turn, (y, 1 - x - width) = (0.5, 0.625) with the sides swapped.
+    require(same(regionBeforeTurn(region, 90), {0.5f, 0.625f, 0.25f, 0.125f, 7}), "a quarter turn clockwise swaps the sides");
+    require(same(regionBeforeTurn(region, 270), {0.25f, 0.25f, 0.25f, 0.125f, 7}), "and a quarter turn the other way");
+    for (const std::uint32_t turn : {45u, 360u, 1u, 450u}) require(same(regionBeforeTurn(region, turn), region), "a turn that is no quarter turn is none");
+
+    // The turns compose: mapping back through 90 and then 90 again is mapping back through 180, and so on; four make none.
+    CameraRegion walked = region;
+    for (int step = 0; step < 4; ++step) walked = regionBeforeTurn(walked, 90);
+    require(same(walked, region), "four quarter turns are none");
+    require(same(regionBeforeTurn(regionBeforeTurn(region, 90), 90), regionBeforeTurn(region, 180)), "two quarter turns are a half turn");
+    require(same(regionBeforeTurn(regionBeforeTurn(region, 90), 270), region), "a quarter turn and its inverse are none");
+    require(same(regionBeforeTurn(regionBeforeTurn(region, 180), 180), region), "a half turn twice is none");
+
+    // The centre of the region, which is what the platform's points of interest take, goes where the point does: the turned
+    // picture's point (u, v) is the picture's (v, 1 - u) after a quarter turn clockwise.
+    const auto centre = [](const CameraRegion& r) { return std::pair<float, float>(r.x + r.width / 2, r.y + r.height / 2); };
+    const auto [cx, cy] = centre(region);
+    require(near(centre(regionBeforeTurn(region, 90)).first, cy) && near(centre(regionBeforeTurn(region, 90)).second, 1 - cx), "its centre");
+    require(near(centre(regionBeforeTurn(region, 270)).first, 1 - cy) && near(centre(regionBeforeTurn(region, 270)).second, cx), "likewise");
+    require(near(centre(regionBeforeTurn(region, 180)).first, 1 - cx) && near(centre(regionBeforeTurn(region, 180)).second, 1 - cy), "and for 180");
+
+    // A whole-frame region is the whole frame, and a region inside the picture stays inside and one outside stays outside:
+    // the mapping validates nothing and invalidates nothing.
+    for (const std::uint32_t turn : {0u, 90u, 180u, 270u}) {
+        require(same(regionBeforeTurn({0, 0, 1, 1, 1}, turn), {0, 0, 1, 1, 1}), "the whole picture");
+        const auto inside = regionBeforeTurn({0.1f, 0.2f, 0.3f, 0.4f, 1}, turn);
+        require(inside.x >= 0 && inside.y >= 0 && inside.x + inside.width <= 1.0001f && inside.y + inside.height <= 1.0001f, "inside stays inside");
+        const auto outside = regionBeforeTurn({1.5f, 0.2f, 0.3f, 0.4f, 1}, turn);
+        require(outside.x < 0 || outside.y < 0 || outside.x + outside.width > 1.0f || outside.y + outside.height > 1.0f, "outside stays outside");
+        const auto huge = regionBeforeTurn({60000.0f, 60000.0f, 60000.0f, 60000.0f, 9}, turn);
+        require(std::isfinite(huge.x) && std::isfinite(huge.y) && std::isfinite(huge.width) && std::isfinite(huge.height) && huge.weight == 9,
+                "the largest value the wire carries stays a number");
+    }
+}
+
+// An imitated front camera (the square sensor of the newest phones) is turned twice: by its video connection's quarter turn and
+// then by the host's half turn. The guest's region is in the twice turned picture, the device maps it back through the half
+// turn and the backend through the connection's quarter turn, and what reaches the platform is the area of the camera's own
+// picture the guest meant, whichever turn the connection has.
+// The session's own choice of its devices' colour spaces is left alone unless a camera whose stills the host turns is in it.
+void theSessionKeepsItsColourChoiceUnlessATurnedCameraIsIn()
+{
+    const std::uint32_t notTurned[] = {0};
+    const std::uint32_t backAndExternal[] = {0, 0};
+    const std::uint32_t front[] = {180};
+    const std::uint32_t frontAndBack[] = {180, 0};
+    const std::uint32_t backAndFront[] = {0, 180};
+    require(!sessionHoldsColourSpaces({}), "an empty session keeps the system's choice");
+    require(!sessionHoldsColourSpaces(notTurned) && !sessionHoldsColourSpaces(backAndExternal),
+            "a session of cameras that are not turned keeps it, a back-only one included");
+    require(sessionHoldsColourSpaces(front) && sessionHoldsColourSpaces(frontAndBack) && sessionHoldsColourSpaces(backAndFront),
+            "a session with a camera presented half around does not, in either order of the cameras");
+}
+
+void aRegionIsMappedBackThroughTheConnectionAndTheHalfTurnTogether()
+{
+    const auto near = [](float a, float b) { return std::fabs(a - b) < 1e-5f; };
+    const auto same = [&](const CameraRegion& a, const CameraRegion& b) {
+        return near(a.x, b.x) && near(a.y, b.y) && near(a.width, b.width) && near(a.height, b.height) && a.weight == b.weight;
+    };
+    // The picture turned clockwise by `turn`: the area of it the region of the picture before the turn is. (A corner at the top
+    // left goes to the top right, so a quarter turn sends (x, y, w, h) to (1 - y - h, x, h, w).)
+    const auto turned = [](CameraRegion region, std::uint32_t turn) {
+        for (std::uint32_t quarter = 0; quarter < turn / 90; ++quarter)
+            region = {1.0f - region.y - region.height, region.x, region.height, region.width, region.weight};
+        return region;
+    };
+    const CameraRegion regions[] = {{0.25f, 0.5f, 0.125f, 0.25f, 7}, {0.0f, 0.0f, 1.0f, 1.0f, 1}, {0.7f, 0.1f, 0.2f, 0.3f, 3}, {0.4f, 0.4f, 0.05f, 0.05f, 255}};
+    std::size_t imitated = 0;
+    for (const double angle : {0.0, 180.0, 90.0, 270.0}) {
+        const auto mounting = presentedMountingOf(CameraPosition::front, angle);
+        for (const auto& own : regions) {
+            // What the platform holds is its own picture's area; the guest's picture is that turned by the connection and then
+            // by the host.
+            const CameraRegion guests = turned(turned(own, mounting.connectionTurn), mounting.presentationTurn);
+            const CameraRegion afterDevice = regionBeforeTurn(guests, mounting.presentationTurn);
+            const CameraRegion afterBackend = regionBeforeTurn(afterDevice, mounting.connectionTurn);
+            require(same(afterBackend, own), "the area the guest meant is the area of the camera's own picture");
+            require(same(afterBackend, regionBeforeTurn(guests, (mounting.connectionTurn + mounting.presentationTurn) % 360)),
+                    "the two layers together are the one turn of both");
+            // The device's layer alone is not enough where the connection turns, and the backend's alone is never enough.
+            if (mounting.connectionTurn != 0 && !same(own, turned(own, 180)))
+                require(!same(afterDevice, own), "a connection that turns leaves the region turned after the device's layer");
+        }
+        imitated += mounting.connectionTurn != 0 ? 1 : 0;
+    }
+    require(imitated == 2, "the two imitated mountings are the ones with a quarter turn in the connection (portrait 0 and 180)");
+    const auto bottom = presentedMountingOf(CameraPosition::front, 0.0);
+    const auto top = presentedMountingOf(CameraPosition::front, 180.0);
+    require(bottom.connectionTurn == 270 && top.connectionTurn == 90 && bottom.presentationTurn == 180 && top.presentationTurn == 180,
+            "their connections turn by 270 and by 90, and the host by half a turn");
 }
 
 // A square format that lists dynamic aspect ratios is described by the crop the device is pinned at: 3x4 where the video
@@ -2384,6 +2534,7 @@ void aCamerasLastUseSurvivesTheNextSessionsDiscovery()
     discovered.coordinatorAngles = {0, 180, 90, 270};
     discovered.stated = 90;
     discovered.turn = 270;
+    discovered.presentationTurn = 180;
     discovered.earlier = true;
     discovered.anchorWidth = 1920;
     discovered.anchorHeight = 1440;
@@ -2394,7 +2545,7 @@ void aCamerasLastUseSurvivesTheNextSessionsDiscovery()
     discovered.dynamicRatios = true;
     const CameraPresentation merged = withDiscovery(kept, discovered);
     require(merged.deviceType == CameraDeviceType::wide && merged.coordinatorAngles == discovered.coordinatorAngles && merged.turn == 270 &&
-                merged.earlier && merged.anchorRatios == discovered.anchorRatios && merged.anchorFieldOfView == 85 &&
+                merged.presentationTurn == 180 && merged.earlier && merged.anchorRatios == discovered.anchorRatios && merged.anchorFieldOfView == 85 &&
                 merged.frontDevices == 2 && merged.squareFormats && merged.dynamicRatios,
             "the discovery is the new session's");
     require(merged.ratioKnown && merged.ratioPinned == CameraAspectRatio::r3x4 && merged.ratioWidth == 1512 && merged.videoKnown &&
@@ -2785,6 +2936,7 @@ int main()
     aSampleIsDeliveredWhileTheLockIsHeld();
     aPressureNotificationIsAppliedWhileTheStreamRunsAndNeverAfterIt();
     aRefusalIsLoggedOncePerCameraAndReasonUntilTheCameraChanges();
+    theRefusalLogIsUsedFromTwoThreads();
     everyGeneratedTableHoldsTheInvariants();
     theFrontStillLimitIsAboutThreeMegapixelsOnAnyTable();
     theFrontStillLimitChangesOnlyThePhotoSizesOfTheTablesTheTestsModel();
@@ -2793,8 +2945,11 @@ int main()
     theFrontStillLimitLeavesTheVideoOfferAndDecidesNoConcurrency();
     theFrontStillLimitOnTheSecondRealFrontTable();
     everyGeneratedFrontTableKeepsNothingAboveTheLimit();
-    aCameraStatesThePlatformsOwnMounting();
-    aFrontCameraMountedAtTheTopIsPresentedLikeAnEarlierOne();
+    aCameraStatesThePlatformsMountingAndAFrontCameraStates270();
+    aFrontCameraStates270AndIsTurnedHalfAroundUnlessItAlreadyIs();
+    aRegionIsMappedBackThroughATurnOfThePicture();
+    aRegionIsMappedBackThroughTheConnectionAndTheHalfTurnTogether();
+    theSessionKeepsItsColourChoiceUnlessATurnedCameraIsIn();
     aSquareFormatThatListsRatiosIsDescribedByItsPinnedCrop();
     aCamerasLastUseSurvivesTheNextSessionsDiscovery();
     aCameraThatImitatesAnEarlierOneKeepsItsPhotoConnectionAngle();

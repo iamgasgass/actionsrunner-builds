@@ -44,6 +44,9 @@ public:
 	[[nodiscard]] bool code_page_stamp(std::uint64_t address,
 		void *execution_context,
 		::uml::memory::CodePageStamp &stamp) noexcept override;
+	[[nodiscard]] bool extended_code_page_stamp(std::uint64_t address,
+		void *execution_context,
+		::uml::memory::ExtendedCodePageStamp &stamp) noexcept override;
 	void invalidate_code(std::uint64_t address) override;
 	void invalidate_code(
 		std::uint64_t address, void *execution_context) override;
@@ -86,6 +89,9 @@ private:
 		std::uint64_t changes{};
 		std::array<std::byte *, 3> bases{};
 		void *code_page{};
+		/* The kernel's immutable fact for the mapping code_page was
+		 * asked through; a mapping change refreshes it with the entry. */
+		bool immutable{};
 	};
 
 	[[nodiscard]] static constexpr std::size_t index_for(
@@ -107,7 +113,7 @@ private:
 		std::uint32_t slot, std::uint64_t held) noexcept;
 	[[nodiscard]] void *code_page_handle(
 		std::uint64_t address,
-		::uml::memory::CodePageStamp *stamp = nullptr) noexcept;
+		::uml::memory::ExtendedCodePageStamp *stamp = nullptr) noexcept;
 	[[nodiscard]] bool copy_from_guest(
 		std::uint64_t address, std::span<std::byte> destination,
 		::uml::memory::MemoryAccess access);

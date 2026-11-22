@@ -48,6 +48,12 @@ inline constexpr Feature features[] = {
      * (a Mac, the Simulator) must not offer one that nothing feeds. */
     {"compass", KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS,
      "androidboot.kernarium.compass=", "1"},
+    /* The display is a 120 Hz one (the EDID's one mode), so the guest's frame
+     * scheduler should treat it as such: ro.boot.kernarium.high_refresh is
+     * true only on a host that advertises it, and a 60 Hz host has no such
+     * property and runs as it always has. */
+    {"high-refresh", KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH,
+     "androidboot.kernarium.high_refresh=", "1"},
 };
 
 [[nodiscard]] constexpr bool singleBit(std::uint32_t value) noexcept

@@ -305,7 +305,7 @@ public enum GuestFiles {
               isPartial(GuestFilePath.name(of: temporary)),
               GuestFilePath.parent(of: path) == GuestFilePath.parent(of: temporary)
         else { throw GuestFilesError.badPath }
-        let sync = try AdbSync(connection: connection)
+        let sync = try AdbSync(connection: connection, replyBudget: AdbSync.sendReplyBudget)
         var sent: UInt64 = 0
         do {
             try sync.send(

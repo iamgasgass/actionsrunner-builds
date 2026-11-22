@@ -6,21 +6,48 @@ The guest is the release on a fresh data disk (or on the instance named by --ins
 launcher and ``--vsock-forward=127.0.0.1:0-5560``, so that the runner plays the host application: it sends the
 requests of the contract over the forward, in frames. The contract is android/lineage-24/README.md ("Text
 messages"); the bytes are tests/unit/andarium/fixtures/sms-golden-frames.txt, which this runner reads, and the
-service is android/lineage-24/overlay/sms. The runner has three modes, each one boot:
+service is android/lineage-24/overlay/sms. The service runs only while messages are in flight: a small native
+holder keeps the port from boot, starts the service on a waiting connection and passes it the socket, and the
+service ends 30 s after the last message. The runner has four modes, each one boot:
 
-- ``channel`` (a release image, no root): the channel's rows. G1 a host's request is taken, handed over,
-  and answered; G2a-d the provider is gone and a guest-local or adb-made connection is refused or ends at once;
-  G3 the service restarts after a crash and no answer is wrong; G4 its domain, its life and its denials, with the
-  boot order (H7) and the record's location and label (H11); G5 the memory cost; G6 every vsock listener of the
-  guest and its owner, and no virtual machine (H10, H13); G8 an application's domain and the shell cannot create
-  a vsock socket; G9 the shell cannot move adbd's listener; H6 adbd's reverse forward on vsock as the stock image
-  has it; H9 the kernel's vsock configuration. G2e (a reverse forward onto vsock, and onto ``acceptfd:``) needs
-  the adbd topic of the AOSP patches, and G7 (the development launch) is not a gate: each is opt-in.
+- ``delivery`` (an image of any build type with the SMS provider, no root, no probe): N1 after the settle, with
+  nothing sent, the service has no process and the holder runs, stable, started once by init (the launcher's
+  console keeps init's lines from boot; the holder's own log line ages out of the log ring) and logging no error
+  (it runs first: a message or a ping starts the service); D1 a plain message from the host is handed over, answered and stored as exactly one new inbox row;
+  D2 messages with a one-time code are too, and com.android.phone, waited for, keeps its pid; D3 the logs of
+  the service and the holder (its start from the console, no error line) show that the port is held and served
+  and that nothing was refused, with no hidden-API warning and no SELinux denial of the holder, the waker or the
+  handoff; N2 a first message sent
+  while no session runs is handed over within 30 s as exactly one inbox row, and the wake latency is noted; N3
+  the process ends after the idle window and the next request starts another, with the same holder; N4 requests
+  sent from one second before to one second after the end of the window are each handed over once; N6 a message
+  sent while the screen is off, with no wake lock of either process. D1 runs before D2 and D3. It is the
+  smallest check of a built image's text-message path, and the one for an unsigned proof image
+  (``--proof-image``): a service that drops every connection fails it at the first answer.
+
+- ``channel`` (a release image, no root): the channel's rows, N1 first. G1 a host's request is taken, handed
+  over, and answered; G2a the provider is gone; G2b-d a guest-local peer is refused and a guest-initiated
+  connection ends at once, which needs an adbd that forwards to vsock ports other than its own
+  (``--adbd-vsock-forward``: neither image's does, so they are reported as not shown); G3 the service restarts, through the next request, after a crash and no answer is wrong; G4 the holder's
+  domain, user and group (every check runs and every problem is reported), the service's domain while a session
+  runs and that it is not persistent, the denials, the boot order of the holder (H7, init's start line against
+  the boot's uptime) and the record's location and label (H11); G5 the session's and the holder's
+  memory cost; G6 no process of an unreviewed vsock domain and no virtual machine (H10, H13; the port sweep through
+  adbd only with ``--adbd-vsock-forward``); G8 an
+  application's domain and the shell cannot create a vsock socket; G9 the shell cannot move adbd's listener; N5
+  the shell cannot connect to the handoff socket (init's console line gives its mode and owner on a user
+  build, where the shell cannot stat it; with su the file is read too); H6 adbd's reverse forward on vsock as the stock image has it;
+  H9 the kernel's vsock configuration. G2e (a reverse forward onto vsock, and onto ``acceptfd:``, with the
+  service running and with it disabled and stopped) needs the adbd topic of the AOSP patches, and G7 (the
+  development launch) is not a gate: each is opt-in.
 - ``record`` (a release image): the record's rows over this channel. I1 a process ended between sends, I2 a
-  reboot, I4 fifty first attempts with a crash fired at a varying time, I5 the answers' bytes, I7 an image with
+  clean power-off and a start on the same data image (the holder starts, nothing runs at idle, the service reads
+  its record directory's label and is denied no directory, a retry and a new message are answered), I4 fifty rounds, each of which ends a process with ``am force-stop`` at a varying
+  time and counts only when the process was seen to die, I5 the answers' bytes, I7 an image with
   no SMS provider, I8 payloads that are not version 2.
-- ``proof`` (a userdebug proof build: it needs ``su``): I3 a pending record left by an ended process, and I6 the
-  record's storage (its files, its size at 300 sends and, where strace exists, the order of its writes).
+- ``proof`` (a userdebug proof build: it needs ``su``): I3 a pending record left by an ended process, I6 the
+  record's storage (its files, its size at 300 sends and, where strace exists, the order of its writes), and I9
+  the holder ended with nothing attached is started by init and the port answers again.
 
 Each row is reported on its own, so that one boot shows every difference; the verdict is the worst. The rows that
 need something the run lacks are listed with the reason. Every wait has a deadline. The guest's launcher is
@@ -31,6 +58,7 @@ The runner is opt-in: it needs the macos-android17 executable, an installed rele
 channel mode, the probe's APK and DEX (tests/integration/android/sms/build-apk.sh).
 usage: run_android_sms.py --emulator uml-darwin-android17 --mode channel --probe-apk AndariumSmsProbe.apk
            --vsockprobe-dex vsockprobe.dex [--release DIR] [--variant messaging|no-messaging|no-provider]
+       run_android_sms.py --emulator uml-darwin-android17 --mode delivery --release DIR [--proof-image]
        run_android_sms.py --list-rows
 """
 
@@ -82,13 +110,35 @@ FORWARD_SECONDS = 60
 COMMAND_SECONDS = 120
 SETTLE_SECONDS = 60
 ANSWER_SECONDS = 30
-REFUSAL_SECONDS = 5
+# A connection that the service must refuse waits for a session to start first.
+REFUSAL_SECONDS = 15
 RESTART_SECONDS = 30
 REBOOT_SECONDS = 300
 INBOX_SECONDS = 20
 PROBE_SECONDS = 30
 VM_SECONDS = 60
 SWEEP_PORT_SECONDS = 2
+# The service ends this long after the last message (HostService), and its process a moment later.
+IDLE_SECONDS = 30
+IDLE_EARLY_SECONDS = 3
+IDLE_LATE_SECONDS = 15
+GONE_SECONDS = IDLE_SECONDS + 30
+# Requests around the end of the window, in seconds from the answer of the one before.
+BOUNDARY_OFFSETS = (-1.0, -0.5, 0.0, 0.5, 1.0)
+SCREEN_SECONDS = 20
+HOLDER = "kernarium_sms_listener"
+HOLDER_TAG = "kernarium.sms.listener"
+HANDOFF_SOCKET = "/dev/socket/kernarium_sms"
+HANDOFF_LABEL = "u:object_r:kernarium_sms_socket:s0"
+WAKER = "kernarium_sms_wake"
+PHONE = "com.android.phone"
+PHONE_SETTLE_SECONDS = 5
+# How long the holder must keep its pid for N1: a holder that ends and is started again by init is a process at most
+# looks, and each start takes at least the holder's own second.
+HOLDER_STABLE_SECONDS = 5
+PHONE_WAIT_SECONDS = 30
+# A second delivery of one message lands soon after the first: the rows look again after this.
+INBOX_SETTLE_SECONDS = 3
 SWEEP_SECONDS = 1800
 SWEEP_WIDTH = 16
 # The shared adb server's port: the sweep speaks its protocol to ask adbd for a connection.
@@ -287,18 +337,62 @@ def epoch_lines(logcat: str, tag: str) -> list[tuple[float, str]]:
     return [(float(when), message) for when, found, message in EPOCH_LINE.findall(logcat) if found == tag]
 
 
-def check_boot_order(logcat: str, events: str) -> str | None:
-    """H7: the service's first ``listening`` line comes before the boot's ``boot_progress_enable_screen`` event,
-    which Android logs when it finishes booting, just before it sets sys.boot_completed."""
-    listening = [when for when, message in epoch_lines(logcat, TAG)
-                 if message == f"listening on vsock port {SMS_PORT}"]
-    enabled = [when for when, _ in epoch_lines(events, "boot_progress_enable_screen")]
-    if not listening:
-        return "the service logged no 'listening on vsock port' line"
+# What init writes to the launcher's console when it starts the holder (the kernel's uptime in seconds in front): the
+# one evidence of the holder's start that stays, where the holder's own log line ages out of the 256 KiB log ring
+# within about two minutes and the holder says nothing more of the port.
+INIT_HOLDER_STARTING = re.compile(rf"\[\s*(\d+\.\d+)\]\[[^\]]*\]\s+init: starting service '{re.escape(HOLDER)}'")
+INIT_HOLDER_STARTED = re.compile(rf"init: \.\.\. started service '{re.escape(HOLDER)}' has pid (\d+)")
+INIT_HANDOFF_SOCKET = re.compile(r"init: Created socket '/dev/socket/kernarium_sms', mode 660, user 1000, group 1000")
+NOBODY_ID = 9999
+
+
+@dataclass(frozen=True)
+class HolderStarts:
+    seconds: tuple[float, ...]  # the uptime at each of init's start lines of the holder
+    pids: tuple[int, ...]
+    socket_created: bool
+
+
+def holder_starts(console: str) -> HolderStarts:
+    """What the launcher's console says of the holder's starts: init's lines, from boot."""
+    return HolderStarts(tuple(float(found) for found in INIT_HOLDER_STARTING.findall(console)),
+                        tuple(int(found) for found in INIT_HOLDER_STARTED.findall(console)),
+                        INIT_HANDOFF_SOCKET.search(console) is not None)
+
+
+def holder_boot_problems(console: str, holder_pid: int | None) -> list[str]:
+    """The holder's start as the console records it: init started it once, as the pid that runs now, with the
+    handoff socket at mode 660 for the system user (the one line of its mode and owner a user build can show, where
+    the shell cannot stat the socket)."""
+    starts = holder_starts(console)
+    problems = []
+    if not starts.pids:
+        problems.append("the launcher's console has no init line that started the holder")
+    elif len(starts.pids) > 1:
+        problems.append(f"init started the holder {len(starts.pids)} times (pids {list(starts.pids)}): it ended and "
+                        "was started again")
+    elif holder_pid is not None and starts.pids[0] != holder_pid:
+        problems.append(f"the holder is pid {holder_pid}, init started pid {starts.pids[0]}")
+    if not starts.socket_created:
+        problems.append("the launcher's console has no init line that made the handoff socket with mode 660 for the "
+                        "system user")
+    return problems
+
+
+def check_boot_order(console: str, events: str) -> str | None:
+    """H7: init starts the holder before the boot's ``boot_progress_enable_screen`` event, which Android logs when it
+    finishes booting, just before it sets sys.boot_completed. The event's message is the milliseconds since boot,
+    and the console's start line carries the uptime, so the two compare without the log ring. The service starts
+    with the first message."""
+    starts = holder_starts(console).seconds
+    enabled = [int(found.group(1)) / 1000 for _, message in epoch_lines(events, "boot_progress_enable_screen")
+               if (found := re.match(r"(\d+)", message))]
+    if not starts:
+        return "the launcher's console has no init line that started the holder"
     if not enabled:
         return "the event log has no boot_progress_enable_screen to compare with"
-    if min(listening) > min(enabled):
-        return f"the service listened at {min(listening):.3f}, after the boot finished at {min(enabled):.3f}"
+    if min(starts) > min(enabled):
+        return f"init started the holder at {min(starts):.3f} s, after the boot finished at {min(enabled):.3f} s"
     return None
 
 
@@ -325,6 +419,127 @@ class Process:
         return parts[2] if len(parts) > 2 else ""
 
 
+def crash_lines_naming(crash_buffer: str, package: str) -> int:
+    """How many lines of a ``logcat -b crash`` dump name the package."""
+    return sum(package in line for line in crash_buffer.splitlines())
+
+
+def phone_problem(before: str, after: str, crashes_before: int, crashes_after: int) -> str | None:
+    """None when com.android.phone lived through a message: the same pid (``pidof``'s text) before and after,
+    and no crash of it in between. It must be running before, since it is persistent."""
+    if not before.strip().isdigit():
+        return f"{PHONE} was not running before the message (pidof says {before.strip()!r})"
+    if before.strip() != after.strip():
+        return f"{PHONE} was pid {before.strip()} before the message and is {after.strip() or 'gone'} after it"
+    if crashes_after != crashes_before:
+        return f"the crash buffer gained {crashes_after - crashes_before} line(s) naming {PHONE}"
+    return None
+
+
+# The service's own log lines that say it could not do its work: a refusal, or a failure of the host channel. The
+# end of a session at idle is the channel's normal end.
+SERVICE_FAILURE_LINES = ("refused a connection", "host channel:")
+SERVICE_NORMAL_LINES = ("host channel: idle for",)
+HIDDEN_API = re.compile(r"Accessing hidden (?:method|field) L(?:android/system|libcore)/")
+
+
+AVC_DENIAL = re.compile(r"avc:\s+denied\s+\{[^}]*\}.*?scontext=u:r:(\w+):s0.*?tclass=(\w+)")
+
+
+def denial_problems(full_log: str) -> list[str]:
+    """What SELinux denied of the text-message path: the holder and the waker nothing at all, the service no vsock
+    socket and none of the handoff (its denials of the start-up, on the service manager and on the data
+    directory, are not this path's)."""
+    problems = []
+    for line in full_log.splitlines():
+        found = AVC_DENIAL.search(line)
+        if found is None:
+            continue
+        domain, object_class = found.groups()
+        if domain in (HOLDER, WAKER):
+            problems.append(f"SELinux denied {domain} {object_class}")
+        elif domain == "kernarium_sms" and object_class == "vsock_socket":
+            problems.append("SELinux denied the service a vsock socket")
+        elif domain == "kernarium_sms" and object_class in ("sock_file", "unix_stream_socket", "fd"):
+            problems.append(f"SELinux denied the service the handoff ({object_class})")
+    return list(dict.fromkeys(problems))
+
+
+def storage_denial_problems(full_log: str) -> list[str]:
+    """SELinux denied the service a directory. The platform gives a user's directories the user's categories (the
+    data directory from the first boot, ``/data/user_de/<id>`` from the second), which the multi-level constraint
+    holds against a subject that neither carries them nor is trusted: the service must be trusted, or it cannot
+    search the path of its record."""
+    problems = []
+    for line in full_log.splitlines():
+        found = AVC_DENIAL.search(line)
+        if found is not None and found.group(1) == "kernarium_sms" and found.group(2) == "dir":
+            problems.append("SELinux denied the service a directory of the user's storage (the service must be "
+                            "trusted against the categories of the user's directories)")
+    return list(dict.fromkeys(problems))
+
+
+def service_log_problems(service_log: str, full_log: str, pids: str | set[str]) -> list[str]:
+    """What the service's log, and the whole log of the service's processes, must not show after the host's
+    messages were delivered: the service says it serves the host's requests, and no line of it says a connection
+    was refused or the channel failed (a service that cannot read a peer's CID logs both, and refuses the host),
+    SELinux denied nothing of the path (``denial_problems``), and the platform did not warn of hidden-API access
+    to android.system or libcore from it (the warning of a process that is not exempt). The service is a process
+    of each session, so ``pids`` are all of them; it may have ended by now."""
+    wanted = {pids} if isinstance(pids, str) else set(pids)
+    problems = []
+    if "serving the host's requests" not in service_log:
+        problems.append("the service never logged that it serves the host's requests")
+    for line in service_log.splitlines():
+        if any(failure in line for failure in SERVICE_FAILURE_LINES) \
+                and not any(normal in line for normal in SERVICE_NORMAL_LINES):
+            problems.append(f"the service logged {line.split(f'{TAG}: ', 1)[-1].strip()!r}")
+    problems += denial_problems(full_log)
+    for line in full_log.splitlines():
+        fields = line.split()
+        if len(fields) > 2 and fields[2] in wanted and HIDDEN_API.search(line):
+            problems.append(f"the platform warned of hidden-API access by the service: {line[line.find('Accessing'):]}")
+    return problems
+
+
+def holder_error_problems(holder_log: str) -> list[str]:
+    """The holder's own log: no line of it is an error. It logs its listening once, early, and the log ring does not
+    keep it (holder_boot_problems reads the start from the console)."""
+    problems = []
+    for line in holder_log.splitlines():
+        if re.search(rf"\sE {re.escape(HOLDER_TAG)}\s*:", line):
+            problems.append(f"the holder logged an error: {line.split(f'{HOLDER_TAG}: ', 1)[-1].strip()!r}")
+    return problems
+
+
+def inbox_ids_command(sender: str, text: str) -> str:
+    """The shell command that lists the ids of the inbox rows from the sender with exactly this text. It selects
+    the id alone, so no message body is in its output."""
+    where = "address='{}' AND body='{}'".format(sender.replace("'", "''"), text.replace("'", "''"))
+    return f"content query --uri content://sms/inbox --projection _id --where {shlex.quote(where)}"
+
+
+def parse_inbox_ids(output: str) -> set[int]:
+    return {int(found) for found in re.findall(r"\b_id=(\d+)", output)}
+
+
+def new_row_problem(before: set[int], after: set[int]) -> str | None:
+    """None when exactly one matching row is new: rows that were there before do not count, a message that was
+    stored twice fails, and so does one that was not stored."""
+    new = len(after - before)
+    return None if new == 1 else f"{new} new inbox rows for the message, expected exactly 1"
+
+
+def option_problem(options: argparse.Namespace) -> str | None:
+    """What is wrong with the combination of options, or None."""
+    if options.proof_image and (options.release is None or options.instance is not None):
+        return "--proof-image names its image with --release and boots a fresh instance (no --instance)"
+    if options.mode == "delivery" and options.variant == "no-provider":
+        return ("--mode delivery checks that each message is stored: it needs the SMS provider, "
+                "so not --variant no-provider")
+    return None
+
+
 def parse_ps(text: str) -> list[Process]:
     """``ps -A -Z``: the label, the user, the pid and the name of each process."""
     found = []
@@ -335,9 +550,10 @@ def parse_ps(text: str) -> list[Process]:
     return found
 
 
-# The types that the compiled policy lets create, bind or listen on a vsock socket (A4.23's thirty), and the ones of
+# The types that the compiled policy lets create, bind or listen on a vsock socket (A4.23's thirty, with the holder
+# of the text message port in place of the service, which only accepts from the holder's socket), and the ones of
 # them that a running image has: adbd and its compatibility types, the tracing daemon, the four host-only daemons
-# (the gamepad relay and the vibrator, thermal and sensors HALs), the camera HAL, the composer, and the service.
+# (the gamepad relay and the vibrator, thermal and sensors HALs), the camera HAL, the composer, and the holder.
 VSOCK_TYPES = frozenset({
     "adbd", "adbd_202604", "adbd_tradeinmode", "aisealhostservice", "aisealhostservice_virtualizationmanager",
     "compos_fd_server", "compos_verify_virtualizationmanager", "composd_virtualizationmanager",
@@ -347,17 +563,17 @@ VSOCK_TYPES = frozenset({
     "socket_vsock_proxy", "storageproxyd_system", "tombstone_transmit", "traced",
     "trusty_security_vm_launcher_early_virtmgr", "untrusted_app_all_virtualizationmanager",
     "virtualizationmanager_vendor", "virtualizationservice", "virtualizationservice_virtualizationmanager",
-    "vmlauncher_app", "kernarium_sms"})
+    "vmlauncher_app", "kernarium_sms_listener"})
 RUNNING_VSOCK_TYPES = frozenset({
     "adbd", "traced", "kernarium_gamepad", "hal_vibrator_default", "hal_thermal_default", "hal_sensors_default",
-    "hal_camera_default", "hal_graphics_composer_default", "kernarium_sms"})
+    "hal_camera_default", "hal_graphics_composer_default", "kernarium_sms_listener"})
 # The vsock ports that answer from inside the guest: adbd's, and the host-only daemons' and the service's.
 EXPECTED_PORTS = frozenset(range(5555, 5561))
 
 
 def inventory_problems(ps_text: str) -> list[str]:
-    """G6 (1): a process in a domain that may use vsock and is not one of the expected ones, a missing service,
-    and any crosvm."""
+    """G6 (1): a process in a domain that may use vsock and is not one of the expected ones, a missing holder
+    (the service has a process only while a session runs, so it is allowed and not required), and any crosvm."""
     problems = []
     processes = parse_ps(ps_text)
     domains = {process.domain for process in processes}
@@ -366,8 +582,97 @@ def inventory_problems(ps_text: str) -> list[str]:
             problems.append(f"{process.name} (pid {process.pid}) runs in {process.domain}, which may use vsock")
         if process.name.endswith("crosvm") or process.name.startswith("crosvm"):
             problems.append(f"a crosvm process runs (pid {process.pid})")
-    if "kernarium_sms" not in domains:
-        problems.append("no process runs in kernarium_sms")
+    if HOLDER not in domains:
+        problems.append(f"no process runs in {HOLDER}")
+    return problems
+
+
+def holder_problems(ps_text: str) -> list[str]:
+    """G4: the holder is one process, in its own domain, as the user nobody (init's rc says so)."""
+    holders = [process for process in parse_ps(ps_text) if process.domain == HOLDER]
+    if not holders:
+        return [f"no process runs in {HOLDER}"]
+    problems = []
+    if len(holders) > 1:
+        problems.append(f"{len(holders)} processes run in {HOLDER}")
+    if holders[0].user != "nobody":
+        problems.append(f"the holder runs as {holders[0].user}, not nobody")
+    return problems
+
+
+def holder_status_problems(status: str) -> list[str]:
+    """G4: /proc/<pid>/status of the holder: user and group nobody (init leaves the group at root when the service
+    names none) and no supplementary group."""
+    found: dict[str, list[str]] = {}
+    for line in status.splitlines():
+        key, _, rest = line.partition(":")
+        if key in ("Uid", "Gid", "Groups"):
+            found[key] = rest.split()
+    problems = []
+    for key, what in (("Uid", "user"), ("Gid", "group")):
+        ids = found.get(key)
+        if not ids:
+            problems.append(f"the holder's status has no {key} line")
+        elif set(ids) != {str(NOBODY_ID)}:
+            problems.append(f"the holder's {what} ids are {ids}, not nobody ({NOBODY_ID})")
+    if found.get("Groups") not in (None, [], [str(NOBODY_ID)]):
+        problems.append(f"the holder has supplementary groups {found['Groups']}")
+    return problems
+
+
+def service_process_problem(ps_text: str) -> str | None:
+    """G4: while a session runs the service is a process in its own domain, as the system user."""
+    mine = [process for process in parse_ps(ps_text) if process.name == PACKAGE]
+    if not mine:
+        return f"no process of {PACKAGE} while a session runs"
+    if mine[0].label != "u:r:kernarium_sms:s0" or mine[0].user != "system":
+        return f"the service runs as {(mine[0].label, mine[0].user)}, not u:r:kernarium_sms:s0, system"
+    return None
+
+
+def persistent_problem(processes: str, package: str) -> str | None:
+    """G4: the service is a started process, not a persistent one (``dumpsys activity processes`` marks a persistent
+    process ``*PERS*``; ``dumpsys package`` lists PERSISTENT among its flags)."""
+    if re.search(r"\*PERS\*|persistent=true", processes) or re.search(r"flags=\[[^\]]*\bPERSISTENT\b", package):
+        return "the activity manager lists the service as persistent: it must cost nothing at idle"
+    return None
+
+
+def idle_timing_problem(seconds: float) -> str | None:
+    """N3: the process is gone about one idle window after the last request: not sooner (a burst of messages
+    would meet a process that ends under it), and not much later (it would be resident)."""
+    if seconds < IDLE_SECONDS - IDLE_EARLY_SECONDS:
+        return f"the process ended after only {seconds:.1f} s, sooner than the {IDLE_SECONDS} s window"
+    if seconds > IDLE_SECONDS + IDLE_LATE_SECONDS:
+        return f"the process was still there {seconds:.1f} s after the last request"
+    return None
+
+
+def socket_listing_problem(listing: str) -> str | None:
+    """N5: ``ls -lZ`` of the handoff socket: a socket of mode 0660 owned by system, with the holder's socket label."""
+    line = next((entry for entry in listing.splitlines() if entry.rstrip().endswith(HANDOFF_SOCKET)), None)
+    fields = line.split() if line else []
+    if len(fields) < 4 or fields[0] != "srw-rw----" or fields[2:4] != ["system", "system"] or HANDOFF_LABEL not in fields:
+        return f"the handoff socket is {line!r}, not srw-rw---- system system {HANDOFF_LABEL}"
+    return None
+
+
+WAKE_LOCK_LINE = re.compile(r"WAKE_LOCK '([^']*)'.*?\(uid=(\d+) pid=(\d+)")
+
+
+def wakefulness(power: str) -> str | None:
+    """``dumpsys power``: the display's wakefulness, Awake, Asleep or Dozing."""
+    match = re.search(r"mWakefulness=(\w+)", power)
+    return match[1] if match else None
+
+
+def wakelock_problems(power: str, pids: set[int]) -> list[str]:
+    """N6: a wake lock held by a process of the text-message path (the holder or a session of the service), or one
+    that names it."""
+    problems = []
+    for tag, _, pid in WAKE_LOCK_LINE.findall(power):
+        if int(pid) in pids or "kernarium" in tag.lower() or "andariumsms" in tag.lower():
+            problems.append(f"a wake lock {tag!r} is held by pid {pid}")
     return problems
 
 
@@ -517,6 +822,7 @@ class Row:
     title: str
     covers: tuple[str, ...] = ()
     needs: str | None = None
+    also_in: tuple[str, ...] = ()  # other modes that run it, in the catalogue's order
 
 
 NEEDS = {
@@ -527,38 +833,68 @@ NEEDS = {
     "g7": "records a residual and restarts adbd on a TCP port: run it with --g7",
     "no-provider": "needs the image variant with no SMS provider: run it with --variant no-provider",
     "proof": "needs su: run it with --mode proof on a userdebug proof build",
+    "vsock-forward": "NOT SHOWN on a guest whose adbd forwards to vsock only to its own port 5555 (both images do; "
+                     "the shell and an application cannot make a vsock socket either, G8): no process of the guest "
+                     "can be made to connect to port 5560. The refusal of a peer that is not CID 2 is shown by the JVM "
+                     "rows of android17-sms-service, and the device's reset of a guest-initiated connection by "
+                     "tests/unit/vsock. Run it with --adbd-vsock-forward where adbd forwards to any port",
 }
+# The needs that no run of this guest can meet: a row that needs one is reported as not shown.
+NOT_SHOWN_NEEDS = frozenset({"vsock-forward"})
 
 ROWS = (
+    Row("N1", "delivery", "at idle, with nothing sent, the service has no process and the holder runs",
+        also_in=("channel",)),
+    Row("D1", "delivery", "a plain message is handed over, answered and stored"),
+    Row("D2", "delivery", "a message with a one-time code is too, and com.android.phone keeps its pid"),
+    Row("D3", "delivery", "the service and the holder log that the port is held and served and refuse nothing, "
+        "with no hidden-API warning or SELinux denial of the path"),
+    Row("N2", "delivery", "a first message at idle is handed over within 30 s as one inbox row; the latency is noted"),
+    Row("N3", "delivery", "the process ends after the idle window and the next request starts another"),
+    Row("N4", "delivery", "requests from one second before to one second after the window's end are each "
+        "handed over once"),
+    Row("N6", "delivery", "a message sent while the screen is off is handed over, and no wake lock is held"),
     Row("G1", "channel", "a host's request is taken, handed over and answered", ("H2",)),
     Row("G2a", "channel", "the provider is gone", ("H4",)),
-    Row("G2b", "channel", "an adb forward to vsock:3 is refused", ("H3",)),
-    Row("G2c", "channel", "an adb forward to vsock:1 is refused", ("H3",)),
-    Row("G2d", "channel", "an adb forward to vsock:2 ends at once", ("H3",)),
+    Row("G2b", "channel", "a peer in the guest with CID 3 cannot reach port 5560: the service refuses it unread (an adb "
+        "forward to vsock:3)", ("H3",), "vsock-forward"),
+    Row("G2c", "channel", "a peer with CID 1 is refused unread the same way (an adb forward to vsock:1)", ("H3",),
+        "vsock-forward"),
+    Row("G2d", "channel", "a connection the guest makes to the host's port 5560 ends at once (an adb forward to "
+        "vsock:2)", ("H3",), "vsock-forward"),
     Row("G2e", "channel", "adbd refuses a reverse forward onto vsock and onto acceptfd", (), "adbd-topic"),
     Row("G3", "channel", "the service restarts after a crash and no answer is wrong", ("H5",)),
-    Row("G4", "channel", "domain, life, denials, boot order and record place", ("H1", "H7", "H8", "H11")),
-    Row("G5", "channel", "the memory cost is reported"),
-    Row("G6", "channel", "every vsock listener and no virtual machine", ("H10", "H13")),
+    Row("G4", "channel", "holder and service domains, no persistence, denials, boot order and record place",
+        ("H1", "H7", "H8", "H11")),
+    Row("G5", "channel", "the session's and the holder's memory cost are reported"),
+    Row("G6", "channel", "no process of an unreviewed vsock domain and no virtual machine; the port sweep through "
+        "adbd only with --adbd-vsock-forward", ("H10", "H13")),
     Row("G7", "channel", "the development launch's residual, recorded", (), "g7"),
     Row("G8", "channel", "the shell and an application cannot create a vsock socket"),
     Row("G9", "channel", "the shell cannot move adbd's listener"),
+    Row("N5", "channel", "the shell cannot connect to the handoff socket, and nothing is handed over"),
     Row("H6", "channel", "adbd's reverse forward onto vsock, as the stock image has it", (), "stock-adbd"),
     Row("H9", "channel", "the kernel's vsock configuration", (), "kernel-config"),
     Row("I1", "record", "a process ended between sends"),
-    Row("I2", "record", "a reboot between sends"),
+    Row("I2", "record", "a clean power-off and a start on the same data image between sends: the holder starts, "
+        "nothing runs at idle, the service reads its record directory's label and is denied no directory, a retry "
+        "and a new message are answered, and the process ends after the window"),
     Row("I4", "record", "never twice under kills"),
     Row("I5", "record", "the answers' bytes"),
     Row("I7", "record", "an image with no SMS provider", (), "no-provider"),
     Row("I8", "record", "payloads that are not version 2"),
     Row("I3", "proof", "a pending record left by an ended process", (), "proof"),
     Row("I6", "proof", "the record's storage and the order of its writes", (), "proof"),
+    Row("I9", "proof", "the holder ended with no session attached is started again by init and the port answers "
+        "again", (), "proof"),
 )
 
 # What no run of this runner covers, and where it is covered.
 ELSEWHERE = (
     ("R1-R24, U1-U5", "the JVM rows of tests/tooling/android (android17-sms-service)"),
-    ("U6", "the target-files verifier and its fixtures (lineage24-target-files-fixtures)"),
+    ("U6", "the target-files verifier and its fixtures (lineage24-target-files-fixtures): who may create, bind or "
+           "listen on vsock, who may set the control keys of the holder and the waker, what they hold in effect, and "
+           "that the service alone is trusted against the categories of the user's directories"),
     ("B1", "the unsigned image build of the change, on each variant built"),
     ("H12", "the commit message of the adbd topic (route p0011) names the function and the listen forms; G2e tries each"),
 )
@@ -568,7 +904,7 @@ def plan_rows(mode: str, available: set[str]) -> tuple[list[Row], list[tuple[Row
     """The rows of a mode that this run can make, and the ones it cannot with the reason."""
     run, skipped = [], []
     for row in ROWS:
-        if row.mode != mode:
+        if row.mode != mode and mode not in row.also_in:
             continue
         if row.needs is None or row.needs in available:
             run.append(row)
@@ -694,7 +1030,8 @@ def open_vsock_through_adbd(serial: str, port: int, seconds: float = SWEEP_PORT_
 
 class Guest:
     def __init__(self, adb: str, serial: str, process: subprocess.Popen, log: pathlib.Path, forward_port: int,
-                 private: pathlib.Path) -> None:
+                 private: pathlib.Path, instance: pathlib.Path | None = None) -> None:
+        self.instance = instance
         self.adb = adb
         self.serial = serial
         self.process = process
@@ -726,6 +1063,29 @@ class Guest:
         text = result.stdout.strip().split()
         return int(text[0]) if result.returncode == 0 and text and text[0].isdigit() else None
 
+    def pids(self) -> set[int]:
+        """Every pid of the service's package: pidof lists them all, and a process that is being ended is listed
+        beside its successor until it is gone."""
+        result = self.adb_run("shell", f"pidof {PACKAGE}", timeout=30)
+        words = result.stdout.strip().split()
+        return {int(word) for word in words if word.isdigit()} if result.returncode == 0 else set()
+
+    def strict_pid(self) -> int | None:
+        """The service's pid, or None when it has no process. Output that is not pids is no answer (the shell or
+        adb failed), and a row that says the process is gone must not take it for one."""
+        result = self.adb_run("shell", f"pidof {PACKAGE}", timeout=30)
+        text = result.stdout.strip()
+        if result.returncode == 0 and text and all(word.isdigit() for word in text.split()):
+            return int(text.split()[0])
+        if text:
+            raise Failure(f"pidof {PACKAGE} printed {text[:200]!r} (exit {result.returncode}): not an answer")
+        return None
+
+    def holder_pid(self) -> int | None:
+        """The pid of the process in the holder's domain, or None."""
+        found = [process.pid for process in parse_ps(self.shell("ps -A -Z", check=False)) if process.domain == HOLDER]
+        return found[0] if found else None
+
     def logcat(self, *arguments: str) -> str:
         return self.shell("logcat -d " + " ".join(arguments), timeout=COMMAND_SECONDS)
 
@@ -734,6 +1094,14 @@ class Guest:
 
     def crash_service(self) -> None:
         self.shell(f"am crash {PACKAGE}", timeout=60, check=False)
+
+    def kill_service(self) -> bool:
+        """``am force-stop``: ends the process at once, with no crash dialog; whether the command succeeded. A crash of
+        the main thread leaves the process serving behind the crash dialog."""
+        return self.adb_run("shell", f"am force-stop {PACKAGE}", timeout=60).returncode == 0
+
+    def has_su(self) -> bool:
+        return "uid=0" in self.shell("su 0 id", check=False)
 
     def probe_result(self, name: str, nonce: str, seconds: float = PROBE_SECONDS) -> str:
         """A file of the probe's, once its first line is the nonce of the request."""
@@ -756,6 +1124,9 @@ class Guest:
 
     def inbox(self) -> str:
         return self.shell("content query --uri content://sms/inbox --projection address:body", check=False)
+
+    def inbox_ids(self, sender: str, text: str) -> set[int]:
+        return parse_inbox_ids(self.shell(inbox_ids_command(sender, text), check=False))
 
     def forward(self, spec: str) -> int:
         result = self.adb_run("forward", "tcp:0", spec, timeout=30)
@@ -823,13 +1194,27 @@ class Run:
         return exchange.outcome == "answered" and parse_answer(exchange.payload).kind == "refused-version"
 
     def wait_serving(self, previous: int | None, seconds: float = RESTART_SECONDS) -> None:
-        """Until the service has a pid other than ``previous`` and answers."""
+        """Until the service answers from a process other than ``previous``, and ``previous`` is gone from the whole
+        set of pids (a successor that is listed beside the process that was ended has not seen it die). The service
+        has a process only while a session runs, so a request is what starts the next one, and the answer comes
+        first."""
         def check() -> str | None:
-            pid = self.guest.pid()
-            if pid is None or pid == previous:
-                return f"the pid is {pid}, was {previous}"
-            return None if self.ping() else "the service does not answer"
+            if not self.ping():
+                return "the service does not answer"
+            pids = self.guest.pids()
+            if not pids:
+                return f"the service has no process, {previous} ran before"
+            if previous in pids:
+                return f"the process {previous} that ran before is still listed (pids {sorted(pids)})"
+            return None
         wait_until("the service restarting", seconds, check, self.guest)
+
+    def wait_gone(self, seconds: float = GONE_SECONDS) -> float:
+        """Until the service has no process, which is one idle window after its last message; the seconds it took."""
+        started = time.monotonic()
+        wait_until("the service ending", seconds,
+                   lambda: None if self.guest.strict_pid() is None else "it still runs", self.guest)
+        return time.monotonic() - started
 
     def sender_and_text(self, tag: str) -> tuple[str, str]:
         return "+15550100", f"sms-check {tag} {os.urandom(3).hex()}"
@@ -854,6 +1239,28 @@ class Run:
             time.sleep(1)
         return rows
 
+    def send_and_expect_one_stored_row(self, sender: str, text: str, what: str) -> float:
+        """Sends the message as a first attempt: it must be handed over and answered, and exactly one new inbox
+        row for it must appear, whatever matching rows the inbox held before. The wait for it is bounded, and
+        the inbox is looked at again after a settle, so that a message stored twice fails. The seconds to the
+        answer are returned: after idle they include the service's start."""
+        before = self.guest.inbox_ids(sender, text)
+        identifier = new_identifier()
+        started = time.monotonic()
+        self.expect(self.first(identifier, sender, text), "handed-over", identifier, "1")
+        answered_in = time.monotonic() - started
+        deadline = time.monotonic() + INBOX_SECONDS
+        while time.monotonic() < deadline:
+            self.guest.alive()
+            if self.guest.inbox_ids(sender, text) - before:
+                break
+            time.sleep(1)
+        time.sleep(INBOX_SETTLE_SECONDS)
+        problem = new_row_problem(before, self.guest.inbox_ids(sender, text))
+        if problem:
+            raise Failure(f"{what}: {problem}")
+        return answered_in
+
     @property
     def has_inbox(self) -> bool:
         return self.options.variant != "no-provider"
@@ -866,6 +1273,171 @@ def refused(run: Run, port: int, label: str) -> None:
     if received or not closed:
         raise Failure(f"{label}: expected the end of the stream with no byte within {REFUSAL_SECONDS} s, got "
                       f"{len(received)} byte(s), closed={closed}, after {elapsed:.1f} s")
+
+
+# ---- The delivery rows.
+
+def row_d1(run: Run) -> None:
+    sender, text = run.sender_and_text("plain")
+    run.send_and_expect_one_stored_row(sender, text, "the plain message")
+
+
+def phone_state(run: Run) -> tuple[str, int]:
+    pid = run.guest.shell(f"pidof {PHONE}", check=False)
+    return pid, crash_lines_naming(run.guest.logcat("-b", "crash"), PHONE)
+
+
+def row_d2(run: Run) -> None:
+    # D1 runs first in the mode, and the process may be started only by a message: it is waited for, within a
+    # bound, and its absence is the row's failure, never a pass.
+    def running() -> str | None:
+        pid = run.guest.shell(f"pidof {PHONE}", check=False).strip()
+        return None if pid.isdigit() else f"pidof says {pid!r}"
+    wait_until(f"{PHONE} running", PHONE_WAIT_SECONDS, running, run.guest)
+    before = phone_state(run)
+    sender = "+15550100"
+    for form in ("Your verification code is {}", "{} is your login code. Never share it with anyone."):
+        text = form.format(int.from_bytes(os.urandom(3), "big") % 900000 + 100000)
+        run.send_and_expect_one_stored_row(sender, text, "a message with a one-time code")
+    time.sleep(PHONE_SETTLE_SECONDS)
+    after = phone_state(run)
+    problem = phone_problem(before[0], after[0], before[1], after[1])
+    if problem:
+        raise Failure(problem)
+    run.note(f"{PHONE} kept pid {after[0].strip()}")
+
+
+def service_pids(service_log_threadtime: str) -> set[str]:
+    """The pids that logged under the service's tag: one for each session the log has."""
+    return {fields[2] for fields in (line.split() for line in service_log_threadtime.splitlines())
+            if len(fields) > 5 and fields[5] == f"{TAG}:"}
+
+
+def row_d3(run: Run) -> None:
+    # The service ends at idle, so there may be no process now: its sessions are in its log.
+    full = run.guest.logcat("-b", "all", "-v", "threadtime")
+    problems = service_log_problems(run.guest.service_log(), full, service_pids(full))
+    problems += holder_boot_problems(run.guest.log.read_text(errors="replace"), run.guest.holder_pid())
+    problems += holder_error_problems(run.guest.logcat("-s", f"{HOLDER_TAG}:I"))
+    if problems:
+        raise Failure("; ".join(problems))
+
+
+# ---- The idle rows: the service has a process only while messages are in flight.
+
+def row_n1(run: Run) -> None:
+    """After the settle, with nothing sent, the service has no process: the holder alone keeps the port, with one
+    pid for a few seconds and no error in its log. It is the mode's first row: a message starts the service, and
+    so does a ping."""
+    guest = run.guest
+    pid = guest.strict_pid()
+    if pid is not None:
+        raise Failure(f"{PACKAGE} runs (pid {pid}) at idle, before any message")
+    holder = guest.holder_pid()
+    if holder is None:
+        raise Failure(f"{HOLDER} does not run")
+    time.sleep(HOLDER_STABLE_SECONDS)
+    again = guest.holder_pid()
+    if again != holder:
+        raise Failure(f"the holder is pid {again} after {HOLDER_STABLE_SECONDS} s, was {holder}: it ends and init "
+                      "starts it again")
+    problems = holder_boot_problems(guest.log.read_text(errors="replace"), holder)
+    problems += holder_error_problems(guest.logcat("-s", f"{HOLDER_TAG}:I"))
+    if problems:
+        raise Failure("; ".join(problems))
+    run.note(f"no {PACKAGE} process at idle; the holder is pid {holder}, the one init started once at boot (the "
+             f"launcher's console), stable for {HOLDER_STABLE_SECONDS} s, and logs no error")
+
+
+def row_n2(run: Run) -> None:
+    """A first attempt sent while no session runs: the holder starts the service, which is handed the port, and
+    the message is handed over and stored once, within the answer's deadline. The wake latency is noted."""
+    run.wait_gone()
+    sender, text = run.sender_and_text("n2")
+    seconds = run.send_and_expect_one_stored_row(sender, text, "a first attempt at idle")
+    run.note(f"a first message after idle was answered in {seconds:.2f} s")
+
+
+def row_n3(run: Run) -> None:
+    """The process ends about one idle window after the last request, and the next request starts another one,
+    with the holder the same."""
+    guest = run.guest
+    holder = guest.holder_pid()
+    if holder is None:
+        raise Failure(f"{HOLDER} does not run")
+    run.wait_serving(None)
+    first = guest.strict_pid()
+    if first is None:
+        raise Failure("the service answered and has no process")
+    seconds = run.wait_gone()
+    problem = idle_timing_problem(seconds)
+    if problem:
+        raise Failure(problem)
+    run.note(f"the process ended {seconds:.1f} s after the last request (the window is {IDLE_SECONDS} s)")
+    run.wait_serving(first)
+    after = guest.holder_pid()
+    if after != holder:
+        raise Failure(f"the holder was pid {holder} and is pid {after}: it must outlive every session")
+
+
+def row_n4(run: Run) -> None:
+    """Requests sent from one second before to one second after the end of the idle window are each answered
+    as handed over, with exactly one step line and one inbox row: whichever process meets one, it is not lost
+    and not done twice."""
+    guest = run.guest
+    sender = "+15550100"
+    run.wait_gone()
+    sent: list[tuple[str, str]] = []
+
+    def send(label: str) -> float:
+        identifier, text = new_identifier(), f"sms-check n4 {label} {os.urandom(3).hex()}"
+        started = time.monotonic()
+        answer = run.first(identifier, sender, text)
+        if answer != Answer("handed-over", identifier, "1"):
+            raise Failure(f"the request {label} got the answer {answer.payload()!r}, expected handed-over")
+        sent.append((identifier, text))
+        return time.monotonic() - started
+
+    send("start")
+    for offset in BOUNDARY_OFFSETS:
+        answered = time.monotonic()
+        time.sleep(max(0.0, IDLE_SECONDS + offset - (time.monotonic() - answered)))
+        started = guest.strict_pid()
+        seconds = send(f"{offset:+.1f}")
+        run.note(f"request at offset {offset:+.1f} s: answered in {seconds:.2f} s, the process before it was "
+                 f"{'there' if started else 'gone'}")
+    time.sleep(INBOX_SETTLE_SECONDS)
+    for identifier, text in sent:
+        steps = step_lines(guest.service_log(), identifier)
+        if steps != 1:
+            raise Failure(f"{steps} step-1 lines for {identifier[:8]}, expected 1")
+        if run.has_inbox:
+            rows = inbox_rows(guest.inbox(), sender, text)
+            if rows != 1:
+                raise Failure(f"the inbox holds {rows} rows for {identifier[:8]}, expected 1")
+
+
+def row_n6(run: Run) -> None:
+    """A message sent while Android's screen is off: the wake path is longer, and neither process holds a wake
+    lock. Whether a waiting connection wakes a suspended guest is not what this row establishes."""
+    guest = run.guest
+    run.wait_gone()
+    guest.shell("input keyevent KEYCODE_SLEEP")
+    try:
+        wait_until("the screen turning off", SCREEN_SECONDS,
+                   lambda: None if wakefulness(guest.shell("dumpsys power", check=False)) in ("Asleep", "Dozing")
+                   else "it is awake", guest)
+        sender, text = run.sender_and_text("n6")
+        seconds = run.send_and_expect_one_stored_row(sender, text, "a message while the screen is off")
+        time.sleep(2)
+        pids = {pid for pid in (guest.strict_pid(), guest.holder_pid()) if pid is not None}
+        problems = wakelock_problems(guest.shell("dumpsys power", check=False), pids)
+        if problems:
+            raise Failure("; ".join(problems))
+        run.note(f"a message with the screen off was answered in {seconds:.2f} s; no wake lock of the holder or the "
+                 "service")
+    finally:
+        guest.shell("input keyevent KEYCODE_WAKEUP", check=False)
 
 
 # ---- The channel rows.
@@ -937,7 +1509,9 @@ REVERSE_VSOCK_FORMS = ("vsock:5560", "vsock:5599", "vsock:0", "vsock:4294967295"
 
 def row_g2e(run: Run) -> None:
     """Every listen form that a reverse forward may name is refused, with the service running and with it
-    disabled, while a TCP reverse and its rebind work and adbd stays reachable."""
+    disabled and stopped, while a TCP reverse and its rebind work and adbd stays reachable. Disabling the package
+    ends its process and nothing starts it again, which the row waits for and checks: the second pass is the
+    refusal with no service at all."""
     guest = run.guest
 
     def adbd_works() -> None:
@@ -965,7 +1539,12 @@ def row_g2e(run: Run) -> None:
     pass_once()
     guest.shell(f"pm disable-user {PACKAGE}")
     try:
+        wait_until("the service stopped", RESTART_SECONDS,
+                   lambda: None if guest.strict_pid() is None else "it still runs", guest)
         pass_once()
+        pid = guest.strict_pid()
+        if pid is not None:
+            raise Failure(f"the second pass did not run with the service stopped: it has pid {pid}")
     finally:
         guest.shell(f"pm enable {PACKAGE}", check=False)
         wait_until("the service enabled again", RESTART_SECONDS, lambda: None if run.ping() else "no answer",
@@ -988,6 +1567,8 @@ def row_h6(run: Run) -> None:
 
 
 def row_g3(run: Run) -> None:
+    # The service is not restarted by the system: the holder starts it again for the next request, so the loop's
+    # requests are what bring the new process.
     guest = run.guest
     sender, text = run.sender_and_text("restart")
     identifier = new_identifier()
@@ -1013,34 +1594,57 @@ def row_g3(run: Run) -> None:
 
 
 def row_g4(run: Run) -> None:
+    """The holder and the service, each judged on what survives: the holder from the launcher's console (init's lines
+    from boot) and its status, the service while a session runs. Every check runs, and every problem is reported."""
     guest = run.guest
-    ps = guest.shell("ps -A -Z | grep " + PACKAGE, check=False)
-    mine = [process for process in parse_ps(ps) if process.name == PACKAGE]
-    if not mine or mine[0].label != "u:r:kernarium_sms:s0" or mine[0].user != "system":
-        raise Failure(f"the service runs as {mine and (mine[0].label, mine[0].user)}, not u:r:kernarium_sms:s0, system")
-    processes = guest.shell(f"dumpsys activity processes | grep -A6 {PACKAGE}", check=False)
-    if not re.search(r"\*PERS\*|persistent=true", processes):
-        raise Failure("the activity manager does not list the service as persistent")
-    epoch = guest.logcat("-b", "all", "-v", "epoch", "-s", f"{TAG}:I")
-    problem = check_boot_order(epoch, guest.logcat("-b", "events", "-v", "epoch", "-s", "boot_progress_enable_screen"))
+    problems = holder_problems(guest.shell("ps -A -Z"))
+    holder = guest.holder_pid()
+    if holder is not None:
+        problems += holder_status_problems(guest.shell(f"cat /proc/{holder}/status", check=False))
+    console = guest.log.read_text(errors="replace")
+    problems += holder_boot_problems(console, holder)
+    problems += holder_error_problems(guest.logcat("-s", f"{HOLDER_TAG}:I"))
+    problem = check_boot_order(console, guest.logcat("-b", "events", "-v", "epoch", "-s",
+                                                      "boot_progress_enable_screen"))
     if problem:
-        raise Failure(problem)
-    problem = check_record_location(epoch)
+        problems.append(problem)
+    # The service, while a session runs: a ping starts one. It is a started process, never a persistent one.
+    if run.ping():
+        problem = service_process_problem(guest.shell("ps -A -Z | grep " + PACKAGE, check=False))
+        if problem:
+            problems.append(problem)
+        problem = persistent_problem(guest.shell(f"dumpsys activity processes | grep -A6 {PACKAGE}", check=False),
+                                     guest.shell(f"dumpsys package {PACKAGE} | grep flags=", check=False))
+        if problem:
+            problems.append(problem)
+    else:
+        problems.append("the service does not answer")
+    problem = check_record_location(guest.logcat("-b", "all", "-v", "epoch", "-s", f"{TAG}:I"))
     if problem:
-        raise Failure(problem)
-    denials = [line for line in guest.logcat("-b", "all").splitlines()
-               if "avc: " in line and "denied" in line and "kernarium_sms" in line]
-    if denials:
-        raise Failure("SELinux denials: " + "; ".join(denials[:3]))
+        problems.append(problem)
+    problems += denial_problems(guest.logcat("-b", "all"))
     if not step_lines(guest.service_log(), golden_request(run.vectors, "request-first-number").identifier):
-        raise Failure("no delivery was observed before the denial check, so its silence proves nothing: run G1 first")
+        problems.append("no delivery was observed before the denial check, so its silence proves nothing: run G1 first")
+    if problems:
+        raise Failure("; ".join(problems))
+    run.note(f"the holder: pid {holder}, started once by init at {holder_starts(console).seconds[0]:.1f} s of uptime, "
+             "as nobody in group nobody; the service is not persistent")
 
 
 def row_g5(run: Run) -> None:
-    pss = parse_total_pss(run.guest.shell(f"dumpsys meminfo {PACKAGE}"))
+    guest = run.guest
+    if not run.ping():
+        raise Failure("the service does not answer, so there is no session to measure")
+    pss = parse_total_pss(guest.shell(f"dumpsys meminfo {PACKAGE}"))
     if pss is None:
         raise Failure("dumpsys meminfo shows no total")
-    run.note(f"total PSS of {PACKAGE}: {pss} kB (to the owner before acceptance)")
+    run.note(f"total PSS of {PACKAGE} while a session runs: {pss} kB (to the owner before acceptance)")
+    holder = guest.holder_pid()
+    held = None if holder is None else parse_total_pss(guest.shell(f"dumpsys meminfo {holder}"))
+    if held is None:
+        raise Failure("dumpsys meminfo shows no total for the holder")
+    run.note(f"total PSS of the holder ({HOLDER}, pid {holder}), which runs from boot: {held} kB")
+    run.note("at idle the service has no process: the cost there is the holder's (N1, N3)")
 
 
 def row_g6(run: Run) -> None:
@@ -1067,16 +1671,20 @@ def row_g6(run: Run) -> None:
     if guest.shell("pidof crosvm", check=False).strip():
         problems.append("a crosvm process runs")
     problems += inventory_problems(guest.shell("ps -A -Z"))
-    answering: set[int] = set()
-    started = time.monotonic()
-    with concurrent.futures.ThreadPoolExecutor(SWEEP_WIDTH) as pool:
-        futures = {pool.submit(open_vsock_through_adbd, guest.serial, port): port for port in range(1, 65536)}
-        for future in concurrent.futures.as_completed(futures, timeout=SWEEP_SECONDS):
-            if future.result() == "OKAY":
-                answering.add(futures[future])
-            if time.monotonic() - started > SWEEP_SECONDS:
-                raise Failure("the port sweep passed its deadline")
-    problems += port_problems(answering)
+    if getattr(run.options, "adbd_vsock_forward", False):
+        answering: set[int] = set()
+        started = time.monotonic()
+        with concurrent.futures.ThreadPoolExecutor(SWEEP_WIDTH) as pool:
+            futures = {pool.submit(open_vsock_through_adbd, guest.serial, port): port for port in range(1, 65536)}
+            for future in concurrent.futures.as_completed(futures, timeout=SWEEP_SECONDS):
+                if future.result() == "OKAY":
+                    answering.add(futures[future])
+                if time.monotonic() - started > SWEEP_SECONDS:
+                    raise Failure("the port sweep passed its deadline")
+        problems += port_problems(answering)
+    else:
+        run.note("the port sweep is not shown: adbd's forward reaches only its own port 5555 here, so it can show no "
+                 "listener; the verifier's creator and listener sets (U6) hold who may listen")
     if problems:
         raise Failure("; ".join(problems))
 
@@ -1112,6 +1720,43 @@ def row_g9(run: Run) -> None:
     run.note(f"setprop said: {result.strip()[:120]!r}")
 
 
+def row_n5(run: Run) -> None:
+    """The handoff socket is the service's alone: init made it with mode 660 for the system user (the launcher's
+    console line, which a user build can show; where there is su the socket's mode, owner and label are read from
+    the file as well), and the shell's connect to it is refused (the probe prints errno 13, which the file's mode
+    alone gives: nothing but the service's domain may connect by policy either, which the verifier holds). The
+    connect does not wait for the file. Nothing is started or handed over by the attempt."""
+    guest = run.guest
+    pushed = guest.adb_run("push", str(run.options.vsockprobe_dex), "/data/local/tmp/vsockprobe.dex", timeout=60)
+    if pushed.returncode != 0:
+        raise Failure(f"pushing the probe failed: {pushed.stdout.strip()[:200]}")
+    if guest.has_su():
+        problem = socket_listing_problem(guest.su(f"ls -lZ {HANDOFF_SOCKET}", check=False))
+    else:
+        problem = None if holder_starts(guest.log.read_text(errors="replace")).socket_created else (
+            "the launcher's console has no init line that made the handoff socket with mode 660 for the system user")
+        run.note("no su: the shell cannot stat /dev/socket, so the socket's mode and owner are read from init's console "
+                 "line, and its label stays with the verifier")
+    problems = [problem] if problem else []
+    before = guest.strict_pid()
+    steps = len(STEP_LINE.findall(guest.service_log()))
+    output = guest.shell(f"CLASSPATH=/data/local/tmp/vsockprobe.dex app_process /system/bin VsockProbe unix "
+                         f"{HANDOFF_SOCKET}", timeout=60).strip()
+    if output.startswith("socket:"):
+        raise Failure(f"'{output}' is the answer of an older vsockprobe.dex: build it again with build-apk.sh")
+    if output == "connect: ok":
+        problems.append("the shell connected to the handoff socket")
+    elif output != "connect: errno=13 EACCES":
+        problems.append(f"the shell got '{output}', expected 'connect: errno=13 EACCES'")
+    time.sleep(2)
+    if guest.strict_pid() != before:
+        problems.append(f"the attempt changed the service's process from {before} to {guest.strict_pid()}")
+    if len(STEP_LINE.findall(guest.service_log())) != steps:
+        problems.append("a hand-over began")
+    if problems:
+        raise Failure("; ".join(problems))
+
+
 def row_h9(run: Run) -> None:
     accepted = run.options.kernel_config.read_text()
     running = run.guest.shell("zcat /proc/config.gz")
@@ -1121,19 +1766,6 @@ def row_h9(run: Run) -> None:
 
 
 # ---- The record rows.
-
-def reboot_guest(run: Run) -> None:
-    guest = run.guest
-    guest.adb_run("reboot", timeout=60)
-
-    def booted() -> str | None:
-        result = guest.adb_run("shell", "getprop sys.boot_completed", timeout=15)
-        if result.returncode != 0 or result.stdout.strip() != "1":
-            return "not booted"
-        return None if run.ping() else "the service does not answer"
-    time.sleep(10)
-    wait_until("the guest after its reboot", REBOOT_SECONDS, booted, guest, interval=3.0)
-
 
 def row_i1(run: Run) -> None:
     guest = run.guest
@@ -1152,18 +1784,72 @@ def row_i1(run: Run) -> None:
         run.note(f"inbox rows within {INBOX_SECONDS} s: {run.inbox_rows_within(sender, text)}")
 
 
-def row_i2(run: Run) -> None:
+POWER_OFF_SECONDS = 180
+
+
+def restart_instance(run: Run) -> None:
+    """A clean power-off of the guest and a new launcher on the same data image: ``adb reboot`` does not do it (the
+    launcher's host forward does not survive it), ``reboot -p`` ends the launcher with status 0. The run continues
+    on the new guest, which main's cleanup stops."""
     guest = run.guest
+    if guest.instance is None:
+        raise Failure("the guest does not know its instance directory")
+    guest.adb_run("shell", "reboot -p", timeout=60)
+    try:
+        status = guest.process.wait(timeout=POWER_OFF_SECONDS)
+    except subprocess.TimeoutExpired:
+        raise Failure(f"the launcher did not exit within {POWER_OFF_SECONDS} s of 'reboot -p'") from None
+    if status != 0:
+        raise Failure(f"the launcher exited with status {status} after 'reboot -p', not a clean 0")
+    boot_android.disconnect_adb(guest.adb, guest.serial)
+    boot_android.stop_guest(guest.process)
+    again = argparse.Namespace(**{**vars(run.options), "instance": guest.instance})
+    run.guest = start_guest(again, guest.adb, guest.private)
+    run.host = Host(run.guest.forward_port)
+
+
+def row_i2(run: Run) -> None:
+    """The record across a clean power-off and a start on the same data image. One message is answered; after the
+    restart init has started the holder again (the console's line) and the service has no process; the retry of the
+    message is answered as handed over earlier, one new message is handed over once, the service reads the label of
+    its record directory and is denied no directory (the platform relabels the user's directories at the second boot),
+    and the process is gone one window after it. Every part is judged, and each problem is reported."""
     sender, text = run.sender_and_text("i2")
     identifier = new_identifier()
     run.expect(run.first(identifier, sender, text), "handed-over", identifier, "1")
-    # The log does not survive a reboot: count the lines before it and after it.
-    steps = step_lines(guest.service_log(), identifier)
-    reboot_guest(run)
-    run.expect(run.retry(identifier, sender, text), "handed-over-earlier", identifier, "1")
-    steps += step_lines(guest.service_log(), identifier)
+    # The log does not survive the power-off: count the lines of the first message before it and after it, and those
+    # of the new message on their own.
+    steps = step_lines(run.guest.service_log(), identifier)
+    restart_instance(run)
+    guest = run.guest
+    problems = holder_boot_problems(guest.log.read_text(errors="replace"), guest.holder_pid())
+    if guest.strict_pid() is not None:
+        problems.append(f"{PACKAGE} runs at idle after the restart")
+    retry = run.retry(identifier, sender, text)
+    if retry != Answer("handed-over-earlier", identifier, "1"):
+        problems.append(f"the retry after the restart was answered {retry.payload()!r}, not handed-over-earlier")
+    fresh = new_identifier()
+    again = run.first(fresh, sender, f"{text} again")
+    if again != Answer("handed-over", fresh, "1"):
+        problems.append(f"a new message after the restart was answered {again.payload()!r}, not handed-over")
+    log = guest.service_log()
+    steps += step_lines(log, identifier)
     if steps != 1:
-        raise Failure(f"{steps} step-1 lines for the identifier across the reboot, expected 1")
+        problems.append(f"{steps} step-1 lines for the first message across the restart, expected 1")
+    steps = step_lines(log, fresh)
+    if steps != 1:
+        problems.append(f"{steps} step-1 lines for the new message after the restart, expected 1")
+    # The second boot is where the platform relabels the user's directories with the user's categories: the service
+    # must still read its record directory's label (the first line of this boot's log) and be denied no directory.
+    problem = check_record_location(guest.logcat("-b", "all", "-v", "epoch", "-s", f"{TAG}:I"))
+    if problem:
+        problems.append(f"after the restart, {problem}")
+    problems += storage_denial_problems(guest.logcat("-b", "all"))
+    problem = idle_timing_problem(run.wait_gone())
+    if problem:
+        problems.append(problem)
+    if problems:
+        raise Failure("; ".join(problems))
 
 
 CRASH_DELAYS_MS = (0, 10, 25, 50, 80, 120, 160, 200)
@@ -1171,26 +1857,37 @@ KILL_ROUNDS = 50
 
 
 def row_i4(run: Run) -> None:
+    """Never twice under kills. A round starts from a process that is known to run (a ping starts a session and its
+    pid is read after it answers), sends a request and ends the process with ``am force-stop`` after a delay: a
+    crash of the main thread leaves the process serving behind the crash dialog. A round counts only when its
+    process was seen to die: the kill succeeded and the request after it is answered by another pid."""
     guest = run.guest
     sender = "+15550100"
     for i in range(KILL_ROUNDS):
+        if not run.ping():
+            raise Failure(f"round {i}: the service does not answer before the kill")
+        before = guest.pid()
+        if before is None:
+            raise Failure(f"round {i}: no process of {PACKAGE} after the service answered: no process to end")
         identifier = new_identifier(4000 + i)
         text = f"sms-check i4 {i} {os.urandom(3).hex()}"
         delay = CRASH_DELAYS_MS[i % len(CRASH_DELAYS_MS)] / 1000
-        before = guest.pid()
-        crash = threading.Timer(delay, guest.crash_service)
-        crash.start()
+        killed: list[bool] = []
+        kill = threading.Timer(delay, lambda: killed.append(guest.kill_service()))
+        kill.start()
         exchange = run.host.exchange(request("first", identifier, sender, text), seconds=15)
-        crash.join()
+        kill.join()
         first = parse_answer(exchange.payload) if exchange.outcome == "answered" else None
-        run.wait_serving(before)
+        if killed != [True]:
+            raise Failure(f"round {i}: 'am force-stop {PACKAGE}' did not succeed, so no process was ended")
+        run.wait_serving(before)  # answered by a pid other than the one that ran before the kill: it died
         retry = run.host.exchange(request("retry", identifier, sender, text))
         answer = parse_answer(retry.payload) if retry.outcome == "answered" else None
         problem = retry_problem(first, answer, step_lines(guest.service_log(), identifier))
         if problem:
-            raise Failure(f"round {i} (crash after {delay * 1000:.0f} ms, first {exchange.outcome}, retry "
-                          f"{answer.kind if answer else retry.outcome}): {problem}")
-    run.note(f"{KILL_ROUNDS} rounds: never twice")
+            raise Failure(f"round {i} (pid {before} ended {delay * 1000:.0f} ms after the request, first "
+                          f"{exchange.outcome}, retry {answer.kind if answer else retry.outcome}): {problem}")
+    run.note(f"{KILL_ROUNDS} rounds, each of which ended a process that ran before it: never twice")
 
 
 def row_i5(run: Run) -> None:
@@ -1324,10 +2021,38 @@ def row_i6(run: Run) -> None:
         run.note("this proof build has no strace: the order of the writes was not traced")
 
 
+def row_i9(run: Run) -> None:
+    """The holder ended with nothing attached (no session, and no connection waiting) is started again by init, and
+    the port answers again: a message sent after it is handed over once. Needs su to end the holder."""
+    guest = run.guest
+    run.wait_gone()
+    holder = guest.holder_pid()
+    if holder is None:
+        raise Failure(f"{HOLDER} does not run")
+    guest.su(f"kill -9 {holder}")
+    wait_until("the holder started again", RESTART_SECONDS,
+               lambda: None if guest.holder_pid() not in (None, holder) else "it has no new process", guest)
+    now = guest.holder_pid()
+    starts = holder_starts(guest.log.read_text(errors="replace")).pids
+    if starts[-1:] != (now,) or len(starts) != 2:
+        raise Failure(f"init's console lines show the holder's pids {list(starts)}, expected the old one and {now}")
+    sender, text = run.sender_and_text("i9")
+    if run.has_inbox:
+        run.send_and_expect_one_stored_row(sender, text, "the message after the holder's restart")
+    else:
+        identifier = new_identifier()
+        run.expect(run.first(identifier, sender, text), "handed-over", identifier, "1")
+    run.note(f"the holder pid {holder} was ended with no session attached: init started pid {now}, and the next "
+             "message was handed over")
+
+
 ROW_FUNCTIONS: dict[str, Callable[[Run], None]] = {
+    "N1": row_n1, "N2": row_n2, "N3": row_n3, "N4": row_n4, "N5": row_n5, "N6": row_n6,
+    "D1": row_d1, "D2": row_d2, "D3": row_d3,
     "G1": row_g1, "G2a": row_g2a, "G2b": row_g2b, "G2c": row_g2c, "G2d": row_g2d, "G2e": row_g2e, "G3": row_g3,
     "G4": row_g4, "G5": row_g5, "G6": row_g6, "G7": row_g7, "G8": row_g8, "G9": row_g9, "H6": row_h6, "H9": row_h9,
     "I1": row_i1, "I2": row_i2, "I3": row_i3, "I4": row_i4, "I5": row_i5, "I6": row_i6, "I7": row_i7, "I8": row_i8,
+    "I9": row_i9,
 }
 
 
@@ -1363,13 +2088,19 @@ def start_guest(options: argparse.Namespace, adb: str, private: pathlib.Path) ->
     ])
     emulator = boot_android.resolve_executable(boot_options.emulator)
     release = boot_android.release_path(boot_options.release)
-    identity = boot_android.android_instance.read_release(release)
-    decision = boot_android.plan_start(boot_options, identity, instance)
-    boot_android.android_instance.apply(instance, identity, decision)
+    identity = None
+    if options.proof_image:
+        # No installed-release reader takes a proof's manifest (schema 0): the emulator makes the identity file
+        # and the data disk of the fresh instance, whose directory must exist first.
+        instance.mkdir(parents=True, exist_ok=True)
+    else:
+        identity = boot_android.android_instance.read_release(release)
+        decision = boot_android.plan_start(boot_options, identity, instance)
+        boot_android.android_instance.apply(instance, identity, decision)
     command = [
         *boot_android.emulator_command(
             boot_options, release, instance / boot_android.android_instance.DATA_DISK, emulator,
-            boot_android.data_capacity(boot_options, identity)),
+            None if identity is None else boot_android.data_capacity(boot_options, identity)),
         f"--vsock-forward=127.0.0.1:0-{SMS_PORT}",
     ]
     log = private / "emulator.log"
@@ -1381,11 +2112,12 @@ def start_guest(options: argparse.Namespace, adb: str, private: pathlib.Path) ->
     serial = f"127.0.0.1:{options.adb_port}"
     # main's cleanup owns the emulator only once this returns, so a failure from here on stops it here.
     try:
-        guest = Guest(adb, serial, process, log, vsock_forward_port(log, process, SMS_PORT), private)
+        guest = Guest(adb, serial, process, log, vsock_forward_port(log, process, SMS_PORT), private, instance)
         boot_android.wait_for_adb(adb, serial, process, options.boot_timeout)
         if not boot_android.wait_for_boot_completed(adb, serial, process, options.boot_timeout):
             raise Failure("Android did not reach sys.boot_completed")
-        boot_android.android_instance.booted(instance, identity)
+        if identity is not None:
+            boot_android.android_instance.booted(instance, identity)
         if not options.instance:
             boot_android.provision_guest(adb, serial)
         print(f"booted; settling for {SETTLE_SECONDS} s")
@@ -1413,6 +2145,8 @@ def available_needs(options: argparse.Namespace) -> set[str]:
         needs.add("kernel-config")
     if options.g7:
         needs.add("g7")
+    if options.adbd_vsock_forward:
+        needs.add("vsock-forward")
     if options.variant == "no-provider":
         needs.add("no-provider")
     if options.mode == "proof":
@@ -1423,13 +2157,16 @@ def available_needs(options: argparse.Namespace) -> set[str]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--mode", choices=("channel", "record", "proof"), default="channel")
+    parser.add_argument("--mode", choices=("delivery", "channel", "record", "proof"), default="channel")
     parser.add_argument("--variant", choices=("messaging", "no-messaging", "no-provider"), default="messaging",
                         help="what the image has: Messaging and the SMS provider; the provider alone; neither")
     parser.add_argument("--list-rows", action="store_true", help="print the rows and what each needs, and stop")
     parser.add_argument("--emulator", type=pathlib.Path,
                         help="the macos-android17 uml-darwin-android17 (the launcher's default)")
     parser.add_argument("--release", type=pathlib.Path, help="installed Android release (default: accepted)")
+    parser.add_argument("--proof-image", action="store_true",
+                        help="--release is an unsigned proof image (manifest schema 0), which no installed-release "
+                        "reader takes: it boots on a fresh instance the emulator makes, with nothing recorded")
     parser.add_argument("--instance", type=pathlib.Path,
                         help="an existing instance to boot; the default is a fresh one that is removed at the end")
     parser.add_argument("--adb", default="adb", help="adb client to use")
@@ -1442,6 +2179,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--adbd-topic", action="store_true",
                         help="the image has the adbd topic of the AOSP patches (G2e instead of H6)")
     parser.add_argument("--g7", action="store_true", help="also record the development launch (G7)")
+    parser.add_argument("--adbd-vsock-forward", action="store_true",
+                        help="adbd forwards to vsock ports other than its own (G2b, G2c, G2d and G6's port sweep)")
     parser.add_argument("--cpus", type=int, default=4)
     parser.add_argument("--memory", default="4G")
     parser.add_argument("--boot-timeout", type=int, default=900,
@@ -1450,9 +2189,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def print_rows() -> None:
-    for mode in ("channel", "record", "proof"):
+    for mode in ("delivery", "channel", "record", "proof"):
         print(f"mode {mode}:")
-        for row in (row for row in ROWS if row.mode == mode):
+        for row in (row for row in ROWS if mode == row.mode or mode in row.also_in):
             covers = f" (also {', '.join(row.covers)})" if row.covers else ""
             needs = f" [{NEEDS[row.needs]}]" if row.needs else ""
             print(f"  {row.name:5} {row.title}{covers}{needs}")
@@ -1469,6 +2208,10 @@ def main() -> int:
     if options.cpus <= 0 or options.boot_timeout <= 0:
         print("counts and timeouts must be positive", file=sys.stderr)
         return 2
+    problem = option_problem(options)
+    if problem:
+        print(problem, file=sys.stderr)
+        return 2
     if options.mode == "channel" and not all(
             path is not None and path.is_file() for path in (options.probe_apk, options.vsockprobe_dex)):
         print("--probe-apk and --vsockprobe-dex must name files in the channel mode", file=sys.stderr)
@@ -1480,6 +2223,7 @@ def main() -> int:
     # Short, so every socket path below it stays within sun_path.
     private = pathlib.Path(tempfile.mkdtemp(prefix="uml-sms-"))
     guest: Guest | None = None
+    run: Run | None = None
     try:
         vectors = read_golden()
         guest = start_guest(options, adb, private)
@@ -1494,7 +2238,7 @@ def main() -> int:
         for row in rows:
             print(f"  {row.name:5} {verdicts[row.name]}")
         for row, reason in skipped:
-            print(f"  {row.name:5} NOT RUN: {reason}")
+            print(f"  {row.name:5} {'' if row.needs in NOT_SHOWN_NEEDS else 'NOT RUN: '}{reason}")
         for names, where in ELSEWHERE:
             print(f"  {names}: not this runner's ({where})")
         failed = [name for name, verdict in verdicts.items() if verdict != "PASS"]
@@ -1508,9 +2252,11 @@ def main() -> int:
                   file=sys.stderr)
         return 1
     finally:
-        if guest is not None:
-            boot_android.disconnect_adb(adb, guest.serial)
-            boot_android.stop_guest(guest.process)
+        # A row may have restarted the guest on its instance (I2): the run holds the one that is running.
+        current = run.guest if run is not None else guest
+        if current is not None:
+            boot_android.disconnect_adb(adb, current.serial)
+            boot_android.stop_guest(current.process)
         shutil.rmtree(private, ignore_errors=True)
 
 

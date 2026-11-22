@@ -3,6 +3,7 @@
 #import "KernariumRuntimeLoader.h"
 
 #include "../../darwin/device/camera/camera_tiers.hpp"
+#include "../../darwin/platform/apple/os_address_space.hpp"
 #include "../../darwin/platform/apple/os_memory_limit.hpp"
 #include "../../darwin/runtime/guest_memory_budget.hpp"
 
@@ -26,12 +27,10 @@ std::mutex selectionMutex;
 std::atomic<const kernarium_runtime_api*> selectedApi;
 uint32_t selectedFlavor;
 bool selectionAttempted;
-#ifndef UML_APP_STORE_APPLICATION
 /* The selected runtime's automation extensions (KernariumRuntime.h), or null:
  * a release runtime does not export them. */
 int (*automationJobAtStart)(void);
 int (*automationHoldDelayMs)(void);
-#endif
 /* The runtime relay can still call into the loader while exit() destroys
  * ordinary statics. Keep its lock and retained handler alive together. */
 struct ConsoleOutputHandlerState final {
@@ -443,7 +442,6 @@ __attribute__((constructor)) void isolateGuestTimerFromApplicationThreads()
     updateCameraStateForwarder(api);
     updateMemoryPressureForwarder(api);
     updateInputStatusForwarder(api);
-#ifndef UML_APP_STORE_APPLICATION
     /* Optional: only a runtime built for automation has it. */
     automationJobAtStart = reinterpret_cast<int (*)(void)>(
         dlsym(handle, "kernarium_runtime_automation_job_at_start"));
@@ -451,7 +449,6 @@ __attribute__((constructor)) void isolateGuestTimerFromApplicationThreads()
     automationHoldDelayMs = reinterpret_cast<int (*)(void)>(
         dlsym(handle, "kernarium_runtime_automation_hold_delay_ms"));
     (void)dlerror();
-#endif
     selectedFlavor = guestFlavor;
     selectedApi.store(api, std::memory_order_release);
     std::printf(
@@ -558,7 +555,6 @@ extern "C" int kernarium_runtime_loader_set_background_throttle(int enabled)
     return runtime == nullptr ? -1 : runtime->set_background_throttle(enabled);
 }
 
-#ifndef UML_APP_STORE_APPLICATION
 extern "C" int kernarium_runtime_loader_set_frame_sink(
     kernarium_runtime_frame_sink sink,
     void* context,
@@ -570,7 +566,6 @@ extern "C" int kernarium_runtime_loader_set_frame_sink(
         -1 :
         runtime->set_frame_sink(sink, context, maximumWidth, framesPerSecond);
 }
-#endif
 
 extern "C" int kernarium_runtime_loader_set_page_cache_trimming(int enabled)
 {
@@ -623,10 +618,22 @@ uml::runtime::guest_memory::LaunchMemorySet launchMemorySet(
         parameters.headroom_mib);
 }
 
-/* C of runtime/guest_memory_budget.hpp for this process, the one the runtime's
- * run admits sizes under: the window the runtime puts the kernel in (a macOS
- * process, and an iOS application on a Mac, get the macOS window; a device and
- * the Simulator get the signed iOS envelope) and the RAM of the host. */
+/* C of runtime/guest_memory_budget.hpp for this process: the window the
+ * runtime puts the kernel in (a macOS process, and an iOS application on a Mac,
+ * get the macOS window; a device and the Simulator get the signed iOS
+ * envelope), the RAM of the host and, for an application the system limits to
+ * a small span of address space (signed without Extended Virtual Addressing),
+ * that span: the widest run of it free above the lowest address a window may
+ * begin at. Every other process, the Simulator and an entitled application
+ * included, is answered as it was before the span was measured. It is measured
+ * once, at the first answer, before any run of the process has reserved a
+ * window of its own, so every size, default and bound the settings show, and
+ * the check before a start, follow the process's own address space and stay as
+ * they were while a guest runs. The ceiling is zero where the span holds no
+ * window of even the smallest guest: no size is admitted, offered or
+ * defaulted, and a start is refused. The runtime's run admits the sizes of the
+ * ceiling without the address space: its reservation of the window is the
+ * check there. */
 uint32_t guestMemoryCeilingMiB()
 {
     static const uint32_t ceiling = [] {
@@ -636,8 +643,27 @@ uint32_t guestMemoryCeilingMiB()
 #else
         const bool macosWindow = info.isiOSAppOnMac;
 #endif
-        return uml::runtime::guest_memory::process_guest_memory_ceiling_mib(
-            macosWindow, info.physicalMemory);
+        uint64_t addressSpace = 0;
+        if (!macosWindow) {
+            const auto run = uml::platform::os_limited_free_address_run(
+                uml::runtime::guest_memory::native_window_floor_bytes);
+            /* A measured run is never taken for an unmeasured one: a run of
+             * none is a byte, and no window fits it. */
+            if (run)
+                addressSpace = *run > 0 ? *run : 1;
+        }
+        const uint32_t answer =
+            uml::runtime::guest_memory::process_guest_memory_ceiling_mib(
+                macosWindow, info.physicalMemory, addressSpace);
+        if (addressSpace != 0)
+            std::fprintf(stderr,
+                "Kernarium: the process has a run of %llu MiB of address "
+                "space; %s%u MiB\n",
+                static_cast<unsigned long long>(addressSpace >> 20),
+                answer == 0 ? "no guest fits it, a guest may have up to " :
+                              "a guest may have up to ",
+                answer);
+        return answer;
     }();
     return ceiling;
 }
@@ -723,7 +749,10 @@ extern "C" uint32_t kernarium_runtime_loader_default_guest_memory_mib_for_limit(
     kernarium_launch_memory_set parameters)
 {
     return uml::runtime::guest_memory::default_guest_memory_mib(
-        limitBytes, guestProcessorCount, launchMemorySet(parameters));
+        limitBytes,
+        guestProcessorCount,
+        launchMemorySet(parameters),
+        guestMemoryCeilingMiB());
 }
 
 extern "C" uint32_t kernarium_runtime_loader_default_guest_memory_mib(
@@ -743,7 +772,10 @@ kernarium_runtime_loader_default_guest_memory_holds_gpu_budget_for_limit(
     kernarium_launch_memory_set parameters)
 {
     return uml::runtime::guest_memory::default_guest_memory(
-               limitBytes, guestProcessorCount, launchMemorySet(parameters))
+               limitBytes,
+               guestProcessorCount,
+               launchMemorySet(parameters),
+               guestMemoryCeilingMiB())
                    .holds_gpu_budget
         ? 1
         : 0;
@@ -1029,16 +1061,13 @@ extern "C" int kernarium_runtime_loader_connect_vsock(
         runtime->connect_vsock(port, timeoutMilliseconds);
 }
 
-#ifndef UML_APP_STORE_APPLICATION
 extern "C" int kernarium_runtime_loader_automation_hold_delay_ms(void)
 {
     return api() != nullptr && automationHoldDelayMs != nullptr
         ? automationHoldDelayMs()
         : 0;
 }
-#endif
 
-#ifndef UML_APP_STORE_APPLICATION
 extern "C" int kernarium_runtime_loader_prepare_jit(
     int enable,
     uint32_t guestMemoryMiB,
@@ -1059,7 +1088,6 @@ extern "C" int kernarium_runtime_loader_debugger_attached(void)
         return 0;
     return (information.kp_proc.p_flag & P_TRACED) != 0 ? 1 : 0;
 }
-#endif
 
 extern "C" int kernarium_runtime_loader_guest_display_active(void)
 {
@@ -1088,7 +1116,6 @@ extern "C" int kernarium_runtime_loader_read_guest_memory(
     return runtime == nullptr ? -ENODEV : runtime->read_guest_memory(memory);
 }
 
-#ifndef UML_APP_STORE_APPLICATION
 extern "C" int kernarium_runtime_loader_automation_job_at_start(void)
 {
     return api() != nullptr && automationJobAtStart != nullptr
@@ -1105,4 +1132,3 @@ extern "C" int kernarium_runtime_loader_send_console_input(
         return -1;
     return runtime->send_console_input(buffer, length);
 }
-#endif

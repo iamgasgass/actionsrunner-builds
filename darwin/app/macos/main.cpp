@@ -372,7 +372,14 @@ enum class CameraSource : std::uint8_t {
 };
 
 /* The cameras the synthetic camera presents (--camera-profile=). */
-enum class CameraProfile : std::uint8_t { phone, tablet, laptop };
+enum class CameraProfile : std::uint8_t {
+	phone,
+	tablet,
+	laptop,
+	/* The phone whose front camera is mounted at 90 and turned half
+	 * around by the host, as an iPhone's is. */
+	phone_turned_front
+};
 
 struct PreparedArguments {
 	HostGpuOptions gpu;
@@ -657,9 +664,13 @@ PreparedArguments prepare_host_arguments(
 				prepared.camera_profile = CameraProfile::tablet;
 			else if (value == "laptop")
 				prepared.camera_profile = CameraProfile::laptop;
+			else if (value == "phone-turned-front")
+				prepared.camera_profile =
+					CameraProfile::phone_turned_front;
 			else
 				throw std::invalid_argument(
-					"--camera-profile must be phone, tablet or laptop");
+					"--camera-profile must be phone, tablet, "
+					"laptop or phone-turned-front");
 		} else if (valued("--camera-layout=")) {
 			if (value != "auto")
 				throw std::invalid_argument(
@@ -786,6 +797,15 @@ PreparedArguments prepare_host_arguments(
 				throw std::invalid_argument(
 					"--net-mac may be specified only once");
 			prepared.net_mac = *mac;
+		} else if (valued(uml::emulator::aot_release_prefix)) {
+			/* The identity of the booted release is a launcher's word to
+			 * the emulator, never a caller's. */
+			if (!configuration.states_aot_release)
+				throw std::invalid_argument(
+					"--aot-release is stated by the launcher of an "
+					"Android release from the release it boots; a "
+					"command line cannot name it");
+			prepared.kernel.push_back(text);
 		} else if (valued("--vsock-forward=")) {
 			std::string error;
 			auto forward = uml::vsock::parseForward(value, error);
@@ -1108,10 +1128,9 @@ struct BootServices final {
 	 * microphone; the switch ends with the boot's audio service. */
 	std::shared_ptr<uml::audio::MicrophoneSwitch> microphone;
 	VirtioService console;
-	/* The vsock device and the loopback listeners that open connections
-	 * through it; the listeners stop first. */
+	/* The vsock device. The loopback listeners that open connections through
+	 * it are the launch's (`Launch::vsock_forwarder_`), not the boot's. */
 	VirtioService vsock;
-	std::unique_ptr<uml::vsock::Forwarder> vsock_forwarder;
 	/* The GNSS receiver, after vsock. */
 	VirtioService gnss;
 	/* The camera, after the GNSS receiver. */
@@ -1142,7 +1161,6 @@ struct BootServices final {
 			side_keys->stop();
 		if (touchscreen)
 			touchscreen->stop();
-		vsock_forwarder.reset();
 		if (camera)
 			camera->stop();
 		if (gnss)
@@ -1456,7 +1474,10 @@ public:
 				return 0;
 			/* The guest is gone: its services stop before the library hands
 			 * its RAM back to the process, and its connections end with its
-			 * network link. */
+			 * network link. The vsock forward lets go of the guest first and
+			 * keeps its ports for the next one. */
+			if (vsock_forwarder_)
+				vsock_forwarder_->detach();
 			services_.stop();
 			if (network_)
 				network_->reset_link();
@@ -1491,6 +1512,7 @@ public:
 		stats_.reset();
 		if (network_)
 			network_->shutdown();
+		vsock_forwarder_.reset();
 		services_.stop();
 		if (gpu_service_)
 			gpu_service_->stop();
@@ -1785,11 +1807,6 @@ private:
 			if (prepared_.camera == CameraSource::synthetic ||
 			    (prepared_.camera == CameraSource::blocked &&
 			     prepared_.camera_profile)) {
-				if (!uml::camera::syntheticCameraAvailable()) {
-					std::fputs("--camera=synthetic needs the synthetic "
-						   "camera, which this build lacks\n", stderr);
-					return false;
-				}
 				uml::camera::SyntheticProfile profile {};
 				switch (prepared_.camera_profile.value_or(
 					CameraProfile::phone)) {
@@ -1801,6 +1818,9 @@ private:
 					break;
 				case CameraProfile::laptop:
 					profile = uml::camera::SyntheticProfile::laptop;
+					break;
+				case CameraProfile::phone_turned_front:
+					profile = uml::camera::SyntheticProfile::phoneTurnedFront;
 					break;
 				}
 				source = uml::camera::makeSyntheticCameraSource(profile);
@@ -1980,8 +2000,10 @@ private:
 		return "unknown";
 	}
 
-	/* Starts the Virtio vsock device and the listeners that reach it, and
-	 * says which port each one listens on. */
+	/* Starts the Virtio vsock device and the listeners that reach it. The
+	 * first boot binds the listeners and says which port each one listens
+	 * on; a restarted guest is attached to the same listeners, so a client
+	 * that kept a port keeps reaching the guest. */
 	[[nodiscard]] bool start_vsock(std::vector<std::string> &kernel)
 	{
 		std::shared_ptr<uml::vsock::Endpoint> endpoint;
@@ -1994,10 +2016,19 @@ private:
 			    },
 			    "--vsock-forward", "Virtio vsock"))
 			return false;
+		if (vsock_forwarder_) {
+			try {
+				vsock_forwarder_->attach(std::move(endpoint));
+			} catch (const std::exception &error) {
+				std::fprintf(stderr, "Unable to attach the vsock forward: %s\n",
+					error.what());
+				return false;
+			}
+			return true;
+		}
 		try {
-			services_.vsock_forwarder =
-				std::make_unique<uml::vsock::Forwarder>(
-					endpoint, prepared_.vsock_forwards);
+			vsock_forwarder_ = std::make_unique<uml::vsock::Forwarder>(
+				std::move(endpoint), prepared_.vsock_forwards);
 		} catch (const std::exception &error) {
 			std::fprintf(stderr, "Unable to start the vsock forward: %s\n",
 				error.what());
@@ -2009,7 +2040,7 @@ private:
 			std::fprintf(stderr,
 				"vsock forward %s:%u -> guest port %u\n",
 				forward.hostAddress.c_str(),
-				static_cast<unsigned>(services_.vsock_forwarder->port(index)),
+				static_cast<unsigned>(vsock_forwarder_->port(index)),
 				static_cast<unsigned>(forward.guestPort));
 		}
 		return true;
@@ -2034,6 +2065,11 @@ private:
 	 * ends between them. */
 	std::unique_ptr<GuestWaker> waker_;
 	BootServices services_;
+	/* The loopback listeners of --vsock-forward=, which belong to the launch:
+	 * they keep their ports across a restart of the guest, and are attached
+	 * to each boot's vsock endpoint in turn. After the boot's services, whose
+	 * endpoint they reach, so they end first. */
+	std::unique_ptr<uml::vsock::Forwarder> vsock_forwarder_;
 #if UML_APP_EDGE_TEST
 	/* After the GPU service it works on, so it ends before it. */
 	std::unique_ptr<uml::app::BackgroundEdgeControl> edge_control_;

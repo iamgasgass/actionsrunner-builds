@@ -369,6 +369,7 @@ public:
         end.kind = started.load() == 1 ? kernarium::restart::RunEnd::Kind::restart : kernarium::restart::RunEnd::Kind::powerOff;
         return true;
     }
+    bool startRefusedForMemory() noexcept override { return false; }
     /* The old guest's camera goes with it, which ends the wait that was for it. */
     void stopBoot() noexcept override { video.detach(); }
     void resetLink() noexcept override {}

@@ -93,25 +93,24 @@ target_link_libraries(uml_camera_apple_transform_tests PRIVATE UML::AppleCamera)
 uml_add_unit_test(NAME camera-apple-transform COMMAND uml_camera_apple_transform_tests
     LABELS "device;camera")
 
+# A photo of a camera presented half around is turned and encoded in the hardware JPEG encoder (a pixel buffer stands
+# in for the photo; no camera is opened).
+add_executable(uml_camera_apple_turned_still_tests camera_apple_turned_still_tests.cpp)
+target_link_libraries(uml_camera_apple_turned_still_tests PRIVATE UML::AppleCamera UML::VideoEncoder
+    "-framework CoreFoundation" "-framework CoreGraphics" "-framework CoreVideo" "-framework ImageIO")
+uml_add_unit_test(NAME camera-apple-turned-still COMMAND uml_camera_apple_turned_still_tests
+    LABELS "device;camera")
+
 # The synthetic camera is the platform camera that the other camera tests use.
-if(TARGET UML::SyntheticCamera)
-    add_executable(uml_camera_synthetic_tests camera_synthetic_tests.cpp)
-    target_link_libraries(uml_camera_synthetic_tests PRIVATE UML::SyntheticCamera)
-    uml_add_unit_test(NAME camera-synthetic COMMAND uml_camera_synthetic_tests
-        LABELS "device;camera")
-endif()
+add_executable(uml_camera_synthetic_tests camera_synthetic_tests.cpp)
+target_link_libraries(uml_camera_synthetic_tests PRIVATE UML::SyntheticCamera)
+uml_add_unit_test(NAME camera-synthetic COMMAND uml_camera_synthetic_tests
+    LABELS "device;camera")
 
 # The launcher's way to the platform cameras (UML::CameraSource), without a
 # session or a permission request.
 add_executable(uml_camera_source_tests camera_source_tests.cpp)
 target_link_libraries(uml_camera_source_tests PRIVATE UML::CameraSource)
-if(TARGET UML::SyntheticCamera)
-    target_compile_definitions(uml_camera_source_tests PRIVATE
-        UML_TEST_EXPECTS_SYNTHETIC=1)
-else()
-    target_compile_definitions(uml_camera_source_tests PRIVATE
-        UML_TEST_EXPECTS_SYNTHETIC=0)
-endif()
 uml_add_unit_test(NAME camera-source COMMAND uml_camera_source_tests
     LABELS "device;camera")
 
@@ -135,48 +134,44 @@ uml_add_unit_test(NAME camera-calibration COMMAND uml_camera_calibration_tests
     LABELS "device;camera")
 
 # The device's tests use the synthetic camera as the platform camera.
-if(TARGET UML::SyntheticCamera)
-    add_executable(uml_camera_controls_tests camera_controls_tests.cpp)
-    target_link_libraries(uml_camera_controls_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
-    uml_add_unit_test(NAME camera-controls COMMAND uml_camera_controls_tests
-        LABELS "device;camera")
+add_executable(uml_camera_controls_tests camera_controls_tests.cpp)
+target_link_libraries(uml_camera_controls_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
+uml_add_unit_test(NAME camera-controls COMMAND uml_camera_controls_tests
+    LABELS "device;camera")
 
-    add_executable(uml_camera_description_tests camera_description_tests.cpp)
-    target_link_libraries(uml_camera_description_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
-    target_include_directories(uml_camera_description_tests PRIVATE
-        ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/hal)
-    uml_add_unit_test(NAME camera-description COMMAND uml_camera_description_tests
-        LABELS "device;camera")
+add_executable(uml_camera_description_tests camera_description_tests.cpp)
+target_link_libraries(uml_camera_description_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
+target_include_directories(uml_camera_description_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/hal)
+uml_add_unit_test(NAME camera-description COMMAND uml_camera_description_tests
+    LABELS "device;camera")
 
-    # The device behind the real transport across a guest's suspend. The front
-    # end is the GPU tests', so their support header and protocol header are on
-    # the path.
-    add_executable(uml_camera_held_requests_tests camera_held_requests_tests.cpp)
-    target_include_directories(uml_camera_held_requests_tests BEFORE PRIVATE
-        ${PROJECT_SOURCE_DIR}/tests/unit/gpu
-        ${PROJECT_SOURCE_DIR}/darwin/device/gpu)
-    target_link_libraries(uml_camera_held_requests_tests PRIVATE
-        UML::CameraDevice UML::SyntheticCamera UML::VhostUserTransport)
-    uml_add_unit_test(NAME camera-held-requests COMMAND uml_camera_held_requests_tests
-        LABELS "device;camera;vhost-user" TIMEOUT 120)
+# The device behind the real transport across a guest's suspend. The front
+# end is the GPU tests', so their support header and protocol header are on
+# the path.
+add_executable(uml_camera_held_requests_tests camera_held_requests_tests.cpp)
+target_include_directories(uml_camera_held_requests_tests BEFORE PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests/unit/gpu
+    ${PROJECT_SOURCE_DIR}/darwin/device/gpu)
+target_link_libraries(uml_camera_held_requests_tests PRIVATE
+    UML::CameraDevice UML::SyntheticCamera UML::VhostUserTransport)
+uml_add_unit_test(NAME camera-held-requests COMMAND uml_camera_held_requests_tests
+    LABELS "device;camera;vhost-user" TIMEOUT 120)
 
-    add_executable(uml_camera_device_tests camera_device_tests.cpp)
-    target_link_libraries(uml_camera_device_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
-    uml_add_unit_test(NAME camera-device COMMAND uml_camera_device_tests
-        LABELS "device;camera" TIMEOUT 120)
-endif()
+add_executable(uml_camera_device_tests camera_device_tests.cpp)
+target_link_libraries(uml_camera_device_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
+uml_add_unit_test(NAME camera-device COMMAND uml_camera_device_tests
+    LABELS "device;camera" TIMEOUT 120)
 
 # The layouts a host composes for the Android image: the closed set and its fallback order against the image's own
 # table (the generator's output, which the test takes as its argument), and the concurrent feature against the HAL's
 # own rule (its headers compile without Android).
-if(TARGET UML::SyntheticCamera)
-    add_executable(uml_camera_layout_tests camera_layout_tests.cpp)
-    target_include_directories(uml_camera_layout_tests PRIVATE
-        ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/hal
-        ${PROJECT_SOURCE_DIR}/kernel/common/video)
-    target_link_libraries(uml_camera_layout_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
-    uml_add_unit_test(NAME camera-layout
-        COMMAND uml_camera_layout_tests
-            ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/generated/layouts.tsv
-        LABELS "device;camera")
-endif()
+add_executable(uml_camera_layout_tests camera_layout_tests.cpp)
+target_include_directories(uml_camera_layout_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/hal
+    ${PROJECT_SOURCE_DIR}/kernel/common/video)
+target_link_libraries(uml_camera_layout_tests PRIVATE UML::CameraDevice UML::SyntheticCamera)
+uml_add_unit_test(NAME camera-layout
+    COMMAND uml_camera_layout_tests
+        ${PROJECT_SOURCE_DIR}/android/lineage-24/overlay/camera/generated/layouts.tsv
+    LABELS "device;camera")

@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if FOLLOW_X || SHEET_X
+#if FOLLOW_X
 
 import Foundation
 
 // Follow developer on X's logic: plain values and rules, no UIKit. The
-// application compiles this file where the row is compiled in and where the
-// Buy me tokens header has an X button, which builds its address the same way
-// from a handle of its own; the AndariumCore package compiles the same file
-// for its tests (Andarium/README.md#follow-developer-on-x).
+// application compiles this file where the row is compiled in; the
+// AndariumCore package compiles the same file for its tests
+// (Andarium/README.md#follow-developer-on-x).
 
 /// The developer's profile on X: a handle and the address built from it. The
 /// address is made here and nowhere else, so no file holds a profile address;
@@ -18,8 +17,7 @@ nonisolated enum FollowXProfile {
     static let host = "x.com"
 
     /// Whether `handle` can be one of X's: 1 to 15 letters, digits and
-    /// underscores. The App Store bundle check holds the build's handle to the
-    /// same shape (`Andarium/scripts/check-app-store-bundle.py`).
+    /// underscores.
     static func isWellFormed(handle: String) -> Bool {
         let bytes = handle.utf8
         return (1...15).contains(bytes.count) && bytes.allSatisfy { byte in

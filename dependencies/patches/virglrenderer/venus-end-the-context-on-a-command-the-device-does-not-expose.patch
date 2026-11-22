@@ -39,10 +39,10 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
  8 files changed, 78 insertions(+), 2 deletions(-)
 
 diff --git a/src/venus/vkr_context.c b/src/venus/vkr_context.c
-index 623486be6fe5b6ce9408afa532781cb0a9a07203..c7e3b8d467009fb62fb9ec99ffb2f33f53a440a5 100644
+index a4a01492740738a1632d93b4e81f127b0efc59be..7058800d9363aca045bba660c643790e46efcd97 100644
 --- a/src/venus/vkr_context.c
 +++ b/src/venus/vkr_context.c
-@@ -128,12 +128,56 @@ vkr_context_init_dispatch(struct vkr_context *ctx)
+@@ -127,12 +127,56 @@ vkr_context_init_dispatch(struct vkr_context *ctx)
     vkr_context_init_acceleration_structure_dispatch(ctx);
  }
  
@@ -99,7 +99,7 @@ index 623486be6fe5b6ce9408afa532781cb0a9a07203..c7e3b8d467009fb62fb9ec99ffb2f33f
  }
  
  bool
-@@ -172,15 +216,18 @@ vkr_context_submit_cmd(struct vkr_context *ctx, const void *buffer, size_t size)
+@@ -171,15 +215,18 @@ vkr_context_submit_cmd(struct vkr_context *ctx, const void *buffer, size_t size)
  
     vkr_cs_decoder_set_buffer_stream(&ctx->decoder, buffer, size);
  
@@ -154,7 +154,7 @@ index c19ca2daf9bf7fa7b0373141683a8a8e39fcf6a3..3974ea49eb80c49884576576967e18ba
  vkr_context_validate_object_id_locked(struct vkr_context *ctx, vkr_object_id id)
  {
 diff --git a/src/venus/vkr_device.c b/src/venus/vkr_device.c
-index 9343e4d77c5433eff6aeca41c135622bed6ac74f..3e538229d5aa79f25ef2b0aa8fae18cf26c6441c 100644
+index 0711db10d5a38eca6a049a654a5c86b7861cad40..ce6ec377df146d76909c8ed5c136c16be1d890cb 100644
 --- a/src/venus/vkr_device.c
 +++ b/src/venus/vkr_device.c
 @@ -75,6 +75,7 @@ vkr_device_init_proc_table(struct vkr_device *dev,
@@ -166,10 +166,10 @@ index 9343e4d77c5433eff6aeca41c135622bed6ac74f..3e538229d5aa79f25ef2b0aa8fae18cf
  
  /* Look up the entry points of the extensions the renderer enabled for its own
 diff --git a/src/venus/vkr_host_copy.c b/src/venus/vkr_host_copy.c
-index c0d08075939ae191816a9c5a3922d74ad7b4e408..791565b50a8717600347897c9add5f88c280338a 100644
+index d5a00868150800f909cdbb97f7270b2f8655cb85..b63c322b539080b2305144b4ed3ef4fc87cf0dfc 100644
 --- a/src/venus/vkr_host_copy.c
 +++ b/src/venus/vkr_host_copy.c
-@@ -589,7 +589,7 @@ vkr_host_copy_footprint(const struct vkr_host_copy_target *target,
+@@ -707,7 +707,7 @@ vkr_host_copy_footprint(const struct vkr_host_copy_target *target,
     }
  
     if (target->flags & VK_HOST_IMAGE_COPY_MEMCPY_BIT) {
@@ -179,10 +179,10 @@ index c0d08075939ae191816a9c5a3922d74ad7b4e408..791565b50a8717600347897c9add5f88
  
        size_t memcpy_reach = 0;
 diff --git a/src/venus/vkr_image.c b/src/venus/vkr_image.c
-index a4bc30c7655fd9517802d337285984f52021cf7e..56efcc3189cd41867b88e4be2cd5e7de4b54ded6 100644
+index 481b827bca648befba16543bb12570024391a0d7..23eb8b58cd85a679abeb4c3144cd6e70c3b3a811 100644
 --- a/src/venus/vkr_image.c
 +++ b/src/venus/vkr_image.c
-@@ -339,7 +339,7 @@ vkr_dispatch_vkGetImageDrmFormatModifierPropertiesEXT(
+@@ -341,7 +341,7 @@ vkr_dispatch_vkGetImageDrmFormatModifierPropertiesEXT(
  
     /* An Apple host has no DRM format modifiers, so the entry point is not
      * loaded and calling through the table would fault. */

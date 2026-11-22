@@ -89,8 +89,7 @@ struct AndroidOperationTests {
     }
 
     /// A report the driver finishes though the person cancelled (the cancel came
-    /// as it completed) is not offered, and its file does not stay behind. The
-    /// Send feedback sheet starts the same work and shares the rule.
+    /// as it completed) is not offered, and its file does not stay behind.
     @Test func aCancelledReportIsNotOfferedAndItsFileGoes() async throws {
         let (model, driver) = running()
         let file = try stagedFile()

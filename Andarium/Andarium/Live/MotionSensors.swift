@@ -87,7 +87,6 @@ nonisolated enum CompassSource {
     }
 }
 
-#if !APP_STORE
 /// The development build's compass check (`ANDARIUM_COMPASS_READOUT=1`,
 /// `CompassReadoutLaunch`): about twice a second, one line on the console with
 /// the device motion sample the guest's field is taken from (and the extremes
@@ -97,8 +96,7 @@ nonisolated enum CompassSource {
 /// app's azimuth with iOS's own. The field and the gravity are in the device's
 /// frame and the attitude's matrix is Core Motion's rotation matrix, all as
 /// delivered; `mount` is the interface orientation the guest's sensors are
-/// given now. It adds no interface, permission or usage string, and an App
-/// Store build compiles it out.
+/// given now. It adds no interface, permission or usage string.
 nonisolated final class CompassReadout: @unchecked Sendable {
     /// The mount the guest's sensors have now (`MotionSensors.update`).
     private static let mount = OSAllocatedUnfairLock(initialState: MotionSample.Axes.portrait)
@@ -180,7 +178,6 @@ nonisolated final class CompassReadout: @unchecked Sendable {
         return "Andarium: compass-check: t=\(String(format: "%.3f", timestamp)) mount=\(mount) acc=\(accuracy) \(numbers) \(span)"
     }
 }
-#endif
 
 /// Core Motion's device motion in the magnetic-north frame, for the magnetic
 /// field's source (`MagneticFieldSource`): the calibrated field with its
@@ -201,9 +198,7 @@ private final class CoreMotionFieldBackend: MagneticFieldBackend, @unchecked Sen
     func begin(interval: TimeInterval, events: @escaping @Sendable (MagneticFieldEvent) -> Void) {
         manager.deviceMotionUpdateInterval = interval
         manager.showsDeviceMovementDisplay = false
-        #if !APP_STORE
         let readout = CompassReadout.requested()
-        #endif
         manager.startDeviceMotionUpdates(using: .xMagneticNorthZVertical, to: queue) { data, error in
             if let error {
                 let nsError = error as NSError
@@ -212,9 +207,7 @@ private final class CoreMotionFieldBackend: MagneticFieldBackend, @unchecked Sen
                         ? .needsMovement : .failed(reason: "\(nsError.domain) \(nsError.code)"))
             }
             guard let data else { return }
-            #if !APP_STORE
             if let line = readout?.line(for: data) { print(line) }
-            #endif
             // The field is "with respect to the device": the guest's as it is.
             let calibrated = data.magneticField
             events(
@@ -262,10 +255,8 @@ private final class CoreMotionDevice: MotionDevice, @unchecked Sendable {
             switch note {
             case .needsMovement:
                 // Not a failure: once, and the readings are waited for.
-                #if !APP_STORE
                 print("Andarium: compass: Core Motion asks the device to be moved to calibrate the field; "
                     + "the readings follow once it is")
-                #endif
                 break
             case .silent:
                 print("Andarium: compass: device motion delivered nothing in 5 s; the magnetometer stops for this run")
@@ -291,14 +282,12 @@ private final class CoreMotionDevice: MotionDevice, @unchecked Sendable {
                 if #available(iOS 27.2, *) { return CMMotionManager.authorizationStatus }
                 return nil
             })
-        #if !APP_STORE
         // Once, so that a tester's log says whether this iOS states a motion
         // permission and what it was.
         if Self.reported.withLock({ let first = !$0; $0 = true; return first }) {
             print("Andarium: compass: magnetic-north frame \(assessment.northFrame.map(String.init) ?? "not read"), "
                 + "motion permission \(CompassSource.name(assessment.permission)): offered \(assessment.available)")
         }
-        #endif
         return assessment.available
     }
 
@@ -387,9 +376,7 @@ final class MotionSensors {
     /// (which holds the connection on a device without sensors too).
     func update(foreground: Bool, axes: MotionSample.Axes, followsOrientation: Bool = false) {
         self.axes = axes
-        #if !APP_STORE
         CompassReadout.setMount(axes)
-        #endif
         session.update(foreground: foreground, axes: axes, followsOrientation: followsOrientation)
     }
 

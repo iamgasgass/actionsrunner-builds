@@ -7,8 +7,7 @@ import Foundation
 // the host's frames, and what it sends. The application writes the host's
 // frames and reads the guest's (`GamepadHostFrame.encoded`,
 // `GamepadGuestFrameReader`); only a test or a tool that plays the relay needs
-// these halves, so they stay out of the application, and the App Store bundle
-// check refuses a build that links them.
+// these halves, so they stay out of the application.
 
 extension GamepadProtocol {
     /// The type and payload length of a host's frame.

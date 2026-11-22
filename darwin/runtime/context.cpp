@@ -85,12 +85,7 @@ constexpr auto platform_default = ExecutionEngine::gadgets;
 {
 	switch (engine) {
 	case ExecutionEngine::jit:
-#ifdef UML_APP_STORE_RUNTIME
-		/* The App Store runtime has no JIT engine to enter. */
-		return nullptr;
-#else
 		return darwin_uml_jit_enter_guest;
-#endif
 	case ExecutionEngine::gadgets:
 	case ExecutionEngine::automatic:
 		return darwin_uml_static_enter_guest;
@@ -540,6 +535,26 @@ bool set_translation_cache_budget(std::size_t total_bytes,
 		total_bytes, executors, per_executor_bytes);
 }
 
+bool select_aot(AotSelection selection, const AotRelease *release) noexcept
+{
+	return ::uml::cpu::select_aot(selection, release);
+}
+
+void end_aot_session() noexcept
+{
+	::uml::cpu::end_aot_session();
+}
+
+int aot_choice() noexcept
+{
+	return ::uml::cpu::aot_choice();
+}
+
+void restore_aot_choice(int choice) noexcept
+{
+	::uml::cpu::restore_aot_choice(choice);
+}
+
 bool acquire_translation_cache_run_session() noexcept
 {
 	return ::uml::cpu::acquire_translation_cache_run_session();
@@ -561,7 +576,6 @@ std::size_t gadget_cache_budget_for(std::size_t guest_memory_bytes,
 		executors);
 }
 
-#ifndef UML_APP_STORE_RUNTIME
 std::size_t jit_cache_budget_for(std::size_t guest_memory_bytes,
 	unsigned executors) noexcept
 {
@@ -590,7 +604,6 @@ std::size_t prepared_jit_region_bytes() noexcept
 {
 	return ::uml::cpu::prepared_jit_region_bytes();
 }
-#endif
 
 std::size_t set_gadget_cache_budget(std::size_t guest_memory_bytes,
 	std::size_t bytes, unsigned executors) noexcept

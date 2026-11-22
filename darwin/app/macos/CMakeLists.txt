@@ -40,6 +40,19 @@ function(uml_stage_macos_gpu_frameworks)
                 ${UML_APPLE_GPU_KOSMICKRISP_FRAMEWORK}
                 ${_uml_frameworks_dir}/KosmicKrisp.framework)
     endif()
+    get_property(_uml_aot_fw_dir GLOBAL PROPERTY
+        UML_AOT_FRAMEWORK_DIR)
+    get_property(_uml_aot_fw_target GLOBAL PROPERTY
+        UML_AOT_FRAMEWORK_TARGET)
+    if(_uml_aot_fw_dir)
+        list(APPEND _uml_stage_inputs
+            "$<TARGET_FILE:${_uml_aot_fw_target}>"
+            "${_uml_aot_fw_dir}/Info.plist")
+        list(APPEND _uml_stage_commands
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${_uml_aot_fw_dir}"
+                "${_uml_frameworks_dir}/UmlArm64Aot.framework")
+    endif()
     add_custom_command(OUTPUT "${_uml_frameworks_stamp}"
         COMMAND ${CMAKE_COMMAND} -E rm -rf ${_uml_frameworks_dir}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${_uml_frameworks_dir}
@@ -51,6 +64,9 @@ function(uml_stage_macos_gpu_frameworks)
     add_custom_target(uml_macos_gpu_frameworks DEPENDS "${_uml_frameworks_stamp}")
     uml_declare_architecture_target(uml_macos_gpu_frameworks app)
     add_dependencies(uml_macos_gpu_frameworks uml_dependency_prefix_verify)
+    if(_uml_aot_fw_target)
+        add_dependencies(uml_macos_gpu_frameworks "${_uml_aot_fw_target}")
+    endif()
 endfunction()
 
 # uml_add_macos_embedded_kernel_app(<target> <main source> <kernel artifact>
@@ -123,6 +139,18 @@ function(uml_add_macos_embedded_kernel_app
         set_property(TARGET "${TARGET_NAME}" APPEND PROPERTY LINK_DEPENDS
             "${UML_APPLE_GPU_KOSMICKRISP_FRAMEWORK}/KosmicKrisp"
             "${UML_APPLE_GPU_KOSMICKRISP_FRAMEWORK}/Info.plist")
+    endif()
+    get_property(_uml_aot_fw_dir GLOBAL PROPERTY
+        UML_AOT_FRAMEWORK_DIR)
+    get_property(_uml_aot_fw_target GLOBAL PROPERTY
+        UML_AOT_FRAMEWORK_TARGET)
+    set(_uml_verify_local_fw_args)
+    if(_uml_aot_fw_dir)
+        set_property(TARGET "${TARGET_NAME}" APPEND PROPERTY LINK_DEPENDS
+            "$<TARGET_FILE:${_uml_aot_fw_target}>"
+            "${_uml_aot_fw_dir}/Info.plist")
+        set(_uml_verify_local_fw_args
+            --local-framework "${_uml_aot_fw_dir}")
     endif()
     target_link_libraries("${TARGET_NAME}" PRIVATE
         UML::Emulator
@@ -203,6 +231,7 @@ function(uml_add_macos_embedded_kernel_app
             --binary $<TARGET_FILE:${TARGET_NAME}>
             --apple-gpu-prefix ${UML_APPLE_GPU_DEPENDENCY_PREFIX}
             --framework-directory $<TARGET_FILE_DIR:${TARGET_NAME}>/Frameworks
+            ${_uml_verify_local_fw_args}
         COMMENT "Checking the ${TARGET_NAME} Apple GPU runtime closure"
         VERBATIM)
 endfunction()

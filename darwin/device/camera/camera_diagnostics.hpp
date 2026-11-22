@@ -10,8 +10,8 @@
 
 namespace uml::camera {
 
-/* Diagnostic readings for a development run (the launcher and a runtime that
- * is not an App Store build print them); an App Store build uses none. */
+/* Diagnostic readings for a development run (the launcher and the runtime
+ * print them). */
 
 [[nodiscard]] constexpr const char* checkpointName(CameraCheckpoint where) noexcept
 {
@@ -40,8 +40,8 @@ namespace uml::camera {
 
 /* The hooks of a development run, printed to stderr: what ROTATE_AND_CROP
  * values reach the host, what the guest asks of a camera's torch and flash, and
- * the footprint at each checkpoint. A launcher or a runtime that is not an App
- * Store build assigns them to the device's options. */
+ * the footprint at each checkpoint. A launcher or a runtime assigns
+ * them to the device's options. */
 inline void printRotateAndCrop(std::uint32_t camera, std::uint32_t setting, std::uint32_t degrees) noexcept
 {
     std::fprintf(stderr, "Camera: camera %u: ROTATE_AND_CROP %u, picture turned %u degrees\n", camera, setting, degrees);

@@ -315,6 +315,71 @@ struct LifecycleTests {
         #expect(report.hasSuffix("Virtual machine ended: it was stopped from the boot screen after 3:17"))
     }
 
+    @Test func theFailureReportNamesTheMemoryTheDeviceWouldNotGive() {
+        let system = SystemInfo(
+            version: "17", release: "20261031-los24-r4",
+            kernel: "Linux 6.18.54", architecture: "arm64, 4 KiB pages", appVersion: "1.0 (1)"
+        )
+        let guest = Guest(cores: 2, memoryMiB: 2048, capacityGiB: 8)
+        let refused = RunEnd(result: -101, memoryRefusedMiB: 2048)
+        // The run never began, so it did not run for any time.
+        #expect(refused.report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: nil) == """
+            Andarium 1.0 (1) · 20261031-los24-r4
+            Linux 6.18.54 · 2 vCPUs · 2 GiB
+            Virtual machine ended: it could not start (this device could not give it 2 GiB of memory)
+            """)
+        // The report of the run as the application makes it measures the time
+        // from the call that began it, which the refusal ends within seconds:
+        // the line still says the run never ran for any time.
+        #expect(
+            refused.report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: 3)
+                == refused.report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: nil))
+        // It is a failure that leads to the failure screen, and a clean
+        // power-off with the same size in it is not one.
+        #expect(refused.phase == .failed)
+        #expect(!refused.poweredOff)
+        // The report of a launch's own start failure keeps its own words.
+        let launch = RunEnd(result: -1, startFailure: "2 GiB of memory is more than this device can give", memoryRefusedMiB: 2048)
+        #expect(
+            launch.report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: nil)
+                .hasSuffix("it could not start (2 GiB of memory is more than this device can give)"))
+        // Without the cause a result of -2, the library's own out-of-memory
+        // status, is only a runtime result: a failed allocation of its own
+        // returns it too.
+        #expect(
+            RunEnd(result: -2).report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: nil)
+                .hasSuffix("Virtual machine ended: runtime result -2"))
+    }
+
+    @Test func lowerMemoryIsAdvisedOnlyWhereASmallerSizeIsOffered() {
+        let refused = RunEnd(result: -101, memoryRefusedMiB: 2048)
+        #expect(refused.canLowerMemory(leastOfferedMiB: 1536))
+        // The size the ruler starts at cannot be lowered, and neither can one
+        // below it (a device whose ruler holds a single size).
+        #expect(!refused.canLowerMemory(leastOfferedMiB: 2048))
+        #expect(!refused.canLowerMemory(leastOfferedMiB: 2560))
+        // An end that names no refused memory has nothing to lower.
+        #expect(!RunEnd(result: -2).canLowerMemory(leastOfferedMiB: 1536))
+        #expect(!RunEnd(result: -5, stoppedByUser: true).canLowerMemory(leastOfferedMiB: 1536))
+    }
+
+    /// The start of a process with no room for any virtual machine ends before
+    /// the runtime with the loader's own reason, and no size is one to lower.
+    @Test func aProcessWithNoRoomEndsWithTheReasonAndNoAdviceToLowerTheMemory() {
+        let system = SystemInfo(
+            version: "17", release: "20261031-los24-r4",
+            kernel: "Linux 6.18.54", architecture: "arm64, 4 KiB pages", appVersion: "1.0 (1)"
+        )
+        let guest = Guest(cores: 2, memoryMiB: 0, capacityGiB: 8)
+        let end = RunEnd(
+            result: -1, startFailure: MemoryRefusal.reason(memoryMiB: 0, ceilingMiB: 0), memoryRefusedMiB: 0)
+        #expect(end.phase == .failed)
+        #expect(!end.canLowerMemory(leastOfferedMiB: 0))
+        #expect(
+            end.report(appVersion: "1.0 (1)", system: system, guest: guest, uptimeSeconds: nil)
+                .hasSuffix("Virtual machine ended: it could not start (this device has no room for the virtual machine\u{2019}s memory)"))
+    }
+
     @Test func cleanPowerOffAllowsAnotherStartAndFailureRequiresRelaunch() {
         var life = Lifecycle(guest: Guest.fresh(on: ipad))
         #expect(life.start(.normal, host: ipad) == .allowed(.normal))

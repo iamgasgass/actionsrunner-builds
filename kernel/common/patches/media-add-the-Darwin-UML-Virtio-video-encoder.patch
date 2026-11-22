@@ -2574,10 +2574,10 @@ index 0000000000000000000000000000000000000000..8541f0e35ca0d52f2f808a6a198ac45b
 +	return 0;
 +}
 diff --git a/drivers/media/virtio/virtio_video_helpers.c b/drivers/media/virtio/virtio_video_helpers.c
-index f27c516cf031dd09eccd685deb05827c748a2ab3..9baf5735cc4c00ca46cb40ef0925221449c5881c 100644
+index dbe51fc92b903a7db082c5789d1b6b39fee0b488..dad131930ced871a5b68f57cd3509c8a80de4231 100644
 --- a/drivers/media/virtio/virtio_video_helpers.c
 +++ b/drivers/media/virtio/virtio_video_helpers.c
-@@ -129,6 +129,18 @@ static struct virtio_video_convert_table format_table[] = {
+@@ -133,6 +133,18 @@ static struct virtio_video_convert_table format_table[] = {
  	{ VIRTIO_VIDEO_FORMAT_HEVC, V4L2_PIX_FMT_HEVC },
  	{ VIRTIO_VIDEO_FORMAT_VP8, V4L2_PIX_FMT_VP8 },
  	{ VIRTIO_VIDEO_FORMAT_VP9, V4L2_PIX_FMT_VP9 },
@@ -2596,7 +2596,7 @@ index f27c516cf031dd09eccd685deb05827c748a2ab3..9baf5735cc4c00ca46cb40ef09252214
  	{ 0 },
  };
  
-@@ -162,7 +174,8 @@ struct video_format *virtio_video_find_video_format(struct list_head *fmts_list,
+@@ -166,7 +178,8 @@ struct video_format *virtio_video_find_video_format(struct list_head *fmts_list,
  	struct video_format *fmt = NULL;
  
  	list_for_each_entry(fmt, fmts_list, formats_list_entry) {

@@ -43,7 +43,17 @@ Scenario kinds:
   prompt with its own line and xcodebuild exits with status 65 (`after` sets
   the delay, `signal` the kind of line: `timeout`, `authentication` or
   `authentication-localized`).
-- `exit`: xcodebuild exits at once with `status`, as with no device.
+- `exit`: xcodebuild exits at once with `status`, as with no device. With
+  `unreachable` set the device also stops answering (every `xcrun` call fails)
+  until the test says `FakeDevice.unreachable(False)`: a tunnel that dropped
+  before any runner came up.
+- `lost-during-start`: the runner comes up and the connection to the device is
+  lost (CoreDevice error 3), as in a start the device's tunnel drops under;
+  xcodebuild would start the runner again and end `lost_exit_after` seconds
+  later (6 by default), with status 65, unless the supervisor ended it first.
+  With `test` set the runner got as far as the test that serves (xcodebuild
+  says it started) before the loss; with `unreachable` set the device also
+  stops answering, as for `exit`.
 - `no-runner`: xcodebuild hangs and the runner never comes up.
 - `up-silent`: the runner comes up and neither serves nor says why.
 - `early-death`: the runner comes up and xcodebuild is killed (SIGKILL) 0.3 s
@@ -328,6 +338,8 @@ with open(os.path.join(root, "invocations.jsonl"), "a") as handle:
         "scenario": scenario, "child": child, "time": time.time()}) + "\n")
 kind = scenario["kind"]
 if kind == "exit":
+    if scenario.get("unreachable"):
+        open(os.path.join(root, "unreachable"), "w").close()
     say("xcodebuild: error: Unable to find a destination matching the provided destination specifier")
     sys.exit(scenario.get("status", 70))
 if kind == "no-runner":
@@ -335,6 +347,14 @@ if kind == "no-runner":
 runner_up()
 if kind == "up-silent":
     time.sleep(3600)
+if kind == "lost-during-start":
+    if scenario.get("test"):
+        say("Test Case '-[KernariumAutomation.AutomationHost testServe]' started.")
+    if scenario.get("unreachable"):
+        open(os.path.join(root, "unreachable"), "w").close()
+    connection_lost()
+    time.sleep(scenario.get("lost_exit_after", 6))
+    sys.exit(65)
 if kind == "early-death":
     time.sleep(scenario.get("after", 0.3))
     os.kill(os.getpid(), signal.SIGKILL)

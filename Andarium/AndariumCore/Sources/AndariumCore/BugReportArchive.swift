@@ -178,6 +178,13 @@ public enum BugReportArchive {
 public enum BugReportAttachments {
     public static let sessionRecord = "session.txt"
     public static let previousSessionRecord = "previous-session.txt"
+    /// The record of the last earlier run of this process, kept apart from
+    /// the previous process's (`RunRecord`).
+    public static let earlierRunRecord = "earlier-run.txt"
+    /// What the application chose for the start of each of the two sessions
+    /// (`StartRecord`), kept beside their records.
+    public static let startRecord = "start.txt"
+    public static let previousStartRecord = "previous-start.txt"
     public static let metricKitDirectory = "metrickit"
     public static let stallReport = "andarium/stalls.txt"
     public static let networkReport = "andarium/network.txt"
@@ -185,27 +192,55 @@ public enum BugReportAttachments {
     /// The most of one MetricKit report that is kept, copied or read.
     public static let maximumMetricKitBytes = 1 << 20
 
+    /// `includingEarlierRun` is the caller's word that `earlier-run.txt` is
+    /// this process's own: a launch drops or files an older process's
+    /// (`PreviousSession.settleEarlierRun`), and one it could not is not carried.
     public static func entries(
-        from diagnostics: URL, containers: [String], guest: [BugReportArchive.Entry] = []
+        from diagnostics: URL, containers: [String], guest: [BugReportArchive.Entry] = [],
+        includingEarlierRun: Bool = false
     ) -> [BugReportArchive.Entry] {
         var entries: [BugReportArchive.Entry] = []
         let files: [(String, String)] = [
             (previousSessionRecord, "andarium/session-previous.txt"),
+            (earlierRunRecord, "andarium/session-earlier-run.txt"),
             (sessionRecord, "andarium/session-current.txt"),
         ]
         var records: [SessionRecord?] = []
         for (file, name) in files {
+            // An earlier run that this process did not retire is an older process's.
+            if file == earlierRunRecord, !includingEarlierRun {
+                records.append(nil)
+                continue
+            }
             let (entry, record) = sessionEntry(diagnostics.appendingPathComponent(file), named: name, containers: containers)
             records.append(record)
             if let entry { entries.append(entry) }
         }
-        if let report = stalls(previous: records[0], current: records[1]) {
+        // The reports in words describe the previous process and the latest run
+        // of this one: the earlier run's record stands for it while the run
+        // that follows has written none.
+        let previous = records[0]
+        let latest = records[2] ?? records[1]
+        // The choices the application made for each start, next to the records
+        // they belong to. A choice whose start left no session record of its
+        // own (the application ended first, or the session's was not written)
+        // is copied under a name that says so, never as a session's.
+        for (file, name, session) in [
+            (previousStartRecord, "andarium/start-previous", previous),
+            (startRecord, "andarium/start-current", latest),
+        ] {
+            if let record = StartRecord.read(at: diagnostics.appendingPathComponent(file)) {
+                let matched = session.map(record.belongs(to:)) ?? false
+                entries.append(.init(name: name + (matched ? ".txt" : "-unmatched.txt"), data: Data(record.text.utf8)))
+            }
+        }
+        if let report = stalls(previous: previous, current: latest) {
             entries.append(.init(name: stallReport, data: Data(DiagnosticRedaction.redact(report, containers: containers).utf8)))
         }
-        if let report = network(previous: records[0], current: records[1]) {
+        if let report = network(previous: previous, current: latest) {
             entries.append(.init(name: networkReport, data: Data(DiagnosticRedaction.redact(report, containers: containers).utf8)))
         }
-        if let report = cameraStills(previous: records[0], current: records[1]) {
+        if let report = cameraStills(previous: previous, current: latest) {
             entries.append(.init(name: cameraReport, data: Data(DiagnosticRedaction.redact(report, containers: containers).utf8)))
         }
         entries.append(contentsOf: guest)
@@ -255,7 +290,7 @@ public enum BugReportAttachments {
             "sat in an uninterruptible wait in the system or in one host call (a device service's answer, a disk,",
             "guest RAM, or a call the runtime does not label) and ran under a fifth of the time meanwhile. The",
             "watch looks every 50 ms. Times are UTC.",
-            "andarium/session-previous.txt and andarium/session-current.txt hold the raw records.",
+            "andarium/session-previous.txt, andarium/session-earlier-run.txt and andarium/session-current.txt hold the raw records.",
         ]
         for (title, record) in [("The previous session", previous), ("The current session", current)] {
             lines.append("")
@@ -284,7 +319,7 @@ public enum BugReportAttachments {
             "answer (under way, given up by the guest, or pushed out of the table of waiting attempts). A refusal by",
             "the system and a path with no route are not told apart. DNS over TCP to the name server or the gateway",
             "is answered by the user network itself and is not counted as a connection.",
-            "andarium/session-previous.txt and andarium/session-current.txt hold the raw records.",
+            "andarium/session-previous.txt, andarium/session-earlier-run.txt and andarium/session-current.txt hold the raw records.",
         ]
         for (title, record) in [("The previous session", previous), ("The current session", current)] {
             lines.append("")
@@ -327,7 +362,7 @@ public enum BugReportAttachments {
             "Orientation compensation is the photo output turning its stills to an earlier model's sensor orientation. The system",
             "answers it only once the capture session's configuration is committed: an answer read before that is not final.",
             "Front devices: the front devices the platform listed, and how many of their formats it did not offer the guest.",
-            "andarium/session-previous.txt and andarium/session-current.txt hold the raw records.",
+            "andarium/session-previous.txt, andarium/session-earlier-run.txt and andarium/session-current.txt hold the raw records.",
         ]
         for (title, record) in [("The previous session", previous), ("The current session", current)] {
             lines.append("")
@@ -345,9 +380,11 @@ public enum BugReportAttachments {
     /// them is shared as Android made it.
     @discardableResult
     public static func attach(
-        to file: URL, from diagnostics: URL, containers: [String], guest: [BugReportArchive.Entry] = []
+        to file: URL, from diagnostics: URL, containers: [String], guest: [BugReportArchive.Entry] = [],
+        includingEarlierRun: Bool = false
     ) -> Bool {
-        let entries = entries(from: diagnostics, containers: containers, guest: guest)
+        let entries = entries(
+            from: diagnostics, containers: containers, guest: guest, includingEarlierRun: includingEarlierRun)
         do {
             try BugReportArchive.append(entries, to: file)
             return true

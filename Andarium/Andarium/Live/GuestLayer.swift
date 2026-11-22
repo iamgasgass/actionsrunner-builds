@@ -63,13 +63,11 @@ struct GuestLayer: View {
         ) { view, geometry in
             (model.driver as? LiveRuntime)?.viewDidLayout(view, geometry)
         }
-        #if !APP_STORE
         // A UI test's launch sees which touches reach the guest's
-        // touchscreen. An App Store build has no such seam.
+        // touchscreen.
         display.contactDidChange = { [model] slot, pressed in
             model.inputProbe?.record("touch \(slot) \(pressed ? "down" : "up")")
         }
-        #endif
         return display
     }
 
@@ -87,9 +85,10 @@ struct GuestLayer: View {
         let reader = model.session.reader
         return GuestDisplayAccessibility(
             label: ScreenReaderWords.displayLabel,
-            value: model.offersScreenReader ? ScreenReaderWords.displayValue(reader) : nil,
+            value: model.offersScreenReader && !reader.displayWaitsForRead ? ScreenReaderWords.displayValue(reader) : nil,
             hint: model.offersScreenReader ? ScreenReaderWords.displayHint(reader, edge: model.session.keysEdge) : nil,
-            directTouch: reader.isOn)
+            directTouch: reader.isOn,
+            takesFocus: reader.isOn && model.displayMayTakeFocus)
     }
 
     private var showsGuest: Bool { model.phase.showsGuestDisplay }

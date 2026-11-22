@@ -3,8 +3,7 @@
 import Foundation
 
 /// What a harness launch asks of Andarium, for automation. The application
-/// names each setting in the environment (`LaunchEnvironment.swift`, which an
-/// App Store build leaves out, so no such name is in it) and answers this
+/// names each setting in the environment (`LaunchEnvironment.swift`) and answers this
 /// type with the text it found. A value that is out of range, off its step or
 /// malformed is ignored, as it is in Kernarium.
 public struct LaunchOverrides: Equatable, Sendable {

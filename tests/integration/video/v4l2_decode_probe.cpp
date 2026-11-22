@@ -16,8 +16,9 @@
 //   HEVC B-pictures and a seek in both (over open-group streams for HEVC);
 // - the H.264 and HEVC profile and level menus: Constrained High beside High,
 //   levels from 1.0 up to 5.2 and from 1 up to 6.2, the current level the
-//   highest;
-// - flat portrait and square H.264 and HEVC pictures (2304 x 4096,
+//   highest; and the VP9 profile menu (Profile 0, and Profile 2 where the host
+//   decodes it, whose 10-bit pictures are captured as 10-bit, 8-bit or packed);
+// - flat portrait and square H.264, HEVC and VP9 pictures (2304 x 4096,
 //   4096 x 4096, 4320 x 8192), decoded to frames of their own size inside a
 //   frame range that is a rectangle;
 // - a stream that changes its picture size twice, decoded the way Android's
@@ -2012,6 +2013,10 @@ int main(int argc, char** argv)
             if (coded.pixelformat == V4L2_PIX_FMT_HEVC)
                 require(sizes.stepwise.max_width >= 8192 && sizes.stepwise.max_height >= 8192,
                         "the advertised HEVC range stops short of 8192 x 8192");
+            // Android's VP9 decoder states up to 4096 x 4096 on both axes whatever the driver says.
+            if (coded.pixelformat == V4L2_PIX_FMT_VP9)
+                require(sizes.stepwise.max_width >= 4096 && sizes.stepwise.max_height >= 4096,
+                        "the advertised VP9 range stops short of 4096 x 4096");
             /* A capture list in wire order names the planar format the device
              * actually decodes to; a reversed one names only the tail. */
             bool planar = false;
@@ -2076,9 +2081,12 @@ int main(int argc, char** argv)
                 decode(device, argv[1], "jpeg", fmt.pixelformat, V4L2_PIX_FMT_ABGR32, V4L2_MEMORY_DMABUF);
                 ++tested; continue;
             }
-            // VP9 states its profile in the stream itself, so the driver
-            // exposes no profile menu to walk: the advertised format is the
-            // whole capability.
+            /* The VP9 profile menu names the profiles the host decodes: Profile 0,
+             * and Profile 2 (10-bit) where the hardware decodes it. A 10-bit
+             * stream reaches an 8-bit capture format narrowed, as HEVC Main 10
+             * does. A kernel bundle that predates the menu leaves Android to
+             * state Profile 0 alone, so it is walked only where the driver has
+             * it. */
             if (fmt.pixelformat == V4L2_PIX_FMT_VP9) {
                 decode(device, argv[1], "vp9-profile0", fmt.pixelformat, V4L2_PIX_FMT_NV12M);
                 decode(device, argv[1], "vp9-profile0", fmt.pixelformat, V4L2_PIX_FMT_NV12M,
@@ -2086,6 +2094,33 @@ int main(int argc, char** argv)
                 decode(device, argv[1], "vp9-profile0", fmt.pixelformat, V4L2_PIX_FMT_ABGR32);
                 decode(device, argv[1], "vp9-profile0", fmt.pixelformat, V4L2_PIX_FMT_ABGR32,
                        V4L2_MEMORY_DMABUF);
+                decodeShape(device, argv[1], "vp9-uhd-3840x2160", fmt.pixelformat, 3840, 2160);
+                decodeShape(device, argv[1], "vp9-portrait-2304x4096", fmt.pixelformat, 2304, 4096);
+                decodeShape(device, argv[1], "vp9-square-4096x4096", fmt.pixelformat, 4096, 4096);
+                v4l2_queryctrl vp9Control {};
+                vp9Control.id = V4L2_CID_MPEG_VIDEO_VP9_PROFILE;
+                if (ioctl(capabilities.fd, VIDIOC_QUERYCTRL, &vp9Control) < 0) {
+                    require(errno == EINVAL, "QUERYCTRL VP9 profile failed");
+                    std::puts("VP9 profile menu: not published by this driver");
+                } else {
+                    const auto profiles = menuItems(capabilities.fd, V4L2_CID_MPEG_VIDEO_VP9_PROFILE);
+                    const auto listed = [&profiles](int value) {
+                        return std::find(profiles.begin(), profiles.end(), value) != profiles.end();
+                    };
+                    require(listed(V4L2_MPEG_VIDEO_VP9_PROFILE_0), "the VP9 profile menu lacks Profile 0");
+                    for (const auto value : profiles)
+                        require(value == V4L2_MPEG_VIDEO_VP9_PROFILE_0 || value == V4L2_MPEG_VIDEO_VP9_PROFILE_2,
+                                "the VP9 profile menu lists a profile the host does not decode");
+                    std::printf("VP9 profiles %zu\n", profiles.size());
+                    if (listed(V4L2_MPEG_VIDEO_VP9_PROFILE_2)) {
+                        decode(device, argv[1], "vp9-profile2", fmt.pixelformat, V4L2_PIX_FMT_P010);
+                        decode(device, argv[1], "vp9-profile2", fmt.pixelformat, V4L2_PIX_FMT_P010, V4L2_MEMORY_DMABUF);
+                        decode(device, argv[1], "vp9-profile2", fmt.pixelformat, V4L2_PIX_FMT_NV12M);
+                        decode(device, argv[1], "vp9-profile2", fmt.pixelformat, V4L2_PIX_FMT_NV12M, V4L2_MEMORY_DMABUF);
+                        decode(device, argv[1], "vp9-profile2", fmt.pixelformat, V4L2_PIX_FMT_ABGR32);
+                        decodeShape(device, argv[1], "vp9-profile2-square-4096x4096", fmt.pixelformat, 4096, 4096);
+                    }
+                }
                 ++tested; continue;
             }
             require(fmt.pixelformat == V4L2_PIX_FMT_H264 || fmt.pixelformat == V4L2_PIX_FMT_HEVC, "advertised codec lacks a fixture");

@@ -54,11 +54,18 @@ struct Capture final : std::enable_shared_from_this<Capture> {
      * would return the category to playback, which moves a Bluetooth headset
      * from the hands-free profile to A2DP and back, and every such switch is
      * a route change of its own. Taking it again is idempotent, and activates
-     * a session the system has deactivated meanwhile. */
-    void rebuild() noexcept
+     * a session the system has deactivated meanwhile.
+     *
+     * `from` is the generation of the engine whose observer called. The
+     * callback is entered before it takes the lock, so what it saw may be gone
+     * by then: an interruption began (the microphone must stay closed until
+     * its end), or another engine replaced the one it speaks for. Removing an
+     * observer does not cancel a callback already running, so both are
+     * judged here, under the lock. */
+    void rebuild(std::uint64_t from) noexcept
     {
         const std::lock_guard guard(lock);
-        if (!wanted)
+        if (!wanted || interrupted || from != generation)
             return;
         closeEngine();
         (void)open();
@@ -119,6 +126,9 @@ struct Capture final : std::enable_shared_from_this<Capture> {
     id __strong routeObserver {};
     bool sessionHeld {};
     bool interrupted {};
+    // Numbers the engines this microphone has built, so that a route change
+    // reported for one that has since gone is not taken for the current one's.
+    std::uint64_t generation {};
 
 private:
     [[nodiscard]] bool open() noexcept
@@ -126,6 +136,7 @@ private:
         if (engine != nil)
             return true;
         lastAttempt = std::chrono::steady_clock::now();
+        const std::uint64_t built = ++generation;
         @try {
             if (!session::acquire(session::Client::capture)) {
                 closeSession();
@@ -158,19 +169,34 @@ private:
             const std::weak_ptr<Capture> weak = weak_from_this();
             const auto tap = std::make_shared<MicrophoneTap>(converter, converted, *ring, channels,
                                                              protocol::sampleRate);
-            NSError* tapError = nil;
-            const BOOL tapped = [input
-                installTapOnBus:0
-                     bufferSize:static_cast<AVAudioFrameCount>(
-                                    inputFormat.sampleRate * tapSeconds)
-                         format:inputFormat
-                          error:&tapError
-                          block:^(AVAudioPCMBuffer* buffer, AVAudioTime* when) {
-                              tap->receive(buffer, when);
-                          }];
-            if (!tapped) {
-                closeSession();
-                return false;
+            const AVAudioFrameCount tapFrames = static_cast<AVAudioFrameCount>(
+                inputFormat.sampleRate * tapSeconds);
+            AVAudioNodeTapBlock tapBlock =
+                ^(AVAudioPCMBuffer* buffer, AVAudioTime* when) {
+                    tap->receive(buffer, when);
+                };
+            if (@available(iOS 27.0, *)) {
+                NSError* tapError = nil;
+                if (![input installTapOnBus:0
+                                 bufferSize:tapFrames
+                                     format:inputFormat
+                                      error:&tapError
+                                      block:tapBlock]) {
+                    closeSession();
+                    return false;
+                }
+            } else {
+                // Before iOS 27 a tap that cannot be installed raises an
+                // exception, which the catch below turns into the same
+                // refusal. iOS 27 deprecates this call, which a host from iOS
+                // 27 on (macOS included) never reaches.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                [input installTapOnBus:0
+                            bufferSize:tapFrames
+                                format:inputFormat
+                                 block:tapBlock];
+#pragma clang diagnostic pop
             }
             [created prepare];
             NSError* startError = nil;
@@ -187,7 +213,7 @@ private:
                              queue:nil
                         usingBlock:^(NSNotification*) {
                           if (const auto capture = weak.lock())
-                              capture->rebuild();
+                              capture->rebuild(built);
                         }];
             return true;
         } @catch (NSException*) {
@@ -237,48 +263,83 @@ public:
     {
 #if TARGET_OS_IPHONE
         const std::weak_ptr<Capture> weak = capture_;
-        /* iOS 27 replaces the interruption notification with two, which the
-         * playback sink observes too: the session becoming inactive, which
-         * also reports the app's own deactivations (its release of the
-         * session when the microphone stops), and the system's resumption
-         * recommendation. An interruption is a deactivation that carries an
-         * interruption context. */
-        deactivationObserver_ = [NSNotificationCenter.defaultCenter
-            addObserverForName:AVAudioSessionDidBecomeInactiveNotification
-                        object:[AVAudioSession sharedInstance]
-                         queue:nil
-                    usingBlock:^(NSNotification* notification) {
-                      const auto capture = weak.lock();
-                      if (!capture)
-                          return;
-                      const AVAudioSessionDeactivationContext* context =
-                          notification.userInfo
-                              [AVAudioSessionDeactivationContextKey];
-                      if (context.interruptionContext != nil)
-                          capture->interrupt();
-                    }];
-        resumptionObserver_ = [NSNotificationCenter.defaultCenter
-            addObserverForName:AVAudioSessionResumptionRecommendationNotification
-                        object:[AVAudioSession sharedInstance]
-                         queue:nil
-                    usingBlock:^(NSNotification* notification) {
-                      const auto capture = weak.lock();
-                      if (!capture)
-                          return;
-                      const AVAudioSessionResumptionContext* context =
-                          notification.userInfo
-                              [AVAudioSessionResumptionContextKey];
-                      capture->resume(context.recommendation ==
-                          AVAudioSessionResumptionRecommendationShouldResume);
-                    }];
+        if (@available(iOS 27.0, *)) {
+            /* iOS 27 replaces the interruption notification with two, which
+             * the playback sink observes too: the session becoming inactive,
+             * which also reports the app's own deactivations (its release of
+             * the session when the microphone stops), and the system's
+             * resumption recommendation. An interruption is a deactivation
+             * that carries an interruption context. */
+            deactivationObserver_ = [NSNotificationCenter.defaultCenter
+                addObserverForName:AVAudioSessionDidBecomeInactiveNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto capture = weak.lock();
+                          if (!capture)
+                              return;
+                          const AVAudioSessionDeactivationContext* context =
+                              notification.userInfo
+                                  [AVAudioSessionDeactivationContextKey];
+                          if (context.interruptionContext != nil)
+                              capture->interrupt();
+                        }];
+            resumptionObserver_ = [NSNotificationCenter.defaultCenter
+                addObserverForName:
+                    AVAudioSessionResumptionRecommendationNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto capture = weak.lock();
+                          if (!capture)
+                              return;
+                          const AVAudioSessionResumptionContext* context =
+                              notification.userInfo
+                                  [AVAudioSessionResumptionContextKey];
+                          capture->resume(context.recommendation ==
+                              AVAudioSessionResumptionRecommendationShouldResume);
+                        }];
+        } else {
+            /* Before iOS 27 one notification reports an interruption's
+             * beginning and its end, and the end carries the system's advice
+             * in its options. iOS 27 deprecates it, which a system from iOS 27
+             * on never reaches here. */
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            interruptionObserver_ = [NSNotificationCenter.defaultCenter
+                addObserverForName:AVAudioSessionInterruptionNotification
+                            object:[AVAudioSession sharedInstance]
+                             queue:nil
+                        usingBlock:^(NSNotification* notification) {
+                          const auto capture = weak.lock();
+                          if (!capture)
+                              return;
+                          const NSNumber* type = notification.userInfo
+                              [AVAudioSessionInterruptionTypeKey];
+                          if (type.unsignedIntegerValue ==
+                              AVAudioSessionInterruptionTypeBegan) {
+                              capture->interrupt();
+                              return;
+                          }
+                          const NSNumber* options = notification.userInfo
+                              [AVAudioSessionInterruptionOptionKey];
+                          capture->resume(
+                              (options.unsignedIntegerValue &
+                                  AVAudioSessionInterruptionOptionShouldResume) != 0);
+                        }];
+#pragma clang diagnostic pop
+        }
 #endif
     }
 
     ~AppleMicrophoneInput() override
     {
 #if TARGET_OS_IPHONE
-        [NSNotificationCenter.defaultCenter removeObserver:deactivationObserver_];
-        [NSNotificationCenter.defaultCenter removeObserver:resumptionObserver_];
+        for (id observer : {deactivationObserver_, resumptionObserver_,
+                                interruptionObserver_}) {
+            if (observer != nil)
+                [NSNotificationCenter.defaultCenter removeObserver:observer];
+        }
 #endif
         capture_->stop();
     }
@@ -297,8 +358,11 @@ public:
 private:
     std::shared_ptr<Capture> capture_;
 #if TARGET_OS_IPHONE
+    // iOS 27 posts two notifications for an interruption (the first two
+    // observers) and earlier systems one (the third).
     id __strong deactivationObserver_;
     id __strong resumptionObserver_;
+    id __strong interruptionObserver_;
 #endif
 };
 

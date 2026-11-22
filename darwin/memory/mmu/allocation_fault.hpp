@@ -8,6 +8,20 @@
 #ifndef UML_MEMORY_ALLOCATION_TESTING
 #define UML_MEMORY_ALLOCATION_TESTING 0
 #endif
+#include "../count_audit.hpp"
+
+namespace uml::memory {
+
+/* The executable-mapping accounting found a bug: a departure with nothing to
+ * count out, or a count that names no record. Counts are not exact any more,
+ * and a verdict kept on their strength may be wrong, so from then on the
+ * process shares none: every stamp the memory layer reports says
+ * never-share. The latch is one relaxed flag, set in every build and never
+ * cleared (but by a test). */
+void latch_sharing_off() noexcept;
+[[nodiscard]] bool sharing_latched_off() noexcept;
+
+} // namespace uml::memory
 
 #if UML_MEMORY_ALLOCATION_TESTING
 namespace uml::memory::testing {
@@ -18,8 +32,11 @@ enum class AllocationSite : std::uint8_t {
 	batch,
 	batch_commit,
 	batch_index,
+	code_record,
+	destroy_cleared,
 	generation,
 	history,
+	immediate_change,
 	holder_leaf,
 	holder_publication,
 	reserve,
@@ -54,6 +71,21 @@ void reset_allocation_attempt_counts() noexcept;
 using AllocationObserver = void (*)(AllocationSite site) noexcept;
 void set_allocation_observer(AllocationObserver observer) noexcept;
 
+/* The executable-mapping counts of the physical-page records are exact by
+ * construction. A departure with nothing to count out, or a count that names
+ * no record, is a bug in the accounting; the production code survives it (the
+ * count clamps at zero and the epoch moves) and a test must see it. */
+void count_anomaly() noexcept;
+[[nodiscard]] std::size_t count_anomalies() noexcept;
+/* Lets a test that provoked an anomaly on purpose share again. */
+void clear_sharing_latch() noexcept;
+/* The process-wide count of publications that name no frame
+ * (MappedBacking::note_unnamed_publication), which a test sets near its limit
+ * and reads back. The limit is the count at which the stamp reports
+ * never-share and the count stops. */
+void set_unnamed_publication_count(std::uint64_t count) noexcept;
+[[nodiscard]] std::uint64_t unnamed_publication_count() noexcept;
+[[nodiscard]] std::uint64_t unnamed_publication_limit() noexcept;
 /* The frame accounting holds a frame's stripe lock between these two calls on
  * the thread that holds it; a checkpoint reached in between is an allocation
  * under a stripe lock, which is counted. */
@@ -87,6 +119,11 @@ void backing_mapping_destroyed() noexcept;
 
 #define UML_MEMORY_ALLOCATION_CHECKPOINT(site) \
 	::uml::memory::testing::allocation_checkpoint(site)
+#define UML_MEMORY_COUNT_ANOMALY() \
+	do { \
+		::uml::memory::testing::count_anomaly(); \
+		::uml::memory::latch_sharing_off(); \
+	} while (0)
 #define UML_MEMORY_ALLOCATOR_PROBE() \
 	do { \
 		if (::uml::memory::testing::allocator_probe()) \
@@ -112,8 +149,20 @@ void backing_mapping_destroyed() noexcept;
 #else
 /* Production expands these probes away before semantic analysis. The
  * allocation-site enum and test functions therefore create no ordinary
- * product symbol, load, branch, or call even in an unoptimized build. */
+ * product symbol, load, branch, or call even in an unoptimized build. The
+ * one that sees an accounting bug latches sharing off in every build, and the
+ * diagnostics build of a guest run counts it as well (count_audit.hpp reports
+ * it). */
 #define UML_MEMORY_ALLOCATION_CHECKPOINT(...) ((void)0)
+#if UML_MEMORY_COUNT_AUDIT
+#define UML_MEMORY_COUNT_ANOMALY() \
+	do { \
+		::uml::memory::note_count_anomaly(); \
+		::uml::memory::latch_sharing_off(); \
+	} while (0)
+#else
+#define UML_MEMORY_COUNT_ANOMALY() ::uml::memory::latch_sharing_off()
+#endif
 #define UML_MEMORY_ALLOCATOR_PROBE() ((void)0)
 #define UML_MEMORY_FRAME_BYTES(...) ((void)0)
 #define UML_MEMORY_RETIRE_WALK_UNLOCKED(mutex) ((void)0)

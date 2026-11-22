@@ -30,7 +30,12 @@ Core/                                  GuestHostCore, a Swift package both
                                        (RunStop: kept until the run ends;
                                        StopSettle: the guest's write-back before
                                        it, bounded), and a monotonic clock that is
-                                       not a required-reason API (MonotonicClock)
+                                       not a required-reason API (MonotonicClock), and
+                                       the update notice of a sideloaded application
+                                       (Update/: the version file's reading and rules,
+                                       the daily read, the record and its model, the
+                                       words, and a String Catalog for them: see
+                                       Update notice below)
 Sources/KernariumRuntimeLoader.h/.mm   loads the embedded runtime framework and
                                        wraps its C API (Runtime/KernariumRuntime.h)
 Sources/GuestDisplay.swift             the Metal view that shows the guest's display,
@@ -61,7 +66,56 @@ Sources/GuestProcessorLimit.swift      the vCPU count the applications default t
 Config/Signing.xcconfig                the signing settings Kernarium's Xcode project
                                        uses as its base configuration and Andarium's
                                        `Config/Andarium.xcconfig` includes
+Config/Update.xcconfig                 where a sideloaded application looks for its
+                                       updates (the ignored `Update.local.xcconfig`,
+                                       from its `.example`), which the same
+                                       `Config/Andarium.xcconfig` includes
 ```
+
+## Update notice
+
+A sideloaded application learns of a newer version from one version file its
+maker hosts: an AltStore-format source (what AltStore and SideStore read) with
+one block of our own, `kernariumUpdates`, that adds a format number and a
+release page per build. `Core/Sources/GuestHostCore/Update/` holds what both
+applications decide the same way: the file's reading (`UpdateFile`), the link
+rules (`UpdateLinkPolicy`), the one request (`UpdateReader`), the record and the
+daily schedule (`UpdateStore`), the build's configuration
+(`UpdateConfiguration`), the words (`UpdateWords`, in the package's own catalog)
+and the model the screens read (`UpdateNotice`). An application supplies its
+original bundle identifier (the `UpdateAppIdentifier` key of its `Info.plist`,
+copied from `PRODUCT_BUNDLE_IDENTIFIER`: a sideloading tool re-signs the
+installed application under another one), its name, the moment it reads and
+the views; a build with no address has no configuration and no notice.
+
+- The file is untrusted. Only a version, a build, a day, a size and links that
+  pass the rules are shown or opened; every sentence is the application's own.
+  A file that is not plain JSON in UTF-8 (the owner publishes plain JSON: no
+  comments, no JSON5), over 1 MiB, or of another `format` is no answer; an
+  entry that breaks a rule skips only itself; unknown fields and other
+  applications' entries are ignored. The offer is the highest build above
+  the installed one whose iOS range fits the device, never a lower build.
+- A link is `https` on the file's own host or a host the build names
+  (`UpdateLinkHosts`: exact names and `*.` patterns), with no user name, no port
+  but the default and at most 2 KiB. A sideloading app's link is built from a
+  fixed template, never taken from the file.
+- The read is one GET, at most once in 24 hours, a few seconds after Home shows
+  and only at the application's moment; it uses an ephemeral session with no
+  cookies, cache or conditional header, a fixed `User-Agent` and
+  `Accept-Language`, `https` only (redirects included), a 1 MiB and 15 s limit,
+  and never runs under Low Data Mode or after a cancelled task. Any answer,
+  a refused login included, uses up the day, and it does so before the body is
+  decoded, off the main actor. A kept record is held to the rules again when
+  it is loaded.
+- The address is the maker's, in the ignored `Config/Update.local.xcconfig`
+  (from `Update.local.xcconfig.example`: a host and a path, never a whole
+  address, and the hosts the file's links may name besides its own). Only a
+  Release build carries it; any other build, a fork's included, has no address,
+  no read and no notice. `Config/Update.xcconfig` is the shared mapping an
+  application's own xcconfig includes.
+- `Sources/UpdateNoticeViews.swift` is the detail and Info's Updates section,
+  drawn with a mark and the accent the application supplies. The application
+  adds the card, which sits among its own notices.
 
 ## Signing
 
@@ -99,9 +153,14 @@ application that draws controls over the display passes `touchDidBegin`, which
 the display calls after it has sent the contacts of each touch that begins on
 it; Kernarium passes none. An application that passes `accessibility`
 (`GuestDisplayAccessibility`, in its own words) makes the display one VoiceOver
-element with the application's `value`, and with `directTouch` a direct-touch
-area whose touches reach the guest as they do with VoiceOver off; activating the
-element sends the guest no touch. Without `accessibility` the display is no
+element with the application's `value`; activating it sends the guest no touch.
+With `directTouch` the display is instead a container of one child element that
+covers it and carries the words, the trait `allowsDirectInteraction` and
+`silentOnTouch`, so touches reach the guest as they do with VoiceOver off and
+VoiceOver says nothing of them; `takesFocus` moves VoiceOver's focus onto that
+child each time it turns true (as the child appears, and when nothing covers
+the display any more), and only the child does it (the trait and option on the
+view itself do not pass touches). Without `accessibility` the display is no
 element.
 Kernarium passes none.
 
@@ -125,9 +184,4 @@ Kernarium passes none.
   sources rely on them.
 - Background running, picture in picture and the console are Kernarium's, and
   stay in `Kernarium/Kernarium/`.
-- An application that defines `UML_APP_STORE_APPLICATION` (Andarium's AppStore
-  and TestFlight configurations) gets a loader without `set_frame_sink`,
-  `send_console_input`, `prepare_jit`, `debugger_attached` and the two
-  `automation_*` entries and their lookups; the other entries and the runtime
-  API's validation are the same.
 - A change here is a change to both applications: build and test both.

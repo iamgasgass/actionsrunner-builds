@@ -88,6 +88,49 @@ struct SessionRecordTests {
         #expect(!unseen.summary.contains("finished booting"))
     }
 
+    @Test func readsWhichRamdiskTheBootUsedAndHowFarItGot() throws {
+        for (word, expected) in [
+            ("stock", SessionRecord.BootRamdisk.stock), ("root", .root), ("recovery", .recovery),
+        ] {
+            let read = try #require(SessionRecord(text: record(
+                "state ended\nend guest-panic\nstatus 0\npid 7\nstarted 1\nended 2\nboot unobserved\nrestarts 0\nramdisk \(word)\n")))
+            #expect(read.ramdisk == expected && read.bootProgress == .unobserved, "\(word)")
+        }
+        let progress = try #require(SessionRecord(text: record(
+            "state ended\nend stopped\nstatus 0\npid 7\nstarted 1\nended 2\nboot unfinished\nrestarts 0\n")))
+        #expect(progress.bootProgress == .unfinished && progress.ramdisk == nil)
+        let done = try #require(SessionRecord(text: record(
+            "state ended\nend powered-off\nstatus 0\npid 7\nstarted 1\nended 2\nboot completed\nrestarts 0\nramdisk root\n")))
+        #expect(done.bootProgress == .completed && done.ramdisk == .root)
+        // A word this reader does not know, or no word, names no ramdisk.
+        let odd = try #require(SessionRecord(text: record(
+            "state ended\nend powered-off\nstatus 0\npid 7\nboot sideways\nramdisk floppy\n")))
+        #expect(odd.bootProgress == nil && odd.ramdisk == nil)
+    }
+
+    @Test func theRecordStaysWhereItWasWrittenUntilTheLaunchKeepsIt() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("previous-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let current = directory.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let kept = directory.appendingPathComponent(BugReportAttachments.previousSessionRecord)
+        try Data(record("state ended\nend guest-panic\nstatus 0\npid 7\nstarted 1\nended 2\nboot unobserved\nrestarts 0\nramdisk root\n").utf8)
+            .write(to: current)
+        // Reading it again and again, as a launch that ends in between does, finds it.
+        for _ in 0..<2 {
+            let read = try #require(PreviousSession.read(in: directory, endedOutOfForeground: false))
+            #expect(read.record.ramdisk == .root && read.record.end == "guest-panic")
+            #expect(FileManager.default.fileExists(atPath: current.path) && !FileManager.default.fileExists(atPath: kept.path))
+        }
+        // Once what was decided from it is saved, it is kept for the bug report and a second launch finds none.
+        PreviousSession.keep(in: directory)
+        #expect(!FileManager.default.fileExists(atPath: current.path) && FileManager.default.fileExists(atPath: kept.path))
+        #expect(PreviousSession.read(in: directory, endedOutOfForeground: false) == nil)
+        // A launch with no current record leaves the kept one alone.
+        PreviousSession.keep(in: directory)
+        #expect(FileManager.default.fileExists(atPath: kept.path))
+    }
+
     @Test func aRecordThatSaysNothingOfTheBootLeavesItUnknown() throws {
         let plain = try #require(SessionRecord(text: record(
             "state ended\nend powered-off\nstatus 0\npid 7\nstarted 1\nended 2\n")))
@@ -581,5 +624,220 @@ struct SessionRecordTests {
         #expect(redacted.contains("opened <container>/tmp/x"))
         #expect(redacted.contains("bundle <container>/Andarium.app"))
         #expect(redacted.contains("mac /Users/<user>/Library/Containers/app/Data/x"))
+    }
+}
+
+struct RunRecordTests {
+    private func directory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("run-record-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func state(_ ramdisk: String, ended: Bool, started: Int) -> Data {
+        var slot = "uml-session 8\nmemory at 1794114290 footprint 2147483648 peak 2415919104\n"
+        slot += String(repeating: " ", count: 255 - slot.utf8.count) + "\n"
+        let text = ended
+            ? "state ended\nend guest-panic\nstatus 0\npid 7\nstarted \(started)\nended \(started + 3)\nboot unobserved\nrestarts 0\nramdisk \(ramdisk)\n"
+            : "state running\nend running\nstatus 0\npid 7\nstarted \(started)\nboot unobserved\nrestarts 0\nramdisk \(ramdisk)\n"
+        return Data((slot + text).utf8)
+    }
+
+    @Test func aNewRunsRecordIsTheOneAtItsPlaceWhateverTheClockSaysOfTheOneBefore() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        let file = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let kept = diagnostics.appendingPathComponent(BugReportAttachments.earlierRunRecord)
+        let run = RunRecord(in: diagnostics)
+        // None yet.
+        #expect(run.read() == nil && !run.retiredAnEarlierRun)
+        // A run of this process ended a moment ago: its record says it was the Magisk ramdisk's, and it
+        // began in the same whole second as the next run's begin, or after the clock stepped back.
+        let second = Int(Date().timeIntervalSince1970)
+        try state("root", ended: true, started: second + 5).write(to: file)
+        #expect(run.read()?.ramdisk == .root)
+        // The next run is asked for: nothing of the earlier one stays at the place.
+        run.retire()
+        #expect(run.retiredAnEarlierRun, "a record this process moved aside is its own")
+        #expect(run.read() == nil, "the record of the run before was taken for the next run's")
+        #expect(SessionRecord.read(at: kept)?.ramdisk == .root)
+        // The runtime begins its record; that one is the run's.
+        try state("stock", ended: false, started: second).write(to: file)
+        let current = try #require(run.read())
+        #expect(current.running && current.ramdisk == .stock)
+        // And at the next run it goes the same way.
+        run.retire()
+        #expect(run.read() == nil)
+        #expect(SessionRecord.read(at: kept)?.ramdisk == .stock)
+    }
+
+    @Test func thePreviousProcessesRecordIsNotTouchedByAnyRetirement() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        let file = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let previous = diagnostics.appendingPathComponent(BugReportAttachments.previousSessionRecord)
+        let earlier = diagnostics.appendingPathComponent(BugReportAttachments.earlierRunRecord)
+        let run = RunRecord(in: diagnostics)
+        // The launch kept the record of the process that ended badly.
+        let ended = state("recovery", ended: true, started: 50)
+        try ended.write(to: previous)
+        // Three runs of this process, each asked for after the one before ended.
+        for (ramdisk, started) in [("stock", 100), ("root", 200)] {
+            try state(ramdisk, ended: true, started: started).write(to: file)
+            #expect(run.retire() == .moved)
+            #expect(try Data(contentsOf: previous) == ended, "the previous process's record was replaced by a run's")
+        }
+        // The last earlier run is the one kept beside it.
+        #expect(SessionRecord.read(at: earlier)?.ramdisk == .root)
+        #expect(run.retire() == .nothing)
+        #expect(try Data(contentsOf: previous) == ended)
+    }
+
+    /// Takes the write access to what is in `directory` away, as a file that
+    /// cannot be replaced does: `body` runs with the directory unwritable
+    /// (nothing in it can be moved or removed) and, when `file` is given,
+    /// that file unwritable too.
+    private func withoutWriteAccess(to directory: URL, file: URL? = nil, _ body: () throws -> Void) throws {
+        let manager = FileManager.default
+        if let file { try manager.setAttributes([.posixPermissions: 0o400], ofItemAtPath: file.path) }
+        try manager.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        defer {
+            try? manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            if let file { try? manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path) }
+        }
+        try body()
+    }
+
+    @Test(.enabled(if: geteuid() != 0))
+    func aRecordThatCannotBeMovedAsideIsEmptiedAndNeverTakenForTheNextRuns() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        let file = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let run = RunRecord(in: diagnostics)
+        try state("root", ended: true, started: 100).write(to: file)
+        try withoutWriteAccess(to: diagnostics) {
+            // Nothing in the directory can be moved: the record can only be emptied where it is.
+            #expect(run.retire() == .emptied)
+        }
+        #expect(!run.retiredAnEarlierRun)
+        #expect(run.read() == nil, "the record of the run before was taken for the next run's")
+        // The runtime opens the same file and writes the run's own.
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.write(contentsOf: state("stock", ended: false, started: 200))
+        try handle.close()
+        let current = try #require(run.read())
+        #expect(current.running && current.ramdisk == .stock)
+    }
+
+    @Test(.enabled(if: geteuid() != 0))
+    func aRecordThatCanBeNeitherMovedNorEmptiedIsNotReadUntilItIsGotOutOfTheWay() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        let file = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let kept = diagnostics.appendingPathComponent(BugReportAttachments.earlierRunRecord)
+        let run = RunRecord(in: diagnostics)
+        try state("root", ended: true, started: 100).write(to: file)
+        try withoutWriteAccess(to: diagnostics, file: file) {
+            #expect(run.retire() == .stays)
+            #expect(!run.retiredAnEarlierRun)
+            // The file is still a record, and it is not the run's.
+            #expect(SessionRecord.read(at: file)?.ramdisk == .root)
+            #expect(run.read() == nil, "a record that stays in place was taken for the next run's")
+            // And it stays unread at every look, whatever else changes.
+            #expect(run.read() == nil)
+        }
+        // Once it can be moved, the next run is asked for and its record is its own.
+        #expect(run.retire() == .moved)
+        #expect(run.retiredAnEarlierRun)
+        #expect(run.read() == nil)
+        #expect(SessionRecord.read(at: kept)?.ramdisk == .root)
+        try state("stock", ended: false, started: 200).write(to: file)
+        #expect(run.read()?.ramdisk == .stock)
+    }
+}
+
+/// An `earlier-run.txt` is a process's own: a launch files or drops the one
+/// the process before left (`PreviousSession.settleEarlierRun`).
+struct EarlierRunAtLaunchTests {
+    private func directory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("earlier-run-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func text(pid: Int, end: String, ramdisk: String = "stock") -> Data {
+        var slot = "uml-session 8\nmemory at 1794114290 footprint 2147483648 peak 2415919104\n"
+        slot += String(repeating: " ", count: 255 - slot.utf8.count) + "\n"
+        let state = "state ended\nend \(end)\nstatus 0\npid \(pid)\nstarted 1000\nended 1003\n"
+            + "boot unobserved\nrestarts 0\nramdisk \(ramdisk)\n"
+        return Data((slot + state).utf8)
+    }
+
+    private func url(_ name: String, in directory: URL) -> URL { directory.appendingPathComponent(name) }
+
+    private func exists(_ name: String, in directory: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url(name, in: directory).path)
+    }
+
+    private func pid(of name: String, in directory: URL) -> Int? {
+        SessionRecord.read(at: url(name, in: directory))?.processID
+    }
+
+    @Test func aProcessThatRanTwiceLeavesItsLastRunAsThePreviousSessionAndNoEarlierRun() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        // The process before that ended in a crash, kept at the launch of this one (pid 50).
+        try text(pid: 40, end: "guest-panic").write(to: url(BugReportAttachments.previousSessionRecord, in: diagnostics))
+        // Two runs; the second ends in a panic.
+        let run = RunRecord(in: diagnostics)
+        try text(pid: 50, end: "powered-off").write(to: url(BugReportAttachments.sessionRecord, in: diagnostics))
+        #expect(run.retire() == .moved)
+        try text(pid: 50, end: "guest-panic").write(to: url(BugReportAttachments.sessionRecord, in: diagnostics))
+        #expect(pid(of: BugReportAttachments.earlierRunRecord, in: diagnostics) == 50)
+        // The next launch.
+        PreviousSession.settleEarlierRun(in: diagnostics)
+        let previous = try #require(PreviousSession.consume(in: diagnostics, endedOutOfForeground: false))
+        #expect(previous.record.end == "guest-panic" && previous.record.processID == 50)
+        #expect(pid(of: BugReportAttachments.previousSessionRecord, in: diagnostics) == 50)
+        #expect(!exists(BugReportAttachments.earlierRunRecord, in: diagnostics), "the first run outlived its process")
+        // Whatever a caller says, no run of this process is reported before it has one.
+        let entries = BugReportAttachments.entries(from: diagnostics, containers: [], includingEarlierRun: true)
+        #expect(entries.map(\.name) == ["andarium/session-previous.txt"])
+    }
+
+    @Test func aPausedFailedStartThatWasLeftIsThePreviousSessionAtTheNextLaunchAndDecidesNothing() throws {
+        let diagnostics = try directory()
+        defer { try? FileManager.default.removeItem(at: diagnostics) }
+        try text(pid: 40, end: "guest-panic").write(to: url(BugReportAttachments.previousSessionRecord, in: diagnostics))
+        // The failed start's pause was saved and its record moved aside; the person left.
+        let run = RunRecord(in: diagnostics)
+        try text(pid: 50, end: "guest-panic", ramdisk: "root").write(
+            to: url(BugReportAttachments.sessionRecord, in: diagnostics))
+        run.retire()
+        PreviousSession.settleEarlierRun(in: diagnostics)
+        #expect(pid(of: BugReportAttachments.previousSessionRecord, in: diagnostics) == 50)
+        #expect(!exists(BugReportAttachments.earlierRunRecord, in: diagnostics))
+        // Nothing is at the place the launch decides from, so its pause is not decided again.
+        #expect(PreviousSession.read(in: diagnostics, endedOutOfForeground: false) == nil)
+        let entries = BugReportAttachments.entries(from: diagnostics, containers: [], includingEarlierRun: true)
+        #expect(entries.map(\.name) == ["andarium/session-previous.txt"])
+    }
+
+    @Test(.enabled(if: geteuid() != 0))
+    func anEarlierRunThatCannotBeFiledOrDroppedIsNotReportedAsThisProcesss() throws {
+        let diagnostics = try directory()
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: diagnostics.path)
+            try? FileManager.default.removeItem(at: diagnostics)
+        }
+        try text(pid: 50, end: "powered-off").write(to: url(BugReportAttachments.earlierRunRecord, in: diagnostics))
+        try text(pid: 51, end: "guest-panic").write(to: url(BugReportAttachments.sessionRecord, in: diagnostics))
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: diagnostics.path)
+        PreviousSession.settleEarlierRun(in: diagnostics)
+        // It stays; this process retired nothing, so it is not carried.
+        #expect(exists(BugReportAttachments.earlierRunRecord, in: diagnostics))
+        #expect(!RunRecord(in: diagnostics).retiredAnEarlierRun)
+        #expect(BugReportAttachments.entries(from: diagnostics, containers: []).map(\.name)
+            == ["andarium/session-current.txt"])
     }
 }

@@ -1030,10 +1030,232 @@ void everyOfferedSizeIsOneTheRunAdmits()
 							budget::launch_memory_set, ceiling),
 						ceiling));
 					require(budget::guest_memory_admitted(
-						budget::default_guest_memory_mib(limit, vcpus),
+						budget::default_guest_memory_mib(limit, vcpus,
+							budget::launch_memory_set, ceiling),
 						ceiling));
 				}
 			}
+		}
+}
+
+
+/* The native kernel window of a guest is its RAM, an allowance of the same
+ * size held between 1 and 4 GiB and the 1 GiB aperture with the stub pages:
+ * the arithmetic the budget keeps for the address space, which the layout's own
+ * derivation is held to in emulator_options_tests. */
+void theNativeWindowIsTheRamItsAllowanceAndTheFixedSpan()
+{
+	constexpr std::uint64_t gib = 1024 * mib;
+	constexpr std::uint64_t kib = 1024;
+	static_assert(budget::native_window_fixed_bytes == gib + 44 * kib);
+	static_assert(budget::native_window_bytes(0) == 0);
+	static_assert(budget::native_window_bytes(512 * mib) ==
+		512 * mib + gib + gib + 44 * kib,
+		"a small guest keeps the 1 GiB allowance");
+	static_assert(budget::native_window_bytes(1536 * mib) ==
+		4 * gib + 44 * kib, "the allowance tracks the RAM");
+	static_assert(budget::native_window_bytes(2048 * mib) ==
+		5 * gib + 44 * kib);
+	static_assert(budget::native_window_bytes(4096 * mib) ==
+		9 * gib + 44 * kib, "the allowance stops at 4 GiB");
+	static_assert(budget::native_window_bytes(8192 * mib) ==
+		13 * gib + 44 * kib);
+	static_assert(budget::native_window_bytes(1) ==
+		gib + 4 * kib + gib + 44 * kib,
+		"the RAM is rounded up to the guest page");
+	std::uint64_t previous = 0;
+	for (std::uint64_t size = 512; size <= 16384; size += 64) {
+		const auto window = budget::native_window_bytes(size * mib);
+		require(window > previous, "a larger guest has a larger window");
+		previous = window;
+	}
+	/* The largest guest an iOS device admits fills the signed 14 GiB envelope
+	 * to within one step. */
+	const auto largest = budget::native_window_bytes(
+		std::uint64_t{budget::device_window_guest_memory_maximum_mib} * mib);
+	require(largest <= 14 * gib && largest + 64 * mib > 14 * gib,
+		"the device bound is the envelope's fill");
+}
+
+/* The most RAM a run of address space holds a window of, with the reserve left
+ * over: the iPad mini 6 gives a process signed without Extended Virtual
+ * Addressing a run of 6 GiB above its guard region. */
+void theAddressSpaceBoundsTheRamByTheWindowItNeeds()
+{
+	constexpr std::uint64_t gib = 1024 * mib;
+	static_assert(budget::address_space_reserve_bytes == 1024 * mib + 64 * mib,
+		"the heap region's 1 GiB and a margin");
+	static_assert(budget::address_space_guest_memory_mib(0) ==
+		budget::guest_memory_range_maximum_mib,
+		"a host that cannot say has no bound");
+	static_assert(budget::address_space_guest_memory_mib(6 * gib) == 1984,
+		"1984 MiB needs 4992 MiB and 44 KiB, 2048 MiB needs 5120 MiB and "
+		"44 KiB, and 6 GiB less the reserve is 5056 MiB");
+	static_assert(budget::address_space_guest_memory_mib(5 * gib) == 1472,
+		"1536 MiB needs 4096 MiB and 44 KiB");
+	static_assert(budget::address_space_guest_memory_mib(4 * gib) == 896,
+		"960 MiB needs 3008 MiB and 44 KiB, the allowance being 1 GiB at least");
+	static_assert(budget::address_space_guest_memory_mib(2 * gib) == 0,
+		"not even the smallest guest fits");
+	static_assert(budget::address_space_guest_memory_mib(
+		budget::address_space_reserve_bytes) == 0);
+	static_assert(budget::address_space_guest_memory_mib(1) == 0);
+	/* The step above never fits and the step itself does. */
+	for (std::uint64_t free = 0; free <= 80 * gib; free += 17 * mib + 4096) {
+		const auto size = budget::address_space_guest_memory_mib(free);
+		if (free == 0) {
+			require(size == budget::guest_memory_range_maximum_mib);
+			continue;
+		}
+		if (size == 0) {
+			require(budget::native_window_bytes(512 * mib) +
+				budget::address_space_reserve_bytes > free);
+			continue;
+		}
+		require(size >= 512 && (size - 512) % 64 == 0);
+		require(budget::native_window_bytes(size * mib) +
+				budget::address_space_reserve_bytes <= free,
+			"the window and the reserve fit the run");
+		if (size < budget::guest_memory_range_maximum_mib)
+			require(budget::native_window_bytes(
+					(size + 64ULL) * mib) +
+					budget::address_space_reserve_bytes > free,
+				"the next step does not");
+	}
+	/* More address space never offers less. */
+	std::uint32_t previous = 0;
+	for (std::uint64_t free = 1; free <= 80 * gib; free += 64 * mib) {
+		const auto size = budget::address_space_guest_memory_mib(free);
+		require(size >= previous);
+		previous = size;
+	}
+}
+
+/* A process signed without the entitlements, on a device whose limit leaves a
+ * default of 2 GiB or more, still gets a default, an offered maximum and a
+ * conservative size its window fits: the ceiling follows the address space, and
+ * the settings answer from it. */
+void anAddressSpaceHoldsTheCeilingTheDefaultAndEverySizeOffered()
+{
+	constexpr std::uint64_t gib = 1024 * mib;
+	/* No entitlement on the iPad mini 6 (6 GiB), the phone without the memory
+	 * entitlements (a run between 5 and 6 GiB), Extended Virtual Addressing
+	 * (64 GiB), and a host that could not measure. */
+	for (const std::uint64_t free :
+	     {4 * gib, 5 * gib, 5 * gib + 512 * mib, 6 * gib, 8 * gib, 10 * gib,
+		     16 * gib, 64 * gib, std::uint64_t{0}}) {
+		const auto ceiling = budget::process_guest_memory_ceiling_mib(
+			false, 8192 * mib, free);
+		require(ceiling >= budget::guest_memory_minimum_mib &&
+			ceiling <= budget::device_window_guest_memory_maximum_mib);
+		require((ceiling - budget::guest_memory_minimum_mib) %
+				budget::guest_memory_step_mib == 0);
+		if (free != 0 && ceiling > budget::guest_memory_minimum_mib)
+			require(budget::native_window_bytes(ceiling * mib) +
+					budget::address_space_reserve_bytes <= free,
+				"the largest size the process admits has a window that fits");
+		for (const std::uint64_t limit_mib : {2867ULL, 3376ULL, 4096ULL,
+			     6144ULL, 8192ULL, 0ULL})
+			for (unsigned vcpus = 1; vcpus <= 8; ++vcpus) {
+				const auto limit = limit_mib * mib;
+				const auto maximum = budget::maximum_guest_memory_mib(limit,
+					vcpus, budget::maximum_memory_set, ceiling);
+				const auto safe = budget::conservative_guest_memory_mib(limit,
+					vcpus, budget::launch_memory_set, ceiling);
+				const auto standard = budget::default_guest_memory(limit,
+					vcpus, budget::launch_memory_set, ceiling);
+				const std::string what = std::to_string(free / mib) +
+					" MiB of address space, limit " +
+					std::to_string(limit_mib) + " MiB, " +
+					std::to_string(vcpus) + " vCPUs";
+				require(maximum <= ceiling, "offered maximum: " + what);
+				require(safe <= ceiling, "conservative: " + what);
+				require(standard.mib <= ceiling, "default: " + what);
+				require(budget::guest_memory_admitted(maximum, ceiling) &&
+					budget::guest_memory_admitted(safe, ceiling) &&
+					budget::guest_memory_admitted(standard.mib, ceiling),
+					what);
+				if (free != 0)
+					require(budget::native_window_bytes(maximum * mib) +
+							budget::address_space_reserve_bytes <= free ||
+						maximum == budget::guest_memory_minimum_mib,
+						"the window of the offered maximum fits: " + what);
+			}
+	}
+	/* The phone without the memory entitlements: 3376 MiB leaves a default of
+	 * 2048 MiB at 6 vCPUs on a device with room, and 1536 MiB in a 5 GiB run. */
+	static_assert(budget::default_guest_memory_mib(3376 * mib, 6) == 2048);
+	static_assert(budget::default_guest_memory_mib(3376 * mib, 6,
+		budget::launch_memory_set, 1984) == 1536);
+	static_assert(budget::default_guest_memory_mib(3376 * mib, 6,
+		budget::launch_memory_set, 1792) == 1536);
+	static_assert(budget::default_guest_memory_mib(3376 * mib, 6,
+		budget::launch_memory_set, 2240) == 2048);
+	static_assert(budget::default_guest_memory_mib(6144 * mib, 6,
+		budget::launch_memory_set, 9152) == 4096,
+		"the entitled device keeps its default");
+	/* An address space with the entitlement is no bound at all. */
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		64 * gib) == 8192);
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 0,
+		64 * gib) == 9152);
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		6 * gib) == 1984);
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		0) == 8192, "an address space that was not measured bounds nothing");
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		2 * gib) == 0,
+		"a measured run that holds no window admits no size");
+	static_assert(budget::process_guest_memory_ceiling_mib(true, 8192 * mib,
+		6 * gib) == 8192, "a macOS window is not placed in what is left");
+}
+
+/* A process the system leaves no room for even the smallest guest's window has
+ * a ceiling of zero, and a ceiling of zero is carried to every answer the
+ * loader gives the applications: no size is admitted, offered or defaulted, at
+ * any limit, vCPU count or set. It is never raised to the smallest size, which
+ * is a size the reservation of its window would then fail. */
+void aProcessWithNoRoomForAWindowAdmitsNoSizeAndOffersNone()
+{
+	static_assert(budget::address_space_guest_memory_mib(1) == 0);
+	static_assert(budget::guest_memory_ceiling_mib(
+		budget::device_window_guest_memory_maximum_mib, 8192 * mib, 0) == 0);
+	static_assert(budget::guest_memory_ceiling_mib(
+		budget::device_window_guest_memory_maximum_mib, 0, 0) == 0);
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 0, 1) == 0,
+		"a measured run of one byte, the loader's measure of none");
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		budget::address_space_reserve_bytes) == 0);
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		budget::native_window_bytes(512 * mib) +
+			budget::address_space_reserve_bytes - 1) == 0,
+		"a byte short of the smallest guest's window and the reserve");
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 8192 * mib,
+		budget::native_window_bytes(512 * mib) +
+			budget::address_space_reserve_bytes) ==
+			budget::guest_memory_minimum_mib,
+		"room for exactly the smallest guest");
+	/* A host that measured nothing is not one that measured none. */
+	static_assert(budget::process_guest_memory_ceiling_mib(false, 0, 0) == 9152);
+	for (std::uint32_t size = 0; size <= 9152 + 64; ++size)
+		require(!budget::guest_memory_admitted(size, 0),
+			"a size was admitted where no window fits");
+	for (const std::uint64_t limit_mib : {2867ULL, 3376ULL, 4096ULL, 6144ULL,
+		     8192ULL, 0ULL})
+		for (unsigned vcpus = 0; vcpus <= 8; ++vcpus) {
+			const auto limit = limit_mib * mib;
+			const std::string what = "limit " + std::to_string(limit_mib) +
+				" MiB, " + std::to_string(vcpus) + " vCPUs";
+			require(budget::maximum_guest_memory_mib(limit, vcpus,
+					budget::maximum_memory_set, 0) == 0,
+				"offered maximum: " + what);
+			require(budget::conservative_guest_memory_mib(limit, vcpus,
+					budget::launch_memory_set, 0) == 0,
+				"conservative size: " + what);
+			const auto standard = budget::default_guest_memory(limit, vcpus,
+				budget::launch_memory_set, 0);
+			require(standard.mib == 0 && !standard.holds_gpu_budget,
+				"default: " + what);
 		}
 }
 
@@ -1097,6 +1319,14 @@ int main()
 			aRunStartsTheSizesFromTheMinimumThroughTheCeilingOnTheSteps},
 		{"every-offered-size-is-one-the-run-admits",
 			everyOfferedSizeIsOneTheRunAdmits},
+		{"the-native-window-is-the-ram-its-allowance-and-the-fixed-space",
+			theNativeWindowIsTheRamItsAllowanceAndTheFixedSpan},
+		{"the-address-space-bounds-the-ram-by-the-window-it-needs",
+			theAddressSpaceBoundsTheRamByTheWindowItNeeds},
+		{"an-address-space-holds-the-ceiling-the-default-and-every-size-offered",
+			anAddressSpaceHoldsTheCeilingTheDefaultAndEverySizeOffered},
+		{"a-process-with-no-room-for-a-window-admits-no-size-and-offers-none",
+			aProcessWithNoRoomForAWindowAdmitsNoSizeAndOffersNone},
 	};
 	return uml::testing::runNamedTests(tests);
 }

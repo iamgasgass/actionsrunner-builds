@@ -3,8 +3,7 @@
 
 // A camera with no hardware. It implements darwin/platform/camera.hpp for unit
 // tests and for the launchers that run a guest against a deterministic chart.
-// It is never a real camera, on any device, and an App Store runtime does not
-// contain it.
+// It is never a real camera, on any device.
 //
 // The chart. Every frame is an NV12 picture of a luma gradient with a 6 x 4
 // grid of colour patches and, across the middle of the picture, a row of 64
@@ -57,6 +56,11 @@ struct SyntheticCameraOptions {
     std::uint32_t latencyMilliseconds {};
     // The system has granted access. A session of a host that has not is null.
     bool authorized {true};
+    // Every front camera that states 270 is a platform camera mounted at 90 that the host turns half around, as an
+    // iPhone's is: it states 270 and a presentationTurn of 180 (CameraInfo), its frames are the mounting's (the chart
+    // unturned: the device turns the video) and its JPEG stills are turned like the platform's (made upright for the
+    // stated orientation). A laptop's camera, which states none, is not changed.
+    bool frontPresentedAt90 {};
     // A named pipe the camera reads commands from, for a test that cannot reach the camera object (a guest that runs in
     // another process): the camera makes it if the path does not exist, and reads one command a line from it for as long as
     // it lives (parseSyntheticControlLine). Empty: none.

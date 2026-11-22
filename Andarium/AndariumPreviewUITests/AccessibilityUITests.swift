@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import XCTest
 
+/// The Preview UI tests read English labels. Every launch carries its own
+/// language, so that no test depends on the language a Simulator was created
+/// with (a new one takes the Mac's).
+let previewTestLanguage = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+
 /// The Simulator preview driven as VoiceOver drives it: the screens listed
 /// here pass Apple's audit for element descriptions and traits (the audit
 /// waits for the sheet or card a screen opens on), the switch for Android's
@@ -13,13 +18,14 @@ final class AccessibilityUITests: XCTestCase {
     private static let screens: [(name: String, ready: String)] = [
         ("welcome", ""), ("home", ""), ("home-new", ""), ("home-update", ""), ("home-update-failed", ""),
         ("home-blocked", ""), ("home-ended", ""), ("home-memory-warning", ""), ("home-mic-denied", ""),
+        ("home-aot", ""), ("home-aot-off", ""), ("home-aot-jit", ""),
         ("create", ""), ("resize", ""), ("system-edit", ""), ("info", ""), ("info-acknowledgements", ""),
         ("info-license", ""), ("boot", ""), ("boot-first", ""), ("boot-recovery", ""),
         ("session", "side-keys"), ("session-open", "side-keys-power"), ("session-stats", ""),
         ("session-graphics-notice", ""), ("settings", "Settings"),
         ("settings-accessibility", "settings-talkback"), ("settings-adb", "Settings"),
         ("install-done", ""), ("install-failed", ""), ("space-pause", "space-pause"),
-        ("space-pause-running", "space-pause"), ("recovery-open", "side-keys-power"), ("failed", ""),
+        ("space-pause-running", "space-pause"), ("recovery-open", "side-keys-power"), ("failed", ""), ("failed-memory", ""),
     ]
 
     override func setUp() {
@@ -29,7 +35,7 @@ final class AccessibilityUITests: XCTestCase {
     @MainActor
     private func launch(_ screen: String, _ arguments: String...) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-screen", screen] + arguments
+        app.launchArguments = previewTestLanguage + ["-screen", screen] + arguments
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20), "\(screen) did not open")
         return app
@@ -84,7 +90,7 @@ final class AccessibilityUITests: XCTestCase {
             + [("session", "screen-reader-card", ["-voiceOver", "YES"])]
         for (screen, ready, arguments) in cases {
             let app = XCUIApplication()
-            app.launchArguments = ["-screen", screen] + arguments
+            app.launchArguments = previewTestLanguage + ["-screen", screen] + arguments
             app.launch()
             XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20), "\(screen) did not open")
             // The audit reads what the screen shows once it is up: the sheet or

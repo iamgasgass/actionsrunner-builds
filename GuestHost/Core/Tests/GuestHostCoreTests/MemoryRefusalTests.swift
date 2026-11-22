@@ -21,8 +21,14 @@ struct MemoryRefusalTests {
                 == "300 MiB of memory is not a size the virtual machine can start with")
     }
 
+    @Test func aHostWithNoRoomForTheSmallestSizeSaysSoNotAFigureOfZero() {
+        #expect(
+            MemoryRefusal.reason(memoryMiB: 512, ceilingMiB: 0)
+                == "this device has no room for the virtual machine\u{2019}s memory")
+    }
+
     @Test func theScreenSaysVirtualMachineNeverGuestOrVM() {
-        for (memory, ceiling) in [(5120, 4608), (300, 4096), (1 << 20, 9152)] {
+        for (memory, ceiling) in [(5120, 4608), (300, 4096), (1 << 20, 9152), (512, 0)] {
             let text = MemoryRefusal.reason(memoryMiB: memory, ceilingMiB: ceiling)
             #expect(text.contains("virtual machine"))
             #expect(!text.localizedCaseInsensitiveContains("guest"))

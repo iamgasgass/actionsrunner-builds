@@ -54,6 +54,10 @@ public final class AdbSync {
     public static let maxChunk = 64 * 1024
     /// `send` writes this many bytes of `DATA` frames at a time.
     public static let sendBatch = 256 * 1024
+    /// What a device may say in a session that only sends and then looks at
+    /// the file: the answer to the `SEND` (a `FAIL` holds up to 64 KiB of
+    /// text, which `failure` also bounds) and one `STAT`.
+    public static let sendReplyBudget = 64 * 1024 + 4096
 
     private let stream: AdbStream
     private let usesStatV2: Bool
@@ -61,9 +65,13 @@ public final class AdbSync {
     private var buffer = Data()
     private var bufferOffset = 0
 
-    /// Opens `sync:` on `connection`.
-    public init(connection: AdbConnection) throws {
-        stream = try connection.open("sync:")
+    /// Opens `sync:` on `connection`. `replyBudget` bounds what the device
+    /// may say in all, for a use whose replies are small, such as `send`:
+    /// bytes it says while the host is still sending are held, and a device
+    /// that says more ends the call with a protocol violation. A read of
+    /// files has none, since the file is what it says.
+    public init(connection: AdbConnection, replyBudget: Int? = nil) throws {
+        stream = try connection.open("sync:", outputLimit: replyBudget)
         usesStatV2 = connection.banner.features.contains("stat_v2")
         usesListV2 = connection.banner.features.contains("ls_v2")
     }

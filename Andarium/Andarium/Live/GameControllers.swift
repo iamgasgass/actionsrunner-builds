@@ -20,9 +20,7 @@ nonisolated struct GamepadConnector: GuestStreamOpener {
 /// What the game controllers say about themselves, in the development builds only.
 nonisolated enum GamepadDiagnostics {
     static func note(_ text: @autoclosure () -> String) {
-        #if !APP_STORE
         print("Andarium: \(text())")
-        #endif
     }
 }
 

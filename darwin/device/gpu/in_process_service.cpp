@@ -124,6 +124,14 @@ public:
         return display_->statistics();
     }
 
+    std::optional<std::uint32_t> displayRefreshRate() const noexcept
+    {
+        std::lock_guard lock(displayMutex_);
+        if (!display_)
+            return std::nullopt;
+        return display_->refreshRate();
+    }
+
     std::optional<std::uint64_t> memoryRefusals() const noexcept
     {
         std::lock_guard lock(displayMutex_);
@@ -310,7 +318,8 @@ private:
                 options_.dotsPerInch,
                 options_.pointerMode,
                 options_.autoResizeGuest,
-                options_.offscreen);
+                options_.offscreen,
+                options_.refreshRate);
             /* A client that connects before this is not counted, which a
              * client of a display that was just made cannot tell. */
             display->setClientObserver(options_.clientObserver);
@@ -445,6 +454,12 @@ std::optional<DisplayStatistics> InProcessGpuService::displayStatistics()
     const noexcept
 {
     return implementation_->displayStatistics();
+}
+
+std::optional<std::uint32_t> InProcessGpuService::displayRefreshRate()
+    const noexcept
+{
+    return implementation_->displayRefreshRate();
 }
 
 std::optional<std::uint64_t> InProcessGpuService::memoryRefusals()

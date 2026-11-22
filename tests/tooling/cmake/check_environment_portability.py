@@ -47,10 +47,10 @@ RULES = {
     "drops it)",
     "R7": "patch-address: an email address other than a GitHub noreply "
     "address (the configured Git identity's) or the agent co-author's, in "
-    "the header or message of a patch under dependencies/patches; an outside "
-    "contributor's own patches are allowed series by series, on their From: "
-    "line only (patches of carried upstream content elsewhere keep their "
-    "authors and are not scanned)",
+    "the header or message of a patch under dependencies/patches or "
+    "android/lineage-24/patches; an outside contributor's own patches are "
+    "allowed series by series, on their From: line only (patches of carried "
+    "upstream content elsewhere keep their authors and are not scanned)",
 }
 ALLOWLIST_RULES = ("R1", "R2", "R3", "R4", "R7")
 ALLOWLIST_REASONS = (
@@ -92,7 +92,9 @@ PATCH_TRAILER = re.compile(
 )
 # R7: the patches this project exports and replays, whose headers publish an
 # identity; their addresses are the configured Git identity's or the agent's.
-PATCH_ADDRESS_FILES = re.compile(r"^dependencies/patches/.*\.patch$")
+PATCH_ADDRESS_FILES = re.compile(
+    r"^(?:dependencies/patches|android/lineage-24/patches)/.*\.patch$"
+)
 ADDRESS = re.compile(
     r"(?<![\w.%+-])[\w.%+-]+@(?P<domain>[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})\b"
 )

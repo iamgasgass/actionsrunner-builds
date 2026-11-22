@@ -176,8 +176,8 @@ private:
 };
 
 /* Starts the periodic counters report the process asked for with
- * DARWIN_UML_CODE_HOLDER_COUNTERS, once; a no-op without it, and in an App
- * Store runtime. A table's first leaf calls it. */
+ * DARWIN_UML_CODE_HOLDER_COUNTERS, once; a no-op without it. A table's first leaf
+ * calls it. */
 void report_counters_once() noexcept;
 
 /* What the mechanism did since the process began. Each counter is bumped on a

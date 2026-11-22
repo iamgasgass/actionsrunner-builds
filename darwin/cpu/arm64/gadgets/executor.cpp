@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "executor.hpp"
+#if UML_AOT
+#include "cpu/arm64/aot/aot_runtime.hpp"
+#if UML_AOT_DIAGNOSTICS
+#include "cpu/arm64/aot/aot_diagnostics.hpp"
+#endif
+#endif
 
 #include "cpu/arm64/aarch32/breakpoint_immediate.hpp"
 #include "cpu/arm64/aarch32/guest_fetch.hpp"
 #include "cpu/arm64/aarch32/guest_key.hpp"
 #include "cpu/arm64/aarch32/guest_validation.hpp"
+#include "cpu/arm64/code_synchronization.hpp"
 #include "cpu/arm64/detail/floating_exception.hpp"
 #include "cpu/arm64/gadgets/a32/a32_builder.hpp"
 #include "cpu/gadget_body_arena.hpp"
@@ -75,7 +82,7 @@ constexpr std::size_t maximum_t32_validation_units =
  * is kept as it is; an AArch32 key keeps its 34 significant low bits under
  * two flags in the bits a PC of that width never uses, so no two canonical
  * keys share a compact form. A key outside both has none: it tags to a value
- * no slot holds, which is a miss. */
+ * no slot holds, which is a miss, and its translation is never stored. */
 constexpr std::uint64_t tag_key_mask =
 	(std::uint64_t{1} << gadget_cache::tag_owner_shift) - 1U;
 constexpr unsigned a64_key_bits = 47;
@@ -554,12 +561,8 @@ struct IndirectKey final {
  * each executor is made. */
 [[nodiscard]] bool shared_bodies_enabled() noexcept
 {
-#ifdef UML_APP_STORE_RUNTIME
-	return true;
-#else
 	const char *value = std::getenv("DARWIN_UML_GADGET_SHARED_BODIES");
 	return value == nullptr || std::strcmp(value, "0") != 0;
-#endif
 }
 
 /* A shared address space whose arena holds at least this many bytes that no
@@ -2005,10 +2008,13 @@ public:
 		/* The stored translation is as current as the address space's
 		 * code is, which prepare() has been told. */
 		assert(state.changes == changes);
-		[[maybe_unused]] const auto tag = tag_of(pc);
-		/* Nothing is stored under a key with no compact form: such a
-		 * key names no fetchable code. */
-		assert(tag != unmatchable_tag);
+		const auto tag = tag_of(pc);
+		/* Nothing is stored under a key with no compact form, which no
+		 * slot can name. The callers build such a key unlinked and run
+		 * it once (build_uncached()), so this only refuses one that
+		 * arrives anyway: the copy it hands back owns its words. */
+		if (tag == unmatchable_tag)
+			return result;
 		auto *body = state.space->publish(result, validation,
 			arm64::aarch32::key_isa(pc));
 #if UML_GADGET_CACHE_CENSUS
@@ -2602,7 +2608,9 @@ private:
 		}
 		/* The activation finds the record in the running address space,
 		 * which may not be the one that held the slot until now. */
-		slot.tag = tag_of(pc);
+		const auto tag = tag_of(pc);
+		assert(tag != unmatchable_tag);
+		slot.tag = tag;
 		slot.hold(body, window_.current_epoch);
 		activate(pc, slot);
 		return slot;
@@ -2616,6 +2624,10 @@ private:
 		StaticGuestMemory &memory, void *execution_context,
 		GadgetCacheDiagnostics &diagnostics)
 	{
+		/* No executor stored a key with no compact form, so no space
+		 * indexes a body for it. */
+		if (compact_tag_key(pc) == unmatchable_tag)
+			return std::nullopt;
 		auto &space = this->space();
 		auto *body = space.hold_indexed(pc);
 		if (body == nullptr)
@@ -2898,12 +2910,50 @@ private:
 	std::array<std::uint8_t, set_count> next_replacement_{};
 };
 
+#if UML_AOT
+struct GadgetExecutor::AotState final {
+	/* The one-instruction programs of the instructions rewritten code left
+	 * to the engine, by address; a program is a function of the address and
+	 * the instruction word alone. */
+	struct StepSlot final {
+		std::uint64_t pc{1};
+		std::uint32_t word{};
+		std::unique_ptr<arm64::gadgets::BuildResult> built;
+	};
+	static constexpr std::size_t step_slots = 2048;
+	arm64::aot::Binder binder;
+	std::array<StepSlot, step_slots> steps{};
+	/* The address of the last instruction the engine ran for rewritten code
+	 * and that faulted (1: none). The guest resumes at it once the fault is
+	 * handled, and the engine runs it again: a copy into fresh memory
+	 * faults once per page, and entering rewritten code at each resume costs
+	 * more than the page's copy. */
+	std::uint64_t retry_pc{1};
+	/* How many entries in a row at an address retired fewer instructions
+	 * than aot_short_entry, by address. */
+	struct ShortSlot final {
+		std::uint64_t pc{1};
+		std::uint8_t streak{};
+		std::uint8_t skipped{};
+	};
+	static constexpr std::size_t short_slots = 4096;
+	std::array<ShortSlot, short_slots> shorts{};
+	/* The learning_epoch retry_pc and shorts were learned in. */
+	std::uint64_t learning_epoch{};
+};
+#else
+struct GadgetExecutor::AotState final {};
+#endif
+
 GadgetExecutor::GadgetExecutor(arm64::gadgets::BuildOptions build_options)
 	: build_options_{build_options},
 	  sampling_{diagnostics::guest_sampling_register(*this)}
 {
 	tlb_.unaligned_atomics =
 		build_options_.host_capabilities.has(ArmFeature::lse2);
+#if UML_AOT
+	aot_selected_ = arm64::aot::enabled();
+#endif
 	/* Executors running one address space share its translations when
 	 * sharing is enabled, the host retargets a link pair in one access, and
 	 * a reclaimer can see whether this executor is running translated
@@ -3152,6 +3202,18 @@ std::optional<BuildResult> GadgetExecutor::find(
 
 namespace {
 
+/* The translation of a key no slot can name (compact_tag_key), built for one
+ * run: unlinked, so that it makes no link record or indirect site in its
+ * address space, which nothing would ever sweep or charge against the budget,
+ * and in memory of its own, which its caller drops with it. */
+[[nodiscard]] BuildResult build_uncached(std::uint64_t pc,
+	std::span<const std::uint32_t> window,
+	const arm64::gadgets::BuildOptions &options)
+{
+	return arm64::gadgets::Builder{}.build(pc, window, {},
+		std::pmr::get_default_resource(), {}, options);
+}
+
 /* A store whose link sweep released records may have released one the return
  * ring names. The ring only predicts, so it starts again empty. */
 void forget_returns(arm64::CpuState &cpu) noexcept
@@ -3201,6 +3263,8 @@ void note_exit_histogram(GadgetCacheDiagnostics &d, Programs &programs,
 BuildResult GadgetExecutor::translate(
 	std::uint64_t pc, std::span<const std::uint32_t> window)
 {
+	if (compact_tag_key(pc) == unmatchable_tag)
+		return build_uncached(pc, window, build_options_);
 	const auto decoded = arm64::gadgets::Builder{}.build(
 		pc, window,
 		[this](std::uint64_t target) {
@@ -3266,7 +3330,9 @@ GadgetExecutor::finish_block(ProgramCache &programs, const BuildResult &built,
 	return event;
 }
 
-::uml::cpu::EngineEvent GadgetExecutor::run_block(
+template<bool Aot>
+[[gnu::always_inline]] inline ::uml::cpu::EngineEvent
+GadgetExecutor::run_block_body(
 	arm64::CpuState &cpu, StaticGuestMemory &memory, unsigned long generation,
 	std::size_t &executed)
 {
@@ -3312,6 +3378,14 @@ GadgetExecutor::finish_block(ProgramCache &programs, const BuildResult &built,
 		cpu.gadget_return_top = 0;
 	}
 	prepare_cache(generation, sequences.code_changes);
+#if UML_AOT
+	if constexpr (Aot) {
+		if (const auto aot_event = run_aot(cpu, memory, generation,
+			    sequences.code_changes, sequences.mapping_changes,
+			    executed))
+			return *aot_event;
+	}
+#endif
 	auto selected = find(cpu.pc, sequences.code_changes, memory);
 #if UML_GADGET_EXECUTION_HISTOGRAM
 	++cache_diagnostics_.block_entries;
@@ -3339,8 +3413,276 @@ GadgetExecutor::finish_block(ProgramCache &programs, const BuildResult &built,
 	const auto event =
 		arm64::gadgets::execute_preserving_native_fp_environment(
 			built.program, cpu, tlb_, executed);
+#if UML_AOT && UML_AOT_DIAGNOSTICS
+	if constexpr (Aot) {
+		const auto result = finish_block(*programs_, built, event, cpu, executed);
+		arm64::aot::diagnostics::note_engine_run(executed);
+		return result;
+	}
+#endif
 	return finish_block(*programs_, built, event, cpu, executed);
 }
+
+::uml::cpu::EngineEvent GadgetExecutor::run_block(
+	arm64::CpuState &cpu, StaticGuestMemory &memory, unsigned long generation,
+	std::size_t &executed)
+{
+	return run_block_body<false>(cpu, memory, generation, executed);
+}
+
+#if UML_AOT
+::uml::cpu::EngineEvent GadgetExecutor::run_aot_block(
+	arm64::CpuState &cpu, StaticGuestMemory &memory, unsigned long generation,
+	std::size_t &executed)
+{
+	return run_block_body<true>(cpu, memory, generation, executed);
+}
+#endif
+
+#if UML_AOT
+/* One AOT call runs at most as many instructions as the engine chains
+ * between two returns to its dispatcher, which bounds how long a vCPU goes
+ * without polling for an interrupt. */
+constexpr std::uint64_t aot_entry_budget = 4096;
+/* Entering and leaving rewritten code costs about what the engine takes for
+ * half this many instructions, and an instruction in rewritten code still
+ * costs a fraction of an engine instruction, so an entry pays only above the
+ * break-even set here (chosen from a series at 48, 96 and 192). An address
+ * whose entries keep retiring fewer is left to the engine, except for one
+ * entry in aot_short_again, which tells whether it has become worth
+ * entering. */
+constexpr std::uint64_t aot_short_entry = 96;
+constexpr std::uint8_t aot_short_streak = 2;
+constexpr std::uint8_t aot_short_again = 64;
+
+::uml::cpu::EngineEvent GadgetExecutor::step_aot(
+	arm64::CpuState &cpu, StaticGuestMemory &memory, std::size_t &executed)
+{
+	std::uint32_t instruction = 0;
+	if (!memory.fetch(cpu.pc,
+		    std::as_writable_bytes(std::span{&instruction, 1})))
+		return fetch_fault(tlb_, memory);
+	/* A transaction (guest trap enables) and the illegal encodings are
+	 * the cold path's. */
+	if (arm64::detail::needs_floating_exception_transaction(
+		    cpu.effective_fpcr(), instruction))
+		return run_trap_enabled_instruction(cpu, memory, executed);
+	auto &slot = aot_->steps[(cpu.pc >> 2) % AotState::step_slots];
+	if (slot.pc != cpu.pc || slot.word != instruction ||
+	    slot.built == nullptr) {
+		auto options = build_options_;
+		options.svcr = 0;
+		auto built = arm64::gadgets::Builder{}.build(
+			cpu.pc, std::span{&instruction, 1}, {},
+			std::pmr::get_default_resource(), {}, options);
+		if (!built.complete || built.program.instruction_count() != 1)
+			return run_trap_enabled_instruction(cpu, memory, executed);
+		slot.built = std::make_unique<arm64::gadgets::BuildResult>(
+			std::move(built));
+		slot.pc = cpu.pc;
+		slot.word = instruction;
+	}
+	const auto &program = slot.built->program;
+	cpu.gadget_indirect_miss = nullptr;
+	cpu.gadget_target_tier = nullptr;
+	arm64::gadgets::restore_native_fp_environment(cpu);
+	const auto event = arm64::gadgets::execute(program, cpu, tlb_, executed);
+	correct_terminal_instruction_count(program, event, cpu.pc, executed);
+	cpu.gadget_indirect_miss = nullptr;
+	/* A one-instruction fallthrough ends in Builder's synthetic interrupt
+	 * gadget: a cold-mode boundary, not a guest-visible one. */
+	return event == ::uml::cpu::EngineEvent::interrupt ?
+		::uml::cpu::EngineEvent::continued : event;
+}
+
+std::optional<::uml::cpu::EngineEvent> GadgetExecutor::run_aot(
+	arm64::CpuState &cpu, StaticGuestMemory &memory, unsigned long generation,
+	std::uint64_t code_changes, std::uint64_t mapping_changes,
+	std::size_t &executed)
+{
+	if (!aot_)
+		aot_ = std::make_unique<AotState>();
+	if (aot_->learning_epoch != arm64::aot::learning_epoch()) {
+		aot_->learning_epoch = arm64::aot::learning_epoch();
+		aot_->retry_pc = 1;
+		aot_->shorts.fill(AotState::ShortSlot{});
+	}
+#if UML_AOT_DIAGNOSTICS
+	namespace diag = arm64::aot::diagnostics;
+	auto give_up = diag::EngineReason::no_progress;
+	unsigned finds = 0, entries = 0;
+#endif
+	if (cpu.pc == aot_->retry_pc) {
+#if UML_AOT_DIAGNOSTICS
+		diag::note_engine_dispatch(aot_->binder, generation, cpu.pc,
+			diag::EngineReason::retry);
+		diag::note_dispatch(0, 0);
+#endif
+		return std::nullopt;
+	}
+	aot_->retry_pc = 1;
+	/* The sequences are the ones run_block read: the lookups below
+	 * validate against them, the engine's ISB compares with them
+	 * (cpu.code_sequence_seen) and the loop leaves when either has moved
+	 * since, so a change published after that read cannot go unseen. */
+	arm64::aot::note_run_start();
+	std::size_t total = 0;
+	const auto first = cpu.pc;
+	for (;;) {
+		/* An open exclusive monitor (the JIT records it in
+		 * exclusive_size, the gadget engine in exclusive_key) is the
+		 * engine's to complete. The rewritten code ignores the top
+		 * address byte, as every Android process runs with, and keeps SP
+		 * 16-byte aligned, which the engine checks for every SP-based
+		 * access; a guest that has neither is the engine's alone. */
+		if (cpu.exclusive_size != 0U || cpu.exclusive_key != 0U) {
+			arm64::aot::note_refusal(
+				arm64::aot::Refusal::exclusive_monitor);
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::exclusive_monitor;
+#endif
+			break;
+		}
+		if (!cpu.tbi_enabled) {
+			arm64::aot::note_refusal(arm64::aot::Refusal::tbi_disabled);
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::tbi_disabled;
+#endif
+			break;
+		}
+		if ((cpu.sp & 0xfU) != 0U) {
+			arm64::aot::note_refusal(arm64::aot::Refusal::sp_misaligned);
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::sp_misaligned;
+#endif
+			break;
+		}
+		/* FPCR.FIZ, AH and NEP change what an FP instruction computes
+		 * beyond what the host does under the same rounding mode,
+		 * flush-to-zero and default-NaN bits; the engine's twin gadgets
+		 * cover them, rewritten code does not. A state the runtime has
+		 * not loaded yet keeps its FPCR aside. */
+		if ((cpu.effective_fpcr() & arm64::fpcr_afp_controls) != 0U) {
+			arm64::aot::note_refusal(arm64::aot::Refusal::fp_environment);
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::fp_environment;
+#endif
+			break;
+		}
+		auto &shorty = aot_->shorts[(cpu.pc >> 2) % AotState::short_slots];
+		if (shorty.pc == cpu.pc && shorty.streak >= aot_short_streak &&
+		    ++shorty.skipped % aot_short_again != 0U) {
+			arm64::aot::note_refusal(arm64::aot::Refusal::short_entry);
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::short_entry;
+#endif
+			break;
+		}
+#if UML_AOT_DIAGNOSTICS
+		++finds;
+#endif
+		const auto hit = aot_->binder.find(memory, execution_context_,
+			generation, code_changes, cpu.pc);
+		if (hit.native == nullptr) {
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::find_reason();
+#endif
+			break;
+		}
+#if UML_AOT_DIAGNOSTICS
+		++entries;
+#endif
+		const auto start = cpu.pc;
+		/* Rewritten code reads and writes the vector registers in place. */
+		cpu.access_fp_state();
+		cpu.gadget_indirect_miss = nullptr;
+		const auto result = arm64::aot::enter(cpu, tlb_, hit,
+			aot_entry_budget - total,
+			aot_->binder.cross(generation, code_changes));
+		total += static_cast<std::size_t>(result.retired);
+		if (shorty.pc != start) {
+			shorty.pc = start;
+			shorty.streak = 0;
+			shorty.skipped = 0;
+		}
+		if (result.retired < aot_short_entry &&
+		    result.reason != arm64::aot::Reason::step) {
+			if (shorty.streak < 255U)
+				++shorty.streak;
+		} else {
+			shorty.streak = 0;
+		}
+		if (result.reason == arm64::aot::Reason::step) {
+			/* The engine runs the one instruction the rewritten code
+			 * left to it: it needs the guest's floating-point
+			 * environment the way a stepped instruction does, and
+			 * reports faults and system calls as any block does. */
+			std::size_t stepped = 0;
+			const auto began = arm64::aot::step_begin();
+			const auto event = step_aot(cpu, memory, stepped);
+			arm64::aot::step_end(began);
+			total += stepped;
+			if (event != ::uml::cpu::EngineEvent::continued) {
+				if (event == ::uml::cpu::EngineEvent::memory_fault)
+					aot_->retry_pc = cpu.pc;
+				executed = total;
+#if UML_AOT_DIAGNOSTICS
+				diag::note_dispatch(finds, entries);
+#endif
+				return event;
+			}
+			/* An IC IVAU at an address the address space maps nothing at
+			 * faults like a load, and the entry loop reports it at the
+			 * instruction (the one before the PC) from the note the
+			 * helper left. No instruction may run after it, or the loop
+			 * would report the fault at whatever instruction the run
+			 * stopped after. The kernel maps the page and the
+			 * instruction runs again, in the engine. */
+			if (arm64::has_unmapped_code_synchronization()) [[unlikely]] {
+				aot_->retry_pc = cpu.pc - sizeof(std::uint32_t);
+				executed = total;
+#if UML_AOT_DIAGNOSTICS
+				diag::note_dispatch(finds, entries);
+#endif
+				return ::uml::cpu::EngineEvent::continued;
+			}
+		} else if (cpu.pc == start && result.retired == 0) {
+#if UML_AOT_DIAGNOSTICS
+			give_up = diag::EngineReason::no_progress;
+#endif
+			break;
+		}
+		/* What run_block checks on entry is rechecked here before the
+		 * next entry; any change returns to it. */
+		const auto now = darwin_uml_static_vm_execution_context_sequences(
+			execution_context_);
+		if (total >= aot_entry_budget || single_step_ ||
+		    now.execution_interrupt != 0U ||
+		    now.code_changes != code_changes ||
+		    now.mapping_changes != mapping_changes ||
+		    cpu.svcr != 0U ||
+		    (cpu.effective_fpcr() &
+		     arm64::detail::fpcr_exception_enable_mask) != 0U)
+			break;
+	}
+	if (total == 0) {
+		if (cpu.pc == first) {
+#if UML_AOT_DIAGNOSTICS
+			diag::note_engine_dispatch(aot_->binder, generation, first,
+				give_up);
+			diag::note_dispatch(finds, entries);
+#endif
+			return std::nullopt;
+		}
+		total = 1;
+	}
+	executed = total;
+#if UML_AOT_DIAGNOSTICS
+	diag::note_dispatch(finds, entries);
+#endif
+	return ::uml::cpu::EngineEvent::continued;
+}
+#endif
 
 /* The SME modes' run_block. Its cache, links and target table are the
  * mode's own, so everything the program can reach was translated for the
@@ -3400,21 +3742,25 @@ GadgetExecutor::finish_block(ProgramCache &programs, const BuildResult &built,
 		++cache_diagnostics_.translations;
 		auto options = build_options_;
 		options.svcr = mode;
-		const auto decoded = arm64::gadgets::Builder{}.build(
-			cpu.pc, window,
-			[&programs](std::uint64_t target) {
-				return programs.link(target);
-			},
-			programs.program_storage(),
-			[&programs](std::uint64_t source_pc) {
-				return programs.indirect_link(source_pc);
-			},
-			options);
-		const auto sweeps = cache_diagnostics_.link_sweeps;
-		selected.emplace(programs.store(cpu.pc, decoded, window,
-			code_changes, cache_diagnostics_));
-		if (cache_diagnostics_.link_sweeps != sweeps)
-			forget_returns(cpu);
+		if (compact_tag_key(cpu.pc) == unmatchable_tag) {
+			selected.emplace(build_uncached(cpu.pc, window, options));
+		} else {
+			const auto decoded = arm64::gadgets::Builder{}.build(
+				cpu.pc, window,
+				[&programs](std::uint64_t target) {
+					return programs.link(target);
+				},
+				programs.program_storage(),
+				[&programs](std::uint64_t source_pc) {
+					return programs.indirect_link(source_pc);
+				},
+				options);
+			const auto sweeps = cache_diagnostics_.link_sweeps;
+			selected.emplace(programs.store(cpu.pc, decoded, window,
+				code_changes, cache_diagnostics_));
+			if (cache_diagnostics_.link_sweeps != sweeps)
+				forget_returns(cpu);
+		}
 	}
 	const auto &built = *selected;
 	if (built.program.instruction_count() == 0) {

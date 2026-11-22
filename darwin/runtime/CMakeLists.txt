@@ -35,6 +35,7 @@ target_link_libraries(uml_runtime_context PRIVATE
     UML::Descriptor
     UML::RunRouting
     UML::HostEnvironment
+    UML::MemoryHeap
     uml_cpu_engine_factory
     uml_static_guest_memory)
 target_include_directories(uml_runtime_context PRIVATE
@@ -174,16 +175,9 @@ target_include_directories(uml_runtime_hibernation PUBLIC
     ${PROJECT_SOURCE_DIR}/darwin/runtime)
 
 # The line a Mac run writes where iOS would have ended the process, for a
-# limit the launch stated. An App Store runtime has the disabled stand-in.
-if(UML_APP_STORE_RUNTIME)
-    set(_uml_virtual_jetsam_source
-        ${PROJECT_SOURCE_DIR}/darwin/runtime/virtual_jetsam_disabled.cpp)
-else()
-    set(_uml_virtual_jetsam_source
-        ${PROJECT_SOURCE_DIR}/darwin/runtime/virtual_jetsam.cpp)
-endif()
+# limit the launch stated.
 add_library(uml_runtime_virtual_jetsam OBJECT
-    ${_uml_virtual_jetsam_source})
+    ${PROJECT_SOURCE_DIR}/darwin/runtime/virtual_jetsam.cpp)
 add_library(UML::RuntimeVirtualJetsam ALIAS uml_runtime_virtual_jetsam)
 uml_declare_architecture_target(uml_runtime_virtual_jetsam runtime)
 target_link_libraries(uml_runtime_virtual_jetsam PRIVATE

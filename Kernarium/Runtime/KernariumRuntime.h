@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define KERNARIUM_RUNTIME_API_VERSION 43U
+#define KERNARIUM_RUNTIME_API_VERSION 46U
 
 #if defined(__OBJC__)
 @class MTKView;
@@ -72,6 +72,16 @@ enum {
      * orientation that navigation applications take their heading from;
      * without the bit it lists none and declares none. */
     KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS = 1u << 2,
+    /* The application asks for a 120 Hz display (runtime API 44). The runtime
+     * decides once at boot, against the boot view's own screen (at least 100
+     * frames a second) and the boot size (the EDID must carry the 120 Hz
+     * timing), and on a Mac or Vision Pro always refuses. Granted, it
+     * advertises one 120 Hz mode in place of the 60 Hz one and paces its
+     * presents to the guest's rate, and the guest then runs the 120 Hz
+     * configuration of Android's frame scheduler; refused, or without the bit,
+     * the display and the guest are what they have always been. The
+     * statistics' display_refresh_hz says what the run was granted. */
+    KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH = 1u << 3,
 };
 
 /* What the camera does for an Android guest this run (runtime API 37), the
@@ -183,7 +193,27 @@ enum {
  * contain either value; what the guest itself reports (an Android bug report,
  * the kernel's echo of its command line) carries them as on any Android device.
  * The runtime reads them only from a request whose struct_size covers them; a
- * Linux guest ignores them. */
+ * Linux guest ignores them.
+ *
+ * android_aot_disabled (runtime API 45) keeps the ahead-of-time component out
+ * of an Android launch: a nonzero value leaves out the release identity that
+ * the runtime states to the emulator, without which the component never runs,
+ * so the guest runs on the execution engine alone. Zero, and a request whose
+ * struct_size does not cover the field, state the release as before, and the
+ * emulator then decides as it always has (the component runs only where the
+ * build has it and the release is the one it was made from). The word is read
+ * at each boot request, and a guest that restarts itself inside a run keeps the
+ * one its run was asked with. A Linux guest ignores it.
+ *
+ * android_root (runtime API 46) asks for the root boot: a nonzero value starts
+ * the guest, on every boot and restart of the run, with the Magisk-patched
+ * ramdisk that the release carries beside its system disk
+ * (darwin/device/block/README.md, "Boot selection"). Zero, and a request whose
+ * struct_size does not cover the field, boot the release's own ramdisk, so
+ * Kernarium is unchanged. The runtime never takes a ramdisk from any other
+ * file: a request for root against a release that carries none fails the run
+ * with -UML_EMULATOR_INVALID_ARGUMENT, and recovery keeps its own ramdisk. A
+ * Linux guest ignores the field. */
 typedef struct kernarium_runtime_boot {
     uint32_t struct_size;
     uint32_t width;
@@ -210,6 +240,8 @@ typedef struct kernarium_runtime_boot {
     const char* android_camera_calibration_path;
     const char* android_serial_number;
     const char* android_ethernet_mac;
+    uint32_t android_aot_disabled;
+    uint32_t android_root;
 } kernarium_runtime_boot;
 
 /* What a launch's host GPU budget comes to, as the runtime evaluates it for
@@ -238,7 +270,8 @@ typedef struct kernarium_runtime_gpu_budget {
  * call returns only when the guest powers off, the application stops it, a run
  * fails, or the restart-loop guard ends the loop. It returns the guest's own
  * status (0 for a power-off or a stop), a negated uml_emulator error constant
- * for a run or start-up that failed, or KERNARIUM_RUNTIME_RESULT_RESTART_LOOP.
+ * for a run or start-up that failed, KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED
+ * or KERNARIUM_RUNTIME_RESULT_RESTART_LOOP.
  * For Android, 0 means the guest powered off cleanly and all its resources have
  * been released: another run may start in this process. A host stop or an
  * unreported shutdown returns an error. */
@@ -247,6 +280,19 @@ typedef int (*kernarium_runtime_run_function)(
     const kernarium_runtime_boot* boot);
 
 enum {
+    /* The host could not give the guest what its size needs, the address space
+     * for its kernel window and heap or the memory limit for its RAM, and
+     * nothing was started: the run ended before its kernel began. The size can
+     * be lowered and the run tried again. The runtime returns it for a run
+     * that the library marked, on its handle, as refused for that reason
+     * (emulator/src/start_refusal.hpp), and for no other failure: the
+     * library's -UML_EMULATOR_OUT_OF_MEMORY also comes from a failed
+     * allocation of its own, and is returned as it is. A guest's own exit
+     * status is returned as it is too, so a guest whose user writes exactly
+     * this value as its status (root, through /proc/exitcode) returns it
+     * without any refusal. It is outside the range of the negated
+     * uml_emulator errors (-1 through -4). */
+    KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED = -101,
     /* The guest restarted itself five times in a row within 15 seconds of its
      * boot, or, for Android, eight times in a row each within 15 seconds or
      * before its boot had finished (init processed sys.boot_completed=1,
@@ -279,8 +325,8 @@ enum {
      * count, and the debugger, if one made it, has detached. A boot that sets
      * use_jit runs on the JIT. */
     KERNARIUM_RUNTIME_JIT_READY = 0,
-    /* This runtime has no JIT: an App Store runtime, or a build for the
-     * Simulator or a host that cannot make executable memory. */
+    /* This runtime has no JIT: a build for the Simulator or a host that cannot
+     * make executable memory. */
     KERNARIUM_RUNTIME_JIT_UNSUPPORTED = 1,
     /* No debugger is attached to the process, or the one that was left
      * before it served the request, so none prepared the memory. A boot
@@ -410,10 +456,7 @@ typedef void (*kernarium_runtime_console_output_callback)(
 typedef void (*kernarium_runtime_set_console_output_callback_function)(
     kernarium_runtime_console_output_callback callback,
     void* context);
-/* Writes to the guest's console. An App Store runtime (the
- * kernarium-ios-device-android-app-store preset) has no console input: its
- * entry stays in the table, so the table's layout and version are the same in
- * every runtime, and answers -ENOTSUP. */
+/* Writes to the guest's console. */
 typedef int (*kernarium_runtime_send_console_input_function)(
     const void* buffer,
     size_t length);
@@ -460,9 +503,7 @@ typedef void (*kernarium_runtime_frame_sink)(void* context, void* pixel_buffer);
  * A null sink stops the mirror, and returns only once no call to the previous
  * sink is running or will start, so its context may be released; the sink must
  * not call this. Returns 0, or a negative value for a width or rate of zero.
- * The setting applies to the guest's display whenever one exists. An App Store
- * runtime has no mirror: its entry stays in the table and answers -ENOTSUP for
- * any arguments. */
+ * The setting applies to the guest's display whenever one exists. */
 typedef int (*kernarium_runtime_set_frame_sink_function)(
     kernarium_runtime_frame_sink sink,
     void* context,
@@ -560,6 +601,14 @@ typedef struct kernarium_runtime_statistics {
      * there is no budget: no GPU yet, or a runtime that gives its guest none. */
     uint64_t gpu_memory_budget_bytes;
     uint64_t gpu_memory_used_bytes;
+    /* The refresh rate the host granted the run's display (runtime API 44):
+     * 120 when the run was given the 120 Hz mode, 60 for the 60 Hz display, and
+     * 0 while there is no display. It is decided once, before the guest boots
+     * (ANDROID_HOST_HIGH_REFRESH), and the guest's own mode follows it only
+     * while a display size can state it. The application learns from it
+     * whether a run has the 120 Hz display, whatever it asked. */
+    uint32_t display_refresh_hz;
+    uint32_t reserved;
 } kernarium_runtime_statistics;
 /* Fills `statistics` (the caller sets struct_size) with the running guest's
  * host-side figures. Returns 0, -ENODEV with no guest running (before its

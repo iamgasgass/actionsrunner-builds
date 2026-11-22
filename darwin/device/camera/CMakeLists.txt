@@ -25,20 +25,11 @@ target_link_libraries(uml_camera_device PUBLIC UML::VideoGuestBuffers UML::Nv12T
 target_link_libraries(uml_camera_device PRIVATE UML::VhostUserTransport)
 
 # The platform cameras a launcher can serve through the device: the host's
-# (AVFoundation, with its permission query) and the synthetic camera, which an
-# App Store runtime does not carry. The launcher links this and never the
-# platform camera targets.
+# (AVFoundation, with its permission query) and the synthetic camera. The
+# launcher links this and never the platform camera targets.
 add_library(uml_camera_source STATIC camera_source.cpp)
 add_library(UML::CameraSource ALIAS uml_camera_source)
 uml_declare_architecture_target(uml_camera_source device)
 target_include_directories(uml_camera_source PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(uml_camera_source PUBLIC UML::CameraDevice)
-target_link_libraries(uml_camera_source PRIVATE UML::AppleCamera)
-if(TARGET UML::SyntheticCamera)
-    target_link_libraries(uml_camera_source PRIVATE UML::SyntheticCamera)
-    target_compile_definitions(uml_camera_source PRIVATE
-        UML_CAMERA_SOURCE_HAS_SYNTHETIC=1)
-else()
-    target_compile_definitions(uml_camera_source PRIVATE
-        UML_CAMERA_SOURCE_HAS_SYNTHETIC=0)
-endif()
+target_link_libraries(uml_camera_source PRIVATE UML::AppleCamera UML::SyntheticCamera)

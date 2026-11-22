@@ -12,9 +12,9 @@
 #
 # The host's encoder writes every frame that is not a `reject-` frame, and the
 # guest reads each of them as the severity described; the application's policy
-# sends NONE, SEVERE and CRITICAL, never LIGHT or MODERATE. The guest closes
-# the connection on every `reject-` frame and keeps the severity it had; the
-# host never encodes one.
+# sends NONE, SEVERE and CRITICAL, and MODERATE while Low Power Mode holds a
+# 120 Hz display to 60, never LIGHT. The guest closes the connection on every
+# `reject-` frame and keeps the severity it had; the host never encodes one.
 
 # NONE: the host's thermal state is nominal or fair, and neither serious nor
 # critical was the state in the last 120 s.
@@ -22,6 +22,11 @@ none: 41 54 48 31 00 00 00 00
 
 # LIGHT: the guest reports it; the application does not send it.
 light: 41 54 48 31 01 00 00 00
+
+# MODERATE: the display is the 120 Hz one and iOS is in Low Power Mode, which holds
+# the screen to 60; the guest renders no more than 60. A host that is also hot
+# sends the hotter severity.
+moderate: 41 54 48 31 02 00 00 00
 
 # SEVERE: serious is the hottest of the host's thermal states now and in the
 # last 120 s (the hold after a state ended), so critical is neither the state

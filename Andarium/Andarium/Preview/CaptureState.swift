@@ -12,13 +12,6 @@ import UIKit
 @MainActor
 enum CaptureState {
     private static var screen = ""
-    private static var feedbackReady = false
-
-    /// Send feedback's sheet is open and its draft made: a picture before this shows what is under the sheet.
-    static func markFeedbackReady() {
-        feedbackReady = true
-        write()
-    }
 
     static func begin(screen: String) {
         self.screen = screen
@@ -42,19 +35,6 @@ enum CaptureState {
         var record: [String: Any] = [
             "pid": Int(ProcessInfo.processInfo.processIdentifier), "screen": screen, "state": state,
         ]
-        #if FEEDBACK_MAIL
-        // The screens of Send feedback exist only in a build that has it.
-        record["feedback"] = true
-        record["feedbackReady"] = feedbackReady
-        #endif
-        #if TIP_JAR
-        // And those of Buy me tokens.
-        record["tipjar"] = true
-        #endif
-        #if ICP_FILING
-        // And the footnote of Info.
-        record["icp"] = true
-        #endif
         guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first,
               let data = try? JSONSerialization.data(withJSONObject: record) else { return }
         try? data.write(to: caches.appendingPathComponent("capture-state.json"), options: .atomic)

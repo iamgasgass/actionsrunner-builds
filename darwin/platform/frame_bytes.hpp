@@ -30,4 +30,11 @@ namespace uml::platform {
 // sessions: 17 MiB, 1.5 bytes a pixel, counted as 2 for headroom (a third more).
 inline constexpr std::uint32_t systemCameraStillWorkingBytesPerPixel = 2;
 
+// The storage, in bytes for each pixel, that the host holds besides that while it turns a still half around and encodes it
+// (`Camera::turnedStillWorkingBytesPerPixel`): the encoder's frame (1.5 bytes a pixel) and the image the encoder hands
+// back, which is bounded by the guest's JPEG buffer (about 1.5 bytes a pixel) and coexists with the host's copy of it. It is
+// the most the process footprint rose over the uncompressed photo for one still of 2016x1512, repeated and warmed, with the
+// encoder at its largest (noise at quality 100): 9.40 MB, 3.09 bytes a pixel, counted as 4 for headroom (a third more).
+inline constexpr std::uint32_t systemCameraTurnedStillWorkingBytesPerPixel = 4;
+
 } // namespace uml::platform

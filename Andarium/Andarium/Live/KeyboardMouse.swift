@@ -527,8 +527,6 @@ final class KeyboardMouse: GuestHardwareSink {
     }
 }
 
-#if !APP_STORE
-
 // MARK: A recording runtime
 
 /// What the guest's keyboard and mouse were sent, for the tests and for the
@@ -623,5 +621,3 @@ extension KeyboardMouse {
             wantsLock: wantsLock)
     }
 }
-
-#endif

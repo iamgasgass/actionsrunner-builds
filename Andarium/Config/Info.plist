@@ -2,47 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-#ifdef FEEDBACK_MAIL
-	<key>AndariumFeedbackAddress</key>
-	<string>$(FEEDBACK_ADDRESS)</string>
-#endif
-#ifdef TIP_JAR
-	<key>AndariumTipProducts</key>
-	<dict>
-		<key>lite</key>
-		<string>$(TIP_LITE)</string>
-		<key>max</key>
-		<string>$(TIP_MAX)</string>
-		<key>pro</key>
-		<string>$(TIP_PRO)</string>
-		<key>ultra</key>
-		<string>$(TIP_ULTRA)</string>
-	</dict>
-#endif
-#ifdef SHEET_NAME
-	<key>AndariumDeveloperName</key>
-	<string>$(SHEET_DEVELOPER_NAME)</string>
-#endif
-#ifdef SHEET_GITHUB
-	<key>AndariumDeveloperGitHub</key>
-	<string>$(SHEET_DEVELOPER_GITHUB)</string>
-#endif
-#ifdef SHEET_X
-	<key>AndariumDeveloperX</key>
-	<string>$(SHEET_DEVELOPER_X)</string>
-#endif
 #ifdef FOLLOW_X
 	<key>AndariumFollowXHandle</key>
 	<string>$(FOLLOW_X_HANDLE)</string>
 #endif
-#ifdef ICP_FILING
-	<key>AndariumICPNumber</key>
-	<string>$(ICP_NUMBER)</string>
+#ifdef UPDATE_NOTICE
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>altstore</string>
+		<string>sidestore</string>
+	</array>
+	<key>UpdateAppIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>UpdateLinkHosts</key>
+	<string>$(UPDATE_LINK_HOSTS)</string>
+	<key>UpdateSourceHost</key>
+	<string>$(UPDATE_SOURCE_HOST)</string>
+	<key>UpdateSourcePath</key>
+	<string>$(UPDATE_SOURCE_PATH)</string>
 #endif
-#ifdef APP_REVIEW
-	<key>AndariumReviewID</key>
-	<string>$(REVIEW_ID)</string>
-#endif
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>GCSupportedGameControllers</key>
 	<array>
 		<dict>
@@ -52,6 +32,8 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSMinimumSystemVersion</key>
+	<string>27.0</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

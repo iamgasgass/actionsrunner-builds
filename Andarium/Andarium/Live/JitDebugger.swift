@@ -3,12 +3,9 @@
 import AndariumCore
 import Foundation
 
-#if !APP_STORE
-
 /// The debugger side of the JIT: whether one is attached to Andarium and
 /// serves the runtime's request for executable memory, and the preparation
-/// the runtime makes with it. An App Store build compiles this file out and
-/// has no JIT.
+/// the runtime makes with it.
 enum JitDebugger {
     /// Whether an attached debugger is one that serves the request. Release
     /// builds run from StikDebug, whose script serves it. Under Xcode a Debug
@@ -47,5 +44,3 @@ enum JitDebugger {
         }.value
     }
 }
-
-#endif

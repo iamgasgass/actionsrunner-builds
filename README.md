@@ -7,11 +7,41 @@ Run a real Linux kernel natively on iOS, through the magic of [User-mode Linux](
 
 ### Andarium
 
-[![](docs/Download_on_the_App_Store_Badge_US-UK_RGB_blk_092917.svg)](https://apps.apple.com/us/app/andarium/id6827505184)
+The app was released on App Store but removed by Apple later due to violation of App Review Guidelines:
+```
+Guideline 2.5.2 & 1.1 - Performance - Software Requirements
 
-An Android emulator app built on the Kernarium runtime is available for download in App Store. Source code is available under [`Andarium/`](/Andarium/).
 
-If you want, you can also sideload IPA from [releases](https://github.com/imxieyi/Kernarium/releases).
+We noticed that the app includes functionality that isn’t focused on the experience for supported Apple platforms.
+
+
+Specifically, your app allows users to replicate Android operating systems on iOS platforms.
+```
+
+An Android emulator app built on the Kernarium runtime is **no longer** available for download in App Store. Source code is available under [`Andarium/`](/Andarium/).
+
+#### Sideloading
+
+You can sideload the app with [AltStore](https://altstore.io) or [SideStore](https://sidestore.io).
+
+The easy way is to add the source, so updates show up in AltStore or SideStore:
+
+```
+https://raw.githubusercontent.com/imxieyi/Kernarium/main/sideload/source.json
+```
+
+Alternatively, install the IPA from [releases](https://github.com/imxieyi/Kernarium/releases) by hand:
+
+1. Download `Andarium-<version>.ipa` on the device. It's about 1 GB.
+2. Open AltStore or SideStore, tap `+` in **My Apps** and pick the IPA.
+
+A few things to know:
+
+- iOS 26 or later is required.
+- A free Apple ID works, but the app expires after 7 days and must be refreshed in AltStore or SideStore.
+- With a free Apple ID, Android gets less memory. AltStore 2.2 or later keeps the increased memory limit, SideStore doesn't by default. Extended virtual addressing needs a paid developer account.
+- JIT is optional. To use it, assign the universal script to Andarium in StikDebug once, then open Andarium from StikDebug.
+- To update by hand, install the new IPA with the same Apple ID and the same tool. It replaces the old version and keeps your virtual machine.
 
 ### Kernarium
 
@@ -30,11 +60,11 @@ This emulator architecture sits between a full system emulator (like [UTM](https
     - Supports most kernel features, including namespaces, SELinux and more
 - CPU emulation
     - Supports `arm64`, `arm32`, `x86_64` guest instructions
-    - Both interpreter and JIT execution modes (interpreter-only for TestFlight release)
+    - Both interpreter and JIT execution modes
 - GPU acceleration
     - Vulkan 1.4 via [KosmicKrisp](https://docs.mesa3d.org/drivers/kosmickrisp.html)
     - OpenGL 4.6 & GLES 3.2 via [Zink](https://docs.mesa3d.org/drivers/zink.html)
-    - Hardware video encoding and decoding (H.264, HEVC) via [VideoToolbox](https://developer.apple.com/documentation/videotoolbox)
+    - Hardware video encoding and decoding (H.264, HEVC; VP9 decoding) via [VideoToolbox](https://developer.apple.com/documentation/videotoolbox)
 - Storage
     - Supports virtual disks via UBD driver, with discard support
     - Supports any Linux filesystem including ext2/3/4, erofs, xfs, ...

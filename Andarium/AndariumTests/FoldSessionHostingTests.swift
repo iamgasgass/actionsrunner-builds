@@ -48,6 +48,14 @@ struct FoldSessionHostingTests {
             }
         }
 
+        /// The poses of `poses` whose sheet height can be tested on this system. The sheet of a system
+        /// before iOS 27 ignores a custom detent on the iPad the tests run on, so the turned, bent pose,
+        /// the one that asks for one, is left out below it; from iOS 27.0 every pose is tested.
+        static func keepingSheetHeights(_ poses: [Pose]) -> [Pose] {
+            if #available(iOS 27.0, *) { return poses }
+            return poses.filter { $0 != .turnedBook }
+        }
+
         var reading: FoldReading {
             switch self {
             case .cover:
@@ -828,8 +836,8 @@ struct FoldSessionHostingTests {
     }
 
     /// A card is kept to its place by the space it is given, not by the
-    /// window: in a sheet that is only the leading half wide, the Send
-    /// feedback's busy card must not be padded away, and in a sheet the
+    /// window: in a sheet that is only the leading half wide, the
+    /// busy card must not be padded away, and in a sheet the
     /// system centres on a flat display it is centred in the sheet.
     @Test(arguments: [(pose: Pose.uprightBook, sheet: CGRect(x: 0, y: 0, width: 455.5, height: 500)),
                       (pose: Pose.uprightFlat, sheet: CGRect(x: 150, y: 0, width: 651, height: 500)),
@@ -938,7 +946,7 @@ struct FoldSessionHostingTests {
 
     /// A sheet is kept below the fold only while the device stands bent; flat,
     /// it is the system's, as on an iPad.
-    @Test(arguments: [Pose.turnedBook, Pose.turnedFlat, Pose.uprightFlat])
+    @Test(arguments: Pose.keepingSheetHeights([.turnedBook, .turnedFlat, .uprightFlat]))
     func aSheetRisesToTheFoldOnlyWhileTheDeviceStandsBent(_ pose: Pose) async throws {
         let model = steadyModel()
         model.fold = pose.reading

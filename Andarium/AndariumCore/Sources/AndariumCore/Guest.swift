@@ -37,6 +37,10 @@ public struct Guest: Equatable, Codable, Sendable {
     /// a new guest and for one stored before the switch existed. A game
     /// controller's rumble is the controller's and not governed by it.
     public var haptics: Bool
+    /// The person's choice to start Android with root (Magisk), and what the
+    /// application keeps beside it (`RootState`). Off for a new guest and for
+    /// one stored before the switch existed.
+    public var root = RootState()
     /// Whether iCloud and computer backups include the guest's files. Off by
     /// default: the guest is several GiB that Android can set up again.
     public var includeInBackups: Bool
@@ -48,13 +52,14 @@ public struct Guest: Equatable, Codable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case cores, memoryMiB, capacityGiB, pendingCapacityGiB, microphone
-        case includeInBackups, location, haptics, camera
+        case includeInBackups, location, haptics, camera, root
     }
 
     public init(
         cores: Int, memoryMiB: Int, capacityGiB: Int, pendingCapacityGiB: Int? = nil,
         microphone: Bool = false, includeInBackups: Bool = false,
-        location: Bool = false, haptics: Bool = true, camera: Bool = false, usedBytes: UInt64 = 0
+        location: Bool = false, haptics: Bool = true, camera: Bool = false, root: RootState = RootState(),
+        usedBytes: UInt64 = 0
     ) {
         self.cores = cores
         self.memoryMiB = memoryMiB
@@ -64,6 +69,7 @@ public struct Guest: Equatable, Codable, Sendable {
         self.location = location
         self.haptics = haptics
         self.camera = camera
+        self.root = root
         self.includeInBackups = includeInBackups
         self.usedBytes = usedBytes
     }
@@ -79,6 +85,7 @@ public struct Guest: Equatable, Codable, Sendable {
         includeInBackups = try values.decode(Bool.self, forKey: .includeInBackups)
         haptics = try values.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
         camera = try values.decodeIfPresent(Bool.self, forKey: .camera) ?? false
+        root = try values.decodeIfPresent(RootState.self, forKey: .root) ?? RootState()
     }
 
     public var usedGiB: Double { Double(usedBytes) / Double(Limits.bytesPerGiB) }
@@ -131,6 +138,10 @@ public struct Guest: Equatable, Codable, Sendable {
         guest.capacityGiB = effectiveCapacityGiB
         guest.pendingCapacityGiB = nil
         guest.usedBytes = 0
+        // The data held the Magisk app and what it was given: the choice stays
+        // and the application's memory of them goes.
+        guest.root.attention = nil
+        guest.root.dataDiskReplaced()
         return guest
     }
 
@@ -157,10 +168,13 @@ public struct Guest: Equatable, Codable, Sendable {
 
     /// The memory this guest loads with: a stored size below the minimum or
     /// above the bound of its vCPU count, or off the steps, comes to the
-    /// nearest allowed size.
+    /// nearest allowed size. A stored size of zero is none (a guest set up
+    /// where no size could start, `TwoDiskStorage.save`) and takes the host's
+    /// default for its vCPU count; where no size can start, zero.
     public func memoryWithinBound(on host: HostDevice) -> Guest {
         var guest = self
-        guest.memoryMiB = host.memory.clamped(memoryMiB, vCPUs: cores)
+        let size = memoryMiB > 0 ? memoryMiB : host.memory.defaultMemoryMiB(vCPUs: cores)
+        guest.memoryMiB = host.memory.clamped(size, vCPUs: cores)
         return guest
     }
 }

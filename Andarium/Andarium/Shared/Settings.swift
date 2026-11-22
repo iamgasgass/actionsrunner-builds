@@ -22,6 +22,8 @@ struct SessionSettingsSheet: View {
     @State private var detent: PresentationDetent
     /// The Old app compatibility page is pushed.
     @State private var oldAppsOpen = false
+    /// The Add to Home Screen page is pushed.
+    @State private var addToHomeOpen = false
 
     init(large: Bool) {
         _detent = State(initialValue: large ? .large : .medium)
@@ -38,9 +40,7 @@ struct SessionSettingsSheet: View {
                     // The thermal session runs in a normal run; Recovery has no HAL.
                     if normalSession { PerformanceSection() }
                     if model.host.supportsPointer { pointer }
-                    #if !APP_STORE
                     if let probe = model.inputProbe { inputProbe(probe) }
-                    #endif
                     if normalSession, model.capabilities.adbOverNetwork || model.capabilities.textMessages {
                         developer(session)
                     }
@@ -58,6 +58,11 @@ struct SessionSettingsSheet: View {
                     try? await Task.sleep(for: .milliseconds(400))
                     oldAppsOpen = true
                 }
+                .task {
+                    guard model.sessionPreset.addToHomePage, model.hostOffersAddToHomeScreen else { return }
+                    try? await Task.sleep(for: .milliseconds(400))
+                    addToHomeOpen = true
+                }
             }
             .listSectionSpacing(.compact)
             .endingAboveFilesBar(filesBarHeight)
@@ -74,10 +79,10 @@ struct SessionSettingsSheet: View {
                 }
             }
             .navigationDestination(isPresented: $oldAppsOpen) { OldAppsPage() }
+            .navigationDestination(isPresented: $addToHomeOpen) {
+                AddToHomeScreenPage(query: model.sessionPreset.addToHomeQuery ?? "")
+            }
         }
-        #if FEEDBACK_MAIL
-        .sendFeedbackSheet(model)
-        #endif
         // A picker that failed (Install APK and the file browser's Import are
         // here): the alert is the sheet's own, which keeps the sheet open.
         .background {
@@ -127,20 +132,7 @@ struct SessionSettingsSheet: View {
         .presentationDetents([.medium, .large], selection: $detent)
         .presentationBackground(Color(.systemGroupedBackground))
         .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-        #if APP_STORE
-        .fileImporter(isPresented: $importing, allowedContentTypes: InstallRefusal.pickerTypes) { result in
-            switch result {
-            case .success(let url):
-                // Settings goes; the install, or the refusal of a file that is not
-                // an .apk, .apks, .xapk or .apkm, is on the full-screen overlay.
-                model.installPicked(url)
-                dismiss()
-            case .failure(let error):
-                model.documentPickerFailed(error, title: AppModel.installFailure)
-            }
-        }
-        #else
-        // Every other build takes a copy of the file (`CopyDocumentPicker`).
+        // The picker takes a copy of the file (`CopyDocumentPicker`).
         .documentCopyPicker(isPresented: $importing, types: InstallRefusal.pickerTypes) { result in
             switch result {
             case .success(let picked):
@@ -151,7 +143,6 @@ struct SessionSettingsSheet: View {
                 model.documentPickerFailed(error, title: AppModel.installFailure)
             }
         }
-        #endif
     }
 
     private var fileRoute: Binding<[FolderRoute]> {
@@ -263,9 +254,6 @@ struct SessionSettingsSheet: View {
     /// Tapping the row starts at once.
     private var diagnostics: some View {
         Section("Diagnostics") {
-            #if FEEDBACK_MAIL
-            if model.feedbackAddress != nil { SendFeedbackEntrance() }
-            #endif
             Button {
                 dismiss()
                 model.createBugReport()
@@ -309,6 +297,8 @@ struct SessionSettingsSheet: View {
             .disabled(model.fileBrowser?.busy == true)
             // Offered only when the last listing found an app it can apply to.
             if model.session.oldApps.offered { OldAppsRow { oldAppsOpen = true } }
+            // Offered while Android runs and its image lists apps.
+            if model.offersAddToHomeScreen { AddToHomeScreenRow { addToHomeOpen = true } }
         }
     }
 
@@ -435,7 +425,6 @@ struct SessionSettingsSheet: View {
         }
     }
 
-    #if !APP_STORE
     /// The text field a UI test types into while Settings is open.
     private func inputProbe(_ probe: InputProbe) -> some View {
         @Bindable var probe = probe
@@ -446,7 +435,6 @@ struct SessionSettingsSheet: View {
                 .accessibilityIdentifier("inputProbeField")
         }
     }
-    #endif
 
     // MARK: Stats
 

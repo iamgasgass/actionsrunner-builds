@@ -52,6 +52,8 @@ struct SheetPresentationTests {
     @Test(arguments: SheetKind.allCases)
     func homePresentsEverySheet(_ kind: SheetKind) async throws {
         let model = model()
+        // The update detail shows nothing without the notice it reads.
+        if kind == .appUpdate { model.appUpdate = AppUpdateFixture.notice(installed: ["altstore"]) }
         let lease = try await HostWindow.take()
         defer { lease.give() }
         let controller = AndariumHostingController(

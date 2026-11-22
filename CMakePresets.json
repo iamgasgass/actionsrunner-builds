@@ -203,15 +203,6 @@
       }
     },
     {
-      "name": "kernarium-ios-device-android-app-store",
-      "displayName": "Kernarium iOS device Android App Store runtime (4 KiB)",
-      "inherits": "kernarium-ios-device-android",
-      "binaryDir": "${sourceDir}/.build/kernarium-runtime-ios-device-android-4k-app-store",
-      "cacheVariables": {
-        "UML_APP_STORE_RUNTIME": true
-      }
-    },
-    {
       "name": "kernarium-ios-simulator",
       "displayName": "Kernarium iOS Simulator runtime (software GPU)",
       "inherits": "ios-simulator",
@@ -342,11 +333,6 @@
     {
       "name": "kernarium-ios-device-android-automation",
       "configurePreset": "kernarium-ios-device-android-automation",
-      "targets": ["KernariumRuntime", "architecture-audit"]
-    },
-    {
-      "name": "kernarium-ios-device-android-app-store",
-      "configurePreset": "kernarium-ios-device-android-app-store",
       "targets": ["KernariumRuntime", "architecture-audit"]
     },
     {

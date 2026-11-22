@@ -6,6 +6,12 @@
 extern "C" {
 #endif
 
+/* guest_code is a bit set. Zero maps a page that is not guest code. Bit 0
+ * marks guest code. Bit 1, meaningful only with bit 0 (the value 3), is the
+ * kernel's fact that no store can change the page while it is mapped: an
+ * up-to-date page-cache page of a read-only file system. The host shares what
+ * it verified about such a page between address spaces and about no other. A
+ * kernel that never sets bit 1 stays correct. */
 int darwin_uml_vm_map(void *address, int fd, unsigned long long offset,
 		      unsigned long length, int protection, int guest_code,
 		      int guest_writable);

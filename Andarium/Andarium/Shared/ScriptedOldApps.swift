@@ -3,11 +3,9 @@
 import AndariumCore
 import Foundation
 
-#if !APP_STORE
-
 /// A list of old apps that plays, in place of the image's command: the
-/// Simulator preview's, and the probe session's of the UI tests (an App Store
-/// build compiles it out). It answers as the command is specified to: a
+/// Simulator preview's, and the probe session's of the UI tests. It answers as
+/// the command is specified to: a
 /// listing, a write that the app accepts, refuses or loses, and an app that
 /// is open or not. The app names are made up.
 @MainActor
@@ -75,5 +73,3 @@ final class ScriptedOldApps: OldAppsSource {
         return open.contains(package)
     }
 }
-
-#endif

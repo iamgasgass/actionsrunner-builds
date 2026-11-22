@@ -77,7 +77,7 @@ guest is reached through the shared adb server, always named with ``-s``.
 
 The runner is opt-in: it needs the macos-android17 executable, an installed release and an adb client.
 usage: run_android_camera.py --emulator uml-darwin-android17 [--release DIR] [--layout NAME|auto]
-       [--camera-profile phone|tablet|laptop] [--mode live|blocked|none|restart]
+       [--camera-profile phone|phone-turned-front|tablet|laptop] [--mode live|blocked|none|restart]
 """
 
 from __future__ import annotations
@@ -311,6 +311,7 @@ ANIMATION_SCALES = ("window_animation_scale", "transition_animation_scale", "ani
 # (android/lineage-24/overlay/camera/hal/camera_ids.hpp).
 PROFILE_CAMERAS = {
     "phone": ("back+front", ("0", "1", "3", "4")),
+    "phone-turned-front": ("back+front", ("0", "1", "3", "4")),
     "tablet": ("back+front", ("0", "1")),
     "laptop": ("front", ("0",)),
 }
@@ -323,6 +324,7 @@ PROFILE_CAMERAS = {
 # --layout states for a host that has a calibration directory.
 DEFAULT_LAYOUTS = {
     "phone": "bf-large-flash-manual-concurrent-front2160",
+    "phone-turned-front": "bf-large-flash-manual-concurrent-front2160",
     "tablet": "bf-small-flash-manual",
     "laptop": "front",
 }
@@ -427,7 +429,7 @@ CALIBRATION_SECONDS = 30  # the host writes the colour data of a still when the 
 # lens button too, the telephoto lens, which is the camera with this ID, so that the colour data of more than one
 # lens has to survive the restart. A host with a single back camera lists no buttons.
 LENS_SELECTOR = "lensSelectorLayout"
-LAST_LENS_CAMERA = {"phone": "4"}
+LAST_LENS_CAMERA = {"phone": "4", "phone-turned-front": "4"}
 # The first session starts the application on the primary back camera: it keeps the camera it last used, which an
 # instance of an earlier run may have left on the front one.
 PRIMARY_BACK_CAMERA = "0"
@@ -3302,6 +3304,7 @@ AUTO_LAYOUT = "auto"
 # concurrent stream pair, whatever the launcher's graphics budget.
 AUTO_LAYOUTS = {
     "phone": "bf-small-flash-manual-raw",
+    "phone-turned-front": "bf-small-flash-manual-raw",
     "tablet": "bf-small-flash-manual-raw",
     "laptop": "front",
 }

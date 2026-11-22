@@ -479,6 +479,10 @@ fi
 	fail "the script that moves an older guest to the on-screen keyboard default is absent"
 [[ "$PRODUCT_PACKAGES" == *" kernarium_oldapp "* ]] ||
 	fail "the shell command that lists and switches Old app compatibility is absent"
+[[ "$PRODUCT_PACKAGES" == *" kernarium_apps "* ]] ||
+	fail "the shell command that lists the launcher applications with their icons and starts one is absent"
+[[ "$PRODUCT_PACKAGES" == *" KernariumIcons "* ]] ||
+	fail "the application that draws the launcher applications' icons for that command is absent"
 [[ "$PRODUCT_PACKAGES" == *" com.android.hardware.wifi "* ]] ||
 	fail "the Wi-Fi HAL that the virtual Wi-Fi needs is absent"
 [[ "$PRODUCT_PACKAGES" == *" com.google.cf.wpa_supplicant "* ]] ||
@@ -489,6 +493,10 @@ fi
 	fail "the overlay that releases the home app's memory pin is absent"
 [[ "$PRODUCT_PACKAGES" == *" KernariumSms "* ]] ||
 	fail "the service that delivers the host's text messages is absent"
+[[ "$PRODUCT_PACKAGES" == *" kernarium_sms_listener "* ]] ||
+	fail "the holder of the text message service's vsock port is absent"
+[[ "$PRODUCT_PACKAGES" == *" kernarium_sms_wake_script "* ]] ||
+	fail "the script that starts the text message service is absent"
 [[ "$PRODUCT_PACKAGES" == *" messaging "* ]] ||
 	fail "the SMS application that shows the host's text messages is absent"
 [[ "$PRODUCT_PACKAGES" == *" TelephonyProvider "* ]] ||

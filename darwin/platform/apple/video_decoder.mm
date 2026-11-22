@@ -3,6 +3,7 @@
 #include "video_decoder_testing.hpp"
 #include "h264_stream.hpp"
 #include "hevc_stream.hpp"
+#include "vp9_stream.hpp"
 
 #import <Foundation/Foundation.h>
 #import <VideoToolbox/VideoToolbox.h>
@@ -73,8 +74,11 @@ private:
  * dimension and not the area: an M1 Ultra opens H.264 up to 4096 on either
  * axis (4096 x 4096 and 2304 x 4096 decode, 4112 in either direction is
  * refused) and HEVC at least to 8192 x 8192, where it stops being measured.
- * A level's frame-size limit is not used: level 5.2 allows 36864 macroblocks
- * and the hardware opens 65536. iOS has not been measured. */
+ * Its VP9 decoder opens pictures up to 8192 x 4320 and 4320 x 8192 and refuses
+ * 8192 x 8192; the square 4096 x 4096 and the portrait 2304 x 4096 that a
+ * guest's symmetric size range allows decode. A level's frame-size limit is
+ * not used: level 5.2 allows 36864 macroblocks and the hardware opens 65536.
+ * iOS has not been measured. */
 struct SizeLimit {
     std::uint32_t width;
     std::uint32_t height;
@@ -84,7 +88,8 @@ constexpr SizeLimit decodeSizeLimit(VideoCodec codec) noexcept
     switch (codec) {
     case VideoCodec::h264: return {4096, 4096};
     case VideoCodec::hevc: return {8192, 8192};
-    case VideoCodec::jpeg: case VideoCodec::vp9: return {4096, 2304};
+    case VideoCodec::jpeg: return {4096, 2304};
+    case VideoCodec::vp9: return {4096, 4096};
     }
     return {};
 }
@@ -127,78 +132,20 @@ bool high10Available()
 
 /* VP9 is a supplemental VideoToolbox decoder: `VTIsHardwareDecodeSupported`
  * answers no until the process asks for it, which is what Chromium and FFmpeg
- * do before probing. Asking once is harmless where no such decoder exists.
+ * do before probing. Asking once is harmless where no such decoder exists. The
+ * registration call needs iOS 26.2; below it the host reports no VP9 hardware
+ * decode.
  */
 bool vp9Available()
 {
     static const bool available = [] {
-        VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_VP9);
-        return bool(VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9));
+        if (@available(iOS 26.2, *)) {
+            VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_VP9);
+            return bool(VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9));
+        }
+        return false;
     }();
     return available;
-}
-
-class BitReader {
-public:
-    explicit BitReader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
-    std::uint32_t read(unsigned count)
-    {
-        std::uint32_t value = 0;
-        while (count-- > 0) {
-            if (position_ >= bytes_.size() * 8) throw std::runtime_error("truncated VP9 header");
-            value = (value << 1) | ((bytes_[position_ / 8] >> (7 - position_ % 8)) & 1);
-            ++position_;
-        }
-        return value;
-    }
-private:
-    std::span<const std::uint8_t> bytes_;
-    std::size_t position_ {};
-};
-
-struct Vp9KeyFrame {
-    VideoFormat format;
-    unsigned profile;
-    unsigned colorSpace;   // VP9 CS_* as the uncompressed header states it
-    bool fullRange;
-};
-
-/* VP9 carries no parameter sets: a key frame's uncompressed header is the only
- * place the profile, bit depth and frame size appear, so the format is read
- * from the stream rather than configured ahead of it. Returns nothing for a
- * frame that cannot change the format, and the caller keeps the current one.
- */
-std::optional<Vp9KeyFrame> vp9KeyFrame(std::span<const std::uint8_t> bytes)
-{
-    BitReader reader(bytes);
-    if (reader.read(2) != 2) throw std::runtime_error("invalid VP9 frame marker");
-    const unsigned low = reader.read(1);
-    const unsigned high = reader.read(1);
-    const unsigned profile = (high << 1) | low;
-    if (profile == 3) reader.read(1);
-    if (reader.read(1) != 0) return std::nullopt;   // show_existing_frame
-    const bool key = reader.read(1) == 0;
-    reader.read(1);                                 // show_frame
-    reader.read(1);                                 // error_resilient_mode
-    if (!key) return std::nullopt;
-    if (reader.read(24) != 0x498342) throw std::runtime_error("invalid VP9 frame sync code");
-    unsigned bitDepth = 8;
-    if (profile >= 2) bitDepth = reader.read(1) != 0 ? 12 : 10;
-    unsigned colorSpace = 0, colorRange = 0;
-    colorSpace = reader.read(3);
-    if (colorSpace != 7 /* SRGB */) {
-        colorRange = reader.read(1);
-        if (profile == 1 || profile == 3) {
-            if (reader.read(1) != 1 || reader.read(1) != 1)
-                throw std::runtime_error("VP9 decoder requires 4:2:0 chroma");
-            reader.read(1);
-        }
-    } else {
-        throw std::runtime_error("VP9 4:4:4 is not a supported decoder input");
-    }
-    const std::uint32_t width = reader.read(16) + 1;
-    const std::uint32_t height = reader.read(16) + 1;
-    return Vp9KeyFrame {{width, height, bitDepth}, profile, colorSpace, colorRange != 0};
 }
 
 /* VP9 states its color space in the frame header rather than in a parameter
@@ -430,6 +377,9 @@ public:
         if (!session_.get()) throw std::runtime_error("video picture precedes its parameter sets");
         Picture picture {timestamp, {}, layout_ == VideoPixelLayout::planar8Bit, {}};
         if (!decodeOrLose(packet, picture)) return;
+        /* A VP9 packet that ends in a frame that is not shown shows nothing, as
+         * libvpx shows none: it is decoded for the references it refreshes. */
+        if (hiddenFinal_) return;
         for (auto& frame : picture.frames) emit(std::move(frame));
     }
 
@@ -526,6 +476,7 @@ private:
     std::vector<std::uint8_t> prepare(std::span<const std::uint8_t> bytes)
     {
         checkPacketSize(bytes);
+        hiddenFinal_ = false;
         std::vector<std::uint8_t> packet;
         bool changed = false;
         // A point where restarting the session loses nothing, because the
@@ -538,20 +489,61 @@ private:
             randomAccess = true;   // every JPEG frame stands alone
             packet.assign(bytes.begin(), bytes.end());
         } else if (codec_ == VideoCodec::vp9) {
-            // A superframe reaches the decoder whole; its first frame's
-            // uncompressed header is the one that can resize the stream.
-            if (const auto key = vp9KeyFrame(bytes)) {
-                if (key->profile != 0) throw std::runtime_error("unsupported VP9 profile");
-                changed = key->format != format_ || key->colorSpace != vp9ColorSpace_ ||
-                          key->fullRange != vp9FullRange_;
-                format_ = key->format;
-                vp9ColorSpace_ = key->colorSpace;
-                vp9FullRange_ = key->fullRange;
+            /* A guest's packet is whatever bytes it likes, and VP9 states the
+             * profile and the picture size in each frame's own header, so every
+             * frame of a superframe is read here, not only the first. A size any
+             * frame states stays within the advertised rectangle, which holds
+             * every picture of the stream: a frame that does not state its size
+             * takes one an earlier frame stated. Nothing of the decoder changes
+             * until the whole packet has passed. */
+            const char* fault = nullptr;
+            const auto parsed = vp9::parsePacket(bytes, &fault);
+            if (!parsed) throw std::runtime_error(fault);
+            const auto limit = decodeSizeLimit(VideoCodec::vp9);
+            /* A key frame refreshes every reference and restates the stream's
+             * profile, colour and size, so the last one of a packet is where
+             * the packet's configuration begins, and what precedes it cannot
+             * affect any frame after it. libvpx too shows a packet's last
+             * frame and no other. */
+            std::optional<std::size_t> keyAt;
+            for (std::size_t i = 0; i < parsed->frames.size(); ++i)
+                if (parsed->frames[i].key) keyAt = i;
+            /* The hardware decodes Profile 0 (8-bit) and Profile 2 (10-bit),
+             * both 4:2:0. A stream keeps its profile until a key frame, and a
+             * packet is one profile: a frame of another is a stream the
+             * description the session was made from does not describe. */
+            const unsigned profile = keyAt ? parsed->frames[*keyAt].profile : vp9Profile_;
+            for (const auto& header : parsed->frames) {
+                if (header.profile != profile || (profile != 0 && profile != 2) ||
+                    header.bitDepth != (profile == 2 ? 10u : 8u))
+                    throw std::runtime_error("unsupported VP9 profile");
+                if (!header.size) continue;
+                if (header.size->width > limit.width || header.size->height > limit.height)
+                    throw std::runtime_error("video dimensions exceed decoder capabilities");
+                /* The hardware refuses to open a session below the minimum,
+                 * and only once the decoder has moved on to the new picture. */
+                if (header.size->width < kVp9DecodeMinimumSide || header.size->height < kVp9DecodeMinimumSide)
+                    throw std::runtime_error("video dimensions are below decoder capabilities");
+            }
+            hiddenFinal_ = !parsed->frames.back().showFrame;
+            if (keyAt) {
+                const auto& key = parsed->frames[*keyAt];
+                const VideoFormat next {key.size->width, key.size->height, key.bitDepth};
+                changed = next != format_ || key.profile != vp9Profile_ || key.colorSpace != vp9ColorSpace_ ||
+                          key.fullRange != vp9FullRange_;
+                format_ = next;
+                vp9Profile_ = key.profile;
+                vp9ColorSpace_ = key.colorSpace;
+                vp9FullRange_ = key.fullRange;
                 randomAccess = true;
+                // The frames ahead of the key frame are not sent: it replaces what they refer to.
+                if (*keyAt == 0) packet.assign(bytes.begin(), bytes.end());
+                else packet = vp9::joinFrames(std::span(parsed->data).subspan(*keyAt));
             } else if (!description_.get()) {
                 throw std::runtime_error("VP9 stream does not start with a key frame");
+            } else {
+                packet.assign(bytes.begin(), bytes.end());
             }
-            packet.assign(bytes.begin(), bytes.end());
         }
         // A picture that needs one the lost session decoded has nothing to
         // refer to, and the session is made anew at the next random access point.
@@ -915,7 +907,7 @@ private:
         } else if (codec_ == VideoCodec::vp9) {
             NSDictionary* extensions = @{
                 (__bridge NSString*)kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms:
-                    @{@"vpcC": vp9Configuration(0, format_.bitDepth, vp9ColorSpace_, vp9FullRange_)},
+                    @{@"vpcC": vp9Configuration(vp9Profile_, format_.bitDepth, vp9ColorSpace_, vp9FullRange_)},
                 (__bridge NSString*)kCMFormatDescriptionExtension_FullRangeVideo: @(vp9FullRange_),
             };
             checked(CMVideoFormatDescriptionCreate(kCFAllocatorDefault, kCMVideoCodecType_VP9,
@@ -1041,8 +1033,11 @@ private:
     VideoFormat format_;
     VideoPixelLayout layout_ {VideoPixelLayout::planarYuv};
     VideoPixelLayout sessionLayout_ {VideoPixelLayout::planarYuv};
+    unsigned vp9Profile_ {};
     unsigned vp9ColorSpace_ {};
     bool vp9FullRange_ {};
+    // The packet `prepare` last read ends in a frame that shows nothing.
+    bool hiddenFinal_ {};
     // H.264: the stream's parameter sets, the SPS in use, and the order its
     // frames are shown in.
     h264::ParameterSets h264Sets_;
@@ -1082,6 +1077,30 @@ private:
 
 } // namespace
 
+/* Whether the hardware decodes VP9 Profile 2. Creating a session says no more
+ * than the codec does, so the probe decodes a 64 x 64 key frame of it and
+ * wants the 10-bit picture back. Done once, and only where VP9 itself is
+ * decoded in hardware. */
+static bool vp9Profile2Available()
+{
+    static const bool available = [] {
+        if (!vp9Available()) return false;
+        static const std::uint8_t keyFrame[] = {
+            0x92, 0x49, 0x83, 0x42, 0x00, 0x01, 0xf8, 0x01, 0xfb, 0x00, 0x1c, 0x12, 0x0e, 0x0c, 0x29,
+            0x00, 0x00, 0x18, 0x60, 0x00, 0x00, 0x69, 0x01, 0x76, 0x4d, 0xda, 0x99, 0xe4, 0x00};
+        try {
+            AppleVideoDecoder decoder(VideoCodec::vp9);
+            decoder.submit(keyFrame, 0);
+            decoder.drain();
+            const auto frames = decoder.takeFrames();
+            return frames.size() == 1 && frames[0].format == VideoFormat {64, 64, 10};
+        } catch (...) {
+            return false;
+        }
+    }();
+    return available;
+}
+
 std::vector<VideoDecodeCapability> videoDecodeCapabilities()
 {
     std::vector<VideoDecodeCapability> result;
@@ -1108,9 +1127,13 @@ std::vector<VideoDecodeCapability> videoDecodeCapabilities()
     if (VTIsHardwareDecodeSupported(kCMVideoCodecType_JPEG))
         result.push_back({VideoCodec::jpeg, VideoProfile::jpegBaseline,
                           decodeSizeLimit(VideoCodec::jpeg).width, decodeSizeLimit(VideoCodec::jpeg).height, 0, 8});
-    if (vp9Available())
-        result.push_back({VideoCodec::vp9, VideoProfile::vp9Profile0,
-                          decodeSizeLimit(VideoCodec::vp9).width, decodeSizeLimit(VideoCodec::vp9).height, 0, 8});
+    if (vp9Available()) {
+        const auto vp9 = decodeSizeLimit(VideoCodec::vp9);
+        result.push_back({VideoCodec::vp9, VideoProfile::vp9Profile0, vp9.width, vp9.height, 0, 8});
+        // 10-bit pictures reach an 8-bit client narrowed, as HEVC Main 10 does.
+        if (vp9Profile2Available())
+            result.push_back({VideoCodec::vp9, VideoProfile::vp9Profile2, vp9.width, vp9.height, 0, 10});
+    }
     return result;
 }
 

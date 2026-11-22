@@ -58,11 +58,7 @@ constexpr auto defaultIdleTrim = std::chrono::milliseconds(1000);
 
 [[nodiscard]] std::optional<std::chrono::milliseconds> idleTrimInterval()
 {
-#ifdef UML_APP_STORE_RUNTIME
-    const char* const text = nullptr;
-#else
     const char* const text = std::getenv("UML_GPU_IDLE_TRIM_MS");
-#endif
     if (text == nullptr || *text == '\0')
         return defaultIdleTrim;
     char* end = nullptr;
@@ -161,8 +157,7 @@ void deviceMemoryAccounted(
 }
 #endif
 
-/* The capability report is a diagnostic an App Store runtime does not carry. */
-#ifndef UML_APP_STORE_RUNTIME
+/* The capability report is a diagnostic, off unless the variable is 1. */
 [[nodiscard]] bool capabilityReportEnabled() noexcept
 {
     const char* value = std::getenv("UML_GPU_CAPABILITY_REPORT");
@@ -258,7 +253,6 @@ void reportCapset(
         "UML_GPU_CAPSET_END|id=" + std::to_string(identifier) +
         "|chunks=" + std::to_string(chunks) + "\n");
 }
-#endif
 
 void unavailableGlEntryPoint()
 {
@@ -469,7 +463,6 @@ VirglRenderer::VirglRenderer()
                     return released;
                 });
         }
-#ifndef UML_APP_STORE_RUNTIME
         if (capabilityReportEnabled()) {
             // vrend asks for 4.6 first, the core context this provider serves.
             reportContextProbe(provider_->probeContext(4, 6));
@@ -479,7 +472,6 @@ VirglRenderer::VirglRenderer()
             reportCapset(venusCapsetId, capset(venusCapsetId));
 #endif
         }
-#endif
     } catch (...) {
         {
             std::lock_guard lock(deviceMemoryReadMutex);

@@ -565,6 +565,45 @@ struct TextMessageTests {
         #expect(await eventually { noticeText(rig) == header })
     }
 
+    /// The overlay as the application has it: a view in a hosting controller that UIKit owns, where SwiftUI's
+    /// `scenePhase` stays at .background and never says the application is active. The model must still learn
+    /// it from UIKit: the flag follows the application's own state at the overlay's first appearance and its
+    /// become-active and resign-active notifications, and a result on the open bar is told, which is what
+    /// lets Send take the next message.
+    @Test func theOverlayInAUIKitHostedViewKeepsTheModelsActiveFlagAndToldLinesFollow() async throws {
+        try #require(UIApplication.shared.applicationState == .active, "the test host is the active application")
+        let rig = try rig()
+        defer { rig.cleanUp() }
+        let (model, state) = (rig.model, rig.state)
+        // What a scene phase of .background left the flag as.
+        model.textMessageSceneActive = false
+        let lease = try await HostWindow.take()
+        defer { lease.give() }
+        try await hosted(TextMessageBarOverlay().environment(model), in: lease, height: 900, width: 390) { _ in
+            #expect(await eventually { model.textMessageSceneActive }, "the overlay read the application's state")
+            // The result of a send on the open bar is told at once, and the identifier it was kept for goes.
+            model.openTextMessage()
+            #expect(await send(rig, "one", .handedOver(1)))
+            #expect(await eventually { state.awaiting == nil && noticeText(rig) == header })
+            // Typing after a told result is a new message, which Send takes.
+            model.setTextMessageText("two")
+            #expect(model.canSendTextMessage)
+
+            // Resigning active: the next result is not told while the application is not active...
+            NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: UIApplication.shared)
+            #expect(await eventually { !model.textMessageSceneActive })
+            #expect(await send(rig, "two", .handedOver(1)))
+            await settle()
+            try #require(rig.driver.smsSent.count == 2)
+            let identifier = rig.driver.smsSent[1].identifier
+            #expect(state.awaiting == .result(identifier))
+            // ... and is, once the application is active again.
+            NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: UIApplication.shared)
+            #expect(await eventually { model.textMessageSceneActive })
+            #expect(await eventually { state.awaiting == nil && noticeText(rig) == header })
+        }
+    }
+
     @Test func aLateAnswerOfAnEndedSessionTouchesNothingOfANewerSend() async throws {
         let rig = try rig()
         defer { rig.cleanUp() }
@@ -875,8 +914,12 @@ struct TextMessageTests {
 
     // MARK: Where it is offered
 
-    @Test func theApplicationThatDoesNotCarryItOffersNoEntranceAndOpensNoBar() async throws {
-        let rig = try rig(capabilities: .device)
+    /// The device carries text messages. A set of capabilities without them (a
+    /// runtime that has no service to send to) offers no entrance and opens no bar.
+    @Test func aRuntimeWithoutTextMessagesOffersNoEntranceAndOpensNoBar() async throws {
+        var without = Capabilities.device
+        without.textMessages = false
+        let rig = try rig(capabilities: without)
         defer { rig.cleanUp() }
         #expect(!rig.model.offersTextMessage)
         rig.model.openTextMessage()
@@ -892,13 +935,11 @@ struct TextMessageTests {
         #expect(!rig.state.isOpen)
     }
 
-    @Test func aDevelopmentLaunchOffersItOnlyToANormalRun() throws {
-        var capabilities = Capabilities.device
-        capabilities.textMessages = true
-        let normal = try rig(capabilities: capabilities)
+    @Test func theDeviceOffersItOnlyToANormalRun() throws {
+        let normal = try rig(capabilities: .device)
         defer { normal.cleanUp() }
         #expect(normal.model.offersTextMessage)
-        let recovery = try rig(capabilities: capabilities, mode: .recovery)
+        let recovery = try rig(capabilities: .device, mode: .recovery)
         defer { recovery.cleanUp() }
         #expect(!recovery.model.offersTextMessage)
         recovery.model.openTextMessage()
@@ -1005,21 +1046,51 @@ struct TextMessageTests {
 
     // MARK: The views
 
+    /// What a drawn view shows: its accessibility labels, the UIKit text inputs, the top of each
+    /// element, the traits of each labelled element, and whether a text input has the keyboard.
+    private typealias Drawn = (
+        labels: [String], inputs: [(placeholder: String?, type: UITextContentType?)], frames: [(label: String, y: CGFloat)],
+        traits: [(label: String, traits: UIAccessibilityTraits)], keyboard: Bool
+    )
+
     /// Hosts `view` in a window tall enough for it and gives the accessibility
     /// labels and UIKit text inputs it draws once it has settled.
-    private func draw<Content: View>(
-        _ view: Content, height: CGFloat = 900
-    ) async throws -> (
-        labels: [String], inputs: [(placeholder: String?, type: UITextContentType?)], frames: [(label: String, y: CGFloat)],
-        traits: [(label: String, traits: UIAccessibilityTraits)]
-    ) {
+    private func draw<Content: View>(_ view: Content, height: CGFloat = 900, width: CGFloat = 390) async throws -> Drawn {
         let lease = try await HostWindow.take()
         defer { lease.give() }
+        return try await hosted(view, in: lease, height: height, width: width) { hosting in
+            try await Task.sleep(for: .milliseconds(800))
+            return gather(from: hosting)
+        }
+    }
+
+    /// `view` drawn once it has settled, and drawn again in the same hosting view once `change` has
+    /// been made to it. A view that is hosted again is not the one the person has: it takes the keyboard
+    /// only when it comes up idle, so a bar drawn again in a new view sits where the keyboard leaves it
+    /// (and the keyboard's height differs from one Simulator to another, and with what ran before),
+    /// while the bar the person sees keeps its keyboard through the change. Each drawing waits until
+    /// the view stops moving, which a keyboard that comes up late would otherwise catch half way.
+    private func draw<Content: View>(
+        _ view: Content, height: CGFloat = 900, width: CGFloat = 390, across change: () async throws -> Void
+    ) async throws -> (before: Drawn, after: Drawn) {
+        let lease = try await HostWindow.take()
+        defer { lease.give() }
+        return try await hosted(view, in: lease, height: height, width: width) { hosting in
+            let before = try await stillDrawing(of: hosting)
+            try await change()
+            return (before, try await stillDrawing(of: hosting))
+        }
+    }
+
+    private func hosted<Content: View, Result>(
+        _ view: Content, in lease: HostWindow.Lease, height: CGFloat, width: CGFloat,
+        _ body: (UIView) async throws -> Result
+    ) async throws -> Result {
         let container = UIViewController()
         lease.window.rootViewController = container
         let hosting = UIHostingController(rootView: view)
         container.addChild(hosting)
-        hosting.view.frame = CGRect(x: 0, y: 0, width: 390, height: height)
+        hosting.view.frame = CGRect(x: 0, y: 0, width: width, height: height)
         container.view.addSubview(hosting.view)
         hosting.didMove(toParent: container)
         defer {
@@ -1027,17 +1098,34 @@ struct TextMessageTests {
             hosting.view.removeFromSuperview()
             hosting.removeFromParent()
         }
+        return try await body(hosting.view)
+    }
+
+    /// The drawing once two looks, a quarter of a second apart, agree on every element (at most
+    /// three seconds after the first 800 ms).
+    private func stillDrawing(of root: UIView) async throws -> Drawn {
         try await Task.sleep(for: .milliseconds(800))
-        hosting.view.setNeedsLayout()
-        hosting.view.layoutIfNeeded()
+        var last = gather(from: root)
+        for _ in 0..<12 {
+            try await Task.sleep(for: .milliseconds(250))
+            let now = gather(from: root)
+            if now.labels == last.labels, now.frames.map(\.y) == last.frames.map(\.y), now.keyboard == last.keyboard { return now }
+            last = now
+        }
+        return last
+    }
+
+    private func gather(from root: UIView) -> Drawn {
+        root.setNeedsLayout()
+        root.layoutIfNeeded()
         var inputs: [(String?, UITextContentType?)] = []
         func walk(_ node: UIView) {
             if let field = node as? UITextField { inputs.append((field.placeholder, field.textContentType)) }
             if let text = node as? UITextView { inputs.append((text.accessibilityLabel, text.textContentType)) }
             node.subviews.forEach(walk)
         }
-        walk(hosting.view)
-        let elements = SideKeysTouchTests.elements(in: hosting.view)
+        walk(root)
+        let elements = SideKeysTouchTests.elements(in: root)
         // The same walk, for the traits of each labelled element.
         var traits: [(label: String, traits: UIAccessibilityTraits)] = []
         var seen = Set<ObjectIdentifier>()
@@ -1048,8 +1136,8 @@ struct TextMessageTests {
             if let view = node as? UIView { children += view.subviews }
             for child in children { walkTraits(child, depth: depth + 1) }
         }
-        walkTraits(hosting.view, depth: 0)
-        return (elements.map(\.label), inputs, elements.map { ($0.label, $0.frame.minY) }, traits)
+        walkTraits(root, depth: 0)
+        return (elements.map(\.label), inputs, elements.map { ($0.label, $0.frame.minY) }, traits, focusedInput(in: root) != nil)
     }
 
     @Test func onlyTheMessageBoxHasTheOneTimeCodeContentType() async throws {
@@ -1149,20 +1237,32 @@ struct TextMessageTests {
         #expect(!good.labels.contains { $0.localizedCaseInsensitiveContains("check") }, "the check is an element: \(good.labels)")
     }
 
+    /// The bar where the session puts it (`TextMessageBarOverlay`): at the bottom of the screen,
+    /// so a line that makes it taller grows it upward and what is at its foot stays. Drawn alone in
+    /// a hosting view, a view is centred, and a taller bar moves everything in it by half its growth.
+    private func placedAsTheSessionPlacesIt<Content: View>(_ bar: Content) -> some View {
+        bar.frame(maxHeight: .infinity, alignment: .bottom)
+    }
+
     /// Send is where it was while the message goes, disabled and labelled Sending: the
-    /// element VoiceOver focus is on stays in the tree.
-    @Test func sendStaysInPlaceDisabledAndSayingSendingWhileAMessageGoes() async throws {
+    /// element VoiceOver focus is on stays in the tree. The bar is drawn once, with the keyboard the
+    /// message box takes, and again in the same view while the message goes (`draw(across:)`), at the
+    /// widths of a small and an ordinary iPhone and of an iPad.
+    @Test(arguments: [320.0, 390.0, 834.0])
+    func sendStaysInPlaceDisabledAndSayingSendingWhileAMessageGoes(width: CGFloat) async throws {
         let rig = try rig()
         defer { rig.cleanUp() }
         rig.model.openTextMessage()
         rig.model.setTextMessageText("123456")
-        let idle = try await draw(TextMessageBar().environment(rig.model))
+        let bar = placedAsTheSessionPlacesIt(TextMessageBar()).environment(rig.model)
+        let (idle, during) = try await draw(bar, width: width) {
+            rig.model.sendTextMessage()
+            #expect(await eventually { rig.answers.pending == 1 })
+        }
+        #expect(idle.keyboard && during.keyboard, "the message box keeps the keyboard through the send")
         let before = try #require(idle.traits.first { $0.label == SmsMessages.send })
         #expect(before.traits.contains(.button) && !before.traits.contains(.notEnabled))
         let beforeY = try #require(idle.frames.first { $0.label == SmsMessages.send }?.y)
-        rig.model.sendTextMessage()
-        #expect(await eventually { rig.answers.pending == 1 })
-        let during = try await draw(TextMessageBar().environment(rig.model))
         #expect(!during.labels.contains(SmsMessages.send), "Send went while the message goes")
         let sending = try #require(during.traits.first { $0.label == SmsMessages.sending })
         #expect(sending.traits.contains(.button) && sending.traits.contains(.notEnabled))
@@ -1348,15 +1448,15 @@ struct TextMessageTests {
     }
 
     @Test func settingsHasTheRowOnlyWhereTheApplicationCarriesTextMessages() async throws {
-        let held = try rig(capabilities: .device)
+        var without = Capabilities.device
+        without.textMessages = false
+        let held = try rig(capabilities: without)
         defer { held.cleanUp() }
         let heldLabels = try await draw(SessionSettingsSheet(large: true).environment(held.model), height: 2600).labels
         #expect(heldLabels.contains { $0.contains("ADB over network") })
         #expect(!heldLabels.contains { $0.contains(SmsMessages.row) }, "\(heldLabels)")
 
-        var capabilities = Capabilities.device
-        capabilities.textMessages = true
-        let offered = try rig(capabilities: capabilities)
+        let offered = try rig(capabilities: .device)
         defer { offered.cleanUp() }
         let offeredLabels = try await draw(SessionSettingsSheet(large: true).environment(offered.model), height: 2600).labels
         #expect(offeredLabels.contains { $0.contains(SmsMessages.row) }, "\(offeredLabels)")

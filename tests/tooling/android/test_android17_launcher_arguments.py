@@ -61,6 +61,12 @@ class LauncherArgumentTests(unittest.TestCase):
             with self.subTest(argument):
                 self.assertEqual(launcher(argument).returncode, 0, launcher(argument).stdout)
 
+    def test_the_root_option_is_a_bare_flag_given_once(self) -> None:
+        self.assertEqual(launcher("--android-root").returncode, 0, launcher("--android-root").stdout)
+        result = launcher("--android-root", "--android-root")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("only once", result.stdout)
+
     def test_the_identity_options_are_checked(self) -> None:
         for arguments, reason in (
                 (("--android-identity=relative/identity.json",), "absolute"),

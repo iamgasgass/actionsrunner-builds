@@ -12,18 +12,33 @@ final class WhatsNewModel {
     /// Every release's notes, newest first. Info lists them; without any,
     /// Info has no What's New row.
     private(set) var releases: [WhatsNewRelease] = []
-    /// What the ribbon offers, newest first; empty when it is not shown.
+    /// What this launch's rules offer the ribbon, newest first; empty when it
+    /// is not shown. The ribbon and its notes show `announced`.
     private(set) var pending: [WhatsNewRelease] = []
     /// The build this launch runs.
     private(set) var currentBuild = 0
     /// Writes the record for the next launch: the device keeps it in its
     /// defaults. Nil keeps nothing, as in a harness launch and the preview.
     @ObservationIgnored var keep: ((WhatsNewRecord) -> Void)?
+    /// Whether this device shows a feature, by the feature's own rule
+    /// (`AppModel` states it: Add to Home Screen, in Settings). The launch's
+    /// offer (`pending`) does not ask it; the ribbon and the notes do, each
+    /// time they are drawn.
+    @ObservationIgnored var showsFeature: (WhatsNewFeature) -> Bool = { _ in true }
 
-    var showsRibbon: Bool { !pending.isEmpty }
+    /// What the ribbon and its notes announce now: `pending` without the
+    /// entries about a feature this device does not show, and without a
+    /// release that leaves empty. The ribbon counts and names these only.
+    var announced: [WhatsNewRelease] {
+        pending
+            .map { $0.keeping { $0.requirement?.isShown(by: showsFeature) ?? true } }
+            .filter { !$0.entries.isEmpty }
+    }
 
-    /// The pending entries, newest release first, in each release's order.
-    var pendingEntries: [WhatsNewEntry] { pending.flatMap(\.entries) }
+    var showsRibbon: Bool { !announced.isEmpty }
+
+    /// The announced entries, newest release first, in each release's order.
+    var pendingEntries: [WhatsNewEntry] { announced.flatMap(\.entries) }
 
     /// Lists the notes in Info and announces nothing: a launch that is not
     /// the person's own shows no ribbon and keeps no record.
@@ -60,62 +75,15 @@ final class WhatsNewModel {
     }
 }
 
-extension AppModel {
-    /// What this build has that an entry of the notes can be about: Send
-    /// feedback when the build has a receiver for it (the entrances show only
-    /// then). Nothing else is optional so far.
-    var buildFeatures: Set<WhatsNewFeature> {
-        #if FEEDBACK_MAIL
-        feedbackAddress == nil ? [] : [.sendFeedback]
-        #else
-        []
-        #endif
-    }
-}
-
-/// The two tracks of release notes, each its own file of `Shared`. A build
-/// bundles and reads one: the build setting `WHATS_NEW_TRACK` (Andarium.xcconfig)
-/// leaves the other's file out of the bundle and defines the compilation
-/// condition that picks the file read here.
-nonisolated enum WhatsNewTrack: CaseIterable, Sendable {
-    /// The notes per beta build: Debug, Release and TestFlight builds.
-    case beta
-    /// The notes per App Store build: AppStore builds. It has no release until
-    /// the App Store version has notes.
-    case appStore
-
-    /// The bundled file's name, without its extension.
-    var resource: String {
-        switch self {
-        case .beta: "WhatsNew"
-        case .appStore: "WhatsNewAppStore"
-        }
-    }
-
-    /// The track this build bundles. A build setting that names neither track
-    /// stops the compile; no track is read by default.
-    static var bundled: WhatsNewTrack {
-        #if WHATS_NEW_TRACK_APP_STORE
-        .appStore
-        #elseif WHATS_NEW_TRACK_BETA
-        .beta
-        #else
-        #error("WHATS_NEW_TRACK in Config/Andarium.xcconfig is BETA or APP_STORE")
-        #endif
-    }
-}
-
 extension WhatsNewCatalog {
-    /// The notes of a track as the application bundles them, this build's own
-    /// by default; none if the file is missing or unreadable.
-    nonisolated static func load(
-        _ track: WhatsNewTrack = .bundled, from bundle: Bundle = .main
-    ) -> [WhatsNewRelease] {
-        guard let url = bundle.url(forResource: track.resource, withExtension: "json"),
+    /// The notes as the application bundles them (`Shared/WhatsNew.json`);
+    /// none if the file is missing or unreadable.
+    nonisolated static func load(from bundle: Bundle = .main) -> [WhatsNewRelease] {
+        guard let url = bundle.url(forResource: "WhatsNew", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let releases = try? decode(data)
         else {
-            assertionFailure("\(track.resource).json is missing or unreadable")
+            assertionFailure("WhatsNew.json is missing or unreadable")
             return []
         }
         return releases

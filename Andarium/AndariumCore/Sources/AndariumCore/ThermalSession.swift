@@ -28,6 +28,13 @@ import Foundation
 /// does (no timer keeps trying while nothing changes), and a HAL that never
 /// connected in this boot stays given up.
 ///
+/// While the display is the 120 Hz one and iOS is in Low Power Mode, which
+/// holds the screen to 60 (`setSixtyHertzHold`), Android is told MODERATE at the
+/// least: its display configuration keeps the render rate to 60 at that
+/// severity. The hold is Android's own limit on what is rendered, not the
+/// person's "When hot" choice, so it applies with the limit off too; it is
+/// never announced.
+///
 /// The cap is announced once in a run (`ThermalPolicy.claimAnnouncement`), at
 /// the first moment the severity is at the cap or above and the HAL is
 /// connected: that is when Android's frame rate drops. A guest that restarts
@@ -66,6 +73,15 @@ public final class ThermalSession: @unchecked Sendable {
     private var timerEpoch: UInt64 = 0
     /// Whether Android is told how hot the device is (Settings' "When hot").
     private var limitsFrameRate = true
+    /// Whether the render rate is held to 60 (Low Power Mode on a 120 Hz
+    /// display).
+    private var holdsAtSixty = false
+    /// The severity the guest's HAL holds, from the last record sent in this
+    /// boot (a HAL keeps what it was told when the connection is lost), so that
+    /// a change of what Android is told is one record and nothing that does
+    /// not change it is sent. Nil where nothing is known: before the first
+    /// record of a run or of a guest's restart.
+    private var lastTold: AndroidThermalSeverity?
     /// The last `hotChanged` said the device is hot.
     private var reportedHot = false
 
@@ -122,6 +138,18 @@ public final class ThermalSession: @unchecked Sendable {
         }
     }
 
+    /// Whether the render rate is held to 60: the display is the 120 Hz one and
+    /// iOS is in Low Power Mode. Android is told MODERATE while it is, or the
+    /// policy's severity when that is higher.
+    public func setSixtyHertzHold(_ on: Bool) {
+        queue.async { [self] in
+            guard on != holdsAtSixty else { return }
+            holdsAtSixty = on
+            guard inRun else { return }
+            tellIfChanged()
+        }
+    }
+
     /// Whether Android is told how hot the device is: Settings' "When hot".
     /// Off, the HAL hears none at once and at every state after; on, it hears
     /// the policy's severity at once. The first change that starts the cap
@@ -131,7 +159,7 @@ public final class ThermalSession: @unchecked Sendable {
             guard on != limitsFrameRate else { return }
             limitsFrameRate = on
             guard inRun else { return }
-            if !reviveAfterGiveUp() { stream?.send(told) }
+            if !reviveAfterGiveUp() { send(told) }
             announceIfDue()
         }
     }
@@ -152,6 +180,7 @@ public final class ThermalSession: @unchecked Sendable {
     public func restart() {
         queue.async { [self] in
             closeStream()
+            lastTold = nil
             gaveUp = false
             failedAttempts = 0
             connectedThisBoot = false
@@ -164,7 +193,7 @@ public final class ThermalSession: @unchecked Sendable {
     }
 
     /// The severity Android is told in this run: none outside a run, and none
-    /// while the limit is off.
+    /// while the limit is off and the render rate is not held.
     public var severity: AndroidThermalSeverity { queue.sync { inRun ? told : .none } }
 
     /// Whether the policy holds the device hot (critical, its hold included),
@@ -181,6 +210,7 @@ public final class ThermalSession: @unchecked Sendable {
 
     private func beginRun() {
         inRun = true
+        lastTold = nil
         policy = ThermalPolicy()
         failedAttempts = 0
         gaveUp = false
@@ -198,6 +228,7 @@ public final class ThermalSession: @unchecked Sendable {
         inRun = false
         timerEpoch &+= 1
         closeStream()
+        lastTold = nil
         policy = ThermalPolicy()
         // The readings stop with the run: what the next one begins in is read
         // again then.
@@ -207,8 +238,24 @@ public final class ThermalSession: @unchecked Sendable {
     }
 
     /// What Android is told: the policy's severity, or none while the limit is
-    /// off.
-    private var told: AndroidThermalSeverity { limitsFrameRate ? policy.severity : .none }
+    /// off, and MODERATE at the least while the render rate is held to 60.
+    private var told: AndroidThermalSeverity {
+        let heat = limitsFrameRate ? policy.severity : .none
+        return holdsAtSixty ? max(heat, .moderate) : heat
+    }
+
+    private func send(_ severity: AndroidThermalSeverity) {
+        guard let stream else { return }
+        lastTold = severity
+        stream.send(severity)
+    }
+
+    /// One record when what Android is told is not what the stream last sent;
+    /// a stream that gave up is revived with it.
+    private func tellIfChanged() {
+        guard told != lastTold else { return }
+        if !reviveAfterGiveUp() { send(told) }
+    }
 
     private func openStream() {
         streamEpoch &+= 1
@@ -220,6 +267,7 @@ public final class ThermalSession: @unchecked Sendable {
             }
         }
         stream.send(told)
+        lastTold = told
         self.stream = stream
         stream.start()
     }
@@ -270,8 +318,9 @@ public final class ThermalSession: @unchecked Sendable {
     }
 
     private func apply(_ changed: Bool) {
-        // With the limit off the HAL was told none and stays told none.
-        if changed && limitsFrameRate && !reviveAfterGiveUp() { stream?.send(policy.severity) }
+        // With the limit off the HAL was told none (or MODERATE, while the
+        // render rate is held) and stays as told.
+        if changed { tellIfChanged() }
         scheduleExpiry()
         announceIfDue()
         publishHot()

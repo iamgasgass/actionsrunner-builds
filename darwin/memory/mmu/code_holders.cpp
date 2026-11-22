@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "code_holders.hpp"
 
-#ifndef UML_APP_STORE_RUNTIME
-
 #include <chrono>
 #include <csignal>
 #include <cstdio>
@@ -18,8 +16,7 @@ namespace {
 /* DARWIN_UML_CODE_HOLDER_COUNTERS=<path> writes the counters to <path> once a
  * second for as long as the process runs: a diagnostic for what the holder
  * words cost a guest. The emulator leaves through _Exit(), so the file is up
- * to a second old at the end. App Store builds have neither the variable nor
- * the thread. */
+ * to a second old at the end. */
 void write_counters(const std::string &path)
 {
 	const auto now = counters();
@@ -100,13 +97,3 @@ void report_counters_once() noexcept
 }
 
 } // namespace uml::memory::code_holders
-
-#else
-
-namespace uml::memory::code_holders {
-
-void report_counters_once() noexcept {}
-
-} // namespace uml::memory::code_holders
-
-#endif

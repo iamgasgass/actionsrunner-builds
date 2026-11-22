@@ -281,6 +281,28 @@ class BootAndroidTests(unittest.TestCase):
             )
             self.assertIn(f"--android-boot-mode={mode}", command)
 
+    def test_root_asks_for_the_releases_root_ramdisk_and_is_off_by_default(self) -> None:
+        plain = boot_android.parse_arguments([])
+        self.assertFalse(plain.root)
+        self.assertNotIn(
+            "--android-root",
+            boot_android.emulator_command(plain, Path("/r"), Path("/i"), Path("/e")),
+        )
+        # Options a runner builds by hand, which have no root member, boot as before.
+        by_hand = argparse.Namespace(**{k: v for k, v in vars(plain).items() if k != "root"})
+        self.assertNotIn(
+            "--android-root",
+            boot_android.emulator_command(by_hand, Path("/r"), Path("/i"), Path("/e")),
+        )
+        options = boot_android.parse_arguments(["--root"])
+        command = boot_android.emulator_command(options, Path("/r"), Path("/i"), Path("/e"))
+        self.assertTrue(options.root)
+        self.assertEqual(command.count("--android-root"), 1)
+        # It rides beside the boot mode and never names a file: the ramdisk is the release's.
+        self.assertFalse(any(argument.startswith("--android-root=") for argument in command))
+        with self.assertRaises(SystemExit):
+            boot_android.parse_arguments(["--root=/some/boot.img"])
+
     def test_recovery_flag_selects_recovery_boot(self) -> None:
         options = boot_android.parse_arguments(["--recovery"])
         command = boot_android.emulator_command(

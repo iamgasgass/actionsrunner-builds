@@ -10,7 +10,7 @@ import PackageDescription
 let package = Package(
     name: "AndariumCore",
     defaultLocalization: "en",
-    platforms: [.macOS("27.0"), .iOS("27.0")],
+    platforms: [.macOS("27.0"), .iOS("26.0")],
     products: [
         .library(name: "AndariumCore", targets: ["AndariumCore"]),
         // For the application's hosted tests only: neither application links it.
@@ -29,48 +29,20 @@ let package = Package(
             resources: [.process("Resources/Localizable.xcstrings")]
         ),
         // Simulated controllers and the guest end of the gamepad wire, for tests
-        // and the probe tool. The application never links it (the App Store
-        // bundle check refuses a build that does); the hosted tests do.
+        // and the probe tool. The application never links it; the hosted
+        // tests do.
         .target(
             name: "AndariumCoreTestSupport",
             dependencies: ["AndariumCore"]
         ),
-        // Send feedback's logic, for the package's tests only. Its sources are the
-        // application's own, which the application compiles only where Send
-        // feedback is compiled in (a symlink to Andarium/Shared/Feedback/Logic),
-        // so no product of the package carries any of it; here the condition is
-        // always set. Neither application links it.
-        .target(
-            name: "AndariumFeedbackLogic",
-            dependencies: ["AndariumCore"],
-            swiftSettings: [.define("FEEDBACK_MAIL")]
-        ),
-        // Buy me tokens' logic, for the package's tests only, built the way
-        // Send feedback's is: its sources are the application's own (a symlink to
-        // Andarium/Shared/TipJar/Logic), which the application compiles only where
-        // the tip jar is compiled in, so no product of the package carries any of
-        // it; here the condition is always set. Neither application links it.
-        .target(
-            name: "AndariumTipJarLogic",
-            swiftSettings: [.define("TIP_JAR")]
-        ),
-        // Review on the App Store's logic, for the package's tests only, built the
-        // same way (a symlink to Andarium/Shared/Review/Logic).
-        .target(
-            name: "AndariumReviewLogic",
-            swiftSettings: [.define("APP_REVIEW")]
-        ),
-        // Follow developer on X's logic, for the package's tests only, by the same
-        // rule (a symlink to Andarium/Shared/FollowX/Logic).
+        // Follow developer on X's logic, for the package's tests only. Its sources
+        // are the application's own, which the application compiles only where the
+        // row is compiled in (a symlink to Andarium/Shared/FollowX/Logic), so no
+        // product of the package carries any of it; here the condition is always
+        // set. Neither application links it.
         .target(
             name: "AndariumFollowXLogic",
             swiftSettings: [.define("FOLLOW_X")]
-        ),
-        // The ICP filing footnote's logic, for the package's tests only, by the same
-        // rule (a symlink to Andarium/Shared/ICP/Logic).
-        .target(
-            name: "AndariumICPLogic",
-            swiftSettings: [.define("ICP_FILING")]
         ),
         // A test-only tool that plays a gamepad script to the guest's relay.
         .executableTarget(
@@ -79,7 +51,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AndariumCoreTests",
-            dependencies: ["AndariumCore", "AndariumCoreTestSupport", "AndariumFeedbackLogic", "AndariumFollowXLogic", "AndariumICPLogic", "AndariumTipJarLogic", "AndariumReviewLogic"]
+            dependencies: ["AndariumCore", "AndariumCoreTestSupport", "AndariumFollowXLogic"]
         ),
     ]
 )

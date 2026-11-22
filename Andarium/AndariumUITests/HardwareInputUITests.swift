@@ -11,7 +11,7 @@ import XCTest
 ///
 /// The probe's guest registers each device it is plugged, as a kernel with
 /// the hot-plug topic does; one test launches the other kind, which never
-/// registers (the accepted kernel).
+/// registers (a kernel without it).
 ///
 /// XCUITest has no pointer on an iPhone ("Pointer events are not supported for
 /// this device"), so the iPhone's tests are the keys and the absence of the
@@ -391,9 +391,9 @@ final class HardwareInputUITests: XCTestCase {
 
     func testOnAGuestThatNeverRegistersTheMouseAClickStaysATouchAndStillPlugsTheMouse() throws {
         try XCTSkipUnless(isPad, "XCUITest has no pointer on an iPhone")
-        // The accepted kernel follows no configuration change: the mouse is
-        // plugged and never registered, and the pointer must behave as it does
-        // with no mouse.
+        // A kernel without the hot-plug topic follows no configuration change:
+        // the mouse is plugged and never registered, and the pointer must behave
+        // as it does with no mouse.
         app.terminate()
         try launch(probe: "unregistered")
         let window = app.windows.firstMatch

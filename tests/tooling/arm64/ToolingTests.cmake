@@ -7,6 +7,98 @@ uml_add_tooling_test(
     LABELS cpu
     TIMEOUT 60)
 
+# The AOT rewriter's encoders, decoder and assembler against known words.
+uml_add_tooling_test(
+    NAME arm64-aot-tools
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_tools.py
+    LABELS cpu
+    TIMEOUT 60)
+
+# The AOT artifact of an Android release: verify accepts the one its release,
+# descriptor and tools name, and refuses a changed blob, release, generator
+# input or library list.
+uml_add_tooling_test(
+    NAME arm64-aot-release-artifact
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_release_artifact.py
+    LABELS cpu
+    TIMEOUT 60)
+
+# The AOT guest runner against scripted guests: it fails every incomplete or
+# failed run instead of reporting "identical".
+uml_add_tooling_test(
+    NAME arm64-aot-guest-runner
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_guest_runner.py
+    LABELS cpu
+    TIMEOUT 180)
+
+# The debugger and crash-report rows of that runner on scripted records and
+# scripted protobuf tombstones: what each mode must show, and the comparison,
+# field by field, that masks only what two runs of one engine already differ
+# in.
+uml_add_tooling_test(
+    NAME arm64-aot-debug-rows
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_debug_rows.py
+    LABELS cpu
+    TIMEOUT 60)
+
+# The protobuf reader of the debug rows (wire format, the table of field
+# numbers the tombstone model uses, and the model's strictness on bad files)
+# and the two false passes of the text reader it replaces.
+uml_add_tooling_test(
+    NAME arm64-aot-tombstone-pb
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_tombstone_pb.py
+    LABELS cpu
+    TIMEOUT 60)
+
+# The records the guest debug program prints: their encoding and the one
+# reader of it, and the program's emitter (the header it is built with, on the
+# host) against that reader, for names of any bytes and layouts of any number
+# of shapes.
+uml_add_tooling_test(
+    NAME arm64-aot-records
+    COMMAND ${CMAKE_COMMAND} -E env UML_CXX=${CMAKE_CXX_COMPILER}
+        ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_records.py
+    LABELS cpu
+    TIMEOUT 120)
+
+# The shared-verification rows of the guest runner: a run's record, the
+# comparison of the arm without the component with the arm with it, and the
+# counter bounds of a diagnostics build.
+uml_add_tooling_test(
+    NAME arm64-aot-share-rows
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_share_rows.py
+    LABELS cpu
+    TIMEOUT 60)
+
+# The register fields the AOT rewriter substitutes, against the system
+# disassembler's idea of which are general registers (skips without it).
+uml_add_tooling_test(
+    NAME arm64-aot-register-fields
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_register_fields.py
+    LABELS cpu
+    TIMEOUT 300)
+set_tests_properties(arm64-aot-register-fields PROPERTIES SKIP_RETURN_CODE 77)
+
+# The product compilation of the AOT runtime holds none of the counters,
+# report or test switches that a diagnostics build composes in separately.
+if(TARGET uml_arm64_aot_runtime)
+    uml_add_tooling_test(
+        NAME arm64-aot-runtime-product
+        COMMAND ${Python3_EXECUTABLE} -B
+            ${PROJECT_SOURCE_DIR}/tests/tooling/arm64/test_aot_runtime_product.py
+            $<TARGET_OBJECTS:uml_arm64_aot_runtime>
+        LABELS cpu
+        TIMEOUT 60)
+endif()
+
 # The SME image scan and idiom corpus classify the words SME code executes
 # at PSTATE.SM = 0 against the SM=0 family, on synthetic ELF fixtures.
 uml_add_tooling_test(

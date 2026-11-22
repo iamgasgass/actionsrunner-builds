@@ -9,9 +9,13 @@ import Foundation
 /// environment, or a stored size that nothing has brought down yet.
 public enum MemoryRefusal {
     /// The reason for a refused size, in the figures this host has: `ceilingMiB`
-    /// is the most it admits (`kernarium_runtime_loader_guest_memory_ceiling_mib`).
+    /// is the most it admits (`kernarium_runtime_loader_guest_memory_ceiling_mib`),
+    /// zero where the process has no room for even the smallest virtual machine.
     /// It reads as the end of "it could not start (...)".
     public static func reason(memoryMiB: Int, ceilingMiB: Int) -> String {
+        guard ceilingMiB > 0 else {
+            return "this device has no room for the virtual machine\u{2019}s memory"
+        }
         let size = Formats.size(mib: memoryMiB)
         guard memoryMiB > ceilingMiB else {
             return "\(size) of memory is not a size the virtual machine can start with"

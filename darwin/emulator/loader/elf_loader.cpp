@@ -517,7 +517,8 @@ private:
 
 [[nodiscard]] int run_elf(const void *image, size_t image_size,
 	uintptr_t load_bias, uintptr_t window_start, uintptr_t window_end,
-	int argc, char **argv, char **envp)
+	int argc, char **argv, char **envp, void (*entering)(void *),
+	void *context)
 {
 	if (image == nullptr || image_size < sizeof(uml_elf64_ehdr) ||
 	    reinterpret_cast<uintptr_t>(image) % alignof(uml_elf64_ehdr) != 0) {
@@ -802,6 +803,8 @@ private:
 	 * when it returns. Declared after the reservation, this scope takes them
 	 * back before the image they point into is released. */
 	const ::uml::runtime::KernelSignalScope kernel_signals{minimum, maximum};
+	if (entering != nullptr)
+		entering(context);
 	return entry(argc, argv, envp);
 }
 
@@ -809,11 +812,12 @@ private:
 
 extern "C" int uml_elf_run(const void *image, size_t image_size,
 	uintptr_t load_bias, uintptr_t window_start, uintptr_t window_end,
-	int argc, char **argv, char **envp)
+	int argc, char **argv, char **envp, void (*entering)(void *),
+	void *context)
 {
 	try {
 		return run_elf(image, image_size, load_bias, window_start,
-			window_end, argc, argv, envp);
+			window_end, argc, argv, envp, entering, context);
 	} catch (...) {
 		fprintf(stderr, "UML ELF: loader allocation or host failure\n");
 		return 126;

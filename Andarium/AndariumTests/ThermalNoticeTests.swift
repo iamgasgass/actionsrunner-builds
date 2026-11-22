@@ -332,7 +332,6 @@ struct ThermalNoticeFlowTests {
         #expect(delivered.count == 3, "a stopped monitor read the state")
     }
 
-    #if !APP_STORE
     @Test func theSourceFollowsTheProcessEnvironment() {
         let name = ThermalOverride.environmentName
         let before = getenv(name).map { String(cString: $0) }
@@ -346,5 +345,4 @@ struct ThermalNoticeFlowTests {
         unsetenv(name)
         #expect(ThermalSource.current() == HostThermalState(ProcessInfo.processInfo.thermalState))
     }
-    #endif
 }

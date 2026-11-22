@@ -134,6 +134,18 @@ bool StaticGuestMemory::code_page_stamp(std::uint64_t address,
 	::uml::memory::CodePageStamp &stamp) noexcept
 {
 	(void)execution_context;
+	::uml::memory::ExtendedCodePageStamp extended;
+	if (code_page_handle(address, &extended) == nullptr)
+		return false;
+	stamp = extended.stamp;
+	return true;
+}
+
+bool StaticGuestMemory::extended_code_page_stamp(std::uint64_t address,
+	void *execution_context,
+	::uml::memory::ExtendedCodePageStamp &stamp) noexcept
+{
+	(void)execution_context;
 	return code_page_handle(address, &stamp) != nullptr;
 }
 
@@ -371,8 +383,8 @@ std::byte *StaticGuestMemory::translate(
 	return base + (address & (page_size - 1));
 }
 
-void *StaticGuestMemory::code_page_handle(
-	std::uint64_t address, ::uml::memory::CodePageStamp *stamp) noexcept
+void *StaticGuestMemory::code_page_handle(std::uint64_t address,
+	::uml::memory::ExtendedCodePageStamp *stamp) noexcept
 {
 	const auto page = address & ~(page_size - 1);
 	auto &entry = tlb_[index_for(address)];
@@ -398,9 +410,14 @@ void *StaticGuestMemory::code_page_handle(
 			entry.changes = changes_;
 		}
 		entry.code_page = handle;
+		entry.immutable =
+			(observed.flags & DARWIN_UML_STATIC_STAMP_IMMUTABLE) != 0;
 	}
 	if (stamp != nullptr)
-		*stamp = {observed.identity, observed.version};
+		*stamp = {{observed.identity, observed.version}, observed.epoch,
+			entry.immutable &&
+				(observed.flags & DARWIN_UML_STATIC_STAMP_NEVER_SHARE) == 0,
+			entry.immutable};
 	return entry.code_page;
 }
 

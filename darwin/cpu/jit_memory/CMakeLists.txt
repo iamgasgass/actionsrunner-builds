@@ -4,11 +4,7 @@
 # window, the region a debugger prepares on an iOS device, and
 # instruction-cache publication. Its engine kind lets the JIT engines link it
 # and keeps the gadget engines and shared CPU code, which stay data-only, from
-# doing so. The App Store runtime defines no such target: it has no JIT and
-# links none of this.
-if(UML_APP_STORE_RUNTIME)
-    return()
-endif()
+# doing so.
 
 add_library(uml_cpu_executable_memory OBJECT executable_memory.cpp)
 uml_declare_architecture_target(uml_cpu_executable_memory cpu native)

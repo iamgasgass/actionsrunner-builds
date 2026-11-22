@@ -44,31 +44,6 @@ uml_add_tooling_test(
     LABELS andarium;android
     TIMEOUT 30)
 
-# The AppStore and TestFlight configurations build an application that passes
-# this check as its last build phase; the fixtures show it finds each problem the
-# script's header lists, and leaves the guest kernel image alone. They also show
-# Send feedback present only where the build names a receiver, Buy me tokens only
-# where it names its four product identifiers, Review on the App Store only where
-# it names the application's identifier, Follow developer on X only where it names
-# a handle, the ICP filing number only where it names the number, and the tip
-# header's developer only where the product has Buy me tokens and the build names
-# the value, in either direction; and that a TestFlight product carries none of
-# Buy me tokens, Review on the App Store and the ICP filing number, whatever the
-# local values are, and that an AppStore bundle holds the App Store track of the
-# What's New notes and not the beta track, a TestFlight bundle the reverse, and
-# that each has its configuration's app icon and an AppStore bundle holds
-# nothing of the TestFlight one. A supplied value is searched in every file in
-# UTF-8 and both UTF-16 byte orders, a feature's resources in nested bundles,
-# property lists and asset catalogs too, and no line of the report spells a
-# value, even in a path.
-uml_add_tooling_test(
-    NAME andarium-app-store-bundle
-    COMMAND ${Python3_EXECUTABLE} -B
-        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_check_app_store_bundle.py
-        --checker ${PROJECT_SOURCE_DIR}/Andarium/scripts/check-app-store-bundle.py
-    LABELS andarium;package
-    TIMEOUT 600)
-
 # The application's own touch feedback (the side keys, the rulers) plays through
 # one modifier that a launch silencing haptics reaches: no view calls SwiftUI's
 # or UIKit's feedback directly.
@@ -80,26 +55,33 @@ uml_add_tooling_test(
     LABELS andarium
     TIMEOUT 60)
 
-# Buy me tokens' words are held to App Store Review Guideline 3.1.1: no donation,
-# plan, subscription, unlock, upgrade, premium, credit, balance or token amount
-# in any language of the table, and the English source says a tip is a voluntary
-# one-time purchase and every feature is free either way. The fixtures show the
-# check finds each, and the application's own table passes.
+# The developer-owned local settings of Andarium stay ignored whatever their
+# name, and the tracked examples stay visible to Git.
 uml_add_tooling_test(
-    NAME andarium-tip-words
+    NAME andarium-local-config-ignore
     COMMAND ${Python3_EXECUTABLE} -B
-        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_check_tip_words.py
-        --checker ${PROJECT_SOURCE_DIR}/Andarium/scripts/check-tip-words.py
-        --table ${PROJECT_SOURCE_DIR}/Andarium/Localization/TipJar.xcstrings
+        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_local_config_ignore.py
+        --root ${PROJECT_SOURCE_DIR}
     LABELS andarium
-    TIMEOUT 120)
+    TIMEOUT 60)
 
-# The document pickers open files in place in the App Store configuration and
-# present the copy-mode picker in every other: the sources are read as the
-# compiler reads them with and without APP_STORE, and the changes a later edit
-# could make to the condition must fail, as must a bundle-check name for the
-# presenter that no source defines and an in-place importer in any other
-# production source that the test does not name as an exception.
+# The release build refuses an embedded artifact that is behind the commit it
+# archives; the fixtures build a repository, a staged system and an application
+# with a kernel carrying a banner and a configuration, and change one thing each.
+# An unsigned proof image, in the staged or the packaged system, stops the build
+# phase of an archive of Release and no other build's.
+uml_add_tooling_test(
+    NAME andarium-embedded-artifacts
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_check_embedded_artifacts.py
+    LABELS andarium;android;package
+    TIMEOUT 180)
+
+# The document pickers open the files a person picks as copies: no fileImporter
+# in the application, no document picker without `asCopy: true` outside
+# Shared/CopyDocumentPicker.swift, and both call sites present the copy-mode
+# picker. The fixtures change one source each; the build phase "Check document
+# pickers" runs the check on every build.
 uml_add_tooling_test(
     NAME andarium-document-pickers
     COMMAND ${Python3_EXECUTABLE} -B
@@ -108,31 +90,18 @@ uml_add_tooling_test(
     LABELS andarium
     TIMEOUT 60)
 
-# Each configuration reads its own track of What's New notes: the target's resolved
-# build settings give the compilation conditions, the loader's own source is compiled
-# with them and run against a bundle that holds a different list in each track's file,
-# and a track value that names neither track stops the compile. The same settings
-# give each configuration's app icon, the exclusion of the other icon's document and
-# no other app icon asset.
+# What any archive of Release must satisfy beyond its embedded artifacts
+# (scripts/check-release-archive.py, run by the same build phase): a profile
+# link to X only with the developer's own handle, none of the build host's
+# paths or a linker debug map in the host code, no test bundle or test
+# framework, and no linked test-support library. The fixtures are application
+# bundles, some around small linked libraries, that change one thing each.
 uml_add_tooling_test(
-    NAME andarium-whats-new-track
+    NAME andarium-release-archive
     COMMAND ${Python3_EXECUTABLE} -B
-        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_whats_new_track.py
-        --root ${PROJECT_SOURCE_DIR}
-    LABELS andarium
-    TIMEOUT 180)
-
-# The release build refuses an embedded artifact that is behind the commit it
-# archives; the fixtures build a repository, a staged system and an application
-# with a kernel carrying a banner and a configuration, and change one thing each.
-# An unsigned proof image, in the staged or the packaged system, stops the
-# AppStore and TestFlight build phase and no other configuration's.
-uml_add_tooling_test(
-    NAME andarium-embedded-artifacts
-    COMMAND ${Python3_EXECUTABLE} -B
-        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_check_embedded_artifacts.py
-    LABELS andarium;android;package
-    TIMEOUT 180)
+        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_check_release_archive.py
+    LABELS andarium;package
+    TIMEOUT 120)
 
 # The Acknowledgements resource names a project and its license text for each
 # framework the application embeds and each library of its iOS device prefixes.
@@ -155,7 +124,7 @@ uml_add_tooling_test(
 # The String Catalogs of the application: every string translated into each
 # language in the state the editor writes, specifiers and plural categories
 # that fit, no Google name but the notice's own, the permission texts and
-# What's New notes of both tracks present, and the catalog sync that follows the
+# What's New notes present, and the catalog sync that follows the
 # compiler's extraction.
 uml_add_tooling_test(
     NAME andarium-localization
@@ -163,3 +132,16 @@ uml_add_tooling_test(
         ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_localization.py
     LABELS andarium
     TIMEOUT 180)
+
+# Shortcuts offers "Open Android App", and its automatic shortcut, from iOS 27
+# only: before it the apps are no entities, so the action has nothing to ask
+# for. The declarations are @available(iOS 27.0, *) in the source, and the
+# fixtures hold the extracted metadata's shape: an iOS 27.0 introduction beside
+# the wildcard passes, the wildcard alone (offered on iOS 26) does not.
+uml_add_tooling_test(
+    NAME andarium-open-intent-availability
+    COMMAND ${Python3_EXECUTABLE} -B
+        ${PROJECT_SOURCE_DIR}/tests/tooling/andarium/test_open_intent_availability.py
+        --root ${PROJECT_SOURCE_DIR}
+    LABELS andarium
+    TIMEOUT 60)

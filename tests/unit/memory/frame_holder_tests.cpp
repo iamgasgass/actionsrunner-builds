@@ -730,7 +730,8 @@ void test_flush_serial()
 }
 
 /* M13: an allocation that fails at any of the points of a registration (the
- * frame's record, the holder list at its first use and at each growth)
+ * holder list at its first use and at each growth; the frame's record exists
+ * from its first executable mapping, so the records site has no point)
  * returns "failed" with the frame as it was, and the registration made again
  * succeeds. No allocation is made under a stripe lock. */
 void test_registration_allocation_failures()
@@ -779,7 +780,16 @@ void test_registration_allocation_failures()
 				uml::memory::testing::clear_allocation_failure();
 				if (failing == 0) {
 					points = uml::memory::testing::allocation_attempt_count(site);
-					require(points != 0, "the registration made no allocation");
+					/* The record of a frame exists from the first executable
+					 * mapping of it (the mapping's reserve step makes it, so
+					 * that counting the mapping in cannot fail): a
+					 * registration allocates no record, only a holder. */
+					if (site == AllocationSite::records)
+						require(points == 0,
+							"the registration allocated a record");
+					else
+						require(points != 0,
+							"the registration made no allocation");
 				} else {
 					require(failures == 1, "the injected failure did not fail once");
 				}
@@ -1159,6 +1169,12 @@ public:
 		return stamp_of(generation_, address_) > stamp_;
 	}
 
+	/* How far the stamp's version has moved since the reader was made. */
+	[[nodiscard]] std::uint64_t stamp_steps() const
+	{
+		return stamp_of(generation_, address_) - stamp_;
+	}
+
 	[[nodiscard]] bool serial_moved() const
 	{
 		return flush_serial_of(generation_) != serial_;
@@ -1280,8 +1296,12 @@ void test_remote_kernel_write()
 /* K5 (remote, before any x86 code runs): while no x86 translation can exist
  * (nothing has asked for coherent kernel writes), a remote write into a data
  * view or an unmapped page publishes no x86 frame change and moves no flush
- * serial, so a process that runs nothing else pays nothing. This row must
- * run before any other raises the request, which no row can take back. */
+ * serial, so a process that runs nothing else pays nothing. The write into
+ * the data view steps the frame's stamp once, as every publication does
+ * through any view of a frame an executable mapping holds (a verdict filed
+ * for its bytes must not outlive the write); an x86 publication would step
+ * it again. This row must run before any other raises the request, which no
+ * row can take back. */
 void test_remote_kernel_write_before_x86_code()
 {
 	const Baseline baseline;
@@ -1295,11 +1315,18 @@ void test_remote_kernel_write_before_x86_code()
 		const Reader reader{871, base};
 		require(darwin_uml_static_vm_invalidate_code_generation(
 			872, base + page, 8) == 0);
+		/* The reader was told of nothing: the one step of the stamp is the
+		 * ordinary publication's, and an x86 holder range reaching it (the
+		 * x86 publisher in its place) would show here. The unnamed write
+		 * below tells every generation, so it is read before that. */
+		require(reader.changes().count == 0,
+			"a remote write into a data view told a generation that holds "
+			"nothing of the arm64 kind of a change");
 		require(darwin_uml_static_vm_invalidate_code_generation(
 			873, base + 5 * page, 8) == 0);
-		require(!reader.stamp_moved(),
+		require(reader.stamp_steps() == 1,
 			"a remote write published an x86 frame change before x86 code "
-			"could exist");
+			"could exist, or left the frame's stamp where it was");
 		require(!reader.serial_moved(),
 			"a remote write moved a flush serial before x86 code could "
 			"exist");

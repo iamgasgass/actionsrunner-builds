@@ -10,7 +10,8 @@ import Testing
 struct ThermalProtocolTests {
     @Test func theHostEncodesTheGoldenFrames() throws {
         let frames: [(String, AndroidThermalSeverity)] = [
-            ("none", .none), ("light", .light), ("severe", .severe), ("critical", .critical),
+            ("none", .none), ("light", .light), ("moderate", .moderate), ("severe", .severe),
+            ("critical", .critical),
         ]
         for (name, severity) in frames {
             let golden = try ThermalFixture.bytes(name)
@@ -35,6 +36,7 @@ struct ThermalProtocolTests {
     @Test func theDecoderTakesTheGoldenFramesAndRefusesTheRejectedOnes() throws {
         #expect(try ThermalProtocol.severity(of: ThermalFixture.bytes("none")) == .none)
         #expect(try ThermalProtocol.severity(of: ThermalFixture.bytes("light")) == .light)
+        #expect(try ThermalProtocol.severity(of: ThermalFixture.bytes("moderate")) == .moderate)
         #expect(try ThermalProtocol.severity(of: ThermalFixture.bytes("severe")) == .severe)
         #expect(try ThermalProtocol.severity(of: ThermalFixture.bytes("critical")) == .critical)
         #expect(throws: ThermalProtocol.Failure.severityAboveCritical(5)) {

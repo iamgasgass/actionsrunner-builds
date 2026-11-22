@@ -161,9 +161,7 @@ extension AppModel {
     /// Where the listing comes from: the runtime, or the list a preview or a
     /// UI test's probe session plays.
     private var oldAppsSource: (any OldAppsSource)? {
-        #if !APP_STORE
         if let scriptedOldApps { return scriptedOldApps }
-        #endif
         return driver
     }
 

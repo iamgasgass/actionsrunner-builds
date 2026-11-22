@@ -2,20 +2,11 @@
 #include "camera_source.hpp"
 
 #include "camera_authorization.hpp"
-
-#if UML_CAMERA_SOURCE_HAS_SYNTHETIC
 #include "synthetic_camera/synthetic_camera.hpp"
-#endif
 
 #include <cstdlib>
-#include <stdexcept>
 
 namespace uml::camera {
-
-bool syntheticCameraAvailable() noexcept
-{
-    return UML_CAMERA_SOURCE_HAS_SYNTHETIC != 0;
-}
 
 bool hostCameraPermissionGranted()
 {
@@ -23,9 +14,8 @@ bool hostCameraPermissionGranted()
            uml::platform::CameraPermission::granted;
 }
 
-CameraSourceHandle makeSyntheticCameraSource([[maybe_unused]] SyntheticProfile profile)
+CameraSourceHandle makeSyntheticCameraSource(SyntheticProfile profile)
 {
-#if UML_CAMERA_SOURCE_HAS_SYNTHETIC
     uml::platform::SyntheticCameraOptions options;
     switch (profile) {
     case SyntheticProfile::phone:
@@ -37,12 +27,13 @@ CameraSourceHandle makeSyntheticCameraSource([[maybe_unused]] SyntheticProfile p
     case SyntheticProfile::laptop:
         options.profile = uml::platform::SyntheticCameraProfile::laptop;
         break;
+    case SyntheticProfile::phoneTurnedFront:
+        options.profile = uml::platform::SyntheticCameraProfile::phone;
+        options.frontPresentedAt90 = true;
+        break;
     }
     if (const char* control = std::getenv(syntheticControlVariable); control != nullptr) options.controlPath = control;
     return uml::platform::makeSyntheticCamera(options);
-#else
-    throw std::runtime_error("the synthetic camera is not part of this build");
-#endif
 }
 
 CameraSourceHandle makeHostCameraSource()

@@ -23,11 +23,9 @@ final class FoldSceneReader {
     private var interaction: AnyObject?
     /// Called when the hinge reported a status that differs from the last.
     var hingeDidChange: (() -> Void)?
-    #if !APP_STORE
     /// A reading a test supplies in place of the system's, to put the scene
     /// root in a pose the Simulator is not in.
     var stub: (@MainActor () -> FoldReading?)?
-    #endif
 
     /// The system reports a hinge: the display folds.
     var reportsHinge: Bool { hinge != nil }
@@ -64,9 +62,7 @@ final class FoldSceneReader {
     /// The scene root's view as the system reports it now; nil on a display
     /// that does not fold.
     func read(_ view: UIView) -> FoldReading? {
-        #if !APP_STORE
         if let stub { return stub() }
-        #endif
         guard #available(iOS 27.1, *), hinge != nil else { return nil }
         let window = view.bounds
         let safe = window.inset(by: view.safeAreaInsets)

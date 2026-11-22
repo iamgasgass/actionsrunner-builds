@@ -12,8 +12,7 @@ enum class JitMemoryStatus : std::uint8_t {
 	/* The region holds every arena the budget's geometry needs, and the
 	 * budget is the process's. */
 	ready = 0,
-	/* This product has no such route: macOS, the Simulator, an App Store
-	 * runtime. */
+	/* This product has no such route: macOS or the Simulator. */
 	unsupported = 1,
 	/* No debugger is attached to the process. */
 	no_debugger = 2,

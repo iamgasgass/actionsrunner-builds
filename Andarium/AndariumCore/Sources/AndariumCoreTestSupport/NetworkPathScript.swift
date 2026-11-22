@@ -5,7 +5,7 @@ import AndariumCore
 /// A network path source that reports what a test sends, and counts its
 /// starts and stops. It is simulated input: the unit tests and the
 /// application's hosted tests use it, and the application does not link this
-/// target (the App Store bundle check refuses a build that does).
+/// target.
 @MainActor
 public final class ScriptedNetworkPathSource: NetworkPathSource {
     public private(set) var starts = 0

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "synthetic_camera.hpp"
 
+#include "nv12_transform.hpp"
 #include "photo_dimensions.hpp"
 
 #include <fcntl.h>
@@ -109,7 +110,7 @@ CameraInfo lens(const char* identifier, CameraPosition position, CameraLensKind 
     return info;
 }
 
-Profile profileOf(SyntheticCameraProfile which)
+Profile profileOf(SyntheticCameraProfile which, bool frontPresentedAt90)
 {
     Profile profile;
     switch (which) {
@@ -212,6 +213,9 @@ Profile profileOf(SyntheticCameraProfile which)
         break;
     }
     }
+    if (frontPresentedAt90)
+        for (auto& camera : profile.cameras)
+            if (camera.position == CameraPosition::front && camera.sensorOrientation == frontCameraOrientation) camera.presentationTurn = 180;
     return profile;
 }
 
@@ -310,6 +314,19 @@ void drawMarker(std::vector<std::uint8_t>& luma, std::vector<std::uint8_t>& chro
             chroma[std::size_t(top / 2 + y) * width + x] = 128;
             chroma[std::size_t(top / 2 + y) * width + x + 1] = 128;
         }
+}
+
+// A picture turned half around.
+void turnHalfAround(Picture& picture)
+{
+    std::vector<std::uint8_t> luma(picture.luma.size()), chroma(picture.chroma.size());
+    const std::size_t width = picture.width;
+    for (std::size_t row = 0; row < picture.height; ++row)
+        reverseLumaRow(picture.luma.data() + (picture.height - 1 - row) * width, luma.data() + row * width, width);
+    for (std::size_t row = 0; row < picture.height / 2; ++row)
+        reverseChromaRow(picture.chroma.data() + (picture.height / 2 - 1 - row) * width, chroma.data() + row * width, width / 2);
+    picture.luma = std::move(luma);
+    picture.chroma = std::move(chroma);
 }
 
 Picture render(const Picture& base, const Scene& scene)
@@ -1020,7 +1037,9 @@ private:
                 // A platform that made another size than the request names (a test
                 // hook): half of it each way.
                 const auto divisor = core_.stillsOfAnotherSize ? 2u : 1u;
-                const auto picture = render(base(state, size->width / divisor, size->height / divisor), outcome.scene);
+                auto picture = render(base(state, size->width / divisor, size->height / divisor), outcome.scene);
+                // A camera with a presentation turn makes its stills turned, never unturned (the platform's contract).
+                if (info.presentationTurn == 180) turnHalfAround(picture);
                 result.jpeg = encodeSyntheticJpeg(picture.luma.data(), picture.width, picture.chroma.data(),
                                                   picture.width, picture.width, picture.height, request.jpegQuality);
                 if (core_.oversizedStills && !result.jpeg.empty()) {
@@ -1179,7 +1198,7 @@ private:
 class SyntheticCameraImpl final : public SyntheticCamera {
 public:
     explicit SyntheticCameraImpl(const SyntheticCameraOptions& options)
-        : core_(options, profileOf(options.profile))
+        : core_(options, profileOf(options.profile, options.frontPresentedAt90))
     {
         if (!options.controlPath.empty()) {
             control_ = std::make_unique<ControlPipe>(options.controlPath, [this](const SyntheticControlCommand& command) {

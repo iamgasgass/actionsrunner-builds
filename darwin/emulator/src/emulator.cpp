@@ -14,6 +14,7 @@
 #include "native_kernel_layout.hpp"
 #include "session_record.hpp"
 #include "stall_watch.hpp"
+#include "start_refusal.hpp"
 #include "thread_fence.hpp"
 #include "virtual_jetsam.hpp"
 #include "x86_runtime_support.hpp"
@@ -347,6 +348,11 @@ constexpr std::uintptr_t default_test_native_window_start = 0;
 #endif
 std::atomic<std::uintptr_t> test_native_kernel_window_start{
 	default_test_native_window_start};
+/* Where the pre-start RAM trial of a run is made, instead of in the run's
+ * window; 0 for the window. */
+std::atomic<std::uintptr_t> test_guest_ram_trial_start{0};
+/* Whether every run's window is one the host places, as on an iOS device. */
+std::atomic_bool test_native_kernel_window_by_the_host{false};
 #endif
 
 /* Where a run's native kernel window goes: the product's placement, or in the
@@ -360,6 +366,14 @@ std::atomic<std::uintptr_t> test_native_kernel_window_start{
 	const auto start = test_native_kernel_window_start.load(
 		std::memory_order_acquire);
 	auto product = ::uml::runtime::native_kernel_placement(guest_memory);
+	if (test_native_kernel_window_by_the_host.load(
+		    std::memory_order_acquire) &&
+	    product.geometry.valid) {
+		const auto layout = ::uml::runtime::reserve_process_native_window(
+			product.geometry, ::uml::runtime::WindowPlacement::anywhere);
+		return layout.valid ? layout :
+			::uml::runtime::NativeKernelLayout{.reservation_failed = true};
+	}
 	if (start != 0 && product.geometry.valid &&
 	    product.placement == ::uml::runtime::WindowPlacement::exact) {
 		auto &geometry = product.geometry;
@@ -375,6 +389,57 @@ std::atomic<std::uintptr_t> test_native_kernel_window_start{
 #endif
 	return ::uml::runtime::prepare_native_kernel_layout(guest_memory);
 }
+
+/* The layout the pre-start RAM trial is made in: the run's own. A test
+ * variant can make it elsewhere, where the host maps no RAM. */
+[[nodiscard]] ::uml::runtime::NativeKernelLayout guest_ram_trial_layout(
+	::uml::runtime::NativeKernelLayout layout) noexcept
+{
+#if UML_EMULATOR_TESTING
+	if (const auto start =
+		    test_guest_ram_trial_start.load(std::memory_order_acquire);
+	    start != 0) {
+		const auto length = layout.window_end - layout.window_start;
+		layout.window_start = start;
+		layout.window_end = start + length;
+	}
+#endif
+	return layout;
+}
+
+/* The ahead-of-time choice a start takes, put back unless the run reaches its
+ * guest: every way a start can fail after the choice and before the guest
+ * runs leaves the session's choice as it was before the start. A run that
+ * restarts keeps its session's, whichever way its next start ends. It is
+ * held under the process admission, which the choice also belongs to. */
+class AotChoiceScope final {
+public:
+	AotChoiceScope() noexcept : before_{::uml::runtime::aot_choice()} {}
+
+	~AotChoiceScope()
+	{
+		if (!kept_)
+			::uml::runtime::restore_aot_choice(before_);
+	}
+
+	/* The guest runs: the choice is the session's now. */
+	void keep() noexcept { kept_ = true; }
+
+	AotChoiceScope(const AotChoiceScope &) = delete;
+	AotChoiceScope &operator=(const AotChoiceScope &) = delete;
+
+private:
+	int before_;
+	bool kept_{};
+};
+
+#if UML_EMULATOR_HAS_KERNEL_RUNNER
+/* What the loader calls as it enters the kernel (uml_elf_run). */
+void keep_aot_choice(void *scope) noexcept
+{
+	static_cast<AotChoiceScope *>(scope)->keep();
+}
+#endif
 
 class ProcessAddressSpaceAdmission final {
 public:
@@ -458,6 +523,17 @@ void place_native_kernel_window(std::uintptr_t start) noexcept
 	test_native_kernel_window_start.store(start, std::memory_order_release);
 }
 
+void place_native_kernel_window_by_the_host(bool by_the_host) noexcept
+{
+	test_native_kernel_window_by_the_host.store(
+		by_the_host, std::memory_order_release);
+}
+
+void place_guest_ram_trial(std::uintptr_t start) noexcept
+{
+	test_guest_ram_trial_start.store(start, std::memory_order_release);
+}
+
 void set_guest_hand_back_hook(GuestHandBackHook hook, void *context) noexcept
 {
 	guest_hand_back_hook_context.store(context, std::memory_order_release);
@@ -523,14 +599,22 @@ public:
 		if (!process_admission.enter(runtime_))
 			return -UML_EMULATOR_RUNTIME_ERROR;
 		const int result = hand_back_guest();
-		if (result == 0)
+		if (result == 0) {
 			power_off_pending_ = false;
+			/* The session is over and none of its executors exists: the
+			 * next one chooses its ahead-of-time component afresh. */
+			::uml::runtime::end_aot_session();
+		}
 		return result;
 	}
 
 	[[nodiscard]] int run(int argc, const char *const argv[],
 			      const char *const envp[])
 	{
+		/* The mark of the last run of this handle is gone before anything of
+		 * this one can fail, so that a result this run returns for another
+		 * reason never reads as a refusal for memory. */
+		start_refused_for_memory_.store(false, std::memory_order_release);
 		if (argc < 0 || (argc != 0 && argv == nullptr))
 			return -UML_EMULATOR_INVALID_ARGUMENT;
 		if (kernel_view_.empty())
@@ -562,9 +646,61 @@ public:
 		if (runtime_.set_execution_engine(prepared.engine) != 0)
 			return -UML_EMULATOR_UNSUPPORTED;
 		runtime_.set_top_byte_ignore(prepared.top_byte_ignore);
+		runtime_.set_x86_jit_tier(prepared.jit_tier_instructions);
+		/* What this handle's own run keeps (the engine, the top-byte setting
+		 * and the tier belong to its context) is set here; what the whole
+		 * process keeps waits for the run to own the process. */
+		auto &arguments = prepared.arguments;
+		std::vector<char *> argument_pointers;
+		argument_pointers.reserve(arguments.size() + 1);
+		for (auto &argument : arguments)
+			argument_pointers.push_back(argument.data());
+		argument_pointers.push_back(nullptr);
+
+		std::vector<std::string> environment_strings;
+		if (envp != nullptr) {
+			for (auto entry = envp; *entry != nullptr; ++entry)
+				environment_strings.emplace_back(*entry);
+		}
+		std::vector<char *> environment_pointers;
+		environment_pointers.reserve(environment_strings.size() + 1);
+		for (auto &entry : environment_strings)
+			environment_pointers.push_back(entry.data());
+		environment_pointers.push_back(nullptr);
+		if (!process_admission.enter(runtime_))
+			return -UML_EMULATOR_RUNTIME_ERROR;
+		/* Another run may have claimed the guest while this one waited for
+		 * admission. */
+		if (!restartable_ && ::uml::runtime::process_guest_spent())
+			return -UML_EMULATOR_UNSUPPORTED;
+		/* Before any executor reads it, so before any table of the
+		 * component exists: the component runs only with the release it was
+		 * made from, which the launcher states. A launch that asks for it
+		 * where the build, the framework or the release does not have it
+		 * does not start; a launch that states no release (a Linux guest)
+		 * gets none. The choice belongs to the session of the run that owns
+		 * the process: it is taken once the run is admitted, after the
+		 * session before it has ended (release_guest ends it while it holds
+		 * the admission), and a run the process refuses never reaches it.
+		 * A start that fails after it and before its guest runs puts the
+		 * session's choice back (AotChoiceScope). */
+		AotChoiceScope choice_scope;
+		if (!prepared.informational) {
+			::uml::runtime::AotRelease release{
+				.id = prepared.aot_release_id,
+				.manifest_sha256 = prepared.aot_manifest_sha256,
+				.system_sha256 = prepared.aot_system_sha256};
+			if (!::uml::runtime::select_aot(prepared.aot,
+				    prepared.aot_release_stated ? &release : nullptr))
+				return -UML_EMULATOR_UNSUPPORTED;
+		}
+		/* The settings the whole process keeps, published only once the run owns
+		 * the process and its start is valid: a start the process refuses (the
+		 * guest spent, the component refused) leaves none of them behind, and a
+		 * start that waits for admission cannot change what the run before it
+		 * is using. */
 		if (!prepared.informational)
 			prepare_guest_hibernation(prepared.guest_hibernation);
-		runtime_.set_x86_jit_tier(prepared.jit_tier_instructions);
 		const bool jit_run = !prepared.informational &&
 			runtime_.execution_engine() ==
 				::uml::runtime::ExecutionEngine::jit;
@@ -592,43 +728,46 @@ public:
 		/* A JIT run activates the managed multi-vCPU executor pool. */
 		if (!translation_cache_run.enter(jit_run))
 			return -UML_EMULATOR_RUNTIME_ERROR;
-		auto &arguments = prepared.arguments;
-		std::vector<char *> argument_pointers;
-		argument_pointers.reserve(arguments.size() + 1);
-		for (auto &argument : arguments)
-			argument_pointers.push_back(argument.data());
-		argument_pointers.push_back(nullptr);
-
-		std::vector<std::string> environment_strings;
-		if (envp != nullptr) {
-			for (auto entry = envp; *entry != nullptr; ++entry)
-				environment_strings.emplace_back(*entry);
-		}
-		std::vector<char *> environment_pointers;
-		environment_pointers.reserve(environment_strings.size() + 1);
-		for (auto &entry : environment_strings)
-			environment_pointers.push_back(entry.data());
-		environment_pointers.push_back(nullptr);
-		if (!process_admission.enter(runtime_))
-			return -UML_EMULATOR_RUNTIME_ERROR;
-		/* Another run may have claimed the guest while this one waited for
-		 * admission. */
 		if (restartable_) {
 			if (const int refused = hand_back_guest(); refused != 0)
 				return refused;
-		} else if (::uml::runtime::process_guest_spent()) {
-			return -UML_EMULATOR_UNSUPPORTED;
 		}
 		/* Readies the guest console's location before the guest binds it,
 		 * and removes it when the run returns, however the guest ended. */
 		const ::uml::device::GuestConsoleRun console_run{
 			!prepared.informational && prepared.host_console_directory};
+		/* The geometry of the guest's size is checked, and the window it
+		 * needs reserved, before anything else is: a size the product has no
+		 * layout for reserves nothing. A host that has not the address space
+		 * or the memory limit for the guest's size says so here, before the
+		 * kernel starts, and the run fails with a result of its own: past
+		 * this point the kernel answers a refused mapping by ending the
+		 * process. */
 		const auto native_layout = run_native_kernel_layout(
 			prepared.guest_memory_bytes);
 		if (!native_layout.valid)
 			return native_layout.reservation_failed ?
-				-UML_EMULATOR_RUNTIME_ERROR :
+				refused_for_memory() :
 				-UML_EMULATOR_INVALID_ARGUMENT;
+		/* The kernel's first block of RAM comes from the process's heap
+		 * region, which the window may have left no room for. A start
+		 * refused for it leaves the process's window as it was before the
+		 * start (THE RULE, runtime/native_kernel_layout.hpp), so that the
+		 * guest tried next has the address space it had; every other start
+		 * keeps what it reserved. An informational run asks for no heap
+		 * region and loads a kernel, whose kept text the window then holds:
+		 * it keeps its window. */
+		if (!prepared.informational &&
+		    !::uml::runtime::reserve_process_heap()) {
+			::uml::runtime::undo_process_window();
+			return refused_for_memory();
+		}
+		::uml::runtime::commit_process_window();
+		if (!prepared.informational &&
+		    !::uml::runtime::native_guest_memory_mappable(
+			    guest_ram_trial_layout(native_layout),
+			    prepared.guest_memory_bytes))
+			return refused_for_memory();
 		const ::uml::runtime::NativeKernelLayoutScope layout_scope{
 			native_layout};
 		if (!layout_scope.entered())
@@ -673,6 +812,7 @@ public:
 			/* The kernel's own process state is the run's to restore, as
 			 * the loader restores it around a real kernel. */
 			const ::uml::runtime::KernelSignalScope kernel_signals{0, 0};
+			choice_scope.keep();
 			return entry(static_cast<int>(arguments.size()),
 				argument_pointers.data(), environment_pointers.data());
 		}
@@ -692,12 +832,14 @@ public:
 				&Emulator::trim_for_memory_pressure_of, this);
 #endif
 		}
+		/* The choice is the session's once the loader is about to enter the
+		 * kernel: a kernel image it refuses leaves it as it was. */
 		const auto result = uml_elf_run(kernel_view_.data(),
 			kernel_view_.size(), native_layout.load_bias,
 			native_layout.reserved ? native_layout.window_start : 0U,
 			native_layout.reserved ? native_layout.window_end : 0U,
 			static_cast<int>(arguments.size()), argument_pointers.data(),
-			environment_pointers.data());
+			environment_pointers.data(), keep_aot_choice, &choice_scope);
 		return result;
 #else
 		return -UML_EMULATOR_UNSUPPORTED;
@@ -1129,6 +1271,13 @@ public:
 	{
 		std::lock_guard lock{run_end_mutex_};
 		return run_end_;
+	}
+
+	/* Whether this handle's last run was refused for want of memory before
+	 * its kernel started (start_refusal.hpp). */
+	[[nodiscard]] bool start_refused_for_memory() const noexcept
+	{
+		return start_refused_for_memory_.load(std::memory_order_acquire);
 	}
 
 #if UML_EMULATOR_TESTING
@@ -1629,6 +1778,19 @@ private:
 	 * Clearing this on success prevents an old handle from releasing a later
 	 * guest belonging to another handle. */
 	bool power_off_pending_{};
+	/* Set where a run is refused for want of memory before its kernel starts,
+	 * and cleared when the next run of the handle begins. */
+	std::atomic_bool start_refused_for_memory_{false};
+
+	/* The result of a run refused for want of memory before its kernel
+	 * started, with the mark that says so: the same number also comes from a
+	 * failed allocation of the library's own. */
+	[[nodiscard]] int refused_for_memory() noexcept
+	{
+		start_refused_for_memory_.store(true, std::memory_order_release);
+		return -UML_EMULATOR_OUT_OF_MEMORY;
+	}
+
 	/* How the handle's most recent run ended, for uml_emulator_get_run_end. */
 	mutable std::mutex run_end_mutex_;
 	uml_emulator_run_end run_end_ {
@@ -1647,6 +1809,16 @@ struct uml_emulator {
 
 	uml::emulator::Emulator implementation;
 };
+
+namespace uml::emulator {
+
+bool start_refused_for_memory(const uml_emulator *emulator) noexcept
+{
+	return emulator != nullptr &&
+		emulator->implementation.start_refused_for_memory();
+}
+
+} // namespace uml::emulator
 
 #if UML_EMULATOR_TESTING
 namespace uml::emulator::testing {

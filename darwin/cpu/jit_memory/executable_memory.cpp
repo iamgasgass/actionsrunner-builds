@@ -22,18 +22,13 @@
  * UML_JIT_MEMORY_REGION_ROUTE selects the debugger-prepared region of an iOS
  * device. The build defines it for the iOS device product and for the unit
  * test variant that exercises the region without a debugger
- * (UML_JIT_MEMORY_REGION_TEST); it never defines it for an App Store runtime,
- * which does not link this object at all, and the check below refuses the
- * combination.
+ * (UML_JIT_MEMORY_REGION_TEST).
  */
 #ifndef UML_JIT_MEMORY_REGION_ROUTE
 #define UML_JIT_MEMORY_REGION_ROUTE 0
 #endif
 #ifndef UML_JIT_MEMORY_REGION_TEST
 #define UML_JIT_MEMORY_REGION_TEST 0
-#endif
-#if UML_JIT_MEMORY_REGION_ROUTE && defined(UML_APP_STORE_RUNTIME)
-#error "an App Store runtime has no debugger-prepared JIT memory"
 #endif
 #if UML_JIT_MEMORY_REGION_ROUTE && !UML_JIT_MEMORY_REGION_TEST && \
 	(!TARGET_OS_IOS || TARGET_OS_SIMULATOR)

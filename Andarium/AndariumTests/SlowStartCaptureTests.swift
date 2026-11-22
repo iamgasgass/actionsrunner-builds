@@ -58,11 +58,6 @@ struct SlowStartCaptureTests {
         model.frozenElapsed = 197
         model.slowStart.begin(at: model.clock() - 197)
         model.updateSlowStart()
-        #if FEEDBACK_MAIL
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        model.feedbackServices = services
-        #endif
         let lease = try await HostWindow.take()
         defer { lease.give() }
         let container = UIViewController()

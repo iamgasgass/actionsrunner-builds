@@ -180,6 +180,11 @@ public:
     /* How the last run ended. False when the library cannot say. */
     [[nodiscard]] virtual bool runEnd(RunEnd& end) = 0;
 
+    /* Whether the last run of this machine's handle was refused for want of
+     * memory before its kernel started (emulator/src/start_refusal.hpp): the
+     * reason belongs to that run, whatever any other handle ran since. */
+    [[nodiscard]] virtual bool startRefusedForMemory() noexcept = 0;
+
     /* The guest is gone: stops every service of the boot, which must not
      * borrow the guest's RAM when the library hands it back. */
     virtual void stopBoot() noexcept = 0;
@@ -299,11 +304,25 @@ private:
     return !machine.stopRequested();
 }
 
+/* The result of a run that returned `status`: the library's out-of-memory
+ * error becomes KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED only where the run
+ * was refused for want of memory before its kernel started. The same number
+ * also comes from a failed allocation of the library's own and, as a status,
+ * from a guest, and stays as it is. */
+[[nodiscard]] inline int resultOf(Machine& machine, int status) noexcept
+{
+    if (status == -UML_EMULATOR_OUT_OF_MEMORY && machine.startRefusedForMemory())
+        return KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED;
+    return status;
+}
+
 } // namespace detail
 
 /* Runs the loop and returns what the application's run returns: the last
  * guest's status, a negated uml_emulator error when a run or start-up failed,
- * or KERNARIUM_RUNTIME_RESULT_RESTART_LOOP when the loop guard ended it. */
+ * KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED when the host refused the guest's
+ * memory, or KERNARIUM_RUNTIME_RESULT_RESTART_LOOP when the loop guard ended
+ * it. */
 [[nodiscard]] inline int run(Machine& machine, const Timing& timing = {})
 {
     using uml::emulator::RestartLoopGuard;
@@ -365,10 +384,10 @@ private:
                 return 0;
             machine.say("unable to boot the restarted guest: " +
                 std::to_string(status));
-            return status;
+            return detail::resultOf(machine, status);
         }
         if (!known || end.kind != RunEnd::Kind::restart)
-            return status;
+            return detail::resultOf(machine, status);
         /* The guest restarted as the user quit: the quit wins, and is a
          * clean stop whatever status the restart carried. */
         if (machine.stopRequested())

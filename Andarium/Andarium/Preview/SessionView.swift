@@ -254,16 +254,36 @@ struct SessionView: View {
 
 private extension View {
     /// The mock guest reads as the device's display does: Android's screen as
-    /// one element with the screen reader's state as its value, a direct-touch
-    /// area while the screen reader is on, and no action on activation (an
-    /// action that does nothing, as the device's `accessibilityActivate`).
+    /// one element with the screen reader's state as its value; while the
+    /// screen reader is on, a container of one element that covers the screen,
+    /// a direct-touch area that VoiceOver is silent over; and no action on
+    /// activation (an action that does nothing, as the device's
+    /// `accessibilityActivate`).
+    @ViewBuilder
     func guestScreenAccessibility(_ reader: ScreenReaderSession, edge: KeysEdge?, offered: Bool) -> some View {
-        accessibilityElement(children: .ignore)
-            .accessibilityLabel(ScreenReaderWords.displayLabel)
-            .accessibilityValue(offered ? ScreenReaderWords.displayValue(reader) : "")
-            .accessibilityHint(offered ? ScreenReaderWords.displayHint(reader, edge: edge) ?? "" : "")
-            .accessibilityAddTraits(reader.isOn ? .allowsDirectInteraction : [])
-            .accessibilityAction(.default) {}
-            .accessibilityIdentifier("guest-display")
+        if reader.isOn {
+            accessibilityHidden(true)
+                .overlay {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        // The element is for VoiceOver; touches go to the mock guest under it.
+                        .allowsHitTesting(false)
+                        .accessibilityElement()
+                        .accessibilityLabel(ScreenReaderWords.displayLabel)
+                        .accessibilityValue(offered && !reader.displayWaitsForRead ? ScreenReaderWords.displayValue(reader) : "")
+                        .accessibilityHint(offered ? ScreenReaderWords.displayHint(reader, edge: edge) ?? "" : "")
+                        .accessibilityDirectTouch(true, options: .silentOnTouch)
+                        .accessibilityAction(.default) {}
+                        .accessibilityIdentifier("guest-display")
+                }
+                .accessibilityElement(children: .contain)
+        } else {
+            accessibilityElement(children: .ignore)
+                .accessibilityLabel(ScreenReaderWords.displayLabel)
+                .accessibilityValue(offered && !reader.displayWaitsForRead ? ScreenReaderWords.displayValue(reader) : "")
+                .accessibilityHint(offered ? ScreenReaderWords.displayHint(reader, edge: edge) ?? "" : "")
+                .accessibilityAction(.default) {}
+                .accessibilityIdentifier("guest-display")
+        }
     }
 }

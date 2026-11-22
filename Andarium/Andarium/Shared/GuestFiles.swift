@@ -140,13 +140,16 @@ protocol GuestFilesBackend: AnyObject {
 /// Where an export is staged until the action menu has taken it, and the
 /// room it needs there.
 nonisolated enum GuestFileStaging {
-    static var directory: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("GuestFiles", isDirectory: true)
+    static var directory: URL { directory(in: FileManager.default.temporaryDirectory) }
+
+    /// The folder in `temporary`: a test (the launch's sweep) gives a root of its own.
+    static func directory(in temporary: URL) -> URL {
+        temporary.appendingPathComponent("GuestFiles", isDirectory: true)
     }
 
     /// Removes everything an ended process staged.
-    static func sweep() {
-        try? FileManager.default.removeItem(at: directory)
+    static func sweep(in temporary: URL = FileManager.default.temporaryDirectory) {
+        try? FileManager.default.removeItem(at: directory(in: temporary))
     }
 
     /// A folder of its own for one export.

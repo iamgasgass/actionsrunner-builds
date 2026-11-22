@@ -149,7 +149,6 @@ struct NetworkNoticeFlowTests {
         #expect(model.networkDenialShowing == nil)
     }
 
-    #if !APP_STORE
     @Test func thePreviewHookPlaysADenialTheWatcherNeverSaw() {
         let system = SystemInfo(
             version: "17", release: "r2", kernel: "Linux 6.18",
@@ -162,7 +161,6 @@ struct NetworkNoticeFlowTests {
         model.previewNetworkNotice(.wifi)
         #expect(model.networkDenialShowing == .wifi)
     }
-    #endif
 
     // MARK: The words and the screens
 

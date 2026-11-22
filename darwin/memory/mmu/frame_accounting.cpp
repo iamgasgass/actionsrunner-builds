@@ -642,8 +642,11 @@ FrameAccounting::HoldReport FrameAccounting::hold(GenerationState &state,
 	const auto offset = frame.offset;
 	MappedBacking::FrameRecord *record = nullptr;
 	try {
-		/* Made before the stripe lock; null when the backing has no record
-		 * index or memory ran out. */
+		/* Found before the stripe lock: the record exists from the frame's
+		 * first executable mapping, and this allocates nothing. It is null
+		 * only for a backing with no slot for the frame in its record
+		 * index, which cannot name the frame's holders; the registration
+		 * fails, as it does for a frame it cannot track. */
 		record = backing.frame_record(offset);
 	} catch (...) {
 	}

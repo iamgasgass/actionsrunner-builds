@@ -171,6 +171,11 @@ struct CameraInfo {
     // Clockwise degrees (0, 90, 180, 270) from the sensor's top to the upright
     // side of a frame in the portrait orientation of the host's display.
     std::uint32_t sensorOrientation {};
+    // The clockwise half turn (0 or 180) that every picture of the camera takes before the guest sees it:
+    // `sensorOrientation` counts it, so a built-in front camera whose own mounting is 90 states 270. The platform's
+    // frames are in the mounting and the device turns the video; the platform's stills are already turned (the photo is
+    // made turned or refused, never delivered unturned).
+    std::uint32_t presentationTurn {};
 
     std::vector<CameraVideoFormat> videoFormats;
     // The JPEG sizes the camera makes. A host that fills captureFormats lists
@@ -436,6 +441,11 @@ public:
     // system's camera. Zero where the source makes the file in place or the
     // host does not say.
     [[nodiscard]] virtual std::uint32_t stillWorkingBytesPerPixel() const noexcept { return 0; }
+    // The working storage beyond that, in bytes for each pixel of a JPEG still, that this host's source holds while it
+    // turns the still of a camera whose pictures it presents half around (`CameraInfo::presentationTurn` 180): the device
+    // counts it in the capture's cost for such a camera. `systemCameraTurnedStillWorkingBytesPerPixel` for the system's
+    // camera; zero where the source turns nothing or its figure above covers it.
+    [[nodiscard]] virtual std::uint32_t turnedStillWorkingBytesPerPixel() const noexcept { return 0; }
     // Opens a capture session, or returns null when the system has not granted
     // access or the host has no camera. This is the only call that can light a
     // capture indicator, and a blocked guest session never makes it.

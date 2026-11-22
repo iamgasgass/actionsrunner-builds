@@ -127,24 +127,12 @@ struct InfoSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var path: [InfoPage]
-    #if ICP_FILING
-    @State private var storefront = ICPStorefrontState()
-    #endif
 
     init(page: InfoPage?) {
         _path = State(initialValue: page?.trail ?? [])
     }
 
     var body: some View {
-        #if ICP_FILING
-        // The storefront is followed while Info is open.
-        content.task { await storefront.watch(model.icpStorefront) }
-        #else
-        content
-        #endif
-    }
-
-    private var content: some View {
         NavigationStack(path: $path) {
             List {
                 Section {
@@ -170,6 +158,9 @@ struct InfoSheet: View {
                         }
                         .accessibilityIdentifier("info-whats-new")
                     }
+                }
+                if let notice = model.appUpdate {
+                    UpdateInfoSection(notice: notice) { StackMark(lit: true, width: 62) }
                 }
                 Section("System info") {
                     LabeledContent("Build", value: model.system.buildLabel)
@@ -209,16 +200,6 @@ struct InfoSheet: View {
                         }
                     }
                 }
-                // The last line of Info, only in mainland China's storefront.
-                #if ICP_FILING
-                if let number = model.icpNumber(), ICPFiling.isMainlandChina(countryCode: storefront.countryCode) {
-                    Section {
-                        ICPFootnote(number: number)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    }
-                }
-                #endif
             }
             .navigationTitle("Info")
             .navigationBarTitleDisplayMode(.inline)

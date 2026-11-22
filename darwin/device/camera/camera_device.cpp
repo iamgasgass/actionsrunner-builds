@@ -296,6 +296,8 @@ public:
     std::uint64_t nextToken {1};
     uml::gpu::UniqueDescriptor queue;
     std::vector<std::uint8_t> staging;
+    /* The one row a picture turned half around is written from (`copyRowsHalfTurned`). */
+    std::vector<std::uint8_t> turnedRow;
     /* A chunk of black luma and one of neutral chroma, made at the first black
      * picture. */
     std::vector<std::uint8_t> blackLuma;
@@ -1015,6 +1017,31 @@ public:
         return true;
     }
 
+    /* The same for a picture that goes in turned half around: each row of the guest's buffer is a row of the picture
+     * reversed, taken from the last row up, so the turn costs no pass of its own and no picture of memory, only the
+     * one row the reversed samples wait in before they are written. */
+    bool copyRowsHalfTurned(const Resource& resource, const Stream& stream, const CameraFrame& frame, uml::platform::Nv12Rect crop)
+    {
+        const auto pitch = pitchOf(stream);
+        uml::video::GuestPlaneWriter writer(mapper, regions.get(), resource.planes[0]);
+        turnedRow.resize(crop.width);
+        for (std::uint32_t row = 0; row < crop.height; ++row) {
+            const auto* from = frame.luma.data() + std::size_t(crop.y + crop.height - 1 - row) * frame.lumaStride + crop.x;
+            uml::platform::reverseLumaRow(from, turnedRow.data(), crop.width);
+            if (!writer.write(std::uint64_t(row) * pitch, std::span<const std::uint8_t>(turnedRow.data(), crop.width))) return false;
+        }
+        const std::uint64_t chromaStart = std::uint64_t(pitch) * stream.height;
+        for (std::uint32_t row = 0; row < crop.height / 2; ++row) {
+            const auto* from = frame.chroma.data() + std::size_t(crop.y / 2 + crop.height / 2 - 1 - row) * frame.chromaStride + crop.x;
+            uml::platform::reverseChromaRow(from, turnedRow.data(), crop.width / 2);
+            if (!writer.write(chromaStart + std::uint64_t(row) * pitch, std::span<const std::uint8_t>(turnedRow.data(), crop.width))) return false;
+        }
+        return true;
+    }
+
+    /* Writes the camera's frame into the guest's buffer of `stream`, turned clockwise by `rotation` (the camera's half turn
+     * and ROTATE_AND_CROP's, added): a picture of the stream's size goes in as it is, or reversed, with no copy of its own
+     * in between; any other goes through the transformer. */
     bool writeVideo(const Stream& stream, Resource& resource, const CameraFrame* frame, std::uint32_t rotation)
     {
         const auto pitch = pitchOf(stream);
@@ -1034,11 +1061,11 @@ public:
         const bool quarter = rotation == 90 || rotation == 270;
         const auto crop = uml::platform::centredCrop(frame->width, frame->height, stream.width, stream.height, quarter);
         if (crop.width == 0) return false;
-        const bool copy = rotation == 0 && crop.width == stream.width && crop.height == stream.height;
-        if (copy) {
-            // The picture is the buffer's: the rows go straight in.
-            if (!uml::platform::validNv12Transform(source, crop, 0, target)) return false;
-            return copyRows(resource, stream, *frame, crop);
+        const bool sameSize = crop.width == stream.width && crop.height == stream.height;
+        if (sameSize && (rotation == 0 || rotation == 180)) {
+            // The picture is the buffer's, or its half turn: the rows go straight in.
+            if (!uml::platform::validNv12Transform(source, crop, rotation, target)) return false;
+            return rotation == 0 ? copyRows(resource, stream, *frame, crop) : copyRowsHalfTurned(resource, stream, *frame, crop);
         }
         if (!transformer->transform(source, crop, rotation, target)) return false;
         return transferSegments(mapper, regions.get(), resource.planes[0], staging, true);
@@ -1053,6 +1080,13 @@ public:
         runtime.reportedTorch = torch;
         runtime.reportedFlash = flash;
         options.onFlash(runtime.description.index, torch, flash);
+    }
+
+    /* The half turn the platform says every picture of the camera takes before the guest sees it (CameraInfo): the device
+     * turns the video by it, whatever else it is asked. Only a half turn or none. */
+    [[nodiscard]] static std::uint32_t presentationTurnOf(const Runtime& runtime) noexcept
+    {
+        return runtime.description.info.presentationTurn == 180 ? 180u : 0u;
     }
 
     [[nodiscard]] std::uint32_t rotationOf(Runtime& runtime) const
@@ -1084,7 +1118,8 @@ public:
         runtime.latest = frame.exposure;
         const auto time = now();
         const auto age = time > frame.timestampNanoseconds ? time - frame.timestampNanoseconds : 0;
-        const auto rotation = rotationOf(runtime);
+        // The camera's half turn, if it has one, and ROTATE_AND_CROP's turn, in one rotation.
+        const auto rotation = (rotationOf(runtime) + presentationTurnOf(runtime)) % 360;
         for (auto& [id, stream] : streams) {
             if (stream.camera != runtime.description.index || !startedVideo(stream)) continue;
             // A stream slower than the camera takes the frames that fall on its interval.
@@ -1336,7 +1371,7 @@ public:
     }
 
     /* What a group's capture holds while it is with the host
-     * (`jpegCaptureBytes`, `rawCaptureBytes`), for the sizes of its pictures. */
+     * (`jpegCaptureBytes`, `rawCaptureBytes`), for the sizes of its pictures and the camera's working storage. */
     [[nodiscard]] std::uint64_t costOf(const Group& group, const Runtime& runtime) const
     {
         bool jpeg = false, raw = false;
@@ -1356,7 +1391,10 @@ public:
             const auto& size = runtime.description.info.rawStillSize;
             rawPixels = size.width != 0 ? std::uint64_t(size.width) * size.height : limits.maximumStillPixels;
         }
-        return (jpeg ? jpegCaptureBytes(jpegPixels, options.use.stillWorkingBytesPerPixel) : 0) +
+        // The still of a camera whose pictures the host presents half around is turned and encoded by the host, which holds
+        // its encoder's buffers besides.
+        const std::uint32_t turned = runtime.description.info.presentationTurn == 180 ? host->turnedStillWorkingBytesPerPixel() : 0;
+        return (jpeg ? jpegCaptureBytes(jpegPixels, options.use.stillWorkingBytesPerPixel + turned) : 0) +
             (raw ? rawCaptureBytes(rawPixels) : 0);
     }
 

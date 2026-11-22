@@ -43,7 +43,8 @@ namespace uml::runtime {
  * fd:, so a console on anything else shows none of it. For a guest whose
  * console reports its boot (set_session_boot_facts) the state also says "boot
  * completed", "boot unfinished" (init's output was seen, the boot did not
- * finish) or "boot unobserved" (neither was seen), and "restarts N". While the
+ * finish) or "boot unobserved" (neither was seen), "restarts N" and the boot's
+ * "ramdisk stock", "ramdisk root" or "ramdisk recovery". While the
  * boot has not completed the checkpoint thread rewrites the state with the
  * output so far whenever the output grew, so a process that is killed
  * mid-boot leaves where the boot had got; an end that the guest or the person
@@ -135,7 +136,7 @@ inline constexpr std::size_t session_state_offset =
  * line. What identifies the installation is masked wherever the state quotes
  * it: the serial number, the adb key and the time zone that the session's
  * kernel arguments state (by their assignments and by value) and any hardware
- * address in its colon spelling, as the application's start log masks them.
+ * address in its colon spelling.
  * The values are matched on the text as the record stores it, after what it
  * drops or replaces, and on word boundaries: a longer word that holds one is
  * kept. */
@@ -354,6 +355,25 @@ void checkpoint_session_memory() noexcept;
  * N"; for the others it says none and the checkpoints leave the state alone. */
 void set_session_boot_facts(bool console_reports_completion,
 	unsigned restarts) noexcept;
+
+/* Which ramdisk a boot starts the guest with, as the state says it: the
+ * release's own, the root image's (Magisk patched in) or recovery's. */
+enum class BootRamdisk : std::uint8_t {
+	unreported,
+	stock,
+	root,
+	recovery,
+};
+
+/* The ramdisk of the boot that begins, once the host has chosen it (after
+ * set_session_boot_facts, which forgets the one before). For a guest that
+ * reports its boot the state then also says "ramdisk stock", "ramdisk root"
+ * or "ramdisk recovery" on the line after "restarts N", which is how an
+ * application learns from the record alone whether the boot that ended was
+ * the root ramdisk's, whatever it asked for and whatever the guest restarted
+ * into. A boot whose ramdisk was never set, and a guest that does not
+ * report its boot, say none. Any thread. */
+void set_session_boot_ramdisk(BootRamdisk ramdisk) noexcept;
 
 /* Whether a session is writing to a record file. */
 [[nodiscard]] bool session_record_open() noexcept;

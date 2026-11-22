@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "120 Hz" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        }
+      }
+    },
     "A camera recording now ends and is saved when you leave Andarium" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20,6 +43,167 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "離開Andarium時，相機錄影現在會結束並儲存"
+          }
+        }
+      }
+    },
+    "AOT" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AOT"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AOT"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AOT"
+          }
+        }
+      }
+    },
+    "Add to Home Screen" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホーム画面に追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加到主屏幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入主畫面"
+          }
+        }
+      }
+    },
+    "Andarium now works with VoiceOver. To hear Android’s screen, turn on TalkBack, Android’s screen reader, under Accessibility." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AndariumがVoiceOverに対応しました。Androidの画面を読み上げるには、“アクセシビリティ”でAndroidのスクリーンリーダーであるTalkBackをオンにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium现已支持旁白。要朗读Android屏幕，请在“辅助功能”中开启Android的屏幕阅读器TalkBack。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium現已支援旁白。要朗讀Android畫面，請在「輔助使用」中開啟Android的螢幕閱讀器TalkBack。"
+          }
+        }
+      }
+    },
+    "Android can now receive a text message that you write. Choose Send text message… in Settings while Android is running, and it arrives as an incoming text." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidで、書いたSMSを受信できるようになりました。Androidの実行中に“設定”で“SMSを送信…”を選ぶと、受信SMSとして届きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android现在可以接收你编写的短信。在Android运行时，于“设置”中选择“发送短信…”，它会作为收到的短信送达。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android現在可以接收你撰寫的簡訊。在Android執行時，於「設定」中選擇「傳送簡訊…」，它會作為收到的簡訊送達。"
+          }
+        }
+      }
+    },
+    "Android now lowers the frame rate only when this device is very hot. To keep it even then, set When hot to Full frame rate under Performance." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidがフレームレートを下げるのは、デバイスが非常に高温になったときだけになりました。そのときも下げないようにするには、“パフォーマンス”の“高温時”を“フレームレートを制限しない”にしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "现在只有在设备温度非常高时，Android才会降低帧速率。要在这时仍保持帧速率，请在“性能”中将“高温时”设为“不限制帧速率”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在只有在裝置溫度非常高時，Android才會降低影格速率。若要在這時仍維持影格速率，請在「效能」中將「高溫時」設為「不限制影格速率」。"
+          }
+        }
+      }
+    },
+    "Android’s system libraries now run from code translated ahead of time, so Android runs faster. It is on by default, in Performance on Home." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidのシステムライブラリが事前に変換されたコードで動作するようになり、Androidが速くなりました。初期状態でオンになっていて、“ホーム”の“パフォーマンス”にあります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android的系统库现在使用预先转译的代码运行，因此Android运行更快。默认开启，位于“主页”的“性能”中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android的系統程式庫現在使用預先轉譯的程式碼執行，因此Android執行更快。預設為開啟，位於「首頁」的「效能」中。"
+          }
+        }
+      }
+    },
+    "Apps you allow in Magisk can now run as root. Turn on Root access on Home, and the next start installs the official Magisk app." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskで許可したアプリをrootで実行できるようになりました。“ホーム”で“rootアクセス”をオンにすると、次回の起動時に公式のMagiskアプリがインストールされます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允许的应用现在可以以Root身份运行。在“主页”中打开“Root权限”后，下次启动时会安装官方Magisk应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允許的應用程式現在可以以Root身分執行。在「首頁」中開啟「Root權限」後，下次啟動時會安裝官方Magisk應用程式。"
           }
         }
       }
@@ -66,29 +250,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "相機"
-          }
-        }
-      }
-    },
-    "Email the developer from the Info menu on Home, or from Settings while the virtual machine runs, with screenshots and a bug report if you like." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "“ホーム”の“情報”メニュー、または仮想マシンの実行中に“設定”から、デベロッパにメールを送信できます。スクリーンショットやバグレポートも添付できます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在“主页”的“信息”菜单中或虚拟机运行时的“设置”中向开发者发送电子邮件，还可以附上截屏和错误报告。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在「首頁」的「資訊」選單中或虛擬機器執行時的「設定」中傳送電子郵件給開發者，還可以附上截圖和錯誤報告。"
           }
         }
       }
@@ -231,6 +392,29 @@
         }
       }
     },
+    "Fixed apps failing to reach servers for a while after the network returns" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワークが復旧したあと、しばらくアプリがサーバに接続できない問題を修正しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了网络恢复后应用在一段时间内无法连接服务器的问题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正網路恢復後應用程式在一段時間內無法連線到伺服器的問題"
+          }
+        }
+      }
+    },
     "Fixed apps installed with Install APK not appearing on Android’s home screen" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -254,6 +438,29 @@
         }
       }
     },
+    "Fixed connections hanging after this device moves from Wi-Fi to cellular data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスがWi-Fiからモバイルデータ通信に切り替わったあと、接続が止まったままになる問題を修正しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了此设备从Wi-Fi切换到蜂窝数据后连接卡住的问题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正此裝置從Wi-Fi切換到行動數據後連線卡住的問題"
+          }
+        }
+      }
+    },
     "Fixed crashes in some 3D games and apps" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -273,6 +480,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修正部分3D遊戲和應用程式當機的問題"
+          }
+        }
+      }
+    },
+    "Fixed face scans failing in some apps that use the front camera" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前面カメラを使う一部のアプリで顔認証に失敗する問題を修正しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了某些使用前置相机的应用中人脸识别失败的问题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正部分使用前置相機的應用程式中臉部辨識失敗的問題"
           }
         }
       }
@@ -438,6 +668,29 @@
         }
       }
     },
+    "Fixed the virtual machine’s Wi-Fi dropping briefly when you return to Andarium" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumに戻ったときに仮想マシンのWi-Fiが一時的に切れる問題を修正しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修复了返回Andarium时虚拟机的Wi-Fi短暂断开的问题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修正返回Andarium時虛擬機器的Wi-Fi短暫中斷的問題"
+          }
+        }
+      }
+    },
     "Fixed the virtual machine’s Wi-Fi not reconnecting after it drops" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -480,6 +733,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修正與改進"
+          }
+        }
+      }
+    },
+    "Frame rate when hot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高温時のフレームレート"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高温时的帧速率"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高溫時的影格速率"
           }
         }
       }
@@ -691,6 +967,29 @@
         }
       }
     },
+    "On a ProMotion iPhone or iPad, Android can now run at 120 Hz for smoother motion, using more battery. It is off until you turn it on in Performance on Home." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ProMotion対応のiPhoneやiPadでは、バッテリー消費は増えますが、Androidを120 Hzで動作させて動きを滑らかにできます。初期状態ではオフで、“ホーム”の“パフォーマンス”でオンにできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在支持ProMotion的iPhone或iPad上，Android现在可以以120 Hz运行，画面更流畅，但更耗电。默认关闭，可在“主页”的“性能”中打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在支援ProMotion的iPhone或iPad上，Android現在可以以120 Hz執行，畫面更流暢，但更耗電。預設為關閉，可在「首頁」的「效能」中開啟。"
+          }
+        }
+      }
+    },
     "On devices that allow it, the virtual machine’s RAM can now go above 4 GiB." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -733,6 +1032,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在iPad上，整個App現在會隨裝置旋轉，虛擬機器執行時也一樣。"
+          }
+        }
+      }
+    },
+    "On iPhone and iPad with iOS 27, put an Android app’s icon on the Home Screen, and open the app from there, from Shortcuts or with Siri." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 27のiPhoneとiPadでは、Androidアプリのアイコンをホーム画面に置いて、そこから、または“ショートカット”やSiriでアプリを開けます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在装有iOS 27的iPhone和iPad上，可以将Android应用的图标放到主屏幕上，并从主屏幕、“快捷指令”或通过Siri打开该应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在使用iOS 27的iPhone和iPad上，可以將Android應用程式的圖像放到主畫面上，並從主畫面、「捷徑」或透過Siri打開該應用程式。"
           }
         }
       }
@@ -806,6 +1128,29 @@
         }
       }
     },
+    "Root access" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootアクセス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root权限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root權限"
+          }
+        }
+      }
+    },
     "Rotation on iPad" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -848,29 +1193,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存虛擬機器的資料，之後可在「首頁」中回復。"
-          }
-        }
-      }
-    },
-    "Send feedback" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "フィードバックを送信"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "发送反馈"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "傳送回饋"
           }
         }
       }
@@ -944,6 +1266,52 @@
         }
       }
     },
+    "Text messages" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SMS"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "短信"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簡訊"
+          }
+        }
+      }
+    },
+    "Update notice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデートのお知らせ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新通知"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新通知"
+          }
+        }
+      }
+    },
     "Use Install APK to install an app built for a much older version of Android. Andarium warns you first that the app may not work properly." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1009,6 +1377,75 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在虛擬機器中使用此裝置的相機。預設為關閉，可在「首頁」的「裝置功能」中開啟。"
+          }
+        }
+      }
+    },
+    "VP9 videos now play with this device’s hardware decoder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VP9の動画がこのデバイスのハードウェアデコーダで再生されるようになりました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VP9视频现在使用此设备的硬件解码器播放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VP9影片現在使用此裝置的硬體解碼器播放"
+          }
+        }
+      }
+    },
+    "VoiceOver and TalkBack" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VoiceOverとTalkBack"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁白与TalkBack"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁白與TalkBack"
+          }
+        }
+      }
+    },
+    "When a newer version of Andarium is out, Home tells you and shows how to update. It checks once a day, and you can turn it off in Info." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumの新しいバージョンが公開されると、“ホーム”でお知らせし、アップデート方法を表示します。確認は1日に1回で、“情報”でオフにできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium有新版本时，会在“主页”中提示你并说明如何更新。每天检查一次，可在“信息”中关闭。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium有較新的版本時，會在「首頁」中提示你並說明如何更新。每天檢查一次，可在「資訊」中關閉。"
           }
         }
       }

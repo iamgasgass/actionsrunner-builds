@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if !FEEDBACK_MAIL && !TIP_JAR && !APP_REVIEW
-
 import AndariumCore
 import AndariumCoreTestSupport
 import SwiftUI
@@ -9,8 +7,7 @@ import Testing
 import UIKit
 @testable import Andarium
 
-/// A build that has none of Send feedback, Review on the App Store and Buy me
-/// tokens has no toolbar menu: Info is the plain button it has always been.
+/// Home has no toolbar menu: Info is a plain button.
 @MainActor
 @Suite(.serialized)
 struct HomePlainInfoTests {
@@ -51,4 +48,3 @@ struct HomePlainInfoTests {
     }
 }
 
-#endif

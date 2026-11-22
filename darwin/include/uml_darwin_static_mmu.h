@@ -38,9 +38,29 @@ struct darwin_uml_static_sequences {
 	uint64_t execution_interrupt;
 };
 
+/* Flags of a code-page stamp. */
+enum {
+	/* The mapping the stamp was asked through carries the kernel's immutable
+	 * fact. Only darwin_uml_static_vm_code_page() knows it: a stamp read by
+	 * handle leaves it clear, because a handle names the physical page, not
+	 * one of its mappings. */
+	DARWIN_UML_STATIC_STAMP_IMMUTABLE = 1,
+	/* The page's record cannot count its executable mappings exactly any
+	 * more, so no verdict about its bytes may be kept. */
+	DARWIN_UML_STATIC_STAMP_NEVER_SHARE = 2,
+};
+
+/* What one physical page says about itself. `identity` is never reused.
+ * `version` moves at every publication and at every departure of a mapping.
+ * `epoch` moves at a publication that names the page's frame and when the last
+ * executable mapping of the page departs, and, for every page at once, at a
+ * kernel write that names no frame (a target page its address space does not
+ * map, or a frame Linux cannot name); nowhere else. */
 struct darwin_uml_static_code_page_stamp {
 	uint64_t identity;
 	uint64_t version;
+	uint64_t epoch;
+	uint64_t flags;
 };
 
 int darwin_uml_static_vm_map(void *address, int fd,
@@ -145,7 +165,12 @@ int darwin_uml_static_vm_mapping_changes(
 	struct darwin_uml_static_mapping_change *changes, size_t capacity,
 	uint64_t *current_sequence);
 /* A cached execution context keeps the generation alive and avoids resolving
- * thread-local address-space state at every translated-block boundary. */
+ * thread-local address-space state at every translated-block boundary. One
+ * thread begins and ends it, runs inside it nested with any other it enters,
+ * and while it is entered the guest instructions the thread runs belong to its
+ * generation: darwin_uml_static_vm_synchronize_code() and
+ * darwin_uml_static_vm_invalidate_code() resolve a guest address there, not in
+ * the generation the thread last activated. */
 void *darwin_uml_static_vm_execution_context_create(unsigned long generation);
 void darwin_uml_static_vm_execution_context_destroy(void *context);
 int darwin_uml_static_vm_execution_context_begin(void *context,
@@ -181,11 +206,14 @@ int darwin_uml_static_vm_execution_context_code_change_ranges(
 void darwin_uml_static_vm_invalidate_code(unsigned long address);
 /* darwin_uml_static_vm_invalidate_code() for a guest's own code
  * synchronization (IC IVAU) that must say whether it found the frame: 1 when
- * the active generation maps nothing at `address`, a guest page whose page
- * table entry the walker has not installed yet. Hardware faults such an
+ * the generation maps nothing at `address` (the entered execution context's
+ * where the thread is inside one, else the active one), a guest page whose
+ * page table entry the walker has not installed yet. Hardware faults such an
  * instruction like a load; the caller reports that fault so the kernel maps
  * the page, and runs the instruction again. Everything else publishes as
- * darwin_uml_static_vm_invalidate_code() does and answers 0. */
+ * darwin_uml_static_vm_invalidate_code() does and answers 0. A host with no
+ * address space for the thread answers -1, and the helper treats any non-zero
+ * answer as an unmapped address and faults. */
 int darwin_uml_static_vm_synchronize_code(unsigned long address);
 int darwin_uml_static_vm_invalidate_code_generation(
 	unsigned long generation, unsigned long address, unsigned long length);

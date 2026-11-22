@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
 
+#include "cpu/aot_selection.hpp"
 #include "cpu/jit_memory_status.hpp"
 
 #include <cstddef>
@@ -34,6 +35,21 @@ inline constexpr unsigned maximum_guest_cpu_count = 64;
 [[nodiscard]] bool set_translation_cache_budget(std::size_t total_bytes,
 	unsigned executors, std::size_t per_executor_bytes) noexcept;
 
+/* A launch's word on ahead-of-time code (--aot=) and the release the launch
+ * boots (null for a guest that is not an Android release), before the run's
+ * first executor: false when it cannot be kept (cpu/engine_factory.hpp). */
+using AotSelection = ::uml::cpu::AotSelection;
+using AotRelease = ::uml::cpu::AotRelease;
+[[nodiscard]] bool select_aot(AotSelection selection,
+	const AotRelease *release) noexcept;
+/* The end of a session of the process: its guest was released after a clean
+ * power-off, so the next run's select_aot chooses afresh. */
+void end_aot_session() noexcept;
+/* The session's choice as it stands, and putting it back: a start that took
+ * the choice and failed before its guest ran leaves it as it was. */
+[[nodiscard]] int aot_choice() noexcept;
+void restore_aot_choice(int choice) noexcept;
+
 [[nodiscard]] bool acquire_translation_cache_run_session() noexcept;
 void release_translation_cache_run_session() noexcept;
 
@@ -65,7 +81,6 @@ void set_process_memory_limit(std::size_t bytes) noexcept;
 std::size_t set_gadget_cache_budget(std::size_t guest_memory_bytes,
 	std::size_t bytes, unsigned executors) noexcept;
 
-#ifndef UML_APP_STORE_RUNTIME
 /* JIT on an iOS device, where a debugger the user attached prepares the
  * executable memory once per process (cpu/jit_memory/executable_memory.hpp).
  * The JIT's cache takes the gadget cache's budget there (jit_cache_budget_for),
@@ -98,7 +113,6 @@ void release_jit_debugger() noexcept;
  * bytes, zero before any. A run that does not use it still carries it, so the
  * run's memory plan counts it. */
 [[nodiscard]] std::size_t prepared_jit_region_bytes() noexcept;
-#endif
 
 /* Parses a byte count with an optional K/M/G suffix. Zero if unparsable. */
 [[nodiscard]] std::size_t parse_translation_cache_quantity(

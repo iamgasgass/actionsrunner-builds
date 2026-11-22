@@ -25,3 +25,4 @@ R3	Andarium/Andarium.xcodeproj/project.xcproj	"PRODUCT_BUNDLE_IDENTIFIER": "com.
 R2	tests/tooling/network/slirp_dns_probe.cpp	uml-dns-probe-alias\.local	fixture for a parser or validator
 R7	dependencies/patches/talkback/*.patch	^From:	outside contributor's own patch
 R7	dependencies/patches/espeak-ng/*.patch	^From:	outside contributor's own patch
+R7	android/lineage-24/patches/projects/p0034/series/*.patch	^From:	outside contributor's own patch

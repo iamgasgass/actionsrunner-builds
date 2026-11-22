@@ -329,21 +329,17 @@ private:
     options.onState = [&receiver](uml::camera::CameraState state) {
         receiver.publish(state);
     };
-#ifndef UML_APP_STORE_RUNTIME
     /* What reaches the host and what it costs, for a development run to read. */
     options.onRotateAndCrop = uml::camera::printRotateAndCrop;
     options.onFlash = uml::camera::printFlash;
     options.onCheckpoint = uml::camera::printCheckpoint;
-#endif
     return options;
 }
 
-#ifndef UML_APP_STORE_RUNTIME
-/* Which camera a runtime that is not an App Store build serves, from the
- * environment: the host's (the default), the host's back cameras alone, or
- * the synthetic one that tests and the Simulator use, which is no camera of
- * the machine's and never captures one. An App Store runtime reads no such
- * knob and has no synthetic camera. */
+/* Which camera a runtime serves, from the environment: the host's (the
+ * default), the host's back cameras alone, or the synthetic one that tests and
+ * the Simulator use, which is no camera of the machine's and never captures
+ * one. */
 inline constexpr const char* sourceVariable = "KERNARIUM_CAMERA_SOURCE";
 
 /* The host's cameras with only the back-facing ones openable, for a test on a
@@ -507,6 +503,5 @@ template <class HostSource>
         return std::make_shared<BackCamerasOnly>(std::move(source));
     return source;
 }
-#endif
 
 } // namespace kernarium::camera

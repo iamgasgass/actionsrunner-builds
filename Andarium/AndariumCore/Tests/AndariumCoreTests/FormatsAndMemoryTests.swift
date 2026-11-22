@@ -199,6 +199,40 @@ struct MemoryPolicyTests {
         #expect(roomy.minimumMiB(vCPUs: 8) == 1536)
     }
 
+    /// Where the runtime says no size fits (a bound of zero: the process has no
+    /// room for the window of even the smallest virtual machine) nothing is
+    /// offered: not raised to the runtime's least size, no position in the
+    /// picker, no default, no estimate. A count that has room is unaffected.
+    @Test func aBoundOfZeroIsNoRoomAndNothingIsOffered() {
+        let none = MemoryPolicy(
+            processorCount: 4, bound: { _ in 0 }, defaultMemory: { _ in 0 }, safeMemory: { _ in 0 },
+            graphicsMemory: { _, _ in 1000 })
+        for count in 1...4 {
+            #expect(!none.hasRoom(vCPUs: count))
+            #expect(none.maximumMiB(vCPUs: count) == 0)
+            #expect(none.minimumMiB(vCPUs: count) == 0)
+            #expect(none.stops(vCPUs: count).isEmpty)
+            #expect(none.defaultMemoryMiB(vCPUs: count) == 0)
+            #expect(none.safeMemoryMiB(vCPUs: count) == 0)
+            #expect(none.graphicsLineMiB(vCPUs: count) == 0)
+            #expect(none.graphicsMemoryMiB(forMemory: 1536, vCPUs: count) == nil)
+            #expect(none.clamped(4096, vCPUs: count) == 0)
+        }
+        let device = host(none, processors: 4)
+        #expect(Guest.fresh(on: device).memoryMiB == 0)
+        // A stored size is held to the bound, which is no size: the runtime
+        // refuses the start with the reason of no room.
+        #expect(Guest(cores: 4, memoryMiB: 4096, capacityGiB: 8).memoryWithinBound(on: device).memoryMiB == 0)
+        // Raising the count of a guest in a process of room takes it to the
+        // bound of the count, which may be none.
+        let mixed = MemoryPolicy(maximumsMiB: [2048, 0])
+        #expect(mixed.hasRoom(vCPUs: 1) && !mixed.hasRoom(vCPUs: 2))
+        #expect(mixed.stops(vCPUs: 1).last == 2048 && mixed.stops(vCPUs: 2).isEmpty)
+        // A bound of the least size the runtime holds is a size, not no room.
+        let least = MemoryPolicy(maximumsMiB: [512])
+        #expect(least.hasRoom(vCPUs: 1) && least.stops(vCPUs: 1) == [512])
+    }
+
     @Test func theBoundsComeOntoTheRuntimesStepsAndRange() {
         let policy = MemoryPolicy(maximumsMiB: [100, 5000, 1700, 9152, 2_000_000])
         #expect(policy.maximumMiB(vCPUs: 1) == 512)

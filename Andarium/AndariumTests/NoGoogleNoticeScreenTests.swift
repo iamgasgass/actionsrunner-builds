@@ -10,9 +10,7 @@ import UIKit
 /// The notice that Android has no Google apps, on purpose, on the real
 /// screens in the application's window: the panel on the boot screen of a
 /// first start or the retry of one that did not finish, which the end of the
-/// boot takes away; the starts that never show it; and, where Send feedback is
-/// compiled in, the line at the top of its mail, which opens in place, closes,
-/// and is there again on the next sheet.
+/// boot takes away; and the starts that never show it.
 /// A stub stands for the runtime, and the boot ends as the runtime ends it
 /// (`finishBoot`).
 ///
@@ -49,14 +47,6 @@ struct NoGoogleNoticeScreenTests {
         let clock = Clock()
         model.clock = { clock.now }
         model.phase = phase
-        #if FEEDBACK_MAIL
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        services.canSendMail = { true }
-        services.presentMail = { _, _ in true }
-        services.captureScreen = { _ in nil }
-        model.feedbackServices = services
-        #endif
         return Fixture(model: model, driver: driver, clock: clock)
     }
 
@@ -241,104 +231,6 @@ struct NoGoogleNoticeScreenTests {
             #expect(title.contains("Google"), "\(language): the title does not name Google")
             #expect(body.hasPrefix("Google") && body.contains("Google Play"), "\(language): the text does not name Google and Google Play")
         }
-        #if FEEDBACK_MAIL
-        let question = text("Missing Google apps?", table: "Feedback")
-        let short = text("That\u{2019}s on purpose.", table: "Feedback")
-        let line = text("That\u{2019}s on purpose. Why", table: "Feedback")
-        let why = text("Why", table: "Feedback")
-        let hint = text("Shows the answer", table: "Feedback")
-        let dismiss = text("Dismiss Google apps note", table: "Feedback")
-        let answer = text(
-            "Google licenses its apps and Google Play services only to makers of certified devices. Install apps from files you have; many work without them.",
-            table: "Feedback")
-        inLatinLetters([question, short, line, why, hint, answer, dismiss])
-        // The collapsed line is the first words and then the word that opens the answer, which the line colours.
-        #expect(line.hasPrefix(short) && line.hasSuffix(why), "\(language): the line is not its first words and its Why")
-        #expect(answer == body, "\(language): the answer is not the panel's text")
-        if language != "en" {
-            #expect(question.contains("Google") && question != "Missing Google apps?", "\(language): the question")
-            for word in [short, why, hint, dismiss] { #expect(!word.isEmpty) }
-            #expect(dismiss != "Dismiss Google apps note" && dismiss != text("Dismiss", table: "Feedback"), "\(language): the close button's name")
-            #expect(short != "That\u{2019}s on purpose." && why != "Why" && hint != "Shows the answer", "\(language) says it in English")
-        }
-        #endif
     }
 
-    // MARK: Send feedback's line
-
-    #if FEEDBACK_MAIL
-
-    /// The contract: every sheet opens with the line, closed, whatever was done on an earlier one.
-    @Test func everySheetOpensWithTheLineClosedWhateverWasDoneOnTheLastOne() {
-        let fixture = rig(phase: .home)
-        let first = SendFeedbackModel(app: fixture.model)
-        defer { first.close() }
-        #expect(first.showsNoGoogleLine && !first.noGoogleAnswerOpen)
-        // Closing the line takes it from this sheet alone.
-        first.closeNoGoogleLine()
-        #expect(!first.showsNoGoogleLine)
-        let second = SendFeedbackModel(app: fixture.model)
-        defer { second.close() }
-        #expect(second.showsNoGoogleLine && !second.noGoogleAnswerOpen, "the line did not come back after it was closed")
-        // Opening its answer suppresses nothing later.
-        second.openNoGoogleAnswer()
-        #expect(second.noGoogleAnswerOpen && second.showsNoGoogleLine)
-        let third = SendFeedbackModel(app: fixture.model)
-        defer { third.close() }
-        #expect(third.showsNoGoogleLine && !third.noGoogleAnswerOpen, "the line did not come back after its answer was opened")
-        // Opened and then closed on one sheet is closed on that one alone.
-        second.closeNoGoogleLine()
-        #expect(!second.showsNoGoogleLine)
-        let fourth = SendFeedbackModel(app: fixture.model)
-        defer { fourth.close() }
-        #expect(fourth.showsNoGoogleLine && !fourth.noGoogleAnswerOpen, "the line did not come back after it was opened and closed")
-    }
-
-    @Test func theLineAtTheTopOfTheMailOpensInPlaceAndCloses() async throws {
-        let fixture = rig(phase: .home)
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let controller = root(fixture, lease: lease)
-        fixture.model.feedbackSheetOpen = true
-        func sheetView() -> UIView? { controller.presentedViewController?.view }
-        guard await eventually({ sheetView().flatMap { labelled("Send feedback", in: $0) } != nil }) else {
-            Issue.record("the sheet was not found: is application accessibility on in this Simulator?")
-            fixture.model.feedbackSheetOpen = false
-            return
-        }
-        let open = try #require(
-            await eventually { sheetView().flatMap { button("Missing Google apps?", in: $0) } != nil }
-                ? sheetView().flatMap { button("Missing Google apps?", in: $0) } : nil,
-            "the sheet has no line")
-        // Collapsed: the question, the first words and the Why, and the answer is not on the sheet.
-        let label = try #require(open.accessibilityLabel)
-        #expect(label.contains("That\u{2019}s on purpose.") && label.hasSuffix("Why"))
-        #expect(sheetView().flatMap { labelled("Missing Google apps?", in: $0)?.accessibilityLabel?.contains(Self.reason) } != true,
-                "the answer was open before the tap")
-        // The answer opens in place, and Send and the fields are still there.
-        #expect(open.accessibilityActivate())
-        let answer = await eventually { sheetView().flatMap { labelled("Missing Google apps?", in: $0)?.accessibilityLabel?.contains(Self.reason) } == true }
-        #expect(answer, "the answer did not open")
-        #expect(sheetView().flatMap { button("Send feedback", in: $0) } != nil, "the sheet lost its Send")
-        // Close: the line goes from this sheet.
-        let dismiss = try #require(
-            sheetView().flatMap { button("Dismiss Google apps note", in: $0) }, "the line has no close button")
-        // The bug-report card in the same sheet has a Dismiss of its own, and the two are told apart.
-        let card = sheetView().flatMap { button(exactly: "Dismiss", in: $0) }
-        #expect(card != nil && card !== dismiss, "the card's Dismiss is not another button")
-        #expect(dismiss.accessibilityActivate())
-        let gone = await eventually { sheetView().flatMap { labelled("Missing Google apps?", in: $0) } == nil }
-        #expect(gone, "the line stayed after it was closed")
-        // The next presentation of the sheet has the line again, closed.
-        fixture.model.feedbackSheetOpen = false
-        #expect(await eventually { controller.presentedViewController == nil }, "the sheet did not close")
-        fixture.model.feedbackSheetOpen = true
-        let back = await eventually { sheetView().flatMap { button("Missing Google apps?", in: $0) } != nil }
-        #expect(back, "the line did not come back when the sheet opened again")
-        #expect(sheetView().flatMap { labelled("Missing Google apps?", in: $0)?.accessibilityLabel?.contains(Self.reason) } != true,
-                "the line came back open")
-        fixture.model.feedbackSheetOpen = false
-    }
-
-    #endif
 }

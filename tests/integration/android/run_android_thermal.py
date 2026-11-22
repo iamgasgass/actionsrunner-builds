@@ -10,11 +10,13 @@ android/lineage-24/README.md ("Thermal"), and the wire is overlay/thermal/therma
 - before any host connects: the thermal manager is connected to a HAL of AIDL version 3, the one SKIN
   sensor reads 31.0 degrees with status NONE, its seven hot thresholds are NaN, 34, 37, 40, 43, 46 and 49,
   the headroom thresholds are NaN, 0.8, 0.9, 1.0, 1.1, 1.2 and 1.3, there is no battery sensor, and the
-  display's skin observer holds the SEVERE point of 30 Hz;
+  display's skin observer holds the MODERATE point of 60 Hz and the SEVERE point of 30 Hz;
 - CRITICAL sent from NONE (the application sends it when iOS jumps straight to critical, and NONE when
   the hold after critical ends with nothing hotter) sets the status to 4 and brings the same cap as
   SEVERE, and NONE sent straight after it lifts the cap;
 - LIGHT sets the status to 1 and casts no vote on the frame rate;
+- MODERATE sets the status to 2 and holds the render rate to 60 Hz (the vote the application relies on when
+  Low Power Mode holds a 120 Hz display to 60), which changes no frame rate of this runner's 60 Hz display;
 - SEVERE sets the status to 3, the display manager holds a render-rate vote of 0 to 30 Hz at the skin
   temperature priority, SurfaceFlinger renders at 30.00 Hz on the unchanged mode, and
   ``kernarium_vk_present`` and the host's presented frames run at about 30 a second;
@@ -83,6 +85,7 @@ HEADROOM_THRESHOLDS = (math.nan, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3)
 LEVELS = {
     0: (31.0, 0.70),
     1: (35.5, 0.85),
+    2: (38.5, 0.95),
     3: (41.5, 1.05),
     4: (44.5, 1.15),
 }
@@ -188,6 +191,8 @@ def parse_headroom(text: str) -> float | None:
 class DisplayDump:
     status: int | None
     map_has_severe_cap: bool
+    map_has_moderate_hold: bool
+    skin_vote_minimum: float | None
     skin_vote_maximum: float | None
     skin_vote: bool
 
@@ -196,14 +201,18 @@ def parse_display_dump(text: str) -> DisplayDump:
     """`dumpsys display`: the skin observer's status and map, and the vote it cast."""
     status = re.search(r"SkinThermalStatusObserver:\s+mStatus: (-?\d+)", text)
     map_match = re.search(r"mThermalThrottlingByDisplay: (\{.*\})", text)
-    # SurfaceControl.RefreshRateRange prints as "(min max)"; status 3 is SEVERE.
-    severe = bool(map_match and re.search(r"\b3=\([\d.]+ 30\.0\)", map_match[1]))
+    # SurfaceControl.RefreshRateRange prints as "(min max)"; status 3 is SEVERE and status 2 MODERATE. Both
+    # endpoints are the contract: a point of 15 to 60 Hz holds the maximum and lets Android render at 15.
+    severe = bool(map_match and re.search(r"\b3=\(0(?:\.0)? 30\.0\)", map_match[1]))
+    moderate = bool(map_match and re.search(r"\b2=\(0(?:\.0)? 60\.0\)", map_match[1]))
     vote = re.search(r"PRIORITY_SKIN_TEMPERATURE -> (.*)", text)
-    maximum = None
+    minimum = maximum = None
     if vote:
+        found = re.search(r"mMinRefreshRate=(\S+?)[ ,}]", vote[1])
+        minimum = float(found[1]) if found else None
         found = re.search(r"mMaxRefreshRate=(\S+?)[ ,}]", vote[1])
         maximum = float(found[1]) if found else None
-    return DisplayDump(int(status[1]) if status else None, severe, maximum, vote is not None)
+    return DisplayDump(int(status[1]) if status else None, severe, moderate, minimum, maximum, vote is not None)
 
 
 def parse_render_rates(text: str) -> list[float]:
@@ -392,13 +401,20 @@ def check_headroom(guest: Guest, severity: int) -> None:
     wait_for(f"headroom at severity {severity}", STATE_SECONDS, settled, guest)
 
 
-def check_cap(guest: Guest, capped: bool, label: str) -> None:
-    """The vote, the render rate and the frame rates, together."""
+def check_cap(guest: Guest, capped: bool, label: str, hold: float | None = None) -> None:
+    """The vote, the render rate and the frame rates, together. `hold` is the maximum of a vote that is not
+    the 30 Hz cap and changes no frame rate here (MODERATE's 60 Hz on a display that shows 60). A vote is
+    0 to its maximum: both endpoints are checked."""
     def vote() -> str | None:
         display = guest.display()
         if capped:
-            if not display.skin_vote or display.skin_vote_maximum != 30.0:
-                return f"the skin vote is {display.skin_vote_maximum}, not a 0 to 30 Hz render vote"
+            if not display.skin_vote or (display.skin_vote_minimum, display.skin_vote_maximum) != (0.0, 30.0):
+                return (f"the skin vote is {display.skin_vote_minimum} to {display.skin_vote_maximum}, "
+                        "not a 0 to 30 Hz render vote")
+        elif hold is not None:
+            if not display.skin_vote or (display.skin_vote_minimum, display.skin_vote_maximum) != (0.0, hold):
+                return (f"the skin vote is {display.skin_vote_minimum} to {display.skin_vote_maximum}, "
+                        f"not a 0 to {hold:g} Hz render vote")
         elif display.skin_vote:
             return f"a skin vote remains (maximum {display.skin_vote_maximum})"
         return None
@@ -444,6 +460,9 @@ def run_checks(guest: Guest) -> None:
         if not display.map_has_severe_cap:
             raise Failure("the display's skin observer has no SEVERE point of 30 Hz "
                           "(is the default display configuration read?)")
+        if not display.map_has_moderate_hold:
+            raise Failure("the display's skin observer has no MODERATE point of 60 Hz "
+                          "(is the default display configuration read?)")
         if display.skin_vote:
             raise Failure("a skin vote is cast at NONE")
 
@@ -471,6 +490,12 @@ def run_checks(guest: Guest) -> None:
         settle_severity(guest, 1)
         check_headroom(guest, 1)
         check_cap(guest, False, "light")
+
+        print("MODERATE")
+        host.send(record(2))
+        settle_severity(guest, 2)
+        check_headroom(guest, 2)
+        check_cap(guest, False, "moderate", hold=60.0)
 
         print("SEVERE")
         host.send(record(3))

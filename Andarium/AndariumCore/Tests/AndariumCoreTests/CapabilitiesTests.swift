@@ -14,11 +14,10 @@ struct CapabilitiesTests {
         #expect(device.screenReader)
     }
 
-    /// Held until an accepted release image carries the service: the device
-    /// offers no text message, and the preview, which has no device to ship
-    /// to, shows it.
-    @Test func textMessagesAreHeldBackOnTheDevice() {
-        #expect(!Capabilities.device.textMessages)
+    /// The device and the preview both offer a text message: the device sends
+    /// it over vsock to the service of the running image.
+    @Test func theDeviceAndThePreviewOfferTextMessages() {
+        #expect(Capabilities.device.textMessages)
         #expect(Capabilities.preview.textMessages)
     }
 

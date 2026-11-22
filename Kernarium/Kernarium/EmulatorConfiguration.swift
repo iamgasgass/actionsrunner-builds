@@ -138,12 +138,20 @@ struct EmulatorConfiguration: Equatable {
     /// The most guest RAM the settings offer at `vCPUCount` vCPUs: a size of
     /// the stepper's range that leaves the host GPU its floor under the
     /// memory limit. Each added vCPU holds more of the process's memory, so
-    /// the bound falls as the count rises.
+    /// the bound falls as the count rises. Zero where the runtime says no size
+    /// fits (the process has no room for the window of even the smallest
+    /// guest): nothing is offered, and a start is refused (`MemoryRefusal`).
     func maximumGuestMemoryMiB(
         vCPUCount: Int,
         bound: GuestMemoryBound = EmulatorConfiguration.systemGuestMemoryBound
     ) -> Int {
-        Self.steppedGuestMemoryMiB(bound(vCPUCount), rounding: .down)
+        Self.steppedBound(bound(vCPUCount))
+    }
+
+    /// A bound of the runtime taken down onto the stepper's steps; zero stays
+    /// zero, for it is no size to raise to the stepper's least.
+    private static func steppedBound(_ bound: Int) -> Int {
+        bound <= 0 ? 0 : steppedGuestMemoryMiB(bound, rounding: .down)
     }
 
     /// Takes guest RAM down to the bound of the vCPU count after the count
@@ -268,9 +276,12 @@ struct EmulatorConfiguration: Equatable {
         let vCPUCount = environmentVCPUCount ?? min(
             max(storedVCPUCount, 1), maximumVCPUCount
         )
-        let storedGuestMemoryMiB = stored(
-            Key.guestMemoryMiB, defaultGuestMemory(vCPUCount)
-        )
+        // A zero is no size: an earlier version saved the size shown where
+        // none fit, so the default applies to it as to an absent key.
+        let storedMemoryMiB = stored(Key.guestMemoryMiB, 0)
+        let storedGuestMemoryMiB = storedMemoryMiB > 0
+            ? storedMemoryMiB
+            : defaultGuestMemory(vCPUCount)
         let gpuBudgetApplicationMiB = environmentInteger(
             environment[gpuBudgetApplicationEnvironmentKey],
             in: gpuBudgetParameterRangeMiB
@@ -283,10 +294,7 @@ struct EmulatorConfiguration: Equatable {
             environment[gpuBudgetHeadroomEnvironmentKey],
             in: gpuBudgetParameterRangeMiB
         ) ?? defaultGPUBudgetHeadroomMiB
-        let maximumGuestMemoryMiB = steppedGuestMemoryMiB(
-            guestMemoryBound(vCPUCount),
-            rounding: .down
-        )
+        let maximumGuestMemoryMiB = steppedBound(guestMemoryBound(vCPUCount))
 
         return Self(
             vCPUCount: vCPUCount,
@@ -318,7 +326,13 @@ struct EmulatorConfiguration: Equatable {
 
     func save(defaults: UserDefaults = .standard) {
         defaults.set(vCPUCount, forKey: Key.vCPUCount)
-        defaults.set(guestMemoryMiB, forKey: Key.guestMemoryMiB)
+        // A zero is not a size: it is the maximum where no size fits
+        // (`guestMemoryBound`), shown for that launch alone, so the size
+        // stored stays and a later launch with room starts from it, or from
+        // the default where none was stored.
+        if guestMemoryMiB > 0 {
+            defaults.set(guestMemoryMiB, forKey: Key.guestMemoryMiB)
+        }
         defaults.set(overlaySizeGiB, forKey: Key.overlaySizeGiB)
         defaults.set(androidDiskSizeGiB, forKey: Key.androidDiskSizeGiB)
         defaults.set(

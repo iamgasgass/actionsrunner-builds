@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-# The camera with no hardware (darwin/platform/camera.hpp). Not built for an App
-# Store runtime; the macOS launcher and the non-App Store configurations link it.
+# The camera with no hardware (darwin/platform/camera.hpp), for tests and for the
+# launchers that run a guest against a chart.
 add_library(uml_synthetic_camera STATIC
     synthetic_camera.cpp
     synthetic_jpeg.mm)

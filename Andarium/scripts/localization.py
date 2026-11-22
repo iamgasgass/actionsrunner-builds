@@ -8,17 +8,17 @@ text is the key. The strings live in:
 
   Andarium/Localization/Localizable.xcstrings   the application's screens
   Andarium/Localization/InfoPlist.xcstrings     the permission explanations
-  Andarium/Localization/WhatsNew.xcstrings      the notes of both tracks, Shared/WhatsNew.json and Shared/WhatsNewAppStore.json
-  Andarium/Localization/JIT.xcstrings           the JIT texts (table "JIT"), carried by the builds that have JIT only
-  Andarium/Localization/Feedback.xcstrings      the texts of Send feedback (table "Feedback"), carried by the builds that have it only
-  Andarium/Localization/TipJar.xcstrings        the texts of Buy me tokens (table "TipJar"), carried by the builds that have it only
-  Andarium/Localization/Review.xcstrings        the text of Review on the App Store (table "Review"), carried by the builds that have it only
-  Andarium/Localization/FollowX.xcstrings       the text of Follow developer on X (table "FollowX"), carried by the builds that have it only
+  Andarium/Localization/WhatsNew.xcstrings      the release notes, Shared/WhatsNew.json
+  Andarium/Localization/JIT.xcstrings           the JIT texts (table "JIT")
+  Andarium/Localization/FollowX.xcstrings       the text of Follow developer on X (table "FollowX"), carried by the builds that name a handle only
+  Andarium/Localization/AppShortcuts.xcstrings  the phrases Siri and Search understand for Add to Home Screen (table "AppShortcuts")
   Andarium/AndariumCore/Sources/AndariumCore/Resources/Localizable.xcstrings
                                                 the words the model says
+  GuestHost/Core/Sources/GuestHostCore/Resources/Localizable.xcstrings
+                                                the words both applications say the same way (the update notice)
 
     localization.py check [--root DIR]
-    localization.py sync --stringsdata DIR [--stringsdata DIR ...] [--check] [--app-store] [--root DIR]
+    localization.py sync --stringsdata DIR [--stringsdata DIR ...] [--check] [--root DIR]
 
 `check` fails on anything a person would see as a defect in a translation: a
 key with no value, or a value that is not marked translated, in a language; a
@@ -47,29 +47,12 @@ it merges the strings the Swift compiler extracted (`*.stringsdata`, found
 under each DIR after a build with `SWIFT_EMIT_LOC_STRINGS`) into the
 catalogs, adding a new key in the state `new` and marking a key no code uses
 `stale`. Give it the output of every target that shares a catalog. With
-`--check` it changes nothing and fails when a catalog would change. The output
-of an App Store build is checked with `--app-store --check`: that build has no
-JIT, so it must have extracted no string of the JIT table and no catalog of it
-is compared, and only a string the catalogs lack is a problem (a key of
-`#if !APP_STORE` code is not in its output).
+`--check` it changes nothing and fails when a catalog would change.
 
-Send feedback is compiled in only where the build names a receiver
-(Andarium/README.md#send-feedback), and then its strings are extracted. A
-development check needs that build (`FEEDBACK_ADDRESS=feedback@example.com` on
-the `xcodebuild` line) and fails on one that extracted no string of the
-Feedback table, as the keys of code compiled out would read as stale. An App
-Store build with no receiver has none, and its Feedback catalog is not
-compared; one with a receiver is checked like the rest.
-
-Buy me tokens and Review on the App Store are the same: each has a table
-(TipJar, Review) built only where the feature is compiled in
-(Andarium/README.md#buy-me-tokens, #review-on-the-app-store). A development
-check needs a build that has them (the four `TIP_` settings and
-`REVIEW_ID=id0000000000` on the `xcodebuild` line) and fails on one that
-extracted no string of the table; an App Store build without the feature does
-not compare its catalog. Follow developer on X
-(Andarium/README.md#follow-developer-on-x) is the same with its FollowX table
-and `FOLLOW_X_HANDLE=example_handle`.
+Follow developer on X (Andarium/README.md#follow-developer-on-x) has its own
+FollowX table, built only where the build names a handle: a check needs
+`FOLLOW_X_HANDLE=example_handle` on the `xcodebuild` line and fails on a build
+that extracted no string of the table.
 """
 
 from __future__ import annotations
@@ -97,20 +80,20 @@ PLURAL_CATEGORIES = {
 }
 
 CORE_CATALOG = "Andarium/AndariumCore/Sources/AndariumCore/Resources/Localizable.xcstrings"
+GUEST_HOST_CATALOG = "GuestHost/Core/Sources/GuestHostCore/Resources/Localizable.xcstrings"
 CATALOGS = {
     "Localizable": "Andarium/Localization/Localizable.xcstrings",
     "InfoPlist": "Andarium/Localization/InfoPlist.xcstrings",
     "WhatsNew": "Andarium/Localization/WhatsNew.xcstrings",
     "JIT": "Andarium/Localization/JIT.xcstrings",
-    "Feedback": "Andarium/Localization/Feedback.xcstrings",
-    "TipJar": "Andarium/Localization/TipJar.xcstrings",
-    "Review": "Andarium/Localization/Review.xcstrings",
     "FollowX": "Andarium/Localization/FollowX.xcstrings",
+    "AppShortcuts": "Andarium/Localization/AppShortcuts.xcstrings",
     "AndariumCore": CORE_CATALOG,
+    "GuestHostCore": GUEST_HOST_CATALOG,
 }
 ENGLISH_ONLY = "Andarium/Localization/english-only.json"
-# The two tracks of release notes (the beta builds' and the App Store's); one table serves both.
-WHATS_NEW = ("Andarium/Andarium/Shared/WhatsNew.json", "Andarium/Andarium/Shared/WhatsNewAppStore.json")
+# The release notes the What's New table holds.
+WHATS_NEW = "Andarium/Andarium/Shared/WhatsNew.json"
 PROJECT = "Andarium/Andarium.xcodeproj/project.xcproj"
 # The target of the application: its settings name the permission texts.
 APPLICATION_TARGET = "Andarium"
@@ -118,9 +101,6 @@ APPLICATION_TARGET = "Andarium"
 # The tables of the features that are compiled in only where the build names their value, and how a development
 # build names it.
 FEATURE_TABLES = {
-    "Feedback": "FEEDBACK_ADDRESS=feedback@example.com to compile Send feedback in",
-    "TipJar": "TIP_LITE, TIP_PRO, TIP_MAX and TIP_ULTRA (com.example.andarium.tip.lite and so on) to compile Buy me tokens in",
-    "Review": "REVIEW_ID=id0000000000 to compile Review on the App Store in",
     "FollowX": "FOLLOW_X_HANDLE=example_handle to compile Follow developer on X in",
 }
 
@@ -128,11 +108,10 @@ FEATURE_TABLES = {
 SYNC_SOURCES = {
     "Localizable": ("Andarium/Andarium/", "GuestHost/Sources/"),
     "JIT": ("Andarium/Andarium/",),
-    "Feedback": ("Andarium/Andarium/",),
-    "TipJar": ("Andarium/Andarium/",),
-    "Review": ("Andarium/Andarium/",),
     "FollowX": ("Andarium/Andarium/",),
+    "AppShortcuts": ("Andarium/Andarium/",),
     "AndariumCore": ("Andarium/AndariumCore/Sources/AndariumCore/",),
+    "GuestHostCore": ("GuestHost/Core/Sources/GuestHostCore/",),
 }
 
 # Names the interface never carries. A guest's apps are the guest's own; the
@@ -144,8 +123,8 @@ GOOGLE_NAMES = re.compile(
 )
 
 # The one exception to that rule: the notice that Android has no Google apps, on
-# purpose (the boot screen's panel and Send feedback's line,
-# Andarium/README.md#runtime) names Google and Google Play services. Only
+# purpose (the boot screen's panel, Andarium/README.md#runtime) names Google
+# and Google Play services. Only
 # these keys may, and only by these two names, in Latin letters in every
 # language: "Google" not followed by another name ("Google Maps", "GoogleTV")
 # and "Google Play" followed by the word for services in the language. The rule
@@ -154,12 +133,6 @@ GOOGLE_NAMES = re.compile(
 GOOGLE_NOTICE_KEYS = {
     "Localizable": {
         "No Google apps",
-        "Google licenses its apps and Google Play services only to makers of certified devices. "
-        "Install apps from files you have; many work without them.",
-    },
-    "Feedback": {
-        "Missing Google apps?",
-        "Dismiss Google apps note",
         "Google licenses its apps and Google Play services only to makers of certified devices. "
         "Install apps from files you have; many work without them.",
     },
@@ -241,6 +214,10 @@ def leaves(localization: dict, path: str = ""):
     """Every string unit of one language's localization: (where, unit, plural category or None)."""
     if "stringUnit" in localization:
         yield path, localization["stringUnit"], None
+    # An App Shortcut's phrases: one unit for each, in the state of the set.
+    string_set = localization.get("stringSet", {})
+    for index, value in enumerate(string_set.get("values", []), start=1):
+        yield f"/phrase {index}", {"state": string_set.get("state"), "value": value}, None
     for name, substitution in localization.get("substitutions", {}).items():
         yield from leaves(substitution, f"{path}/substitution {name}")
     for kind, cases in localization.get("variations", {}).items():
@@ -400,8 +377,9 @@ def check_english_only(root: pathlib.Path, problems: Problems) -> dict:
 
 
 def check_english_texts(root: pathlib.Path, english_only: dict, all_keys: dict[str, set[str]], problems: Problems) -> None:
-    """The user-visible strings decided to stay English: each is still in its file, and none is translated."""
-    translated = set().union(*all_keys.values()) if all_keys else set()
+    """The user-visible strings decided to stay English: each is still in its file, and none is translated.
+    The notes' table holds the release notes' texts, which no code looks up, so it translates none of them."""
+    translated = set().union(*(keys for name, keys in all_keys.items() if name != "WhatsNew")) if all_keys else set()
     for entry in english_only.get("english", []):
         text = entry.get("text", "")
         source = root / entry.get("file", "")
@@ -451,7 +429,7 @@ def check_info_plist(root: pathlib.Path, info_keys: set[str], problems: Problems
 
 
 def whats_new_texts(root: pathlib.Path, relative: str) -> set[str]:
-    """The notes of one track's file; none if it is missing (`check_whats_new` says so)."""
+    """The notes of a file; none if it is missing (`check_whats_new` says so)."""
     path = root / relative
     if not path.is_file():
         return set()
@@ -466,17 +444,14 @@ def whats_new_texts(root: pathlib.Path, relative: str) -> set[str]:
 
 
 def check_whats_new(root: pathlib.Path, keys: set[str], problems: Problems) -> None:
-    """The table holds the notes of both tracks: each has an entry, and every entry is a note of one."""
-    texts: set[str] = set()
-    for relative in WHATS_NEW:
-        if not (root / relative).is_file():
-            problems.add(relative, "is missing")
-        notes = whats_new_texts(root, relative)
-        texts |= notes
-        for text in sorted(notes - keys):
-            problems.add("WhatsNew.xcstrings", f"has no entry for the note {text!r} of {relative}")
+    """The table holds the notes: each has an entry, and every entry is a note."""
+    if not (root / WHATS_NEW).is_file():
+        problems.add(WHATS_NEW, "is missing")
+    texts = whats_new_texts(root, WHATS_NEW)
+    for text in sorted(texts - keys):
+        problems.add("WhatsNew.xcstrings", f"has no entry for the note {text!r} of {WHATS_NEW}")
     for key in sorted(keys - texts):
-        problems.add("WhatsNew.xcstrings", f"{key!r} is no note of {' or '.join(WHATS_NEW)}")
+        problems.add("WhatsNew.xcstrings", f"{key!r} is no note of {WHATS_NEW}")
 
 
 def check(root: pathlib.Path) -> list[str]:
@@ -535,15 +510,10 @@ def extracted_tables(files: list[pathlib.Path]) -> set[str]:
     return tables
 
 
-def sync(root: pathlib.Path, directories: list[pathlib.Path], check_only: bool, app_store: bool = False) -> list[str]:
+def sync(root: pathlib.Path, directories: list[pathlib.Path], check_only: bool) -> list[str]:
     files = stringsdata_files(directories)
     parts = partition(files, root)
     problems = Problems()
-    if app_store:
-        # The App Store build carries no JIT text: nothing of the JIT table may have been compiled into it.
-        if "JIT" in extracted_tables(files):
-            problems.add("JIT", "has strings in an App Store build, which carries no JIT text")
-        parts["JIT"] = []
     if not any(parts.values()):
         problems.add("sync", "no .stringsdata of the application or the package found: build with SWIFT_EMIT_LOC_STRINGS=YES first")
         return problems.items
@@ -553,8 +523,7 @@ def sync(root: pathlib.Path, directories: list[pathlib.Path], check_only: bool, 
     for table, arrangement in FEATURE_TABLES.items():
         if table not in extracted:
             parts[table] = []
-            if not app_store:
-                problems.add(table, f"has no extracted strings: build with {arrangement}")
+            problems.add(table, f"has no extracted strings: build with {arrangement}")
     with tempfile.TemporaryDirectory() as scratch:
         for name, data in parts.items():
             if not data:
@@ -575,11 +544,6 @@ def sync(root: pathlib.Path, directories: list[pathlib.Path], check_only: bool, 
                 added = sorted(set(after) - set(before))
                 removed = sorted(set(before) - set(after))
                 changed = sorted(key for key in set(before) & set(after) if before[key] != after[key])
-                if app_store:
-                    # The catalogs hold the keys of code this build compiled out: only a key it lacks is a defect.
-                    removed, changed = [], []
-                    if not added:
-                        continue
                 problems.add(
                     name,
                     f"is out of step with the code: {len(added)} to add {added[:5]}, {len(removed)} to remove {removed[:5]}, "
@@ -598,16 +562,12 @@ def main(argv: list[str] | None = None) -> int:
     sync_parser = commands.add_parser("sync", parents=[common], help="merge the compiler's extracted strings into the catalogs")
     sync_parser.add_argument("--stringsdata", type=pathlib.Path, action="append", required=True, metavar="DIR")
     sync_parser.add_argument("--check", action="store_true", help="change nothing; fail when a catalog would change")
-    sync_parser.add_argument("--app-store", action="store_true",
-                             help="the output is an App Store build's: no JIT table, and only a missing key fails (needs --check)")
     args = parser.parse_args(argv)
     if args.command == "check":
         problems = check(args.root)
         what = "the String Catalogs are complete"
     else:
-        if args.app_store and not args.check:
-            parser.error("--app-store only checks: give --check")
-        problems = sync(args.root, args.stringsdata, args.check, args.app_store)
+        problems = sync(args.root, args.stringsdata, args.check)
         what = "the String Catalogs match the code" if args.check else "the String Catalogs are updated"
     for problem in problems:
         print(f"localization.py: {problem}", file=sys.stderr)

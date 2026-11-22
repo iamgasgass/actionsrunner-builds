@@ -79,7 +79,7 @@ extension PreviewSnapshotSeed {
                  frees: mebibytes(214), kept: gibibytes(5.3)),
             item("", at: day(11, 10, 19, 20), release: PreviewData.systemRelease,
                  frees: mebibytes(96), kept: gibibytes(5.2)),
-            item("TestFlight build", at: day(11, 10, 12, 10), release: newerRelease,
+            item("Newer build", at: day(11, 10, 12, 10), release: newerRelease,
                  frees: mebibytes(640), kept: gibibytes(5.1), restore: .refused(.newerAndroid)),
             item("Before r20", at: day(11, 9, 8, 55), release: PreviewData.previousSystemRelease,
                  frees: gibibytes(1.9), kept: gibibytes(4.8)),

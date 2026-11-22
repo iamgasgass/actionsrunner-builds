@@ -9,9 +9,6 @@ public final class OsConstants {
     private OsConstants() {}
 
     public static final int AF_VSOCK = 40;
-    public static final int SOCK_STREAM = 1;
-    public static final int SOCK_NONBLOCK = 2048;
-    public static final int SOCK_CLOEXEC = 524288;
     public static final int VMADDR_CID_ANY = -1;
     public static final int VMADDR_CID_HOST = 2;
     public static final int POLLIN = 1;
@@ -20,10 +17,7 @@ public final class OsConstants {
     public static final int POLLHUP = 16;
     public static final int EINTR = 4;
     public static final int EAGAIN = 11;
-    public static final int EACCES = 13;
-    public static final int EADDRINUSE = 98;
     public static final int ECONNABORTED = 103;
-    public static final int ECONNRESET = 104;
     public static final int F_SETFD = 2;
     public static final int FD_CLOEXEC = 1;
     public static final int F_SETFL = 4;

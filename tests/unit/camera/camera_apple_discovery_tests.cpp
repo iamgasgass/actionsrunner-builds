@@ -65,6 +65,8 @@ int main()
     require(!camera->hostModel().empty());
     // The system's camera states the working storage its photo pipeline holds, which the reserve counts.
     require(camera->stillWorkingBytesPerPixel() == systemCameraStillWorkingBytesPerPixel, "the system camera's working storage");
+    require(camera->turnedStillWorkingBytesPerPixel() == systemCameraTurnedStillWorkingBytesPerPixel,
+            "and the encoder's, for a still it turns half around");
     std::set<std::string> identifiers;
     for (const auto& info : cameras) {
         require(!info.identifier.empty() && identifiers.insert(info.identifier).second);

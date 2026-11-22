@@ -4,6 +4,10 @@
 #include <algorithm>
 #include <cstring>
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
 namespace uml::platform {
 namespace {
 
@@ -203,6 +207,47 @@ public:
 } // namespace
 
 std::unique_ptr<Nv12Transformer> makePortableNv12Transformer() { return std::make_unique<PortableTransformer>(); }
+
+void reverseLumaRow(const std::uint8_t* row, std::uint8_t* out, std::size_t samples) noexcept
+{
+    std::size_t index = 0;
+#if defined(__ARM_NEON)
+    for (; index + 16 <= samples; index += 16) {
+        uint8x16_t block = vld1q_u8(row + samples - 16 - index);
+        block = vrev64q_u8(block);
+        vst1q_u8(out + index, vextq_u8(block, block, 8));
+    }
+#endif
+    for (; index < samples; ++index) out[index] = row[samples - 1 - index];
+}
+
+void reverseChromaRow(const std::uint8_t* row, std::uint8_t* out, std::size_t pairs) noexcept
+{
+    std::size_t index = 0;
+#if defined(__ARM_NEON)
+    // A pair is one 16-bit lane: the lanes are reversed, each pair keeps its bytes' order.
+    for (; index + 8 <= pairs; index += 8) {
+        uint16x8_t block = vreinterpretq_u16_u8(vld1q_u8(row + (pairs - 8 - index) * 2));
+        block = vrev64q_u16(block);
+        vst1q_u8(out + index * 2, vreinterpretq_u8_u16(vextq_u16(block, block, 4)));
+    }
+#endif
+    for (; index < pairs; ++index) {
+        out[index * 2] = row[(pairs - 1 - index) * 2];
+        out[index * 2 + 1] = row[(pairs - 1 - index) * 2 + 1];
+    }
+}
+
+void turnPlaneHalf(const std::uint8_t* source, std::size_t sourceStride, std::uint8_t* target, std::size_t targetStride,
+                   std::uint32_t width, std::uint32_t height, bool pairs) noexcept
+{
+    for (std::uint32_t row = 0; row < height; ++row) {
+        const std::uint8_t* from = source + std::size_t(height - 1 - row) * sourceStride;
+        std::uint8_t* to = target + std::size_t(row) * targetStride;
+        if (pairs) reverseChromaRow(from, to, width);
+        else reverseLumaRow(from, to, width);
+    }
+}
 
 void fillNv12Black(const Nv12Target& target) noexcept
 {

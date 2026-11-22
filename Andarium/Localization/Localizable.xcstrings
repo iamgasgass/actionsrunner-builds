@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@"
+          }
+        }
+      }
+    },
     "%@ %@" : {
       "localizations" : {
         "ja" : {
@@ -1086,6 +1108,29 @@
         }
       }
     },
+    "120 Hz" : {
+      "comment" : "The title of the first group in Home's Performance section, above AOT and JIT, on a screen that can show more than 60 frames a second: the display Android gets is 120 Hz. The unit is kept by every language.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "120 Hz"
+          }
+        }
+      }
+    },
     "A file with that name is already there." : {
       "localizations" : {
         "ja" : {
@@ -1394,6 +1439,28 @@
         }
       }
     },
+    "A tap on the icon opens “%@” in Android, and starts Android first if it isn’t running." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコンをタップするとAndroidで“%@”が開きます。Androidが実行中でなければ先に起動します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点图标会在Android中打开“%@”；如果Android未运行，会先启动它。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下圖像會在Android中打開「%@」；如果Android未執行，會先啟動它。"
+          }
+        }
+      }
+    },
     "A version of this app signed by someone else is installed. Uninstall it in the virtual machine first." : {
       "localizations" : {
         "ja" : {
@@ -1527,6 +1594,50 @@
         }
       }
     },
+    "Add to Home Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホーム画面に追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加到主屏幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入主畫面"
+          }
+        }
+      }
+    },
+    "Add “%@” to Home Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”をホーム画面に追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将“%@”添加到主屏幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將「%@」加入主畫面"
+          }
+        }
+      }
+    },
     "All snapshots" : {
       "localizations" : {
         "ja" : {
@@ -1634,6 +1745,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Andarium"
+          }
+        }
+      }
+    },
+    "Andarium contains machine code translated from the libraries of the Android system it runs, so that those libraries start and run faster. The translated code is derived from the original libraries and stays under their licences: Apache License 2.0 for the Android Open Source Project and LineageOS, and the BSD, MIT, zlib and other licences of the libraries they include. Every notice that applies to a translated library is listed under Translated system libraries." : {
+      "comment" : "Paragraph on the Android Open Source Project page of Acknowledgements about the translated system libraries. The last words are the title of the row below it, Translated system libraries.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumには、実行するAndroidシステムのライブラリから変換されたマシンコードが含まれており、それらのライブラリがより速く起動・動作するようになっています。変換されたコードは元のライブラリから派生したもので、元のライセンスが引き続き適用されます。Android Open Source ProjectとLineageOSにはApache License 2.0、それらに含まれるライブラリにはBSD、MIT、zlib、およびその他のライセンスが適用されます。変換された各ライブラリに適用されるすべての告知は、“変換されたシステムライブラリ”に記載されています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium包含由其所运行的Android系统的库转译而成的机器码，使这些库启动更快、运行更快。转译后的代码衍生自原始库，仍受其许可证约束：Android Open Source Project和LineageOS采用Apache License 2.0，它们所含的库采用BSD、MIT、zlib及其他许可证。适用于每个转译后的库的所有声明均列于“转译的系统库”之下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andarium包含由其所執行之Android系統的程式庫轉譯而成的機器碼，使這些程式庫啟動更快、執行更快。轉譯後的程式碼衍生自原始程式庫，仍受其授權約束：Android Open Source Project和LineageOS採用Apache License 2.0，它們所含的程式庫則採用BSD、MIT、zlib及其他授權。適用於每個轉譯後的程式庫的所有聲明，皆列於「轉譯的系統程式庫」之下。"
           }
         }
       }
@@ -1842,69 +1976,24 @@
         }
       }
     },
-    "Andarium’s unfinished update ends." : {
-      "comment" : "Added when restoring a snapshot ends the update that did not finish.",
+    "Android" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andariumの未完了のアップデートは中止されます。"
+            "value" : "Android"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andarium未完成的更新将被终止。"
+            "value" : "Android"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andarium未完成的更新將被終止。"
-          }
-        }
-      }
-    },
-    "Andarium’s unfinished update keeps its own copy until it ends. Restoring a snapshot ends it." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andariumの未完了のアップデートは、終了するまで独自のコピーを保持します。スナップショットを復元すると、アップデートは中止されます。"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andarium未完成的更新会保留其自己的副本，直到更新结束。恢复快照会终止该更新。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andarium未完成的更新會保留自己的拷貝，直到更新結束。回復快照會終止該更新。"
-          }
-        }
-      }
-    },
-    "Andarium’s update didn’t finish" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andariumのアップデートが完了していません"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andarium的更新未完成"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Andarium的更新未完成"
+            "value" : "Android"
           }
         }
       }
@@ -1927,6 +2016,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android先前已收到這則簡訊。"
+          }
+        }
+      }
+    },
+    "Android App" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidアプリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android應用程式"
+          }
+        }
+      }
+    },
+    "Android app" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidアプリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android應用程式"
+          }
+        }
+      }
+    },
+    "Android apps appear in Search while this is on. They stay available in Shortcuts and Siri when it’s off." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オンの間は、Androidアプリが検索に表示されます。オフにしても、“ショートカット”とSiriでは引き続き使えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启时，Android应用会出现在搜索中。关闭后，仍可在“快捷指令”和Siri中使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟時，Android應用程式會出現在「搜尋」中。關閉後，仍可在「捷徑」和Siri中使用。"
           }
         }
       }
@@ -2021,6 +2176,52 @@
         }
       }
     },
+    "Android did not finish starting with root, so it starts without root until you choose. Try root again, or turn it off." : {
+      "comment" : "Text of Home's card after a start with root ended before Android finished starting.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootでのAndroidの起動が完了しなかったため、選択するまでrootなしで起動します。もう一度rootを試すか、オフにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Root启动Android未能完成，因此在你做出选择之前将不使用Root启动。你可以再次尝试Root，或将其关闭。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Root啟動Android未能完成，因此在你做出選擇之前將不使用Root啟動。你可以再次嘗試Root，或將其關閉。"
+          }
+        }
+      }
+    },
+    "Android did not finish starting with root, so root was turned off. You can turn it on again under Root." : {
+      "comment" : "Text of Home's card after a start with root failed and root was turned off with it.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootでのAndroidの起動が完了しなかったため、rootをオフにしました。「root」の項目からもう一度オンにできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Root启动Android未能完成，因此已关闭Root。你可以在“Root”中重新开启。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用Root啟動Android未能完成，因此已關閉Root。你可以在「Root」中重新開啟。"
+          }
+        }
+      }
+    },
     "Android did not power off." : {
       "localizations" : {
         "ja" : {
@@ -2039,6 +2240,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android未關機。"
+          }
+        }
+      }
+    },
+    "Android didn’t answer. Showing the list from %@." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidが応答しませんでした。%@の一覧を表示しています。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android没有响应，当前显示%@的列表。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android沒有回應，目前顯示%@的列表。"
           }
         }
       }
@@ -2109,6 +2332,50 @@
         }
       }
     },
+    "Android has no app with an icon to add." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidには、追加できるアイコン付きのアプリがありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中没有可添加的带图标应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中沒有具有圖像、可加入的應用程式。"
+          }
+        }
+      }
+    },
+    "Android is in recovery mode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidはリカバリモードです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android处于恢复模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android處於復原模式"
+          }
+        }
+      }
+    },
     "Android is paused for lack of space." : {
       "localizations" : {
         "ja" : {
@@ -2149,6 +2416,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android正在執行。螢幕邊緣的側邊按鍵有「返回」、「主畫面」和「設定」。"
+          }
+        }
+      }
+    },
+    "Android is still being set up" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidはまだセットアップ中です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android仍在设置中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android仍在設定中"
           }
         }
       }
@@ -2281,6 +2570,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Android畫面"
+          }
+        }
+      }
+    },
+    "Android took too long. Try again, or open it from Android’s home screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidの応答に時間がかかりすぎました。もう一度試すか、Androidのホーム画面から開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android响应时间过长。请重试，或从Android主屏幕打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android回應時間過長。請再試一次，或從Android主畫面打開。"
           }
         }
       }
@@ -2616,6 +2927,28 @@
         }
       }
     },
+    "App" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "應用程式"
+          }
+        }
+      }
+    },
     "App installed" : {
       "localizations" : {
         "ja" : {
@@ -2724,6 +3057,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "應用程式"
+          }
+        }
+      }
+    },
+    "Apps you allow in Magisk can read and change everything in the virtual machine, including other apps’ data. Some apps don’t run on a rooted device. The official Magisk app is installed at the next start. You can turn root off whenever the virtual machine is stopped." : {
+      "comment" : "Body of the alert that asks before root access is turned on.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskで許可したアプリは、ほかのアプリのデータを含め、仮想マシン内のすべてを読み取り、変更できます。root化された端末では動作しないアプリもあります。次回の起動時に公式のMagiskアプリがインストールされます。rootは仮想マシンの停止中にいつでもオフにできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允许的应用可以读取和更改虚拟机中的所有内容，包括其他应用的数据。有些应用无法在已Root的设备上运行。下次启动时会安装官方Magisk应用。虚拟机停止时，你可以随时关闭Root。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允許的應用程式可以讀取和更改虛擬機器中的所有內容，包括其他應用程式的資料。有些應用程式無法在已Root的裝置上執行。下次啟動時會安裝官方Magisk應用程式。虛擬機器停止時，你可以隨時關閉Root。"
+          }
+        }
+      }
+    },
+    "Apps you allow in Magisk can run as root. Takes effect at the next start." : {
+      "comment" : "Note under the Root section.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskで許可したアプリがrootで動作できます。次回の起動から有効です。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允许的应用可以以Root身份运行。下次启动时生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你在Magisk中允許的應用程式可以以Root身分執行。下次啟動時生效。"
           }
         }
       }
@@ -2955,6 +3334,28 @@
         }
       }
     },
+    "Built into Android" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidに内蔵"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android内置"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android內建"
+          }
+        }
+      }
+    },
     "Camera" : {
       "localizations" : {
         "ja" : {
@@ -3131,6 +3532,28 @@
         }
       }
     },
+    "Can’t open “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を開けません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法打開「%@」"
+          }
+        }
+      }
+    },
     "Capabilities" : {
       "comment" : "Home section: what the virtual machine may use of this device (location, microphone, haptics).",
       "localizations" : {
@@ -3285,6 +3708,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在檢查…"
+          }
+        }
+      }
+    },
+    "Choose what to do with the unfinished update below. The app opens once Android has started." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下で未完了のアップデートへの対応を選んでください。Androidの起動後にアプリが開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请在下方选择如何处理未完成的更新。Android启动后会打开该应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在下方選擇如何處理未完成的更新。Android啟動後會打開該應用程式。"
           }
         }
       }
@@ -3615,6 +4060,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法打開此檔案夾"
+          }
+        }
+      }
+    },
+    "Couldn’t read Android’s apps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidのアプリを読み込めません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取Android的应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取Android的應用程式"
           }
         }
       }
@@ -4260,6 +4727,28 @@
         }
       }
     },
+    "Don’t open" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開かない"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不要打開"
+          }
+        }
+      }
+    },
     "Down" : {
       "localizations" : {
         "ja" : {
@@ -4639,6 +5128,28 @@
         }
       }
     },
+    "Finish setting up Android, then open “%@” again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidのセットアップを完了してから、“%@”をもう一度開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先完成Android的设置，然后再打开“%@”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先完成Android的設定，然後再打開「%@」。"
+          }
+        }
+      }
+    },
     "First start" : {
       "localizations" : {
         "ja" : {
@@ -4746,6 +5257,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此%@的可用空間"
+          }
+        }
+      }
+    },
+    "Free up space on this %@, then tap Start. The app opens once Android has started." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この%@の空き容量を増やしてから“起動”をタップしてください。Androidの起動後にアプリが開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请释放此%@上的空间，然后轻点“启动”。Android启动后会打开该应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請釋出此%@上的空間，然後點一下「啟動」。Android啟動後會打開該應用程式。"
           }
         }
       }
@@ -5152,6 +5685,28 @@
         }
       }
     },
+    "Home Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホーム画面"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主屏幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主畫面"
+          }
+        }
+      }
+    },
     "Hotter, and the battery drains faster" : {
       "comment" : "The line under the choice Full frame rate in the When hot menu: what it costs.",
       "localizations" : {
@@ -5281,6 +5836,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進行中"
+          }
+        }
+      }
+    },
+    "In the Shortcuts app" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“ショートカット”アプリで"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“快捷指令”App中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「捷徑」App中"
           }
         }
       }
@@ -5419,6 +5996,28 @@
         }
       }
     },
+    "Installed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安装"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安裝"
+          }
+        }
+      }
+    },
     "Installing app" : {
       "localizations" : {
         "ja" : {
@@ -5437,6 +6036,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安裝應用程式"
+          }
+        }
+      }
+    },
+    "Installs the official Magisk app" : {
+      "comment" : "Detail of the boot step that installs the official Magisk app.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公式のMagiskアプリをインストールしています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在安装官方Magisk应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在安裝官方Magisk應用程式"
           }
         }
       }
@@ -5640,6 +6262,72 @@
         }
       }
     },
+    "It may have been removed from Android. You can remove its icon from the Home Screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidから削除された可能性があります。ホーム画面からアイコンを削除できます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它可能已从Android中移除。你可以将它的图标从主屏幕移除。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它可能已從Android中移除。你可以將它的圖像從主畫面移除。"
+          }
+        }
+      }
+    },
+    "It opens as soon as Android has started." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidの起動が完了したらすぐに開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android启动完成后会立即打开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android啟動完成後會立即打開。"
+          }
+        }
+      }
+    },
+    "It opens on Andarium’s page." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andariumのページが開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它会打开Andarium的页面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它會打開Andarium的頁面。"
+          }
+        }
+      }
+    },
     "It was built for an Android version before 4.0. If it crashes, open Settings from the side keys and choose Old app compatibility." : {
       "comment" : "Two sentences added to the install card after Install anyway installed an app built for an Android before 4.0 that Old app compatibility lists. They follow the sentence that the app is installed and send the reader to Andarium's Settings through the side keys; it is not Android's Settings app.",
       "localizations" : {
@@ -5704,6 +6392,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其儲存空間尚未就緒。檔案稍後會顯示在此處。"
+          }
+        }
+      }
+    },
+    "Its tile has the app’s own icon." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タイルにはアプリ自身のアイコンが表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方块会显示该应用自己的图标。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方塊會顯示該應用程式自己的圖像。"
           }
         }
       }
@@ -6039,6 +6749,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在尋找舊版應用程式…"
+          }
+        }
+      }
+    },
+    "Magisk app" : {
+      "comment" : "Boot step: the application puts the official Magisk app into the virtual machine. Magisk is the name of the app.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskアプリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk應用程式"
+          }
+        }
+      }
+    },
+    "Magisk app not installed" : {
+      "comment" : "Title of the alert after the official Magisk app could not be put into the virtual machine.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskアプリは未インストールです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk应用未安装"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magisk應用程式未安裝"
           }
         }
       }
@@ -6445,6 +7201,28 @@
         }
       }
     },
+    "New Shortcut" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規ショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建快捷指令"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增捷徑"
+          }
+        }
+      }
+    },
     "New virtual machine" : {
       "localizations" : {
         "ja" : {
@@ -6489,6 +7267,28 @@
         }
       }
     },
+    "No Android apps yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidアプリはまだありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有Android应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無Android應用程式"
+          }
+        }
+      }
+    },
     "No app built for Android before 4.0 is installed." : {
       "comment" : "Shown on the Old app compatibility page when the virtual machine has no app the feature can apply to.",
       "localizations" : {
@@ -6508,6 +7308,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未安裝為Android 4.0之前的版本開發的應用程式。"
+          }
+        }
+      }
+    },
+    "No app in Android has this name." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この名前のアプリはAndroidにありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中没有这个名称的应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中沒有這個名稱的應用程式。"
           }
         }
       }
@@ -6576,6 +7398,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚無讀數"
+          }
+        }
+      }
+    },
+    "No Results for “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”の検索結果なし"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到“%@”的相关结果"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有「%@」的結果"
           }
         }
       }
@@ -6889,24 +7733,24 @@
         }
       }
     },
-    "Not while Andarium’s update is unfinished. Update and start tries it again, or use Restore on Home." : {
+    "Not while the system image update is unfinished. Update and start tries it again, or use Restore on Home." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andariumのアップデートが未完了の間は使用できません。“アップデートして起動”で再試行するか、“ホーム”で“復元”を使用してください。"
+            "value" : "システムイメージのアップデートが未完了の間は使用できません。“アップデートして起動”で再試行するか、“ホーム”で“復元”を使用してください。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andarium的更新未完成时不可用。使用“更新并启动”可重试，也可以在“主页”中使用“恢复”。"
+            "value" : "系统镜像更新未完成时不可用。使用“更新并启动”可重试，也可以在“主页”中使用“恢复”。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Andarium的更新未完成時無法使用。使用「更新並啟動」可重試，也可以在「首頁」中使用「回復」。"
+            "value" : "系統映像檔更新未完成時無法使用。使用「更新並啟動」可重試，也可以在「首頁」中使用「回復」。"
           }
         }
       }
@@ -7134,6 +7978,50 @@
         }
       }
     },
+    "Open ${target}" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "${target}を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开${target}"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開${target}"
+          }
+        }
+      }
+    },
+    "Open Android App" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidアプリを開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开Android应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開Android應用程式"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "comment" : "A button that opens Andarium's page in the iOS Settings app.",
       "localizations" : {
@@ -7179,6 +8067,94 @@
         }
       }
     },
+    "Open Shortcuts" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“ショートカット”を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开“快捷指令”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開「捷徑」"
+          }
+        }
+      }
+    },
+    "Opening “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を開きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在打开“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在打開「%@」"
+          }
+        }
+      }
+    },
+    "Opening “%@”…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を開いています…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在打开“%@”…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在打開「%@」…"
+          }
+        }
+      }
+    },
+    "Opens an app in Android." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidでアプリを開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在Android中打开应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在Android中打開應用程式。"
+          }
+        }
+      }
+    },
     "Opens Andarium’s page in Settings." : {
       "comment" : "VoiceOver hint of the network notice's Open Settings button.",
       "localizations" : {
@@ -7198,6 +8174,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在「設定」中開啟Andarium的頁面。"
+          }
+        }
+      }
+    },
+    "Opens Andarium’s page in Shortcuts." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“ショートカット”でAndariumのページを開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在“快捷指令”中打开Andarium的页面。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「捷徑」中打開Andarium的頁面。"
           }
         }
       }
@@ -7247,6 +8245,29 @@
         }
       }
     },
+    "Paused after a failed start" : {
+      "comment" : "Line under the Root access switch while a start with root that failed has paused root until the person chooses.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動に失敗したため一時停止中"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动失败后已暂停"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟動失敗後已暫停"
+          }
+        }
+      }
+    },
     "Pausing %@" : {
       "localizations" : {
         "ja" : {
@@ -7292,7 +8313,7 @@
       }
     },
     "Performance" : {
-      "comment" : "The header of the section of a running session's Settings after Stats. It holds one row, When hot, which decides whether Android is told that the device is hot and so limits the frame rate.",
+      "comment" : "The header of two sections. In Home it is one heading over a group for each setting, 120 Hz, AOT and JIT, each with its note beneath its panel. In a running session's Settings, after Stats, it holds one row, When hot, which decides whether Android is told that the device is hot and so limits the frame rate.",
       "localizations" : {
         "ja" : {
           "stringUnit" : {
@@ -7533,6 +8554,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將虛擬機器的應用程式和檔案納入此%@的iCloud備份和電腦備份。"
+          }
+        }
+      }
+    },
+    "Reading apps from Android…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidからアプリを読み込み中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在从Android读取应用…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在從Android讀取應用程式…"
           }
         }
       }
@@ -7827,6 +8870,28 @@
         }
       }
     },
+    "Restart Android normally to open “%@”." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を開くには、Androidを通常どおり再起動してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请正常重启Android以打开“%@”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請正常重新啟動Android以打開「%@」。"
+          }
+        }
+      }
+    },
     "Restarting" : {
       "localizations" : {
         "ja" : {
@@ -8003,6 +9068,98 @@
         }
       }
     },
+    "Root" : {
+      "comment" : "Home section title: the virtual machine's root access (Magisk).",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root"
+          }
+        }
+      }
+    },
+    "Root access" : {
+      "comment" : "Row title under Root: the switch that starts Android with Magisk, so apps the person allows in Magisk can run as root.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootアクセス"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root权限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root權限"
+          }
+        }
+      }
+    },
+    "Root is paused" : {
+      "comment" : "Title of Home's card after a start with root ended before Android finished starting.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootは一時停止中です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root已暂停"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root已暫停"
+          }
+        }
+      }
+    },
+    "Root turned off" : {
+      "comment" : "Title of Home's card after a start with root failed and root was turned off with it.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootをオフにしました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root已关闭"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Root已關閉"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "ja" : {
@@ -8021,6 +9178,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
+          }
+        }
+      }
+    },
+    "Search Android apps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidアプリを検索"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索Android应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋Android應用程式"
           }
         }
       }
@@ -8384,6 +9563,50 @@
         }
       }
     },
+    "Shortcuts" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ショートカット"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快捷指令"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捷徑"
+          }
+        }
+      }
+    },
+    "Show in Search" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索で表示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在搜索中显示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示於「搜尋」"
+          }
+        }
+      }
+    },
     "Show on screen" : {
       "comment" : "Switch: draw the statistics over the virtual machine's screen.",
       "localizations" : {
@@ -8579,6 +9802,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "略過"
+          }
+        }
+      }
+    },
+    "Smoother motion, more battery use." : {
+      "comment" : "The note beneath the 120 Hz group in Home's Performance section: what it does and what it costs, in one short line. Home shows only while Android is stopped, so the note says nothing of a restart.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "より滑らかな表示。バッテリー消費は増えます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画面更流畅，更耗电。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "畫面更流暢，更耗電。"
           }
         }
       }
@@ -8898,6 +10144,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請先啟動一次虛擬機器。在此之前沒有可保留的資料。"
+          }
+        }
+      }
+    },
+    "Start was stopped" : {
+      "comment" : "Title of Home's card after the person stopped a start with root before Android finished starting.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動を停止しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动已停止"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟動已停止"
+          }
+        }
+      }
+    },
+    "Start without root" : {
+      "comment" : "Button on Home's card: starts the virtual machine once without root.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootなしで起動"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用Root启动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不使用Root啟動"
           }
         }
       }
@@ -9358,6 +10650,28 @@
         }
       }
     },
+    "System image update didn’t finish" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムイメージのアップデートが完了していません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统镜像更新未完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統映像檔更新未完成"
+          }
+        }
+      }
+    },
     "System image updated" : {
       "localizations" : {
         "ja" : {
@@ -9512,6 +10826,28 @@
         }
       }
     },
+    "Tap Add to Home Screen" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“ホーム画面に追加”をタップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点“添加到主屏幕”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下「加入主畫面」"
+          }
+        }
+      }
+    },
     "Tap for Back, Home and Settings. Hold Power for the power menu. Drag to move." : {
       "localizations" : {
         "ja" : {
@@ -9530,6 +10866,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點一下可使用「返回」、「主畫面」和「設定」。按住「電源」可打開電源選單。拖移可移動。"
+          }
+        }
+      }
+    },
+    "Tap the check mark" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックマークをタップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点勾号"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下勾選符號"
           }
         }
       }
@@ -9754,6 +11112,50 @@
         }
       }
     },
+    "The icon and name are already filled in." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコンと名前は設定済みです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图标和名称已经填好。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖像和名稱已經填好。"
+          }
+        }
+      }
+    },
+    "The icon appears on your Home Screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホーム画面にアイコンが表示されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图标会出现在主屏幕上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖像會出現在主畫面上。"
+          }
+        }
+      }
+    },
     "The last attempt stopped: %@" : {
       "localizations" : {
         "ja" : {
@@ -9794,6 +11196,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此裝置上的位置受到限制。開啟此開關會說明原因。"
+          }
+        }
+      }
+    },
+    "The Magisk app couldn’t be installed. Root is on, but no app can be given root until it is. Andarium tries again at the next start." : {
+      "comment" : "Text of the alert after the official Magisk app could not be put into the virtual machine.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magiskアプリをインストールできませんでした。rootはオンですが、インストールされるまでアプリにrootを許可できません。次回の起動時に再試行します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法安装Magisk应用。Root已开启，但在安装之前无法为任何应用授予Root。下次启动时会重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法安裝Magisk應用程式。Root已開啟，但安裝完成前無法為任何應用程式授予Root。下次啟動時會重試。"
           }
         }
       }
@@ -9975,6 +11400,51 @@
         }
       }
     },
+    "The unfinished system image update ends." : {
+      "comment" : "Added when restoring a snapshot ends the update that did not finish.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完了のシステムイメージのアップデートは中止されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的系统镜像更新将被终止。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的系統映像檔更新將被終止。"
+          }
+        }
+      }
+    },
+    "The unfinished system image update keeps its own copy until it ends. Restoring a snapshot ends it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完了のシステムイメージのアップデートは、終了するまで独自のコピーを保持します。スナップショットを復元すると、アップデートは中止されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的系统镜像更新会保留其自己的副本，直到更新结束。恢复快照会终止该更新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成的系統映像檔更新會保留自己的拷貝，直到更新結束。回復快照會終止該更新。"
+          }
+        }
+      }
+    },
     "The update to %@ did not finish, and nothing from before it is left to put back. Erase the virtual machine to start over." : {
       "localizations" : {
         "ja" : {
@@ -10147,6 +11617,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法回復虛擬機器"
+          }
+        }
+      }
+    },
+    "The virtual machine could not start" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仮想マシンを起動できませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机无法启动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虛擬機器無法啟動"
           }
         }
       }
@@ -11096,6 +12588,28 @@
         }
       }
     },
+    "There is no virtual machine. The icon works again once the app is installed in a new virtual machine." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仮想マシンがありません。新しい仮想マシンにアプリをインストールすると、アイコンが再び使えるようになります。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有虚拟机。在新虚拟机中安装该应用后，图标即可再次使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有虛擬機器。在新虛擬機器中安裝該應用程式後，圖像即可再次使用。"
+          }
+        }
+      }
+    },
     "There is not enough free space on this %@. Free up space in Settings › General › %@ Storage and try again." : {
       "localizations" : {
         "en" : {
@@ -11367,6 +12881,28 @@
         }
       }
     },
+    "This device could not give it %@ of memory. Close Andarium in the App Switcher and open it again, then lower the memory with Edit under Virtual machine." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスは仮想マシンに%@のメモリを割り当てられませんでした。AppスイッチャーでAndariumを終了してからもう一度開き、“仮想マシン”の“編集”でメモリを下げてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此设备无法为虚拟机提供%@内存。请在App切换器中关闭Andarium后重新打开，然后使用“虚拟机”下的“编辑”降低内存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此裝置無法為虛擬機器提供%@記憶體。請在App切換器中關閉Andarium後重新打開，然後使用「虛擬機器」下的「編輯」降低記憶體。"
+          }
+        }
+      }
+    },
     "This device gets hotter and the battery drains faster. iOS may dim the screen, slow everything down or close Andarium." : {
       "comment" : "The warning of what turning the frame rate limit off costs, in the footnote of the Performance section while the choice is Full frame rate. The alert from the notice says it too, followed by the way back (its own string).",
       "localizations" : {
@@ -11613,6 +13149,28 @@
         }
       }
     },
+    "This isn’t an Android app that Andarium can open." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これはAndariumで開けるAndroidアプリではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这不是Andarium可以打开的Android应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這不是Andarium可以打開的Android應用程式。"
+          }
+        }
+      }
+    },
     "This snapshot is from %@, newer than this app’s %@. Update Andarium to restore it." : {
       "localizations" : {
         "en" : {
@@ -11773,6 +13331,28 @@
         }
       }
     },
+    "This version of Android is too old to open apps directly. Update Andarium, then open the app again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このバージョンのAndroidは古いため、アプリを直接開けません。Andariumをアップデートしてから、もう一度開いてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的Android太旧，无法直接打开应用。请更新Andarium，然后再打开该应用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此版本的Android太舊，無法直接打開應用程式。請更新Andarium，然後再打開該應用程式。"
+          }
+        }
+      }
+    },
     "To come back to VoiceOver, touch the side keys on the left edge." : {
       "localizations" : {
         "ja" : {
@@ -11907,6 +13487,28 @@
         }
       }
     },
+    "Touch and hold “%@”" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を長押し"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住「%@」"
+          }
+        }
+      }
+    },
     "Touches go to Android." : {
       "localizations" : {
         "ja" : {
@@ -11925,6 +13527,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "觸碰會直接交給Android。"
+          }
+        }
+      }
+    },
+    "Translated system libraries" : {
+      "comment" : "Title of the page of notices, and of the row that opens it, for the Android system libraries that Andarium translates to machine code ahead of time.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変換されたシステムライブラリ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转译的系统库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉譯的系統程式庫"
+          }
+        }
+      }
+    },
+    "Translated system libraries run faster. Turn off only to troubleshoot." : {
+      "comment" : "The note beneath the AOT group on Home, in the footer style. AOT is a name and stays as it is. Says that the translated system libraries (Android's own libraries, run from machine code translated ahead of time) make Android faster, and that the switch is only for trouble-shooting.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変換済みのシステムライブラリで高速化します。問題の調査時のみオフにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "转译后的系统库运行更快。仅在排查问题时关闭。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉譯後的系統程式庫執行更快。僅在排解問題時關閉。"
           }
         }
       }
@@ -11970,6 +13618,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
+          }
+        }
+      }
+    },
+    "Try with root again" : {
+      "comment" : "Button on Home's card: starts with root again after a failed start.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度rootで試す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次尝试使用Root"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再次嘗試使用Root"
           }
         }
       }
@@ -12066,6 +13737,29 @@
         }
       }
     },
+    "Turn off root" : {
+      "comment" : "Button on Home's card: turns root access off.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootをオフにする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭Root"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉Root"
+          }
+        }
+      }
+    },
     "Turn off the frame rate limit?" : {
       "comment" : "The title of the alert that the heat notice's words open. Its message is the warning and the way back; its buttons are Turn Off and Cancel.",
       "localizations" : {
@@ -12153,6 +13847,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要為「%@」開啟舊版應用程式相容性嗎？"
+          }
+        }
+      }
+    },
+    "Turn on root access?" : {
+      "comment" : "Title of the alert that asks before root access is turned on.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rootアクセスをオンにしますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要开启Root权限吗？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要開啟Root權限嗎？"
           }
         }
       }
@@ -12758,6 +14475,29 @@
         }
       }
     },
+    "You stopped a start with root before Android finished starting. If root is the problem, start once without it." : {
+      "comment" : "Text of Home's card after the person stopped a start with root before Android finished starting.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Androidの起動が完了する前に、rootでの起動を停止しました。rootが原因の場合は、一度rootなしで起動してください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在Android启动完成之前，你停止了使用Root的启动。如果问题出在Root，可以不使用Root启动一次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在Android啟動完成之前，你停止了使用Root的啟動。如果問題出在Root，可以不使用Root啟動一次。"
+          }
+        }
+      }
+    },
     "You stopped the virtual machine" : {
       "comment" : "Title of the screen that follows Stop on the boot screen's slow-start notice.",
       "localizations" : {
@@ -12777,6 +14517,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你已停止虛擬機器"
+          }
+        }
+      }
+    },
+    "“%@” didn’t open" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”を開けませんでした"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”未能打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」未能打開"
           }
         }
       }
@@ -12828,6 +14590,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「%@」正在執行，現在將會關閉。"
+          }
+        }
+      }
+    },
+    "“%@” is waiting" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”が待機中です"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”正在等待"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」正在等待"
+          }
+        }
+      }
+    },
+    "“%@” is waiting for space" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”が空き容量を待っています"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”正在等待可用空间"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」正在等待可用空間"
+          }
+        }
+      }
+    },
+    "“%@” isn’t in Android" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@”はAndroidにありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中没有“%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Android中沒有「%@」"
           }
         }
       }

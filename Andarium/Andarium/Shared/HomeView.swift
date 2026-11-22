@@ -51,13 +51,12 @@ struct HomeView: View {
             .navigationTitle("Andarium")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    #if FEEDBACK_MAIL || TIP_JAR || APP_REVIEW
-                    HomeToolbarMenu()
-                    #else
                     HomeInfoButton()
-                    #endif
                 }
             }
+            // Looks for a newer version of Andarium a few seconds after Home
+            // shows; a start cancels it, and it never stands before Start.
+            .task { await model.readAppUpdateWhenHomeShows() }
         }
         .sheet(item: $model.sheet) { kind in
             // On a Mac, SwiftUI reads a sheet's presentation preferences
@@ -72,22 +71,21 @@ struct HomeView: View {
                 case .info: InfoSheet(page: hints.infoPage)
                 case .snapshots: SnapshotsSheet()
                 case .whatsNew:
-                    WhatsNewSheet(releases: model.whatsNew.pending)
+                    WhatsNewSheet(releases: model.whatsNew.announced)
                         .modifier(ZoomFrom(id: Self.ribbonID, namespace: whatsNewZoom, enabled: !reduceMotion))
+                case .appUpdate:
+                    if let notice = model.appUpdate {
+                        UpdateDetailSheet(notice: notice) { StackMark(lit: true, width: 62) }
+                    }
                 }
             }
             .environment(model)
             .foldSheet(model)
         }
-        #if FEEDBACK_MAIL
-        .sendFeedbackSheet(model)
-        #endif
-        #if TIP_JAR
-        .tipJarSheet(model)
-        #endif
         .microphoneAccessAlert()
         .locationAccessAlert()
         .cameraAccessAlert()
+        .rootWarningAlert()
         .alert("Erase virtual machine?", isPresented: $model.confirmingErase) {
             Button("Erase virtual machine", role: .destructive) { model.erase() }
             Button("Cancel", role: .cancel) {}
@@ -215,25 +213,31 @@ struct HomeView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// JIT, right below Virtual machine, in the builds that have it. An App Store
-    /// build has none and nothing takes its place.
+    /// Performance (120 Hz, AOT where the build carries it, and JIT), right below
+    /// Virtual machine.
     @ViewBuilder
     private var developmentSections: some View {
-        #if !APP_STORE
-        JitSection()
-        #endif
+        HomePerformanceSection()
     }
 
-    /// Capabilities and Backup: what the guest may use.
+    /// Capabilities, Root and Backup: what the guest may use.
     @ViewBuilder
     private var guestSections: some View {
         CapabilitiesSection()
+        RootSection()
         BackupSection()
     }
 
     @ViewBuilder
     private var notices: some View {
         @Bindable var model = model
+        // A newer version of Andarium comes first among the notices.
+        AppUpdateCard()
+        // An app an icon, Shortcuts, Search or Siri asked to open waits for the
+        // answer the notices below ask: the card says which, above them.
+        if let pending = model.androidApps.open.pending, case let .waiting(hold, _) = pending.stage, hold != .snapshot {
+            AppOpenWaitingCard(request: pending.request, hold: hold)
+        }
         if !model.host.runsGuestGraphics {
             NoticeCard(
                 symbol: "cpu", color: .orange,
@@ -323,6 +327,7 @@ struct HomeView: View {
                 )
             }
         }
+        RootNoticeCard()
     }
 
     // MARK: Start
@@ -524,11 +529,21 @@ struct NoticeAction {
 
 /// A dismissible message above the controls.
 struct NoticeCard: View {
+    private func actionButton(_ action: NoticeAction) -> some View {
+        Button(action.label, action: action.perform)
+            .buttonStyle(.glass)
+            .controlSize(.small)
+            .accessibilityHint(action.hint ?? "")
+            .accessibilityIdentifier(action.identifier ?? "")
+    }
+
     let symbol: String
     let color: Color
     let title: String
     let text: String
     var action: NoticeAction?
+    /// A second button beside the first (`RootNoticeCard`).
+    var secondAction: NoticeAction?
     /// What VoiceOver says for the close button.
     var closeLabel = String(localized: "Dismiss")
     var onClose: (() -> Void)?
@@ -546,13 +561,16 @@ struct NoticeCard: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if let action {
-                    Button(action.label, action: action.perform)
-                        .buttonStyle(.glass)
-                        .controlSize(.small)
+                if let action, let secondAction {
+                    // Two buttons share a line while both fit, and stack otherwise.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) { actionButton(action); actionButton(secondAction) }
+                        VStack(alignment: .leading, spacing: 8) { actionButton(action); actionButton(secondAction) }
+                    }
+                    .padding(.top, 8)
+                } else if let action {
+                    actionButton(action)
                         .padding(.top, 8)
-                        .accessibilityHint(action.hint ?? "")
-                        .accessibilityIdentifier(action.identifier ?? "")
                 }
             }
             // The title and its words are read as one.
@@ -595,7 +613,7 @@ struct UnfinishedUpdateCard: View {
                     .frame(width: 28)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Andarium’s update didn’t finish").font(.subheadline.weight(.semibold))
+                    Text("System image update didn’t finish").font(.subheadline.weight(.semibold))
                     Text(text)
                         .font(.footnote)
                         .foregroundStyle(.secondary)

@@ -357,6 +357,19 @@ struct SideKeysTouchTests {
         let scrollContent: CGFloat
         let preferred: CGSize
 
+        /// UIKit gave the card the width `asked` for. From iOS 27 it is exactly that; before it the
+        /// popover's content is 13 points wider, which the text does not mind, so what is checked
+        /// there is that UIKit never gave less.
+        func expectCardWidth(
+            _ asked: CGFloat, _ context: @autoclosure () -> String, sourceLocation: SourceLocation = #_sourceLocation
+        ) {
+            if #available(iOS 27.0, *) {
+                #expect(abs(card.width - asked) < 1, "UIKit narrowed the popover: \(context())", sourceLocation: sourceLocation)
+            } else {
+                #expect(card.width >= asked - 1, "UIKit narrowed the popover: \(context())", sourceLocation: sourceLocation)
+            }
+        }
+
         /// Every element is inside the card, and the close button.
         func expectTextInsideCard(sourceLocation: SourceLocation = #_sourceLocation) {
             #expect(!text.isEmpty, "no text found in the tip", sourceLocation: sourceLocation)
@@ -461,7 +474,7 @@ struct SideKeysTouchTests {
         shown.expectTextInsideCard()
         #expect(shown.scrollContent <= shown.card.height + 1, "the card scrolls: \(context)")
         // UIKit gave the card the width it was measured at.
-        #expect(abs(shown.card.width - SideKeysTipCard.width(in: width)) < 1, "UIKit narrowed the popover: \(context)")
+        shown.expectCardWidth(SideKeysTipCard.width(in: width), context)
     }
 
     /// With the keys on the left edge the popover opens to their right and
@@ -472,7 +485,7 @@ struct SideKeysTouchTests {
         let context = "\(language): card \(shown.card), text \(shown.scrollContent) high"
         shown.expectTextInsideCard()
         #expect(shown.scrollContent <= shown.card.height + 1, "the card scrolls: \(context)")
-        #expect(abs(shown.card.width - SideKeysTipCard.width(in: 375)) < 1, "UIKit narrowed the popover: \(context)")
+        shown.expectCardWidth(SideKeysTipCard.width(in: 375), context)
         #expect(shown.card.minX > 0 && shown.card.maxX < 375, "the card \(shown.card) leaves the screen")
     }
 

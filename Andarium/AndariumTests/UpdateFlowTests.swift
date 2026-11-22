@@ -25,7 +25,12 @@ final class StubDriver: RuntimeDriver {
         if eraseFails { throw InstanceError.refused("Nothing could be deleted.") }
         erased += 1
     }
-    func save(_ guest: Guest) throws { savedGuest = guest }
+    /// Makes the next saves fail, as a full disk does.
+    var saveError: (any Error)?
+    func save(_ guest: Guest) throws {
+        if let saveError { throw saveError }
+        savedGuest = guest
+    }
     func startPlan() -> StartPlan? { plan }
     /// Whether the guest's first Android boot has not been seen to complete.
     var firstBootIsPending = false
@@ -33,9 +38,6 @@ final class StubDriver: RuntimeDriver {
     /// What the data disk holds now; a test sets it as a run would.
     var diskUsedBytes: UInt64 = 0
     func measuredUsedBytes() -> UInt64 { diskUsedBytes }
-    /// The values that tell this installation apart, as a run's driver knows them.
-    var identifiers = GuestIdentifiers.none
-    func guestIdentifiers() -> GuestIdentifiers { identifiers }
     /// How many times the model asked to stop the start under way.
     private(set) var guestStops = 0
     func stopGuest() { guestStops += 1 }
@@ -43,7 +45,27 @@ final class StubDriver: RuntimeDriver {
         begun.append((mode, kind))
         begunGuests.append(guest)
         savedWhenBegun.append(savedGuest)
+        // The runtime begins the run's record with the ramdisk the boot
+        // uses; a test that plays a boot that never began, or one that
+        // restarted into recovery, sets `sessionRecord` itself.
+        if recordsTheBoot {
+            let ramdisk = mode == .recovery ? "recovery" : guest.root.startRooted ? "root" : "stock"
+            sessionRecord = SessionRecord(text: """
+                uml-session 8
+                state running
+                end running
+                status 0
+                pid 1
+                started \(Int(Date().timeIntervalSince1970))
+                boot unobserved
+                restarts 0
+                ramdisk \(ramdisk)
+
+                """)
+        }
     }
+    /// Whether `begin` leaves the record of the boot it began, as the runtime does.
+    var recordsTheBoot = true
     func restoreUpdate() async throws {
         if restoreFails { throw InstanceError.refused("No update is pending.") }
         restored += 1
@@ -51,6 +73,29 @@ final class StubDriver: RuntimeDriver {
         plan = .update(from: "r1", to: "r2")
     }
     var savedGuest: Guest?
+    /// What the carried release holds for root, and the guest's shell, as a
+    /// test with root plays them (`RootStartTests`); none for any other.
+    var rootRelease: RootRelease?
+    var rootApkURL: URL?
+    var guestShell: (any GuestShell)?
+    /// The runtime's record of the run that was begun, as the test plays it.
+    var sessionRecord: SessionRecord?
+    /// The runtime's own record files, for a test that plays a relaunch
+    /// after a run; with none, `sessionRecord` is the record.
+    var runRecord: RunRecord?
+    func currentSessionRecord() -> SessionRecord? {
+        if let runRecord { return runRecord.read() }
+        return sessionRecord
+    }
+    /// How many times the model settled a run's record.
+    private(set) var retiredRunRecords = 0
+    /// Whether the driver says the earlier run's record is this process's own.
+    var retiredAnEarlierRun = false
+    func retireRunRecord() {
+        retiredRunRecords += 1
+        sessionRecord = nil
+        runRecord?.retire()
+    }
     /// The denials of the network the model told the driver, in order; nil is none.
     private(set) var networkNotices: [NetworkDenial?] = []
     func setNetworkNotice(_ denial: NetworkDenial?) { networkNotices.append(denial) }
@@ -166,6 +211,14 @@ final class StubDriver: RuntimeDriver {
             try await install(update)
         }
         return installOutcome
+    }
+
+    /// How many times the model asked for the release's own Magisk app to be
+    /// put in; the same `install` answers it.
+    private(set) var rootInstalls = 0
+    func installRootApp() async throws {
+        rootInstalls += 1
+        try await install { _ in }
     }
 
     /// Android's screen reader as the stub plays it: what the guest holds
@@ -312,7 +365,14 @@ final class StubDriver: RuntimeDriver {
     }
     /// What Android's storage reads as; a test sets it as a boot would.
     var storage: Bool? = true
-    func storageReady() async -> Bool? { storage }
+    /// How many times the model asked, and a test can hold the answer back.
+    private(set) var storageReads = 0
+    var holdsStorageReads = false
+    func storageReady() async -> Bool? {
+        storageReads += 1
+        while holdsStorageReads, !Task.isCancelled { try? await Task.sleep(for: .milliseconds(10)) }
+        return storage
+    }
     /// Each text message request the model handed over, in order.
     private(set) var smsSent: [GuestSmsRequest] = []
     /// How the stub answers a text message: a test sets it to hold the answer
@@ -346,7 +406,12 @@ final class StubDriver: RuntimeDriver {
 /// returning Home with a fresh session and a failed run refusing another
 /// Start.
 @MainActor
-struct UpdateFlowTests {
+final class UpdateFlowTests {
+    // The model of a test adopts the process's App Intent hub, which the suites
+    // of Add to Home Screen replace: these take turns with them (`AndroidAppsHubLock`).
+    init() async { await AndroidAppsHubLock.shared.acquire() }
+    deinit { Task { await AndroidAppsHubLock.shared.release() } }
+
     private let host = HostDevice(
         name: "iPad", processorCount: 6, memory: MemoryPolicy(maximumsMiB: [4096]), freeStorageBytes: 40_000_000_000
     )

@@ -3,6 +3,9 @@
 #include "scratch_directory.hpp"
 #include "synthetic_camera.hpp"
 
+#include <CoreFoundation/CoreFoundation.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <ImageIO/ImageIO.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -159,6 +162,89 @@ void profiles()
     require(phone[0].zoomMaximum == 6.0f && phone[1].zoomMaximum == 3.0f && phone[2].zoomMaximum == 3.0f);
     require(phone[0].manualExposure && phone[0].rawStills && phone[0].stillSizes.front().width == 8064);
     require(makeSyntheticCamera(manual(SyntheticCameraProfile::laptop))->cameras().size() == 1);
+}
+
+/* The mean luma of the left and the right eighth of a JPEG's columns, which the chart's brightness ramp makes lowest on the
+ * left and highest on the right, so that a picture turned half around reads the other way. Zero for a file that does not
+ * decode. */
+std::pair<double, double> sideLumas(const std::vector<std::uint8_t>& jpeg)
+{
+    CFDataRef data = CFDataCreate(nullptr, jpeg.data(), CFIndex(jpeg.size()));
+    CGImageSourceRef source = data != nullptr ? CGImageSourceCreateWithData(data, nullptr) : nullptr;
+    CGImageRef image = source != nullptr ? CGImageSourceCreateImageAtIndex(source, 0, nullptr) : nullptr;
+    std::pair<double, double> result {0.0, 0.0};
+    if (image != nullptr) {
+        const std::size_t width = CGImageGetWidth(image), height = CGImageGetHeight(image);
+        std::vector<std::uint8_t> rgba(width * height * 4);
+        CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        CGContextRef context = CGBitmapContextCreate(rgba.data(), width, height, 8, width * 4, space,
+                                                     CGBitmapInfo(kCGImageAlphaNoneSkipLast) | kCGBitmapByteOrderDefault);
+        CGColorSpaceRelease(space);
+        if (context != nullptr) {
+            CGContextDrawImage(context, CGRectMake(0, 0, double(width), double(height)), image);
+            CGContextRelease(context);
+            const std::size_t eighth = width / 8;
+            double left = 0, right = 0;
+            for (std::size_t y = 0; y < height; ++y)
+                for (std::size_t x = 0; x < eighth; ++x) {
+                    const auto* l = &rgba[(y * width + x) * 4];
+                    const auto* r = &rgba[(y * width + width - 1 - x) * 4];
+                    left += 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2];
+                    right += 0.2126 * r[0] + 0.7152 * r[1] + 0.0722 * r[2];
+                }
+            result = {left / double(height * eighth), right / double(height * eighth)};
+        }
+        CGImageRelease(image);
+    }
+    if (source != nullptr) CFRelease(source);
+    if (data != nullptr) CFRelease(data);
+    return result;
+}
+
+/* With `frontPresentedAt90` every front camera that states 270 is a platform camera mounted at 90 and turned half around by
+ * the host: it states 270 and a presentation turn of 180, its video frames are the mounting's and its JPEG stills are turned,
+ * where a back camera, a camera of a platform that has no turn, and a laptop's camera that states none are not. */
+void aFrontCameraPresentedAt90IsTurnedHalfAround()
+{
+    for (const auto profile : {SyntheticCameraProfile::phone, SyntheticCameraProfile::tablet, SyntheticCameraProfile::tabletDualFront,
+                               SyntheticCameraProfile::laptop}) {
+        for (const bool presented : {false, true}) {
+            auto options = manual(profile);
+            options.frontPresentedAt90 = presented;
+            for (const auto& info : makeSyntheticCamera(options)->cameras()) {
+                const bool turned = presented && info.position == CameraPosition::front && profile != SyntheticCameraProfile::laptop;
+                require(info.presentationTurn == (turned ? 180u : 0u), "only a front camera that states 270, by the option, has the turn");
+                if (info.position == CameraPosition::front && profile != SyntheticCameraProfile::laptop)
+                    require(info.sensorOrientation == 270, "a front camera states 270 with or without it");
+                if (info.position == CameraPosition::back) require(info.sensorOrientation == 90, "a back camera states 90");
+            }
+        }
+    }
+
+    // A video frame is the platform's: the marker is readable as the chart drew it, with the turn or without. A still is
+    // made turned: the chart's brightness ramp reads from the right to the left.
+    for (const bool presented : {false, true}) {
+        auto options = manual(SyntheticCameraProfile::tablet);
+        options.frontPresentedAt90 = presented;
+        const auto camera = makeSyntheticCamera(options);
+        Recorder recorder;
+        auto session = camera->openSession(recorder);
+        require(session->startVideo(1, 640, 480, 30));
+        camera->pump(1, 1);
+        const auto& frame = recorder.frames.back().second;
+        const auto marker = decodeChartMarker(frame.luma.data(), frame.lumaStride, frame.width, frame.height);
+        require(marker.valid && marker.tag == chartTag(1) && marker.counter == 1, "the platform's frame is the mounting's");
+        CameraStillRequest request;
+        request.jpegWidth = 1008;
+        request.jpegHeight = 756;
+        require(session->takeStill(1, request));
+        camera->pump(1, 0);
+        require(recorder.waitFor(1, 1));
+        const auto [left, right] = sideLumas(recorder.stills.back().second.jpeg);
+        require(left > 0.0 && right > 0.0, "the still decodes");
+        if (presented) require(left > right + 80.0, "the still of a camera with a half turn is made turned");
+        else require(right > left + 80.0, "the still of a camera with none is as it is");
+    }
 }
 
 void unauthorized()
@@ -1112,6 +1198,7 @@ int main()
     controlPipe();
     sessionOpenedWhileAway();
     profiles();
+    aFrontCameraPresentedAt90IsTurnedHalfAround();
     unauthorized();
     video();
     chartMarkerSurvivesCropAndScale();

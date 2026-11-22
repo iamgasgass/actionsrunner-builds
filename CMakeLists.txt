@@ -94,37 +94,16 @@ endif()
 option(UML_KERNARIUM_AUTOMATION_HARNESS
     "Build the automation-only Kernarium runtime: Linux boots host payloads, Android lets a launch turn ADB authorization off"
     OFF)
-option(UML_APP_STORE_RUNTIME
-    "Build the App Store Kernarium runtime: it reads no environment variable that tunes, observes or drives a run, and carries no debugging or automation support"
-    OFF)
 option(UML_BUILD_NETWORK_PROVIDER
     "Build the optional SLiRP network provider"
     ${UML_BUILD_KERNEL_RUNNER})
-if(UML_APP_STORE_RUNTIME)
-    if(UML_KERNARIUM_AUTOMATION_HARNESS OR NOT UML_BUILD_KERNARIUM_RUNTIME)
-        message(FATAL_ERROR
-            "UML_APP_STORE_RUNTIME builds the Kernarium runtime and conflicts "
-            "with UML_KERNARIUM_AUTOMATION_HARNESS")
-    endif()
-    # Every component of the runtime reads its diagnostics and A/B switches
-    # through this definition, so one tree agrees.
-    add_compile_definitions(UML_APP_STORE_RUNTIME)
-endif()
 
-# JIT. Every product but the App Store runtime builds the arm64 JIT engine. An
-# iOS device reaches JIT memory only through a region a debugger prepares
-# (darwin/cpu/jit_memory), which the App Store runtime refuses: it carries no
-# JIT code, no executable-memory owner and no debugger protocol.
-if(UML_APP_STORE_RUNTIME)
-    set(UML_ARM64_JIT_ENGINE OFF)
-    set(UML_IOS_DEBUGGER_JIT OFF)
+# JIT. An iOS device reaches JIT memory only through a region a debugger
+# prepares (darwin/cpu/jit_memory).
+if(UML_APPLE_PLATFORM STREQUAL "ios")
+    set(UML_IOS_DEBUGGER_JIT ON)
 else()
-    set(UML_ARM64_JIT_ENGINE ON)
-    if(UML_APPLE_PLATFORM STREQUAL "ios")
-        set(UML_IOS_DEBUGGER_JIT ON)
-    else()
-        set(UML_IOS_DEBUGGER_JIT OFF)
-    endif()
+    set(UML_IOS_DEBUGGER_JIT OFF)
 endif()
 
 # darwin/platform compiles Objective-C++ in every configuration. Without the
@@ -288,6 +267,14 @@ add_subdirectory(darwin)
 
 if(UML_BUILD_KERNARIUM_RUNTIME)
     add_subdirectory(Kernarium/Runtime)
+endif()
+
+get_property(_uml_aot_fw_dir GLOBAL PROPERTY
+    UML_AOT_FRAMEWORK_DIR)
+if(_uml_aot_fw_dir)
+    cmake_path(GET _uml_aot_fw_dir PARENT_PATH
+        _uml_aot_fw_parent)
+    list(APPEND CMAKE_BUILD_RPATH "${_uml_aot_fw_parent}")
 endif()
 
 if(UML_BUILD_UNIT_TESTS OR UML_BUILD_INTEGRATION_TESTS OR

@@ -116,7 +116,8 @@ nonisolated enum ContainerInstallOperation {
             // An APK under another name installs as one, from the start.
             watchdog.disarm()
             try ApkInstallOperation.sendPlain(
-                session: session, file: file, name: name, device: device,
+                session: session, reader: FileChunkReader(contentsOf: file, capacity: ApkInstallOperation.chunkBytes),
+                name: name, device: device,
                 bypassLowTargetSdkBlock: bypassLowTargetSdkBlock, hostFree: hostFree, update: update)
             return .installed
         case let .parts(plan):
@@ -307,7 +308,7 @@ nonisolated enum ContainerInstallOperation {
     /// Runs a service that prints a short answer and returns what it printed.
     private static func runService(_ service: String, on connection: AdbConnection, sent: (() -> Void)? = nil) throws -> String {
         let stream = try connection.open(service, sent: sent)
-        return String(decoding: try stream.readToEnd(limit: 64 * 1024), as: UTF8.self)
+        return String(decoding: try stream.readToEnd(limit: PackageInstallCommand.replyBudgetBytes), as: UTF8.self)
     }
 
     /// Writes one part of the archive into the session: exactly the bytes the
@@ -318,7 +319,9 @@ nonisolated enum ContainerInstallOperation {
     ) throws {
         guard let entry = archive.entry(named: part.entry) else { throw InstallRefusal.damaged }
         let reader = try archive.reader(for: entry, capacity: chunkBytes)
-        let stream = try connection.open(PackageInstallCommand.writeSession(id, name: part.name, bytes: part.bytes))
+        let stream = try connection.open(
+            PackageInstallCommand.writeSession(id, name: part.name, bytes: part.bytes),
+            outputLimit: PackageInstallCommand.replyBudgetBytes)
         var read: UInt64 = 0
         var sent: UInt64 = 0
         do {
@@ -342,7 +345,7 @@ nonisolated enum ContainerInstallOperation {
             if try reader.read(upTo: 1) != nil { throw ZipError.corrupt("\(part.entry) is longer than it says") }
             guard reader.isComplete else { throw ZipError.corrupt("\(part.entry) was not read to its end") }
         }
-        let text = String(decoding: try stream.readToEnd(limit: 64 * 1024), as: UTF8.self)
+        let text = String(decoding: try stream.readToEnd(limit: PackageInstallCommand.replyBudgetBytes), as: UTF8.self)
         guard PackageInstallCommand.streamed(inOutput: text, bytes: part.bytes) else {
             throw AdbFailure(message: PackageInstallMessages.failure(inOutput: text)
                 ?? PackageInstallMessages.message(forCode: "FAILED_INVALID_APK"))

@@ -15,9 +15,10 @@ import UIKit
 /// Android through adb.
 ///
 /// They need a kernel that follows configuration changes (the hot-plug topic)
-/// and the Android release that carries its overlay: on the accepted kernel the
-/// devices are never registered, and every check below that waits for Android to
-/// list a device fails. They are skipped unless the switch is set.
+/// and the Android release that carries its overlay, as the accepted ones do: on
+/// a kernel without the topic the devices are never registered, and every check
+/// below that waits for Android to list a device fails. They are skipped unless
+/// the switch is set.
 ///
 /// The session under test is the test's, built over the runtime's real entry
 /// points with iOS's hardware replaced by `Presence`, so that the plug and the

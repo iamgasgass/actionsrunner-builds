@@ -265,6 +265,31 @@ void testReadsAndSettings()
                 settings.aeRegion->weight == 3,
             "the metering region in fractions of the frame");
     require(settings.afRegion && settings.afRegion->weight == 1, "the focus region");
+    // A camera whose pictures the device turns half around gets the guest's regions mapped back into the platform's
+    // picture: the same region on the opposite side of the frame, the weight kept, the whole frame the whole frame.
+    {
+        auto turnedInfo = infoOf(SyntheticCameraProfile::phone, 3);
+        turnedInfo.presentationTurn = 180;
+        turnedInfo.autofocus = true;
+        const CameraControls turned(turnedInfo, 270, false);
+        auto turnedValues = turned.defaults();
+        turned.store(turnedValues, VIRTIO_VIDEO_CAMERA_CID_AE_REGION, 0, region(16384, 32768, 16384, 8192, 3));
+        turned.store(turnedValues, VIRTIO_VIDEO_CAMERA_CID_AF_REGION, 0, region(0, 0, 65536, 65536, 1));
+        const auto mapped = turned.settings(turnedValues);
+        require(mapped.aeRegion && std::fabs(mapped.aeRegion->x - 0.5f) < 1e-4f && std::fabs(mapped.aeRegion->y - 0.375f) < 1e-4f &&
+                    std::fabs(mapped.aeRegion->width - 0.25f) < 1e-4f && std::fabs(mapped.aeRegion->height - 0.125f) < 1e-4f &&
+                    mapped.aeRegion->weight == 3,
+                "the metering region is where the half turn put it");
+        require(mapped.afRegion && std::fabs(mapped.afRegion->x) < 1e-4f && std::fabs(mapped.afRegion->y) < 1e-4f &&
+                    std::fabs(mapped.afRegion->width - 1.0f) < 1e-4f && mapped.afRegion->weight == 1,
+                "the whole frame is the whole frame");
+        // Any other turn the platform states is none (the device turns half around or not at all).
+        turnedInfo.presentationTurn = 90;
+        const CameraControls odd(turnedInfo, 270, false);
+        auto oddValues = odd.defaults();
+        odd.store(oddValues, VIRTIO_VIDEO_CAMERA_CID_AE_REGION, 0, region(16384, 32768, 16384, 8192, 3));
+        require(odd.settings(oddValues).aeRegion && std::fabs(odd.settings(oddValues).aeRegion->x - 0.25f) < 1e-4f, "no other turn maps a region");
+    }
     controls.store(values, VIRTIO_VIDEO_CAMERA_CID_AE_REGION, 0, region(0, 0, 0, 0, 0));
     require(!controls.settings(values).aeRegion, "a region of weight zero clears it");
     set(controls, values, UML_V4L2_CID_IMAGE_STABILIZATION, 0);

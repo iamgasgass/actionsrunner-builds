@@ -8,7 +8,6 @@ import SwiftUI
 /// that waits for a code can be read while the code is typed.
 struct TextMessageBarOverlay: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -19,8 +18,16 @@ struct TextMessageBarOverlay: View {
             }
         }
         .animation(.snappy, value: model.session.textMessage.isOpen)
-        // A line counts as told only while the application is active.
-        .onChange(of: scenePhase, initial: true) { _, phase in model.textMessageSceneChanged(active: phase == .active) }
+        // A line counts as told only while the application is active. The application's own state is
+        // read, never SwiftUI's scenePhase: the root is hosted by UIKit (`AndariumHostingController`), where
+        // scenePhase stays at .background, so no line would ever have counted as told.
+        .onAppear { model.textMessageSceneChanged(active: UIApplication.shared.applicationState == .active) }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+            model.textMessageSceneChanged(active: true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
+            model.textMessageSceneChanged(active: false)
+        }
     }
 }
 

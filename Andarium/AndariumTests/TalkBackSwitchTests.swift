@@ -42,15 +42,23 @@ struct TalkBackSwitchTests {
     private final class Said {
         var lines: [String] = []
         var queued: [Bool] = []
+        var high: [Bool] = []
+    }
+
+    /// What a run's start asks VoiceOver to say, and the end of it.
+    private final class RunStartSpeech {
+        var lines: [String] = []
+        var finish: (@MainActor @Sendable (Bool) -> Void)?
     }
 
     /// Listens to what the model tells VoiceOver. Call it before anything awaits:
     /// the first read of a start comes as soon as the test suspends.
     private func listen(to model: AppModel) -> Said {
         let said = Said()
-        model.announcer = { text, queued in
+        model.announcer = { text, queued, high in
             said.lines.append(text)
             said.queued.append(queued)
+            said.high.append(high)
         }
         return said
     }
@@ -502,6 +510,7 @@ struct TalkBackSwitchTests {
         try await settle { model.session.reader.isOn }
         said.lines.removeAll()
         said.queued.removeAll()
+        said.high.removeAll()
         driver.screenReaderReadDelays = Array(repeating: .zero, count: driver.screenReaderReads) + [.milliseconds(300)]
         let reads = driver.screenReaderReads
         let late = Task { await model.refreshScreenReader() }
@@ -598,6 +607,224 @@ struct TalkBackSwitchTests {
         // The display is described only while the session shows it.
         model.phase = .home
         #expect(GuestLayer.accessibility(of: model) == nil)
+    }
+
+    /// What a run's start tells VoiceOver: the sentence that says what the run
+    /// is and where the side keys are goes as an announcement of its own (as the
+    /// argument of the screen change it is not spoken; its priority is the
+    /// model's `runStartAnnouncer`, which a test replaces), and the display's
+    /// direct-touch element takes VoiceOver's focus only once it has been spoken.
+    @Test func theRunStartSentenceIsAnnouncedAndTheDisplayWaitsForItsEnd() throws {
+        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]))
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        #expect(spoken.lines == [try #require(RootView.spoken(.running(.normal)))])
+        #expect(model.session.reader.runStartAnnouncing)
+        #expect(!model.displayMayTakeFocus)
+        spoken.finish?(false)
+        #expect(!model.session.reader.runStartAnnouncing)
+        #expect(model.displayMayTakeFocus)
+        model.announceRunStart(.running(.recovery))
+        #expect(spoken.lines.last == RootView.spoken(.running(.recovery)))
+        #expect(spoken.lines.count == 2)
+    }
+
+    /// The display says nothing of the screen reader's state while the run's
+    /// sentence is spoken and Android has not been read: VoiceOver composes
+    /// what it says on landing there now and speaks it after the sentence, so
+    /// "checking" would be stale. The value comes with the read.
+    @Test func theDisplayHasNoValueWhileTheSentenceIsSpokenAndTheStateIsUnread() async throws {
+        let (model, _) = started(voiceOver: true, interval: .milliseconds(20))
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        #expect(model.session.reader.state == nil)
+        #expect(GuestLayer.accessibility(of: model)?.value == nil)
+        #expect(GuestLayer.accessibility(of: model)?.label == ScreenReaderWords.displayLabel)
+        // Once Android has been read the value is no longer stale, though the
+        // sentence is still being spoken.
+        try await settle { model.session.reader.state != nil }
+        #expect(GuestLayer.accessibility(of: model)?.value != nil)
+        spoken.finish?(true)
+        #expect(GuestLayer.accessibility(of: model)?.value != nil)
+    }
+
+    /// The card that asks waits for the run-start sentence's end: its focus
+    /// would cut the sentence off. Where the sentence ends, the card rises at
+    /// once.
+    @Test func theCardWaitsForTheRunStartSentenceAndRisesAtItsEnd() async throws {
+        let (model, _) = started(voiceOver: true, interval: .milliseconds(20))
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        // Before the first read: the card would rise as soon as Android answers.
+        model.announceRunStart(.running(.normal))
+        try await settle { model.session.reader.state != nil }
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(model.session.reader.card == nil)
+        #expect(model.session.reader.runStartAnnouncing)
+        spoken.finish?(true)
+        #expect(model.session.reader.card == .ask)
+        #expect(!model.session.reader.runStartAnnouncing)
+    }
+
+    /// Where VoiceOver never says the sentence is done, the card and the
+    /// display go on after the bound.
+    @Test func theCardAndTheDisplayGoOnAfterTheBoundWhereNoEndComes() async throws {
+        let (model, _) = started(voiceOver: true, interval: .milliseconds(20))
+        model.runStartBound = .seconds(1)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        try await settle { model.session.reader.state != nil }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(model.session.reader.card == nil)
+        try await settle { model.session.reader.card == .ask }
+        #expect(!model.session.reader.runStartAnnouncing)
+        // An end that comes late changes nothing.
+        spoken.finish?(true)
+        #expect(model.session.reader.card == .ask)
+        model.session.reader.card = nil
+        #expect(model.displayMayTakeFocus)
+    }
+
+    /// The news that the screen reader is on is at high priority, so the
+    /// display's own speech does not cut it off, and at a run start where
+    /// something covers the display it waits for the run's sentence rather
+    /// than over it.
+    @Test func theNewsThatTheScreenReaderIsOnIsHighPriorityAndWaitsForTheRunStartSentence() async throws {
+        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]), interval: .milliseconds(20))
+        let said = listen(to: model)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.alert = AppAlert(title: "Title", message: "Message")
+        model.announceRunStart(.running(.normal))
+        try await settle { model.session.reader.isOn }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(said.lines.isEmpty)
+        spoken.finish?(true)
+        #expect(said.lines == [ScreenReaderWords.announcement(on: true, edge: model.session.keysEdge)])
+        #expect(said.high == [true])
+    }
+
+    /// At a run start where the screen reader was on and nothing covers the
+    /// display, the sentence is all VoiceOver is told: the display, which then
+    /// takes the focus, carries the state and the way back.
+    @Test func aRunStartWhereTheScreenReaderIsOnSaysNoNewsAfterTheSentence() async throws {
+        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]), interval: .milliseconds(20))
+        let said = listen(to: model)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        try await settle { model.session.reader.isOn }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(!model.session.reader.toldOn)
+        #expect(!model.displayMayTakeFocus)
+        spoken.finish?(true)
+        #expect(model.session.reader.toldOn)
+        #expect(model.displayMayTakeFocus)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(said.lines.isEmpty)
+        #expect(spoken.lines.count == 1)
+    }
+
+    /// A change that ends while the run's sentence is spoken says nothing over
+    /// it and sets nothing: the sentence's end reads again and tells it, once.
+    @Test func aChangeThatEndsWhileTheRunStartSentenceIsSpokenIsToldAfterIt() async throws {
+        let (model, _) = started(voiceOver: true, interval: .milliseconds(20))
+        let said = listen(to: model)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        try await settle { model.session.reader.state != nil }
+        model.setScreenReader(true)
+        try await settle { model.session.reader.isOn && model.session.reader.changing == nil }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(said.lines.isEmpty)
+        #expect(!model.session.reader.toldOn)
+        spoken.finish?(true)
+        #expect(said.lines == [ScreenReaderWords.announcement(on: true, edge: model.session.keysEdge)])
+        #expect(said.high == [true])
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(said.lines.count == 1)
+    }
+
+    @Test func aScreenThatSpeaksForItselfAnnouncesNothingAtItsStart() throws {
+        let (model, _) = started(voiceOver: true)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        for phase in [Phase.home, .booting(.normal), .failed] {
+            model.announceRunStart(phase)
+        }
+        #expect(spoken.lines.isEmpty)
+        #expect(!model.session.reader.runStartAnnouncing)
+    }
+
+    @Test func withoutVoiceOverTheRunStartAnnouncesNothingAndWaitsForNothing() throws {
+        let (model, _) = started(voiceOver: false)
+        let spoken = RunStartSpeech()
+        model.runStartAnnouncer = { text, finished in
+            spoken.lines.append(text)
+            spoken.finish = finished
+        }
+        model.announceRunStart(.running(.normal))
+        #expect(spoken.lines.isEmpty)
+        #expect(!model.session.reader.runStartAnnouncing)
+        #expect(model.displayMayTakeFocus)
+    }
+
+    /// Something over the display keeps VoiceOver's focus from going to it: the
+    /// card that asks, a Settings sheet, a busy or low-space screen, an alert.
+    @Test func theDisplayTakesNoFocusFromWhatCoversIt() throws {
+        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]))
+        #expect(model.displayMayTakeFocus)
+        model.session.reader.card = .ask
+        #expect(!model.displayMayTakeFocus)
+        model.session.reader.card = nil
+        let reader = model.settingsOpened()
+        #expect(!model.displayMayTakeFocus)
+        model.settingsClosed(reader)
+        #expect(model.displayMayTakeFocus)
+        model.alert = AppAlert(title: "A", message: "B")
+        #expect(!model.displayMayTakeFocus)
+        model.alert = nil
+        model.phase = .home
+        #expect(!model.displayMayTakeFocus)
+    }
+
+    @Test func theDisplayAsksForFocusOnlyWhileTheScreenReaderIsOnAndNothingCoversIt() async throws {
+        let (model, driver) = started(voiceOver: true, interval: .milliseconds(20))
+        try await settle { model.session.reader.state != nil }
+        #expect(GuestLayer.accessibility(of: model)?.takesFocus == false)
+        driver.screenReaderState = reading([talkBack])
+        try await settle { model.session.reader.isOn }
+        #expect(GuestLayer.accessibility(of: model)?.takesFocus == true)
+        model.session.reader.runStartAnnouncing = true
+        #expect(GuestLayer.accessibility(of: model)?.takesFocus == false)
     }
 
     /// The hint VoiceOver reads on the direct-touch display ends with the way
@@ -807,21 +1034,60 @@ struct TalkBackSwitchTests {
 
     // MARK: A start where the screen reader is on already
 
-    @Test func aStartWhereTheScreenReaderIsOnTellsVoiceOverOnceWithTheWayBack() async throws {
+    /// Where the display is about to take VoiceOver's focus, its own words
+    /// carry the state and the way back: nothing is announced, and nothing
+    /// is asked.
+    @Test func aStartWhereTheScreenReaderIsOnLeavesTheNewsToTheDisplayThatTakesTheFocus() async throws {
         let (model, _) = started(voiceOver: true, guestState: reading([talkBack]), interval: .milliseconds(20))
         let said = listen(to: model)
         model.session.keysEdge = .right
-        try await settle { !said.lines.isEmpty }
+        try await settle { model.session.reader.toldOn }
+        #expect(model.displayMayTakeFocus)
         // Reads go on every few milliseconds; Settings opens and closes.
         try await Task.sleep(for: .milliseconds(150))
         let reader = model.settingsOpened()
         try await Task.sleep(for: .milliseconds(60))
         model.settingsClosed(reader)
         try await Task.sleep(for: .milliseconds(60))
-        #expect(said.lines == [ScreenReaderWords.announcement(on: true, edge: .right)])
-        // After the run sentence, not over it; and no card asks.
-        #expect(said.queued == [true])
+        #expect(said.lines.isEmpty)
         #expect(model.session.reader.card == nil)
+    }
+
+    /// Where something covers the display at that start, VoiceOver is told,
+    /// once, at high priority, with the way back.
+    @Test func aStartWhereTheScreenReaderIsOnAndSomethingCoversTheDisplayTellsVoiceOverOnceWithTheWayBack() async throws {
+        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]), interval: .milliseconds(20))
+        let said = listen(to: model)
+        model.session.keysEdge = .right
+        model.alert = AppAlert(title: "Title", message: "Message")
+        try await settle { !said.lines.isEmpty }
+        // Reads go on every few milliseconds; the cover goes, Settings opens and closes.
+        try await Task.sleep(for: .milliseconds(100))
+        model.alert = nil
+        let reader = model.settingsOpened()
+        try await Task.sleep(for: .milliseconds(60))
+        model.settingsClosed(reader)
+        try await Task.sleep(for: .milliseconds(60))
+        #expect(said.lines == [ScreenReaderWords.announcement(on: true, edge: .right)])
+        #expect(said.lines.first?.hasSuffix(ScreenReaderWords.wayBack(.right)) == true)
+        #expect(said.high == [true])
+        #expect(model.session.reader.card == nil)
+    }
+
+    /// Turned on in Android's own settings after a start that found it off, it
+    /// is told, with nothing over the display too.
+    @Test func aScreenReaderTurnedOnInAndroidAfterTheStartIsToldWithTheWayBack() async throws {
+        let (model, driver) = started(voiceOver: true, interval: .milliseconds(20))
+        let said = listen(to: model)
+        model.session.keysEdge = .left
+        try await settle { model.session.reader.card == .ask }
+        #expect(said.lines.isEmpty)
+        driver.screenReaderState = reading([talkBack])
+        try await settle { !said.lines.isEmpty }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(model.displayMayTakeFocus)
+        #expect(said.lines == [ScreenReaderWords.announcement(on: true, edge: .left)])
+        #expect(said.high == [true])
     }
 
     @Test func aStartWhereTheScreenReaderIsOffTellsVoiceOverNothing() async throws {
@@ -838,16 +1104,6 @@ struct TalkBackSwitchTests {
         _ = await read(model)
         #expect(model.session.reader.isOn)
         #expect(said.lines.isEmpty)
-    }
-
-    @Test func theSentenceAtStartNamesTheEdgeTheKeysAreOn() async throws {
-        let (model, _) = started(voiceOver: true, guestState: reading([talkBack]), interval: .milliseconds(20))
-        let said = listen(to: model)
-        model.session.keysEdge = .left
-        try await settle { !said.lines.isEmpty }
-        let line = try #require(said.lines.first, "nothing was said")
-        #expect(line == ScreenReaderWords.announcement(on: true, edge: .left))
-        #expect(line.hasSuffix(ScreenReaderWords.wayBack(.left)))
     }
 
     // MARK: Turning it off is an answer

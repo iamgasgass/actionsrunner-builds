@@ -437,7 +437,7 @@ def load_tool(path: Path):
 _SMS_TOOL = None
 
 
-def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
+def sms_policy_fixture(verifier: Path, variant: str | None, build_variant: str = "user") -> dict[str, str]:
     """The text message service's part of the policy a target-files fixture carries: the platform's vsock
     and property rules as the reviewed lists give them, the service's own domain, data type and rules (as
     overlay/sepolicy/system_ext/private/kernarium_sms.te makes them), the seapp_contexts lines and the property
@@ -460,6 +460,9 @@ def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
     # The platform's own rule for dumpstate, the vsock instance of its getattr rule for every socket class:
     # over the attribute domain it reaches the service's sockets, and every Android 17 platform policy has it.
     plat += "(allow dumpstate domain (vsock_socket (getattr)))\n"
+    # The platform's own rule for init, which owns the property service: it may set every property type, ours among
+    # them (the system_ext policy lists the type in property_type, as the compiler writes it).
+    plat += "(allow init property_type (property_service (set)))\n"
     # What the platform gives the application domains through groups of them: each group is the application
     # domains but the isolated, sandboxed and ephemeral ones, as the compiler writes the platform's rules.
     # The service is an application domain, so it inherits them, and they are accepted; a variant takes one
@@ -486,9 +489,35 @@ def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
         left_out = " ".join(["isolated_app", "ephemeral_app", "sdk_sandbox_34", "sdk_sandbox_audit", "sdk_sandbox_next"]
                             + ([gap[1]] if gap[0] == attribute else []))
         plat += f"(typeattributeset {attribute} (and (appdomain ) (not ({left_out} ))))\n{rule}"
+    # What the platform grants every domain in the binder family (the rules over the attribute domain with a few
+    # exclusions, as the compiler writes them): a binder call to system_server and the lookup of the binder statistics
+    # service. The holder and the waker hold them in effect; the group lists the ordinary application domains, as
+    # for the service above. The platform's control property rules: system_app and system_server may set
+    # ctl_default_prop, the label of every control key that has no entry of its own.
+    plat += ("(typeattributeset base_typeattr_291 (kernarium_sms kernarium_sms_listener kernarium_sms_wake "
+             "untrusted_app platform_app priv_app system_app))\n"
+             f"(allow base_typeattr_291 system_server (binder ({'call transfer' if variant == 'holder-binder-grant-widened' else 'call'})))\n"
+             "(allow base_typeattr_291 binder_stats_consumer_service (service_manager (find)))\n"
+             "(allow system_app ctl_default_prop (property_service (set)))\n"
+             "(allow system_server ctl_default_prop (property_service (set)))\n"
+             # The platform lets every domain open the binder and the hardware binder device nodes (the vendor's
+             # is the vendor's alone).
+             "(allow base_typeattr_291 binder_device (chr_file (append getattr ioctl lock map open read watch "
+             "watch_reads write)))\n"
+             "(allow base_typeattr_291 hwbinder_device (chr_file (append getattr ioctl lock map open read watch "
+             "watch_reads write)))\n")
+    # A debuggable build lets every domain call the root shell (the variant puts the rule in a user build, which has
+    # no such shell).
+    if (build_variant != "user" or variant == "su-binder-in-a-user-build") and variant != "su-binder-removed":
+        su_rights = {"su-binder-call-only": "call", "su-binder-transfer-only": "transfer"}.get(variant or "", "call transfer")
+        plat += f"(allow domain su (binder ({su_rights})))\n"
     ext = (
         "(type kernarium_sms)\n(type kernarium_sms_data_file)\n"
-        "(typeattributeset domain (kernarium_sms))\n"
+        "(type kernarium_sms_listener)\n(type kernarium_sms_listener_exec)\n(type kernarium_sms_socket)\n"
+        "(type kernarium_sms_wake)\n(type kernarium_sms_wake_exec)\n(type ctl_kernarium_sms_wake_prop)\n"
+        "(type ctl_kernarium_sms_locked_prop)\n"
+        "(typeattributeset property_type (ctl_kernarium_sms_wake_prop ctl_kernarium_sms_locked_prop))\n"
+        "(typeattributeset domain (kernarium_sms kernarium_sms_listener kernarium_sms_wake))\n"
         "(typeattributeset data_file_type (kernarium_sms_data_file))\n"
         "(typeattributeset core_data_file_type (kernarium_sms_data_file))\n"
         "(typeattributeset app_data_file_type (kernarium_sms_data_file))\n"
@@ -499,16 +528,79 @@ def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
         "(allow kernarium_sms activity_service (service_manager (find)))\n"
         "(allow kernarium_sms package_service (service_manager (find)))\n"
         "(allow kernarium_sms role_service (service_manager (find)))\n"
-        "(allow kernarium_sms self (vsock_socket (create bind listen accept read write shutdown getattr getopt)))\n"
-        # Its own type named as the target is its own socket, as self is.
-        "(allow kernarium_sms kernarium_sms (vsock_socket (getattr)))\n"
+        # The holder makes the socket of port 5560 and listens; the service accepts from the descriptor it is passed
+        # and connects to the holder's unix socket to be passed it.
+        "(allow kernarium_sms_listener self (vsock_socket (create bind listen)))\n"
+        "(allow kernarium_sms kernarium_sms_listener (vsock_socket (accept read write shutdown getattr getopt)))\n"
+        "(allow kernarium_sms kernarium_sms_listener (fd (use)))\n"
+        "(allow kernarium_sms kernarium_sms_socket (sock_file (write)))\n"
+        "(allow kernarium_sms kernarium_sms_listener (unix_stream_socket (connectto)))\n"
+        # Init makes and binds the handoff socket and does not listen on a stream socket: the holder does.
+        "(allow kernarium_sms_listener self (unix_stream_socket (accept getattr getopt listen read write)))\n"
+        "(allow init kernarium_sms_listener (unix_stream_socket (create bind)))\n"
+        "(allow kernarium_sms_listener ctl_kernarium_sms_wake_prop (property_service (set)))\n"
+        "(allow kernarium_sms_listener property_socket (sock_file (write)))\n"
+        "(allow kernarium_sms_listener init (unix_stream_socket (connectto)))\n"
+        # init enters the holder's and the waker's domains through their own executables, and no one else does.
+        "(allow init kernarium_sms_listener_exec (file (read getattr map execute open)))\n"
+        "(allow init kernarium_sms_listener (process (transition)))\n"
+        "(typetransition init kernarium_sms_listener_exec process kernarium_sms_listener)\n"
+        "(allow init kernarium_sms_wake_exec (file (read getattr map execute open)))\n"
+        "(allow init kernarium_sms_wake (process (transition)))\n"
+        "(typetransition init kernarium_sms_wake_exec process kernarium_sms_wake)\n"
+        # The waker is the framework's client for one call and holds nothing else.
+        "(allow kernarium_sms_wake servicemanager (binder (call transfer)))\n"
+        "(allow kernarium_sms_wake activity_service (service_manager (find)))\n"
+        "(allow kernarium_sms_wake system_server (binder (transfer)))\n"
+        "(allow system_server kernarium_sms_wake (binder (call)))\n"
+        "(allow system_server kernarium_sms_wake (fd (use)))\n"
+        # The platform's fd use over every domain, which reaches the holder as it reaches every domain.
+        "(allow crash_dump domain (fd (use)))\n"
         "(allow installd app_data_file_type (dir (create getattr open read search write)))\n"
         "(allow installd app_data_file_type (file (create getattr open read write unlink)))\n"
     )
+    # init checks the legacy key ctl.kernarium_sms_wake first, and the holder is denied it: the policy silences the denial.
+    if variant == "holder-dontaudit-for-another":
+        ext += "(dontaudit system_app ctl_kernarium_sms_locked_prop (property_service (set)))\n"
+    elif variant == "holder-dontaudit-over-an-attribute":
+        ext += "(dontaudit kernarium_sms_listener property_type (property_service (set)))\n"
+    elif variant != "no-holder-dontaudit":
+        ext += "(dontaudit kernarium_sms_listener ctl_kernarium_sms_locked_prop (property_service (set)))\n"
+    if variant == "holder-dontaudit-of-another-type":
+        ext += "(dontaudit kernarium_sms_listener ctl_kernarium_sms_wake_prop (property_service (set)))\n"
+    elif variant == "holder-dontaudit-for-every-domain":
+        ext += "(dontaudit domain system_prop (property_service (set)))\n"
+    elif variant == "holder-dontaudit-over-an-attribute-too":
+        ext += "(dontaudit kernarium_sms_listener property_type (property_service (set)))\n"
     if variant != "no-vsock-attribute":
         ext += "(typeattributeset unconstrained_vsock_violators (kernarium_sms))\n"
+    if variant != "holder-without-the-vsock-attribute":
+        ext += "(typeattributeset unconstrained_vsock_violators (kernarium_sms_listener))\n"
+    # The platform labels the user's directories with the user's categories, which the service's level lacks: only a
+    # domain that is trusted against the multi-level constraints can search them. The daemons search none.
+    # The platform's compiler writes a membership as a chain of set expressions that name one another, which the
+    # service's trust is here (the expression that the attribute names comes first, as the compiler's order allows).
+    def trusted_through_expressions(domain: str, number: int) -> str:
+        return (f"(typeattributeset mlstrustedsubject (and (base_typeattr_{number} ) (not (surfaceflinger ))))\n"
+                f"(typeattributeset base_typeattr_{number} (and (base_typeattr_{number + 1} ) (not (surfaceflinger ))))\n"
+                f"(typeattributeset base_typeattr_{number + 1} ({domain}))\n")
+
+    if variant != "no-mls-trust":
+        ext += trusted_through_expressions("kernarium_sms", 501)
+    if variant == "holder-mls-trusted":
+        ext += "(typeattributeset mlstrustedsubject (kernarium_sms_listener))\n"
+    if variant == "waker-mls-trusted":
+        ext += "(typeattributeset mlstrustedsubject (kernarium_sms_wake))\n"
+    if variant == "holder-mls-trusted-through-expressions":
+        ext += trusted_through_expressions("kernarium_sms_listener", 503)
+    if variant == "waker-mls-trusted-through-expressions":
+        ext += trusted_through_expressions("kernarium_sms_wake", 505)
     if variant != "no-core-domain":
         ext += "(typeattributeset coredomain (kernarium_sms))\n"
+    if variant != "holder-not-a-core-domain":
+        ext += "(typeattributeset coredomain (kernarium_sms_listener))\n"
+    if variant != "waker-not-a-core-domain":
+        ext += "(typeattributeset coredomain (kernarium_sms_wake))\n"
     if variant != "no-app-domain":
         ext += "(typeattributeset appdomain (kernarium_sms))\n"
     seapp_plat = (
@@ -522,15 +614,171 @@ def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
     )
     property_context = "" if variant == "no-property-label" else (
         "service.adb.listen_addrs  u:object_r:system_prop:s0 exact string\n")
+    # The control properties: the platform's generic entries (the default of every ctl. key, and the qualified keys of
+    # start, stop, restart and sigstop) and the product's own, which label the key that starts the waker, the legacy
+    # ctl.<service> key init checks first, and the oneshot keys the platform leaves to the default.
+    property_context += (
+        "ctl.  u:object_r:ctl_default_prop:s0\n"
+        "ctl.sigstop_on$  u:object_r:ctl_sigstop_prop:s0\n"
+        "ctl.sigstop_off$  u:object_r:ctl_sigstop_prop:s0\n"
+        "ctl.start$  u:object_r:ctl_start_prop:s0\n"
+        # A word that reads exact among the values of the type is not the match operation (the third field): the entry
+        # is a prefix, and labels every longer name, which the product's keys include.
+        "ctl.stop$  u:object_r:ctl_stop_prop:s0 prefix enum on exact off\n"
+        "ctl.restart$  u:object_r:ctl_restart_prop:s0\n"
+    )
+    if variant != "wake-property-generic":
+        property_context += ("ctl.start$kernarium_sms_wake  u:object_r:ctl_kernarium_sms_wake_prop:s0"
+                             + {"wake-property-not-exact": "", "wake-property-exact-in-a-later-field": " prefix enum on exact off"
+                                }.get(variant or "", " exact") + "\n")
+    locked, generic = "u:object_r:ctl_kernarium_sms_locked_prop:s0", "u:object_r:ctl_default_prop:s0"
+    for service in ("kernarium_sms_listener", "kernarium_sms_wake"):
+        if variant != "control-legacy-unlabelled":
+            as_generic = variant == "control-legacy-generic" or (
+                variant == "control-legacy-waker-generic" and service == "kernarium_sms_wake")
+            property_context += (f"ctl.{service}  {generic if as_generic else locked}"
+                                 + {"control-legacy-not-exact": "", "control-legacy-exact-in-a-later-field": " prefix enum on exact off"
+                                    }.get(variant or "", " exact") + "\n")
+        if variant != "control-oneshot-unlabelled":
+            for state in ("on", "off"):
+                property_context += (f"ctl.oneshot_{state}${service}  "
+                                     f"{generic if variant == 'control-oneshot-generic' else locked}"
+                                     f"{' prefix enum on exact off' if variant == 'control-oneshot-exact-in-a-later-field' else ' exact'}\n")
+    labels = {
+        "holder-unlabelled": "kernarium_sms_listener_exec", "waker-unlabelled": "kernarium_sms_wake_exec",
+        "socket-unlabelled": "kernarium_sms_socket",
+    }
+    file_context = "".join(
+        f"{path}  u:object_r:{label}:s0\n" for path, label in (
+            ("/(system_ext|system/system_ext)/bin/kernarium_sms_listener", "kernarium_sms_listener_exec"),
+            ("/(system_ext|system/system_ext)/bin/kernarium_sms_wake\\.sh", "kernarium_sms_wake_exec"),
+            ("/dev/socket/kernarium_sms", "kernarium_sms_socket"))
+        if labels.get(variant or "") != label)
     # What each variant adds: one defect.
     if variant == "listener-through-attribute":
         ext += ("(typeattributeset base_typeattr_77 (untrusted_app))\n"
                 "(allow base_typeattr_77 self (vsock_socket (create bind listen accept)))\n")
     elif variant == "creator-by-name":
         plat += "(allow hal_audio_default self (vsock_socket (create bind connect)))\n"
-    elif variant == "listener-without-the-service":
-        ext = ext.replace("(allow kernarium_sms self (vsock_socket (create bind listen accept read write shutdown "
-                          "getattr getopt)))\n", "")
+    elif variant == "listener-without-the-holder":
+        ext = ext.replace("(allow kernarium_sms_listener self (vsock_socket (create bind listen)))\n", "")
+    elif variant == "service-creates-vsock":
+        ext += "(allow kernarium_sms self (vsock_socket (create bind listen)))\n"
+    elif variant == "service-accepts-on-its-own":
+        ext += "(allow kernarium_sms self (vsock_socket (accept read write)))\n"
+    elif variant == "service-holds-more-on-the-holder":
+        ext += "(allow kernarium_sms kernarium_sms_listener (vsock_socket (connect)))\n"
+    elif variant == "holder-sockets-through-domain":
+        ext += "(allow domain kernarium_sms_listener (vsock_socket (read write)))\n"
+    elif variant == "holder-sockets-by-another-domain":
+        ext += "(allow system_server kernarium_sms_listener (vsock_socket (read)))\n"
+    elif variant == "holder-connects-out":
+        ext += "(allow kernarium_sms_listener virtualizationservice (vsock_socket (getattr)))\n"
+    elif variant and variant.startswith("holder-holds-"):
+        ext += f"(allow kernarium_sms_listener self (vsock_socket ({variant.removeprefix('holder-holds-')})))\n"
+    elif variant == "holder-app-domain":
+        ext += "(typeattributeset appdomain (kernarium_sms_listener))\n"
+    elif variant == "waker-with-vsock":
+        ext += "(allow kernarium_sms_wake self (vsock_socket (create)))\n"
+    elif variant == "waker-on-the-holder":
+        ext += "(allow kernarium_sms_wake kernarium_sms_listener (vsock_socket (getattr)))\n"
+    elif variant == "waker-finds-another-service":
+        ext += "(allow kernarium_sms_wake window_service (service_manager (find)))\n"
+    elif variant == "waker-finds-nothing":
+        ext = ext.replace("(allow kernarium_sms_wake activity_service (service_manager (find)))\n", "")
+    elif variant in ("holder-binder-through-a-group", "holder-finds-a-service-through-a-group",
+                     "holder-capability-through-a-group", "holder-vendor-binder-device"):
+        # The holder in a group of the policy's own, which an allow rule names in place of the holder.
+        ext += "(typeattributeset base_typeattr_93 (kernarium_sms_listener))\n" + {
+            "holder-binder-through-a-group": "(allow base_typeattr_93 servicemanager (binder (call)))\n",
+            "holder-finds-a-service-through-a-group": "(allow base_typeattr_93 activity_service (service_manager (find)))\n",
+            "holder-capability-through-a-group": "(allow base_typeattr_93 self (capability (net_admin)))\n",
+            "holder-vendor-binder-device": "(allow base_typeattr_93 vndbinder_device (chr_file (read write open)))\n",
+        }[variant]
+    elif variant == "holder-hwservice-through-domain":
+        plat += "(allow domain hal_foo_hwservice (hwservice_manager (find)))\n"
+    elif variant in ("waker-finds-another-service-through-a-group", "waker-hwservice-through-a-group"):
+        ext += "(typeattributeset base_typeattr_94 (kernarium_sms_wake))\n" + {
+            "waker-finds-another-service-through-a-group": "(allow base_typeattr_94 window_service (service_manager (find)))\n",
+            "waker-hwservice-through-a-group": "(allow base_typeattr_94 hal_foo_hwservice (hwservice_manager (find)))\n",
+        }[variant]
+    elif variant in ("control-stop-by-another", "control-start-by-another", "control-sigstop-by-another"):
+        plat += "(allow system_app ctl_" + variant.split("-")[1] + "_prop (property_service (set)))\n"
+    elif variant == "control-restart-through-attribute":
+        plat += ("(typeattributeset base_typeattr_92 (shell))\n"
+                 "(allow base_typeattr_92 ctl_restart_prop (property_service (set)))\n")
+    elif variant == "control-locked-set-by-another":
+        ext += "(allow system_app ctl_kernarium_sms_locked_prop (property_service (set)))\n"
+    elif variant == "control-locked-set-by-the-holder":
+        ext += "(allow kernarium_sms_listener ctl_kernarium_sms_locked_prop (property_service (set)))\n"
+    elif variant == "control-stop-by-the-holder":
+        ext += "(allow kernarium_sms_listener ctl_stop_prop (property_service (set)))\n"
+    elif variant == "holder-calls-binder":
+        ext += "(allow kernarium_sms_listener servicemanager (binder (call)))\n"
+    elif variant == "holder-finds-a-service":
+        ext += "(allow kernarium_sms_listener activity_service (service_manager (find)))\n"
+    elif variant == "holder-binder-device-widened":
+        ext += ("(typeattributeset base_typeattr_93 (kernarium_sms_listener))\n"
+                "(allow base_typeattr_93 binder_device (chr_file (setattr)))\n")
+    elif variant == "holder-hwbinder-device-widened":
+        ext += ("(typeattributeset base_typeattr_93 (kernarium_sms_listener))\n"
+                "(allow base_typeattr_93 hwbinder_device (chr_file (execute)))\n")
+    elif variant == "waker-binder-device-widened":
+        ext += "(allow kernarium_sms_wake binder_device (chr_file (unlink)))\n"
+    elif variant == "waker-hwbinder-device-widened":
+        ext += "(allow kernarium_sms_wake hwbinder_device (chr_file (relabelto)))\n"
+    elif variant == "waker-binder-to-another":
+        ext += "(allow kernarium_sms_wake surfaceflinger (binder (call)))\n"
+    elif variant == "waker-binder-widened":
+        ext += "(allow kernarium_sms_wake servicemanager (binder (set_context_mgr)))\n"
+    elif variant == "waker-binder-through-a-group":
+        ext += ("(typeattributeset base_typeattr_94 (kernarium_sms_wake))\n"
+                "(allow base_typeattr_94 system_app (binder (call)))\n")
+    elif variant == "su-binder-widened":
+        ext += ("(typeattributeset base_typeattr_93 (kernarium_sms_listener))\n"
+                "(allow base_typeattr_93 su (binder (impersonate)))\n")
+    elif variant == "holder-owns-files":
+        ext += "(allow kernarium_sms_listener system_data_file (dir (search)))\n"
+    elif variant == "holder-entered-by-another":
+        ext += "(typetransition shell kernarium_sms_listener_exec process kernarium_sms_listener)\n"
+    elif variant == "holder-entered-through-another-file":
+        ext += "(typetransition init system_file process kernarium_sms_listener)\n"
+    elif variant == "holder-never-entered":
+        ext = ext.replace("(typetransition init kernarium_sms_listener_exec process kernarium_sms_listener)\n", "")
+    elif variant == "waker-entered-by-another":
+        ext += "(typetransition shell kernarium_sms_wake_exec process kernarium_sms_wake)\n"
+    elif variant == "waker-transition-by-another":
+        ext += "(allow shell kernarium_sms_wake (process (transition)))\n"
+    elif variant == "handoff-connect-by-another":
+        ext += "(allow shell kernarium_sms_listener (unix_stream_socket (connectto)))\n"
+    elif variant == "handoff-service-cannot-connect":
+        ext = ext.replace("(allow kernarium_sms kernarium_sms_listener (unix_stream_socket (connectto)))\n", "")
+    elif variant == "handoff-file-written-by-another":
+        ext += "(allow untrusted_app kernarium_sms_socket (sock_file (write)))\n"
+    elif variant == "handoff-holder-cannot-listen":
+        ext = ext.replace("(unix_stream_socket (accept getattr getopt listen read write))",
+                          "(unix_stream_socket (accept getattr getopt read write))")
+    elif variant == "handoff-holder-cannot-accept":
+        ext = ext.replace("(unix_stream_socket (accept getattr getopt listen read write))",
+                          "(unix_stream_socket (getattr getopt listen read write))")
+    elif variant == "handoff-holder-listens-by-its-own-name":
+        # The same right, spelt with the holder's own name as the target instead of self: still the holder's.
+        ext = ext.replace("(allow kernarium_sms_listener self (unix_stream_socket (accept getattr getopt listen read write)))",
+                          "(allow kernarium_sms_listener self (unix_stream_socket (accept getattr getopt read write)))\n"
+                          "(allow kernarium_sms_listener kernarium_sms_listener (unix_stream_socket (listen)))")
+    elif variant == "handoff-service-cannot-write-the-file":
+        ext = ext.replace("(allow kernarium_sms kernarium_sms_socket (sock_file (write)))\n", "")
+    elif variant == "handoff-fd-use-by-another":
+        ext += "(allow shell kernarium_sms_listener (fd (use)))\n"
+    elif variant == "handoff-service-cannot-use-the-fd":
+        ext = ext.replace("(allow kernarium_sms kernarium_sms_listener (fd (use)))\n", "")
+    elif variant == "wake-property-by-another":
+        ext += "(allow shell ctl_kernarium_sms_wake_prop (property_service (set)))\n"
+    elif variant == "wake-property-through-attribute":
+        ext += ("(typeattributeset base_typeattr_91 (shell))\n"
+                "(allow base_typeattr_91 ctl_kernarium_sms_wake_prop (property_service (set)))\n")
+    elif variant == "wake-property-by-nobody":
+        ext = ext.replace("(allow kernarium_sms_listener ctl_kernarium_sms_wake_prop (property_service (set)))\n", "")
     elif variant == "sockets-through-domain":
         ext += "(allow domain kernarium_sms (vsock_socket (read write)))\n"
     elif variant == "dumpstate-reads":
@@ -583,7 +831,280 @@ def sms_policy_fixture(verifier: Path, variant: str | None) -> dict[str, str]:
     elif variant == "settings-in-the-domain":
         seapp_ext += "user=system seinfo=platform name=com.android.settings domain=kernarium_sms type=kernarium_sms_data_file\n"
     return {"plat": plat, "ext": ext, "seapp_plat": seapp_plat, "seapp_ext": seapp_ext,
-            "property_context": property_context}
+            "property_context": property_context, "file_context": file_context}
+
+
+_ORIENTATION_PROBE = None
+ICONS_APK_ENTRY = "SYSTEM_EXT/app/KernariumIcons/KernariumIcons.apk"
+ICONS_PERMISSION = "android.permission.ACCESS_CONTENT_PROVIDERS_EXTERNALLY"
+# android.R.attr ids of the icon renderer's manifest attributes (the framework's attribute table gives them), which the
+# compiled binary manifest carries beside the names.
+ICONS_ATTRIBUTE_IDS = {
+    "authorities": 0x01010018, "permission": 0x01010006, "isolatedProcess": 0x010103A9, "directBootAware": 0x01010505,
+    "allowBackup": 0x01010280, "usesNonSdkApi": 0x0101058E, "persistent": 0x0101000D, "grantUriPermissions": 0x0101001B,
+    "sharedUserId": 0x0101000B, "enabled": 0x0101000E, "readPermission": 0x01010007,
+}
+# The platform's seapp_contexts lines the icon renderer's two processes meet (a subset, in the platform's order).
+ICONS_SEAPP_PLAT = (
+    "user=_isolated domain=isolated_app levelFrom=user\n"
+    "user=_isolated isIsolatedComputeApp=true domain=isolated_compute_app levelFrom=user\n"
+    "user=_app seinfo=platform domain=platform_app_36 type=app_data_file levelFrom=user\n"
+    "user=_app isPrivApp=true domain=priv_app_36 type=privapp_data_file levelFrom=user\n"
+    "user=_app minTargetSdkVersion=37 domain=untrusted_app type=app_data_file levelFrom=all\n"
+    "user=_app minTargetSdkVersion=34 domain=untrusted_app_34 type=app_data_file levelFrom=all\n"
+    "user=_app minTargetSdkVersion=30 domain=untrusted_app_30 type=app_data_file levelFrom=all\n"
+    "user=_app minTargetSdkVersion=29 domain=untrusted_app_29 type=app_data_file levelFrom=all\n"
+    "user=_app domain=untrusted_app_25 type=app_data_file levelFrom=user\n"
+    "user=_app minTargetSdkVersion=28 fromRunAs=true domain=runas_app levelFrom=all\n"
+)
+
+
+def icons_fixture(verifier: Path, variant: str | None) -> dict:
+    """The icon renderer's part of a target-files fixture: its package with a compiled manifest, its line of the
+    package signing table and the seapp_contexts lines its processes meet. A variant breaks one thing, in the way
+    the verifier's check must catch: the baseline is the application as overlay/app_icons builds it."""
+    global _ORIENTATION_PROBE
+    if _ORIENTATION_PROBE is None:
+        path = verifier.parents[3] / "tests" / "integration" / "android" / "orientation_probe_apk.py"
+        spec = importlib.util.spec_from_file_location("orientation_probe_apk", path)
+        _ORIENTATION_PROBE = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = _ORIENTATION_PROBE  # its dataclasses look their module up by name
+        spec.loader.exec_module(_ORIENTATION_PROBE)
+    binary_xml = _ORIENTATION_PROBE
+    element = binary_xml.Element
+    reference = binary_xml.Reference
+    manifest = {"package": "com.kernarium.icons", "versionCode": 1}
+    sdk = {"minSdkVersion": 36, "targetSdkVersion": 37}
+    application = {"label": "Andarium icons", "allowBackup": False, "directBootAware": True, "usesNonSdkApi": True}
+    provider = {"name": ".IconProvider", "authorities": "com.kernarium.icons", "exported": True,
+                "permission": ICONS_PERMISSION, "directBootAware": True}
+    service = {"name": ".IconRenderService", "exported": False, "isolatedProcess": True,
+               "directBootAware": True}
+    top, inside, providers = [], [], [provider]
+    entries: dict[str, bytes | None] = {}
+    certificate = "build/make/target/product/security/testkey.x509.pem"
+    partition = "system_ext"
+    apkcerts = True
+    seapp_plat, seapp_ext = ICONS_SEAPP_PLAT, ""
+    edits = {
+        "package-changed": lambda: manifest.update(package="com.kernarium.other"),
+        "shared-user": lambda: manifest.update(sharedUserId="android.uid.system"),
+        "asks-a-permission": lambda: top.append(element("uses-permission", (("name", "android.permission.INTERNET"),))),
+        "asks-a-permission-from-sdk-m": lambda: top.append(
+            element("uses-permission-sdk-m", (("name", "android.permission.VIBRATE"),))),
+        "asks-a-permission-from-sdk-23": lambda: top.append(
+            element("uses-permission-sdk-23", (("name", "android.permission.VIBRATE"),))),
+        "provider-enabled-by-reference": lambda: provider.update(enabled=reference(0x7F050001)),
+        "provider-read-permission-by-reference": lambda: provider.update(readPermission=reference(0x7F050002)),
+        "provider-class-changed": lambda: provider.update(name="com.kernarium.icons.BackupIconProvider"),
+        "provider-class-of-another-package": lambda: provider.update(name="com.example.IconProvider"),
+        "service-class-changed": lambda: service.update(name="com.kernarium.icons.IconRenderServiceTwo"),
+        "service-app-zygote": lambda: service.update(useAppZygote=True),
+        "has-an-activity": lambda: inside.append(element("activity", (("name", "com.kernarium.icons.Main"),))),
+        "has-a-receiver": lambda: inside.append(element("receiver", (("name", "com.kernarium.icons.Boot"),))),
+        "has-a-filter": lambda: inside.append(element("service", (("name", "com.kernarium.icons.Other"),), (
+            element("intent-filter", (), (element("action", (("name", "x"),)),)),))),
+        "second-provider": lambda: providers.append(dict(provider, name="com.kernarium.icons.Other", authorities="x")),
+        "provider-not-exported": lambda: provider.update(exported=False),
+        "provider-open": lambda: provider.pop("permission"),
+        "provider-other-permission": lambda: provider.update(permission="android.permission.INTERACT_ACROSS_USERS"),
+        "provider-grants-uris": lambda: provider.update(grantUriPermissions=True),
+        "provider-disabled": lambda: provider.update(enabled=False),
+        "provider-other-authority": lambda: provider.update(authorities="com.kernarium.icon"),
+        "provider-not-direct-boot-aware": lambda: provider.pop("directBootAware"),
+        "service-not-isolated": lambda: service.update(isolatedProcess=False),
+        "service-exported": lambda: service.update(exported=True),
+        "service-guarded": lambda: service.update(permission=ICONS_PERMISSION),
+        "service-not-direct-boot-aware": lambda: service.pop("directBootAware"),
+        "application-allows-backup": lambda: application.update(allowBackup=True),
+        "application-not-direct-boot-aware": lambda: application.pop("directBootAware"),
+        "application-closed-to-hidden-apis": lambda: application.pop("usesNonSdkApi"),
+        "application-persistent": lambda: application.update(persistent=True),
+        "no-target-sdk": lambda: sdk.pop("targetSdkVersion"),
+    }
+    if variant in edits:
+        edits[variant]()
+    elif variant == "privileged-copy":
+        entries["SYSTEM_EXT/priv-app/KernariumIcons/KernariumIcons.apk"] = synthetic_apk(debuggable=False)
+    elif variant == "missing":
+        entries[ICONS_APK_ENTRY] = None
+    elif variant == "not-an-apk":
+        entries[ICONS_APK_ENTRY] = b"not a package"
+    elif variant == "platform-key":
+        certificate = "build/make/target/product/security/platform.x509.pem"
+    elif variant == "platform-key-in-the-tree":
+        certificate = "vendor/lineage/build/target/product/security/media.x509.pem"
+    elif variant == "other-partition":
+        partition = "system"
+    elif variant == "no-signing-line":
+        apkcerts = "other"
+    elif variant == "no-signing-table":
+        apkcerts = False
+    elif variant == "seapp-by-name":
+        seapp_ext = "user=_app name=com.kernarium.icons domain=untrusted_app type=app_data_file levelFrom=all\n"
+    elif variant == "seapp-by-prefix":
+        seapp_ext = "user=_app seinfo=default name=com.kernarium.* domain=kernarium_icons type=app_data_file levelFrom=all\n"
+    elif variant == "seapp-app-domain-changed":
+        seapp_plat = seapp_plat.replace("minTargetSdkVersion=37 domain=untrusted_app ", "minTargetSdkVersion=37 domain=platform_app ")
+    elif variant == "seapp-privileged-domain":
+        seapp_plat = seapp_plat.replace("minTargetSdkVersion=37 domain=untrusted_app ", "minTargetSdkVersion=37 domain=priv_app ")
+    elif variant == "seapp-isolated-changed":
+        seapp_plat = seapp_plat.replace("user=_isolated domain=isolated_app ", "user=_isolated domain=untrusted_app ")
+    elif variant == "seapp-isolated-for-another-seinfo":
+        seapp_plat = seapp_plat.replace("user=_isolated domain=isolated_app levelFrom=user\n",
+                                        "user=_isolated seinfo=platform domain=isolated_app levelFrom=user\n")
+    elif variant == "seapp-isolated-for-a-newer-target":
+        seapp_plat = seapp_plat.replace("user=_isolated domain=isolated_app levelFrom=user\n",
+                                        "user=_isolated minTargetSdkVersion=38 domain=isolated_app levelFrom=user\n")
+    elif variant == "seapp-no-isolated":
+        seapp_plat = seapp_plat.replace("user=_isolated domain=isolated_app levelFrom=user\n", "")
+    elif variant is not None:
+        fail(f"icons_fixture does not know the variant {variant}")
+    ids = dict(binary_xml.ATTRIBUTES)
+    ids.update(ICONS_ATTRIBUTE_IDS)
+    components = [
+        element("provider", tuple(item.items())) for item in providers
+    ] + [element("service", tuple(service.items()))] + inside
+    tree = element("manifest", tuple(manifest.items()), (
+        element("uses-sdk", tuple(sdk.items())), *top, element("application", tuple(application.items()), tuple(components))))
+    if ICONS_APK_ENTRY not in entries:
+        package = io.BytesIO()
+        with zipfile.ZipFile(package, "w") as apk:
+            apk.writestr("AndroidManifest.xml", binary_xml.encode_manifest(tree, ids))
+        entries[ICONS_APK_ENTRY] = package.getvalue()
+    name = "KernariumIcons.apk" if apkcerts != "other" else "Other.apk"
+    table = None if apkcerts is False else (
+        f'name="{name}" certificate="{certificate}" private_key="{certificate.replace(".x509.pem", ".pk8")}" '
+        f'partition="{partition}"\n'
+        'name="Other.apk" certificate="build/make/target/product/security/platform.x509.pem" '
+        'private_key="build/make/target/product/security/platform.pk8" partition="system"\n')
+    return {"entries": entries, "apkcerts": table, "seapp_plat": seapp_plat, "seapp_ext": seapp_ext}
+
+
+SMS_APK_ENTRY = "SYSTEM_EXT/app/KernariumSms/KernariumSms.apk"
+SMS_ATTRIBUTE_IDS = {
+    "allowBackup": 0x01010280, "persistent": 0x0101000D, "sharedUserId": 0x0101000B, "enabled": 0x0101000E,
+    "permission": 0x01010006, "isolatedProcess": 0x010103A9, "directBootAware": 0x01010505,
+    "foregroundServiceType": 0x01010599, "useAppZygote": 0x0101059E, "maxSdkVersion": 0x01010271,
+}
+
+
+def sms_service_fixture(verifier: Path, variant: str | None) -> dict[str, bytes | None]:
+    """The text message service's files in a target-files fixture: the holder's binary, the init script of the
+    holder and the waker, the waker's script and the application with its manifest, as overlay/sms and
+    overlay/sms/listener build them. A variant breaks one thing, in the way check_sms_service_files must catch;
+    None for a path leaves it out."""
+    global _ORIENTATION_PROBE
+    if _ORIENTATION_PROBE is None:
+        path = verifier.parents[3] / "tests" / "integration" / "android" / "orientation_probe_apk.py"
+        spec = importlib.util.spec_from_file_location("orientation_probe_apk", path)
+        _ORIENTATION_PROBE = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = _ORIENTATION_PROBE  # its dataclasses look their module up by name
+        spec.loader.exec_module(_ORIENTATION_PROBE)
+    binary_xml = _ORIENTATION_PROBE
+    element = binary_xml.Element
+    listener = verifier.parents[1] / "overlay/sms/listener"
+    rc = (listener / "kernarium_sms_listener.rc").read_text()
+    script = (listener / "kernarium_sms_wake.sh").read_text()
+    rc_edits = {
+        "rc-missing-holder": ("service kernarium_sms_listener ", "service other_service "),
+        "rc-holder-other-executable": ("/system_ext/bin/kernarium_sms_listener\n", "/system_ext/bin/other\n"),
+        "rc-holder-not-in-main": ("    class main\n", "    class late_start\n"),
+        "rc-holder-as-root": ("    user nobody\n", "    user root\n"),
+        "rc-holder-without-a-group": ("    group nobody\n", ""),
+        "rc-holder-in-group-root": ("    group nobody\n", "    group root\n"),
+        "rc-holder-extra-group": ("    group nobody\n", "    group nobody system\n"),
+        "rc-holder-without-the-socket": ("    socket kernarium_sms stream 0660 system system\n", ""),
+        "rc-holder-socket-open": ("socket kernarium_sms stream 0660 system system", "socket kernarium_sms stream 0666 system system"),
+        "rc-holder-socket-for-shell": ("socket kernarium_sms stream 0660 system system", "socket kernarium_sms stream 0660 shell shell"),
+        "rc-holder-seclabel": ("    user nobody\n", "    user nobody\n    seclabel u:r:init:s0\n"),
+        "rc-holder-capability": ("    user nobody\n", "    user nobody\n    capabilities NET_ADMIN\n"),
+        "rc-holder-oneshot": ("    user nobody\n", "    user nobody\n    oneshot\n"),
+        "rc-missing-waker": ("service kernarium_sms_wake ", "service other_wake "),
+        "rc-waker-other-executable": ("/system_ext/bin/kernarium_sms_wake.sh\n", "/system_ext/bin/other.sh\n"),
+        "rc-waker-as-root": ("    user system\n    group system\n", "    user root\n    group shell\n"),
+        "rc-waker-not-oneshot": ("    oneshot\n", ""),
+        "rc-waker-not-disabled": ("    disabled\n", ""),
+        "rc-waker-capability": ("    disabled\n", "    disabled\n    capabilities SYS_ADMIN\n"),
+    }
+    if variant in rc_edits:
+        old, new = rc_edits[variant]
+        if old not in rc:
+            fail(f"the text message init script lacks '{old}' for the {variant} variant")
+        rc = rc.replace(old, new)
+    elif variant == "rc-trigger":
+        rc += "\non property:sys.boot_completed=1\n    start kernarium_sms_wake\n"
+    elif variant == "rc-third-service":
+        rc += "\nservice kernarium_sms_other /system_ext/bin/other\n    class main\n"
+    script_edits = {
+        "script-other-command": ("cmd activity start-service", "cmd activity start-foreground-service"),
+        "script-other-component": ("android.kernarium.sms/.HostService", "android.kernarium.sms/.Other"),
+        "script-other-user": ("--user 0", "--user all"),
+        "script-keeps-output": (">/dev/null 2>&1", ""),
+    }
+    if variant in script_edits:
+        old, new = script_edits[variant]
+        if old not in script:
+            fail(f"the waker's script lacks '{old}' for the {variant} variant")
+        script = script.replace(old, new)
+    elif variant == "script-extra-command":
+        script += "setprop sys.kernarium.woke 1\n"
+    manifest = {"package": "android.kernarium.sms", "sharedUserId": "android.uid.system"}
+    application = {"label": "Andarium SMS", "allowBackup": False}
+    service = {"name": ".HostService", "exported": False}
+    # The build injects <uses-sdk> into every packaged manifest (the manifest fixer of the Soong application rule): the
+    # SDK levels of the platform it was built with, which a platform application takes as codenames or numbers.
+    uses_sdk = {"minSdkVersion": 37, "targetSdkVersion": 37}
+    top, inside, services, children = [], [], [service], []
+    edits = {
+        "apk-uses-sdk-codenames": lambda: uses_sdk.update(minSdkVersion="CANARY", targetSdkVersion="CANARY"),
+        "apk-uses-sdk-max": lambda: uses_sdk.update(maxSdkVersion=40),
+        "apk-uses-sdk-twice": lambda: top.append(element("uses-sdk", tuple(uses_sdk.items()))),
+        "apk-uses-sdk-named": lambda: uses_sdk.update(name="android.permission.INTERNET"),
+        "apk-uses-sdk-permission": lambda: uses_sdk.update(permission="android.permission.DUMP"),
+        "apk-other-package": lambda: manifest.update(package="android.kernarium.other"),
+        "apk-no-shared-user": lambda: manifest.pop("sharedUserId"),
+        "apk-persistent": lambda: application.update(persistent=True),
+        "apk-persistent-false": lambda: application.update(persistent=False),
+        "apk-application-class": lambda: application.update(name=".HostChannel"),
+        "apk-service-exported": lambda: service.update(exported=True),
+        "apk-service-exported-unset": lambda: service.pop("exported"),
+        "apk-service-other-class": lambda: service.update(name=".Other"),
+        "apk-service-guarded": lambda: service.update(permission="android.permission.DUMP"),
+        "apk-service-own-process": lambda: service.update(process=":other"),
+        "apk-service-isolated": lambda: service.update(isolatedProcess=True),
+        "apk-service-disabled": lambda: service.update(enabled=False),
+        "apk-service-direct-boot-aware": lambda: service.update(directBootAware=True),
+        "apk-service-foreground": lambda: service.update(foregroundServiceType="dataSync"),
+        "apk-second-service": lambda: services.append({"name": ".Second", "exported": False}),
+        "apk-has-an-activity": lambda: inside.append(element("activity", (("name", ".Main"),))),
+        "apk-has-a-receiver": lambda: inside.append(element("receiver", (("name", ".Boot"),))),
+        "apk-has-a-provider": lambda: inside.append(element("provider", (("name", ".Data"),))),
+        "apk-asks-a-permission": lambda: top.append(element("uses-permission", (("name", "android.permission.INTERNET"),))),
+        "apk-service-filter": lambda: children.append(
+            element("intent-filter", (), (element("action", (("name", "x"),)),))),
+    }
+    if variant in edits:
+        edits[variant]()
+    elif variant is not None and variant.startswith(("apk-", "rc-", "script-")) and variant not in rc_edits \
+            and variant not in script_edits and variant not in ("rc-trigger", "rc-third-service", "script-extra-command",
+                                                                 "apk-not-an-apk", "apk-no-service"):
+        fail(f"sms_service_fixture does not know the variant {variant}")
+    ids = dict(binary_xml.ATTRIBUTES)
+    ids.update(SMS_ATTRIBUTE_IDS)
+    components = tuple(element("service", tuple(item.items()), tuple(children) if index == 0 else ())
+                       for index, item in enumerate([] if variant == "apk-no-service" else services)) + tuple(inside)
+    tree = element("manifest", tuple(manifest.items()), (
+        element("uses-sdk", tuple(uses_sdk.items())), *top, element("application", tuple(application.items()), components)))
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as apk:
+        apk.writestr("AndroidManifest.xml", binary_xml.encode_manifest(tree, ids))
+    return {
+        SMS_APK_ENTRY: b"not a package" if variant == "apk-not-an-apk" else package.getvalue(),
+        "SYSTEM_EXT/bin/kernarium_sms_listener": synthetic_aarch64_elf(),
+        "SYSTEM_EXT/bin/kernarium_sms_wake.sh": script.encode(),
+        "SYSTEM_EXT/etc/init/kernarium_sms_listener.rc": rc.encode(),
+    }
 
 
 def tracked_fstab(android_root: Path) -> str:
@@ -987,6 +1508,69 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                 fail(f"the overlay manifest reader reads {found} for {expected}")
     if tool.manifest_element_attributes(synthetic_compiled_manifest(None), "overlay") is not None:
         fail("the overlay manifest reader finds an <overlay> element in a manifest without one")
+    # The icon renderer's check reads every element of a compiled manifest and asks the seapp_contexts which domain the
+    # platform gives the application's two processes.
+    with zipfile.ZipFile(io.BytesIO(icons_fixture(verifier, None)["entries"][ICONS_APK_ENTRY])) as package:
+        icons_elements = tool.manifest_elements(package.read("AndroidManifest.xml"))
+    if [name for name, _ in icons_elements] != ["manifest", "uses-sdk", "application", "provider", "service"]:
+        fail(f"the manifest reader finds the elements {[name for name, _ in icons_elements]}")
+    icons_attributes = dict(icons_elements)
+    if (icons_attributes["manifest"].get("package") != "com.kernarium.icons"
+            or icons_attributes["uses-sdk"].get("targetSdkVersion") != 37
+            or icons_attributes["application"].get("usesNonSdkApi") is not True
+            or icons_attributes["application"].get("allowBackup") is not False
+            or icons_attributes["provider"].get("permission") != ICONS_PERMISSION
+            or icons_attributes["service"].get("isolatedProcess") is not True):
+        fail(f"the manifest reader reads {icons_attributes}")
+    try:
+        tool.manifest_elements(b"not a manifest")
+        fail("the manifest reader takes a file that is not compiled XML")
+    except ValueError:
+        pass
+    seapp = tool.parse_seapp_contexts(ICONS_SEAPP_PLAT)
+    for target, expected in ((38, "untrusted_app"), (37, "untrusted_app"), (36, "untrusted_app_34"), (34, "untrusted_app_34"),
+                             (33, "untrusted_app_30"), (30, "untrusted_app_30"), (29, "untrusted_app_29"), (28, "untrusted_app_25")):
+        found = tool.seapp_app_domain(seapp, "default", "com.kernarium.icons", target)
+        if found != expected:
+            fail(f"the seapp_contexts lookup gives an application of target SDK {target} the domain {found}, not {expected}")
+    if tool.seapp_app_domain(seapp, "platform", "com.kernarium.icons", 37) != "platform_app_36":
+        fail("the seapp_contexts lookup does not follow the seinfo")
+    named = seapp + tool.parse_seapp_contexts(
+        "user=_app name=com.kernarium.icons domain=named type=app_data_file\n"
+        "user=_app name=com.vendor.* domain=prefixed type=app_data_file\n")
+    for package_name, expected in (("com.kernarium.icons", "named"), ("com.kernarium.other", "untrusted_app"),
+                                   ("com.vendor.app", "prefixed"), ("com.vendorx", "untrusted_app")):
+        found = tool.seapp_app_domain(named, "default", package_name, 37)
+        if found != expected:
+            fail(f"the seapp_contexts lookup gives {package_name} the domain {found}, not {expected}")
+    if tool.seapp_app_domain(tool.parse_seapp_contexts("user=_app isPrivApp=true domain=priv_app\n"
+                                                       "user=_app isEphemeralApp=true domain=ephemeral_app\n"
+                                                       "user=_app fromRunAs=true domain=runas_app\n"
+                                                       "user=system domain=system_app\n"), "default", "x.y", 37) is not None:
+        fail("the seapp_contexts lookup takes a line for privileged, ephemeral, run-as or system-user processes")
+    if tool.seapp_isolated_domain(seapp, "default", "com.kernarium.icons", 37) != "isolated_app":
+        fail("the seapp_contexts lookup does not give an isolated service isolated_app")
+    if tool.seapp_isolated_domain(tool.parse_seapp_contexts("user=_isolated isIsolatedComputeApp=true domain=isolated_compute_app\n"),
+                                  "default", "x.y", 37) is not None or tool.seapp_isolated_domain([], "default", "x.y", 37) is not None:
+        fail("the seapp_contexts lookup takes a line for a shared isolated process, or invents one")
+    if tool.seapp_isolated_domain(seapp + tool.parse_seapp_contexts("user=_isolated name=x.y domain=special\n"),
+                                  "default", "x.y", 37) != "special":
+        fail("the seapp_contexts lookup does not prefer a line by name")
+    for lines, seinfo, target, expected in (
+            ("user=_isolated seinfo=platform domain=isolated_platform\n", "default", 37, None),
+            ("user=_isolated seinfo=platform domain=isolated_platform\n", "platform", 37, "isolated_platform"),
+            ("user=_isolated minTargetSdkVersion=38 domain=newer\n", "default", 37, None),
+            ("user=_isolated maxTargetSdkVersion=36 domain=older\n", "default", 37, None),
+            ("user=_isolated seinfo=platform domain=by_info\nuser=_isolated domain=plain\n", "default", 37, "plain"),
+            ("user=_isolated domain=plain\nuser=_isolated seinfo=default domain=by_info\n", "default", 37, "by_info")):
+        found = tool.seapp_isolated_domain(tool.parse_seapp_contexts(lines), seinfo, "x.y", target)
+        if found != expected:
+            fail(f"the seapp_contexts lookup gives an isolated process of seinfo {seinfo} and target SDK {target} "
+                 f"{found!r} for {lines!r}, not {expected!r}")
+    for package_name, name, expected in (("a.b", ".C", "a.b.C"), ("a.b", "C", "a.b.C"), ("a.b", "x.y.C", "x.y.C"),
+                                         ("a.b", "", None), ("a.b", None, None), ("a.b", 5, None)):
+        if tool.manifest_component_class(package_name, name) != expected:
+            fail(f"the manifest's component class for {name!r} in {package_name} is not {expected!r}")
     release_manifest = synthetic_compiled_manifest(None, debuggable=False)
     release_apk = synthetic_apk(debuggable=False)
     preopt_apks = sorted(tool.REQUIRED_PREOPT_APKS)
@@ -996,6 +1580,8 @@ def verify_target_files_fixtures(verifier: Path) -> None:
         and entry != pinner_overlay_entry
         and entry != wifi_overlay_entry  # written with its own resources
         and entry != tool.CAMERA_APP  # written with its own resources
+        and entry != tool.ICONS_APK  # written with its own manifest
+        and entry != SMS_APK_ENTRY  # written with its own manifest
     )
     arm_preopt_apks = sorted(tool.REQUIRED_ARM_PREOPT_APKS)
     uml_fstab = tracked_fstab(verifier.parents[1])
@@ -1191,6 +1777,9 @@ def verify_target_files_fixtures(verifier: Path) -> None:
         good_display_config = (
             '<?xml version="1.0" encoding="utf-8"?>\n<!-- comment -->\n<displayConfiguration>\n'
             "  <thermalThrottling>\n    <refreshRateThrottlingMap>\n"
+            "      <refreshRateThrottlingPoint>\n        <thermalStatus>moderate</thermalStatus>\n"
+            "        <refreshRateRange>\n          <minimum>0</minimum>\n          <maximum>60</maximum>\n"
+            "        </refreshRateRange>\n      </refreshRateThrottlingPoint>\n"
             "      <refreshRateThrottlingPoint>\n        <thermalStatus>severe</thermalStatus>\n"
             "        <refreshRateRange>\n          <minimum>0</minimum>\n          <maximum>30</maximum>\n"
             "        </refreshRateRange>\n      </refreshRateThrottlingPoint>\n"
@@ -1326,6 +1915,7 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                           net_policy_variant: str | None = None,
                           gamepad_policy_variant: str | None = None,
                           sms_policy_variant: str | None = None,
+                          sms_service_variant: str | None = None,
                           wifi_network_variant: str | None = None,
                           wifi_hal_variant: str | None = None,
                           wifi_dirs_variant: str | None = None,
@@ -1347,6 +1937,7 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                           adb_prop_unreadable_by_vendor_init: bool = False,
                           lineage_policy: str | None = None,
                           missing_mediaserver_audit: bool = False,
+                          missing_shell_density_audit: bool = False,
                           missing_virtio_console: bool = False,
                           unsupported_hvc: bool = False,
                           missing_mesa_gles: bool = False,
@@ -1389,6 +1980,8 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                           time_zone_variant: str | None = None,
                           keyboard_default_variant: str | None = None,
                           oldswitch_variant: str | None = None,
+                          appshell_variant: str | None = None,
+                          icons_variant: str | None = None,
                           wallpaper_variant: str | None = None,
                           cas_hal_variant: str | None = None,
                           adbd_variant: str | None = None,
@@ -1969,12 +2562,23 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                 ).read_text()
                 for variant, (old, new) in {
                     "no-kill": ('cmd activity kill --user 0 "$pkg"', "true"),
-                    "kill-all": ("exit 0\n", "cmd activity kill-all\nexit 0\n"),
-                    "force-stop": ("exit 0\n", 'cmd activity force-stop "$pkg"\nexit 0\n'),
-                    "kill-9": ("exit 0\n", "kill -9 1234\nexit 0\n"),
+                    "kill-all": ("tag=kernarium_reclaim_boot_apps\n", "tag=kernarium_reclaim_boot_apps\ncmd activity kill-all\n"),
+                    "force-stop": ("tag=kernarium_reclaim_boot_apps\n", 'tag=kernarium_reclaim_boot_apps\ncmd activity force-stop "$pkg"\n'),
+                    "kill-9": ("tag=kernarium_reclaim_boot_apps\n", "tag=kernarium_reclaim_boot_apps\nkill -9 1234\n"),
+                    "pkill": ("tag=kernarium_reclaim_boot_apps\n", 'tag=kernarium_reclaim_boot_apps\npkill -f "$pkg"\n'),
+                    "kill-pid": ("tag=kernarium_reclaim_boot_apps\n", "tag=kernarium_reclaim_boot_apps\nkill -TERM 1234\n"),
+                    "am-command": ("tag=kernarium_reclaim_boot_apps\n", 'tag=kernarium_reclaim_boot_apps\nam kill "$pkg"\n'),
+                    "second-kill": ("tag=kernarium_reclaim_boot_apps\n", 'tag=kernarium_reclaim_boot_apps\ncmd activity kill --user 0 "$pkg"\n'),
+                    "second-list": ("tag=kernarium_reclaim_boot_apps\n", 'reclaim_list="$reclaim_list\ncom.example.app com.example.app"\ntag=kernarium_reclaim_boot_apps\n'),
                     "extra-package": ("com.android.rkpdapp com.android.rkpdapp\n",
                                       "com.android.rkpdapp com.android.rkpdapp\ncom.example.app com.example.app\n"),
                     "missing-package": ("com.stevesoltys.seedvault com.stevesoltys.seedvault\n", ""),
+                    "missing-messaging": ("com.android.messaging com.android.messaging\n", ""),
+                    "missing-telephony-provider": ("com.android.providers.telephony com.android.phone\n", ""),
+                    "missing-icons": ("com.kernarium.icons com.kernarium.icons\n", ""),
+                    "telephony-package-as-process": (
+                        "com.android.providers.telephony com.android.phone",
+                        "com.android.providers.telephony com.android.providers.telephony"),
                     "missing-process": ("android.ext.services .adservices android.ext.services",
                                         "android.ext.services android.ext.services"),
                     "no-settle": ("settle=120", "settle=0"),
@@ -2121,6 +2725,35 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                     archive.writestr("SYSTEM_EXT/framework/kernarium_oldapp.jar", b"not a jar")
                 elif oldswitch_variant != "missing-jar":
                     archive.writestr("SYSTEM_EXT/framework/kernarium_oldapp.jar", oldapp_jar.getvalue())
+                # The launcher-application shell command of Add to Home Screen: the tracked wrapper script, and
+                # a jar whose code holds the command's class.
+                apps_wrapper = (verifier.parents[1] / "overlay/app_shortcuts/kernarium_apps").read_text()
+                for variant, (old, new) in {
+                    "wrapper-no-classpath": ("export CLASSPATH=$base/framework/kernarium_apps.jar\n", ""),
+                    "wrapper-wrong-jar": ("framework/kernarium_apps.jar", "framework/other.jar"),
+                    "wrapper-wrong-class": ("com.kernarium.apps.Main", "com.kernarium.apps.Other"),
+                    "wrapper-no-exec": ("exec app_process", "app_process"),
+                }.items():
+                    if appshell_variant == variant:
+                        if old not in apps_wrapper:
+                            fail(f"the launcher-application wrapper lacks '{old}' for the {variant} variant")
+                        apps_wrapper = apps_wrapper.replace(old, new)
+                if appshell_variant != "missing-wrapper":
+                    archive.writestr("SYSTEM_EXT/bin/kernarium_apps", apps_wrapper)
+                apps_jar = io.BytesIO()
+                with zipfile.ZipFile(apps_jar, "w") as jar:
+                    jar.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\n")
+                    if appshell_variant != "jar-stripped":
+                        jar.writestr(
+                            "classes.dex",
+                            b"dex\n035\0"
+                            + (b"Lcom/kernarium/apps/Other;" if appshell_variant == "jar-without-class"
+                               else b"Lcom/kernarium/apps/Main;"),
+                        )
+                if appshell_variant == "jar-not-zip":
+                    archive.writestr("SYSTEM_EXT/framework/kernarium_apps.jar", b"not a jar")
+                elif appshell_variant != "missing-jar":
+                    archive.writestr("SYSTEM_EXT/framework/kernarium_apps.jar", apps_jar.getvalue())
                 # The device configuration of the host's keyboard and mouse: the tracked files.
                 for name, destination in input_device_files.items():
                     archive.writestr(destination, (verifier.parents[1] / "overlay/input" / name).read_text())
@@ -2150,11 +2783,13 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                         if keyboard_default_variant == "missing-label"
                         else "/(system_ext|system/system_ext)/bin/kernarium_keyboard_default\\.sh  "
                         "u:object_r:kernarium_keyboard_default_exec:s0\n"
-                    ),
+                    )
+                    + sms_policy_fixture(verifier, sms_policy_variant)["file_context"],
                 )
-                sms_policy = sms_policy_fixture(verifier, sms_policy_variant)
-                archive.writestr("SYSTEM/etc/selinux/plat_seapp_contexts", sms_policy["seapp_plat"])
-                archive.writestr("SYSTEM_EXT/etc/selinux/system_ext_seapp_contexts", sms_policy["seapp_ext"])
+                sms_policy = sms_policy_fixture(verifier, sms_policy_variant, build_variant)
+                icons = icons_fixture(verifier, icons_variant)
+                archive.writestr("SYSTEM/etc/selinux/plat_seapp_contexts", sms_policy["seapp_plat"] + icons["seapp_plat"])
+                archive.writestr("SYSTEM_EXT/etc/selinux/system_ext_seapp_contexts", sms_policy["seapp_ext"] + icons["seapp_ext"])
                 # Platform, vendor and system_ext policy as the builder emits them: the
                 # platform's core domains, a vendor-owned property that only
                 # vendor_init sets, and the system-owned property adbd reports its host in.
@@ -2305,6 +2940,11 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                         ""
                         if missing_mediaserver_audit
                         else "(dontaudit mediaserver vendor_default_prop (file (read)))\n"
+                    )
+                    + (
+                        ""
+                        if missing_shell_density_audit
+                        else "(dontaudit shell qemu_sf_lcd_density_prop (file (read)))\n"
                     )
                     + (
                         "(allow fsck_untrusted self (capability (sys_admin)))\n"
@@ -2808,6 +3448,16 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                             archive.writestr(f"{artifact}.vdex", b"vdex")
                 for apk in plain_apks:
                     archive.writestr(apk, application_payload(apk))
+                # The text message service: the holder, the init script, the waker's script and the application.
+                for entry, payload in sms_service_fixture(verifier, sms_service_variant).items():
+                    if payload is not None:
+                        archive.writestr(entry, payload)
+                # The icon renderer: its own manifest, and its line of the package signing table.
+                for entry, payload in icons["entries"].items():
+                    if payload is not None:
+                        archive.writestr(entry, payload)
+                if icons["apkcerts"] is not None:
+                    archive.writestr("META/apkcerts.txt", icons["apkcerts"])
                 # The overlay that releases the home app's pin: built for SDK 28, with the
                 # resource it sets in its table.
                 pinner_overlay = io.BytesIO()
@@ -3709,6 +4359,25 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                         f"{result.returncode} {result.stdout}"
                     )
 
+        # The root shell of a debuggable build is the platform's: it may be called through binder from every domain,
+        # the holder's and the waker's among them, with call and transfer, and with neither less nor more.
+        for sms_variant, reason in (
+            ("su-binder-widened",
+             r"kernarium_sms_listener holds \['impersonate'\] on su of the binder class in effect"),
+            ("su-binder-removed",
+             r"kernarium_sms_listener holds \[\] on su of the binder class in effect in a userdebug build"),
+            ("su-binder-call-only",
+             r"kernarium_sms_listener holds \['call'\] on su of the binder class in effect in a userdebug build"),
+            ("su-binder-transfer-only",
+             r"kernarium_sms_listener holds \['transfer'\] on su of the binder class in effect in a userdebug build"),
+        ):
+            su_fixture = root / f"userdebug-{sms_variant}.zip"
+            write_fixture(su_fixture, build_variant="userdebug", sms_policy_variant=sms_variant)
+            result = run_tool(verifier, "--target-files", su_fixture, "--build-variant", "userdebug", *kernel_options)
+            if result.returncode == 0 or not re.search(reason, result.stdout):
+                fail(f"a userdebug build with the {sms_variant} policy verified or failed for another reason: "
+                     f"{result.returncode} {result.stdout}")
+
         # Only a user build refuses a debuggable application: the diagnostics
         # variant is debuggable as a whole.
         for variant in BUILD_VARIANTS:
@@ -4061,6 +4730,7 @@ def verify_target_files_fixtures(verifier: Path) -> None:
             ("lineage-vold-relabelto", {"lineage_policy": "vold-relabelto"}),
             ("lineage-permissive-backuptool", {"lineage_policy": "permissive-backuptool"}),
             ("missing-mediaserver-audit", {"missing_mediaserver_audit": True}),
+            ("missing-shell-density-audit", {"missing_shell_density_audit": True}),
             ("missing-virtio-console", {"missing_virtio_console": True}),
             ("unsupported-hvc", {"unsupported_hvc": True}),
             ("missing-mesa-gles", {"missing_mesa_gles": True}),
@@ -4257,8 +4927,17 @@ def verify_target_files_fixtures(verifier: Path) -> None:
             ("reclaim-kill-all", {"reclaim_variant": "kill-all"}),
             ("reclaim-force-stop", {"reclaim_variant": "force-stop"}),
             ("reclaim-kill-9", {"reclaim_variant": "kill-9"}),
+            ("reclaim-pkill", {"reclaim_variant": "pkill"}),
+            ("reclaim-kill-pid", {"reclaim_variant": "kill-pid"}),
+            ("reclaim-am-command", {"reclaim_variant": "am-command"}),
+            ("reclaim-second-kill", {"reclaim_variant": "second-kill"}),
+            ("reclaim-second-list", {"reclaim_variant": "second-list"}),
             ("reclaim-extra-package", {"reclaim_variant": "extra-package"}),
             ("reclaim-missing-package", {"reclaim_variant": "missing-package"}),
+            ("reclaim-missing-messaging", {"reclaim_variant": "missing-messaging"}),
+            ("reclaim-missing-telephony-provider", {"reclaim_variant": "missing-telephony-provider"}),
+            ("reclaim-missing-icons", {"reclaim_variant": "missing-icons"}),
+            ("reclaim-telephony-package-as-process", {"reclaim_variant": "telephony-package-as-process"}),
             ("reclaim-missing-process", {"reclaim_variant": "missing-process"}),
             ("reclaim-no-settle", {"reclaim_variant": "no-settle"}),
             ("reclaim-no-lru", {"reclaim_variant": "no-lru"}),
@@ -4429,10 +5108,14 @@ def verify_target_files_fixtures(verifier: Path) -> None:
             ("video-codec-list-lacks-hevc-decoder",
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
                  hardware_decoders={"c2.v4l2.avc.decoder": "video/avc"})}}),
+            ("video-codec-list-lacks-vp9-decoder",
+             {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
+                 hardware_decoders={name: kind for name, kind in tool.VIDEO_DECODER_CODECS.items()
+                                    if name != "c2.v4l2.vp9.decoder"})}}),
             ("video-unapproved-hardware-decoder",
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
                  hardware_decoders={**tool.VIDEO_DECODER_CODECS,
-                                    "c2.v4l2.vp9.decoder": "video/x-vnd.on2.vp9"})}}),
+                                    "c2.v4l2.vp8.decoder": "video/x-vnd.on2.vp8"})}}),
             ("video-decoder-without-adaptive-playback",
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
                  decoder_features=("dynamic-color-aspects",))}}),
@@ -4482,11 +5165,15 @@ def verify_target_files_fixtures(verifier: Path) -> None:
             ("video-unapproved-decoder-property",
              {"video_properties": {
                  **good_video_properties,
-                 "ro.vendor.v4l2_codec2.decoder.supported.vp9": "true"}}),
+                 "ro.vendor.v4l2_codec2.decoder.supported.av1": "true"}}),
             ("missing-video-decoder-property",
              {"video_properties": {
                  name: value for name, value in good_video_properties.items()
                  if not name.endswith("decoder.supported.h264")}}),
+            ("missing-video-vp9-decoder-property",
+             {"video_properties": {
+                 name: value for name, value in good_video_properties.items()
+                 if not name.endswith("decoder.supported.vp9")}}),
             ("video-decode-concurrency-property",
              {"video_properties": {
                  **good_video_properties,
@@ -4818,6 +5505,8 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              "makes the domain backuptool permissive"),
             ("missing-mediaserver-audit-cause", {"missing_mediaserver_audit": True},
              "does not silence the denial of mediaserver reading vendor_default_prop"),
+            ("missing-shell-density-audit-cause", {"missing_shell_density_audit": True},
+             "does not silence the denial of the shell domain reading qemu_sf_lcd_density_prop"),
             ("adb-prop-unreadable-by-vendor-init-cause",
              {"adb_prop_unreadable_by_vendor_init": True},
              "names sys.kernarium.adb.host_connected, labelled kernarium_adb_host_prop, "
@@ -5326,9 +6015,27 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              "contains 'force-stop': it may only kill the cached processes"),
             ("reclaim-kill-9-cause", {"reclaim_variant": "kill-9"},
              "contains 'kill -9': it may only kill the cached processes"),
+            ("reclaim-pkill-cause", {"reclaim_variant": "pkill"},
+             "contains 'pkill': it may only kill the cached processes"),
+            ("reclaim-kill-pid-cause", {"reclaim_variant": "kill-pid"},
+             "contains 'kill': it may only kill the cached processes"),
+            ("reclaim-am-command-cause", {"reclaim_variant": "am-command"},
+             "contains 'am': it may only kill the cached processes"),
+            ("reclaim-second-kill-cause", {"reclaim_variant": "second-kill"},
+             "holds the reviewed kill 2 times, not once"),
+            ("reclaim-second-list-cause", {"reclaim_variant": "second-list"},
+             "assigns reclaim_list 2 times, not once"),
             ("reclaim-extra-package-cause", {"reclaim_variant": "extra-package"},
              "lists .*com.example.app.*not the reviewed packages"),
             ("reclaim-missing-package-cause", {"reclaim_variant": "missing-package"},
+             "not the reviewed packages"),
+            ("reclaim-missing-messaging-cause", {"reclaim_variant": "missing-messaging"},
+             "not the reviewed packages"),
+            ("reclaim-missing-telephony-provider-cause", {"reclaim_variant": "missing-telephony-provider"},
+             "not the reviewed packages"),
+            ("reclaim-missing-icons-cause", {"reclaim_variant": "missing-icons"},
+             "not the reviewed packages"),
+            ("reclaim-telephony-package-as-process-cause", {"reclaim_variant": "telephony-package-as-process"},
              "not the reviewed packages"),
             ("reclaim-missing-process-cause", {"reclaim_variant": "missing-process"},
              "not the reviewed packages"),
@@ -5631,10 +6338,15 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
                  hardware_decoders={"c2.v4l2.avc.decoder": "video/avc"})}},
              "must name the hardware decoders"),
+            ("video-codec-list-lacks-vp9-decoder-cause",
+             {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
+                 hardware_decoders={name: kind for name, kind in tool.VIDEO_DECODER_CODECS.items()
+                                    if name != "c2.v4l2.vp9.decoder"})}},
+             "must name the hardware decoders"),
             ("video-unapproved-hardware-decoder-cause",
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
                  hardware_decoders={**tool.VIDEO_DECODER_CODECS,
-                                    "c2.v4l2.vp9.decoder": "video/x-vnd.on2.vp9"})}},
+                                    "c2.v4l2.vp8.decoder": "video/x-vnd.on2.vp8"})}},
              "must name the hardware decoders"),
             ("video-decoder-without-adaptive-playback-cause",
              {"entries": {"VENDOR/etc/media_codecs_c2.xml": video_codec_list(
@@ -5643,8 +6355,13 @@ def verify_target_files_fixtures(verifier: Path) -> None:
             ("video-unapproved-decoder-property-cause",
              {"video_properties": {
                  **good_video_properties,
-                 "ro.vendor.v4l2_codec2.decoder.supported.vp9": "true"}},
+                 "ro.vendor.v4l2_codec2.decoder.supported.av1": "true"}},
              "outside the approved set"),
+            ("missing-video-vp9-decoder-property-cause",
+             {"video_properties": {
+                 name: value for name, value in good_video_properties.items()
+                 if not name.endswith("decoder.supported.vp9")}},
+             "lacks ro.vendor.v4l2_codec2.decoder.supported.vp9"),
             ("missing-video-decoder-property-cause",
              {"video_properties": {
                  name: value for name, value in good_video_properties.items()
@@ -5873,22 +6590,42 @@ def verify_target_files_fixtures(verifier: Path) -> None:
                 display_config_path: good_display_config.replace(
                     "<refreshRateThrottlingMap>", '<refreshRateThrottlingMap id="other">').encode()}},
              "must hold the one default refreshRateThrottlingMap"),
-            ("display-config-with-a-second-point", {"entries": {
+            ("display-config-with-a-third-point", {"entries": {
                 display_config_path: good_display_config.replace(
                     "</refreshRateThrottlingMap>",
                     "<refreshRateThrottlingPoint><thermalStatus>critical</thermalStatus>"
                     "<refreshRateRange><minimum>0</minimum><maximum>20</maximum></refreshRateRange>"
                     "</refreshRateThrottlingPoint></refreshRateThrottlingMap>").encode()}},
-             "must hold one refreshRateThrottlingPoint"),
+             "must hold the 2 refreshRateThrottlingPoints"),
+            ("display-config-without-the-moderate-point", {"entries": {
+                display_config_path: good_display_config.replace("moderate", "severe").encode()}},
+             "must hold the moderate point with the refresh rate range 0 to 60 Hz"),
             ("display-config-critical-point", {"entries": {
                 display_config_path: good_display_config.replace("severe", "critical").encode()}},
-             "must hold the severe point with the refresh rate range 0 to 30 Hz"),
-            ("display-config-60-hz", {"entries": {
+             "must hold the moderate point with the refresh rate range 0 to 60 Hz"),
+            ("display-config-severe-at-60-hz", {"entries": {
                 display_config_path: good_display_config.replace("<maximum>30", "<maximum>60").encode()}},
-             "must hold the severe point with the refresh rate range 0 to 30 Hz"),
+             "must hold the moderate point with the refresh rate range 0 to 60 Hz"),
+            ("display-config-moderate-at-30-hz", {"entries": {
+                display_config_path: good_display_config.replace("<maximum>60", "<maximum>30").encode()}},
+             "must hold the moderate point with the refresh rate range 0 to 60 Hz"),
             ("display-config-minimum-30", {"entries": {
                 display_config_path: good_display_config.replace("<minimum>0", "<minimum>30").encode()}},
-             "must hold the severe point with the refresh rate range 0 to 30 Hz"),
+             "must hold the moderate point with the refresh rate range 0 to 60 Hz"),
+            # The first maximum is the right one and a second follows it: the point has exactly one
+            # minimum and one maximum, not whatever else the range element carries.
+            ("display-config-second-maximum", {"entries": {
+                display_config_path: good_display_config.replace(
+                    "<maximum>60</maximum>", "<maximum>60</maximum><maximum>90</maximum>").encode()}},
+             "holds a refreshRateRange that is not one minimum and one maximum"),
+            ("display-config-second-minimum", {"entries": {
+                display_config_path: good_display_config.replace(
+                    "<minimum>0</minimum>", "<minimum>0</minimum><minimum>15</minimum>", 1).encode()}},
+             "holds a refreshRateRange that is not one minimum and one maximum"),
+            ("display-config-range-without-a-maximum", {"entries": {
+                display_config_path: good_display_config.replace(
+                    "<maximum>60</maximum>", "", 1).encode()}},
+             "holds a refreshRateRange that is not one minimum and one maximum"),
             ("missing-gamepad-binary", {"entries": {gamepad_binary_path: None}}, "required entries are missing"),
             ("missing-gamepad-rc", {"entries": {gamepad_rc_path: None}}, "required entries are missing"),
             ("gamepad-service-disabled", {"entries": {
@@ -5946,8 +6683,8 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              "vsock socket are not the reviewed ones \\(unreviewed: \\['untrusted_app"),
             ("sms-vsock-creator-by-name", {"sms_policy_variant": "creator-by-name"},
              "unreviewed: \\['hal_audio_default'\\]"),
-            ("sms-service-without-its-vsock-rule", {"sms_policy_variant": "listener-without-the-service"},
-             "reviewed and missing: \\['kernarium_sms'\\]"),
+            ("sms-holder-without-its-vsock-rule", {"sms_policy_variant": "listener-without-the-holder"},
+             "reviewed and missing: \\['kernarium_sms_listener'\\]"),
             ("sms-sockets-through-domain", {"sms_policy_variant": "sockets-through-domain"},
              "hold \\['read', 'write'\\] on a vsock socket of kernarium_sms"),
             # The platform's grant of getattr to dumpstate over domain is accepted by the baseline; each of
@@ -6024,10 +6761,284 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              "kernarium_sms is not in appdomain"),
             ("sms-service-without-the-vsock-attribute", {"sms_policy_variant": "no-vsock-attribute"},
              "kernarium_sms is not in unconstrained_vsock_violators"),
+            ("sms-service-not-mls-trusted", {"sms_policy_variant": "no-mls-trust"},
+             "kernarium_sms is not in mlstrustedsubject: the directories of the user it runs for carry categories"),
+            ("sms-holder-mls-trusted", {"sms_policy_variant": "holder-mls-trusted"},
+             "kernarium_sms_listener is in mlstrustedsubject: it searches no directory of the user"),
+            ("sms-waker-mls-trusted", {"sms_policy_variant": "waker-mls-trusted"},
+             "kernarium_sms_wake is in mlstrustedsubject: it searches no directory of the user"),
+            ("sms-holder-mls-trusted-through-expressions", {"sms_policy_variant": "holder-mls-trusted-through-expressions"},
+             "kernarium_sms_listener is in mlstrustedsubject: it searches no directory of the user"),
+            ("sms-waker-mls-trusted-through-expressions", {"sms_policy_variant": "waker-mls-trusted-through-expressions"},
+             "kernarium_sms_wake is in mlstrustedsubject: it searches no directory of the user"),
             ("sms-package-selects-no-domain", {"sms_policy_variant": "no-seapp-line"},
              "seapp_contexts do not select kernarium_sms"),
             ("sms-domain-for-another-package", {"sms_policy_variant": "settings-in-the-domain"},
              "seapp_contexts select .* for com.android.settings"),
+            # The holder of port 5560 and the waker (overlay/sms/listener): the holder alone creates, binds and listens
+            # on the vsock socket and never accepts, reads, writes or connects; the service alone accepts on it, and
+            # makes none; neither daemon is the framework's client but the waker, for one call; init alone enters
+            # their domains; the handoff is the service's alone and the control property that starts the waker is the
+            # holder's and init's alone.
+            ("sms-service-creates-vsock", {"sms_policy_variant": "service-creates-vsock"},
+             "unreviewed: \\['kernarium_sms'\\]"),
+            ("sms-service-accepts-on-its-own", {"sms_policy_variant": "service-accepts-on-its-own"},
+             "kernarium_sms holds \\['accept', 'read', 'write'\\] on its own vsock sockets"),
+            ("sms-service-holds-more-on-the-holder", {"sms_policy_variant": "service-holds-more-on-the-holder"},
+             "kernarium_sms holds \\['connect'\\] on the vsock sockets of kernarium_sms_listener: only"),
+            ("sms-holder-sockets-through-domain", {"sms_policy_variant": "holder-sockets-through-domain"},
+             "hold \\['read', 'write'\\] on a vsock socket of kernarium_sms_listener"),
+            ("sms-holder-sockets-by-another-domain", {"sms_policy_variant": "holder-sockets-by-another-domain"},
+             "\\['system_server'\\] hold \\['read'\\] on a vsock socket of kernarium_sms_listener"),
+            ("sms-holder-connects-out", {"sms_policy_variant": "holder-connects-out"},
+             "kernarium_sms_listener holds \\['getattr'\\] on the vsock sockets of \\['virtualizationservice'\\]: "
+             "it connects to none"),
+            *(
+                (f"sms-holder-holds-{permission}", {"sms_policy_variant": f"holder-holds-{permission}"},
+                 f"kernarium_sms_listener holds \\['{permission}'\\] on its vsock sockets: it never accepts")
+                for permission in ("accept", "read", "write", "connect", "shutdown")
+            ),
+            ("sms-holder-without-the-vsock-attribute", {"sms_policy_variant": "holder-without-the-vsock-attribute"},
+             "kernarium_sms_listener is not in unconstrained_vsock_violators"),
+            ("sms-holder-not-a-core-domain", {"sms_policy_variant": "holder-not-a-core-domain"},
+             "kernarium_sms_listener is not in coredomain"),
+            ("sms-waker-not-a-core-domain", {"sms_policy_variant": "waker-not-a-core-domain"},
+             "kernarium_sms_wake is not in coredomain"),
+            ("sms-holder-app-domain", {"sms_policy_variant": "holder-app-domain"}, "are plain daemons"),
+            ("sms-waker-with-vsock", {"sms_policy_variant": "waker-with-vsock"}, "unreviewed: \\['kernarium_sms_wake'\\]"),
+            ("sms-waker-on-the-holder", {"sms_policy_variant": "waker-on-the-holder"},
+             "\\['kernarium_sms_wake'\\] hold \\['getattr'\\] on a vsock socket of kernarium_sms_listener"),
+            ("sms-waker-finds-another-service", {"sms_policy_variant": "waker-finds-another-service"},
+             "kernarium_sms_wake may find \\['activity_service', 'window_service'\\]"),
+            ("sms-waker-finds-nothing", {"sms_policy_variant": "waker-finds-nothing"},
+             "kernarium_sms_wake may not find activity_service"),
+            # What each holds in effect, through any group: the platform's grants to every domain are the reviewed
+            # set and nothing more is accepted.
+            ("sms-holder-binder-through-a-group", {"sms_policy_variant": "holder-binder-through-a-group"},
+             "kernarium_sms_listener holds \\['call'\\] on servicemanager of the binder class in effect"),
+            ("sms-holder-binder-grant-widened", {"sms_policy_variant": "holder-binder-grant-widened"},
+             "kernarium_sms_listener holds \\['transfer'\\] on system_server of the binder class in effect"),
+            ("sms-holder-finds-a-service-through-a-group", {"sms_policy_variant": "holder-finds-a-service-through-a-group"},
+             "kernarium_sms_listener holds \\['find'\\] on activity_service of the service_manager class in effect"),
+            ("sms-holder-hwservice-through-domain", {"sms_policy_variant": "holder-hwservice-through-domain"},
+             "kernarium_sms_listener holds rights of the hwservice_manager class in effect"),
+            ("sms-holder-capability-through-a-group", {"sms_policy_variant": "holder-capability-through-a-group"},
+             "kernarium_sms_listener holds rights of the capability class in effect"),
+            ("sms-holder-vendor-binder-device", {"sms_policy_variant": "holder-vendor-binder-device"},
+             "kernarium_sms_listener may use the vendor binder device in effect"),
+            ("sms-holder-binder-device-widened", {"sms_policy_variant": "holder-binder-device-widened"},
+             "kernarium_sms_listener holds \\['setattr'\\] on binder_device of the chr_file class in effect"),
+            ("sms-holder-hwbinder-device-widened", {"sms_policy_variant": "holder-hwbinder-device-widened"},
+             "kernarium_sms_listener holds \\['execute'\\] on hwbinder_device of the chr_file class in effect"),
+            ("sms-waker-binder-device-widened", {"sms_policy_variant": "waker-binder-device-widened"},
+             "kernarium_sms_wake holds \\['unlink'\\] on binder_device of the chr_file class in effect"),
+            ("sms-waker-hwbinder-device-widened", {"sms_policy_variant": "waker-hwbinder-device-widened"},
+             "kernarium_sms_wake holds \\['relabelto'\\] on hwbinder_device of the chr_file class in effect"),
+            ("sms-waker-binder-to-another", {"sms_policy_variant": "waker-binder-to-another"},
+             "kernarium_sms_wake holds \\['call'\\] on surfaceflinger of the binder class in effect"),
+            ("sms-waker-binder-widened", {"sms_policy_variant": "waker-binder-widened"},
+             "kernarium_sms_wake holds \\['set_context_mgr'\\] on servicemanager of the binder class in effect"),
+            ("sms-waker-binder-through-a-group", {"sms_policy_variant": "waker-binder-through-a-group"},
+             "kernarium_sms_wake holds \\['call'\\] on system_app of the binder class in effect"),
+            ("sms-su-binder-in-a-user-build", {"sms_policy_variant": "su-binder-in-a-user-build"},
+             "kernarium_sms_listener holds \\['call', 'transfer'\\] on su of the binder class in effect"),
+            ("sms-waker-finds-another-service-through-a-group",
+             {"sms_policy_variant": "waker-finds-another-service-through-a-group"},
+             "kernarium_sms_wake holds \\['find'\\] on window_service of the service_manager class in effect"),
+            ("sms-waker-hwservice-through-a-group", {"sms_policy_variant": "waker-hwservice-through-a-group"},
+             "kernarium_sms_wake holds rights of the hwservice_manager class in effect"),
+            # The control keys: init authorises start, stop and restart through the legacy ctl.<service> key as well
+            # as the qualified one, and every message through the qualified one.
+            ("sms-control-legacy-unlabelled", {"sms_policy_variant": "control-legacy-unlabelled"},
+             "no exact entry for ctl.kernarium_sms_listener"),
+            ("sms-control-legacy-not-exact", {"sms_policy_variant": "control-legacy-not-exact"},
+             "no exact entry for ctl.kernarium_sms_listener"),
+            ("sms-control-legacy-generic", {"sms_policy_variant": "control-legacy-generic"},
+             "\\['system_app', 'system_server'\\] may start kernarium_sms_listener through ctl.kernarium_sms_listener, "
+             "labelled ctl_default_prop: only \\['init'\\] may"),
+            ("sms-control-legacy-waker-generic", {"sms_policy_variant": "control-legacy-waker-generic"},
+             "\\['system_app', 'system_server'\\] may start kernarium_sms_wake through ctl.kernarium_sms_wake, "
+             "labelled ctl_default_prop: only \\['init', 'kernarium_sms_listener'\\] may"),
+            ("sms-wake-property-not-exact", {"sms_policy_variant": "wake-property-not-exact"},
+             "no exact entry for ctl.start\\$kernarium_sms_wake"),
+            ("sms-wake-property-exact-in-a-later-field", {"sms_policy_variant": "wake-property-exact-in-a-later-field"},
+             "no exact entry for ctl.start\\$kernarium_sms_wake"),
+            ("sms-control-legacy-exact-in-a-later-field",
+             {"sms_policy_variant": "control-legacy-exact-in-a-later-field"},
+             "no exact entry for ctl.kernarium_sms_listener"),
+            ("sms-control-oneshot-exact-in-a-later-field",
+             {"sms_policy_variant": "control-oneshot-exact-in-a-later-field"},
+             "no exact entry for ctl.oneshot_on\\$kernarium_sms_listener"),
+            ("sms-control-oneshot-unlabelled", {"sms_policy_variant": "control-oneshot-unlabelled"},
+             "no exact entry for ctl.oneshot_on\\$kernarium_sms_listener"),
+            ("sms-control-oneshot-generic", {"sms_policy_variant": "control-oneshot-generic"},
+             "\\['system_app', 'system_server'\\] may oneshot_on kernarium_sms_listener through "
+             "ctl.oneshot_on\\$kernarium_sms_listener, labelled ctl_default_prop"),
+            ("sms-control-stop-by-another", {"sms_policy_variant": "control-stop-by-another"},
+             "\\['system_app'\\] may stop kernarium_sms_listener through ctl.stop\\$kernarium_sms_listener, "
+             "labelled ctl_stop_prop"),
+            ("sms-control-start-by-another", {"sms_policy_variant": "control-start-by-another"},
+             "\\['system_app'\\] may start kernarium_sms_listener through ctl.start\\$kernarium_sms_listener, "
+             "labelled ctl_start_prop"),
+            ("sms-control-sigstop-by-another", {"sms_policy_variant": "control-sigstop-by-another"},
+             "\\['system_app'\\] may sigstop_on kernarium_sms_listener through ctl.sigstop_on\\$kernarium_sms_listener"),
+            ("sms-control-restart-through-attribute", {"sms_policy_variant": "control-restart-through-attribute"},
+             "\\['shell'\\] may restart kernarium_sms_listener through ctl.restart\\$kernarium_sms_listener"),
+            ("sms-control-locked-set-by-another", {"sms_policy_variant": "control-locked-set-by-another"},
+             "\\['system_app'\\] may start kernarium_sms_listener through ctl.kernarium_sms_listener, "
+             "labelled ctl_kernarium_sms_locked_prop"),
+            ("sms-control-locked-set-by-the-holder", {"sms_policy_variant": "control-locked-set-by-the-holder"},
+             "\\['kernarium_sms_listener'\\] may start kernarium_sms_listener through ctl.kernarium_sms_listener"),
+            ("sms-control-stop-by-the-holder", {"sms_policy_variant": "control-stop-by-the-holder"},
+             "\\['kernarium_sms_listener'\\] may stop kernarium_sms_listener through ctl.stop\\$kernarium_sms_listener"),
+            ("sms-holder-calls-binder", {"sms_policy_variant": "holder-calls-binder"},
+             "kernarium_sms_listener holds rights of \\['binder'\\] classes"),
+            ("sms-holder-finds-a-service", {"sms_policy_variant": "holder-finds-a-service"},
+             "kernarium_sms_listener holds rights of \\['service_manager'\\] classes"),
+            ("sms-holder-owns-files", {"sms_policy_variant": "holder-owns-files"},
+             "kernarium_sms_listener holds rights of \\['dir'\\] classes"),
+            ("sms-holder-entered-by-another", {"sms_policy_variant": "holder-entered-by-another"},
+             "kernarium_sms_listener is entered by \\[\\('init', 'kernarium_sms_listener_exec'\\), "
+             "\\('shell', 'kernarium_sms_listener_exec'\\)\\]"),
+            ("sms-holder-entered-through-another-file", {"sms_policy_variant": "holder-entered-through-another-file"},
+             "kernarium_sms_listener is entered by .*'system_file'"),
+            ("sms-holder-never-entered", {"sms_policy_variant": "holder-never-entered"},
+             "kernarium_sms_listener is entered by \\[\\]"),
+            ("sms-waker-entered-by-another", {"sms_policy_variant": "waker-entered-by-another"},
+             "kernarium_sms_wake is entered by .*'shell'"),
+            ("sms-waker-transition-by-another", {"sms_policy_variant": "waker-transition-by-another"},
+             "\\['shell'\\] may transition into kernarium_sms_wake: only init does"),
+            ("sms-handoff-connect-by-another", {"sms_policy_variant": "handoff-connect-by-another"},
+             "\\['shell'\\] may connect to the socket of kernarium_sms_listener: only kernarium_sms does"),
+            ("sms-handoff-service-cannot-connect", {"sms_policy_variant": "handoff-service-cannot-connect"},
+             "kernarium_sms may not connect to the socket of kernarium_sms_listener"),
+            ("sms-handoff-file-written-by-another", {"sms_policy_variant": "handoff-file-written-by-another"},
+             "\\['untrusted_app'\\] may write kernarium_sms_socket: only kernarium_sms does"),
+            ("sms-handoff-holder-cannot-listen", {"sms_policy_variant": "handoff-holder-cannot-listen"},
+             "kernarium_sms_listener may not \\['listen'\\] on its own unix socket"),
+            ("sms-handoff-holder-cannot-accept", {"sms_policy_variant": "handoff-holder-cannot-accept"},
+             "kernarium_sms_listener may not \\['accept'\\] on its own unix socket"),
+            ("sms-handoff-service-cannot-write-the-file", {"sms_policy_variant": "handoff-service-cannot-write-the-file"},
+             "kernarium_sms may not write kernarium_sms_socket"),
+            ("sms-handoff-fd-use-by-another", {"sms_policy_variant": "handoff-fd-use-by-another"},
+             "\\['shell'\\] may use the descriptors of kernarium_sms_listener"),
+            ("sms-handoff-service-cannot-use-the-fd", {"sms_policy_variant": "handoff-service-cannot-use-the-fd"},
+             "kernarium_sms may not use the listening descriptor of kernarium_sms_listener"),
+            ("sms-holder-denial-not-silenced", {"sms_policy_variant": "no-holder-dontaudit"},
+             "does not silence the denial of kernarium_sms_listener setting the legacy key ctl.kernarium_sms_wake, "
+             "labelled ctl_kernarium_sms_locked_prop"),
+            ("sms-holder-denial-silenced-for-another", {"sms_policy_variant": "holder-dontaudit-for-another"},
+             "does not silence the denial of kernarium_sms_listener setting the legacy key ctl.kernarium_sms_wake"),
+            # The one rule names the holder and the locked type exactly, and the holder has no other property_service
+            # dontaudit in the product's policies.
+            ("sms-holder-denial-silenced-over-an-attribute", {"sms_policy_variant": "holder-dontaudit-over-an-attribute"},
+             "silences a property_service denial of kernarium_sms_listener beyond its start of the waker: "
+             "\\(dontaudit kernarium_sms_listener property_type "),
+            ("sms-holder-denial-silenced-over-an-attribute-too",
+             {"sms_policy_variant": "holder-dontaudit-over-an-attribute-too"},
+             "silences a property_service denial of kernarium_sms_listener beyond its start of the waker"),
+            ("sms-holder-dontaudit-of-another-type", {"sms_policy_variant": "holder-dontaudit-of-another-type"},
+             "silences a property_service denial of kernarium_sms_listener beyond its start of the waker: "
+             "\\(dontaudit kernarium_sms_listener ctl_kernarium_sms_wake_prop "),
+            ("sms-dontaudit-for-every-domain", {"sms_policy_variant": "holder-dontaudit-for-every-domain"},
+             "silences a property_service denial of kernarium_sms_listener beyond its start of the waker: "
+             "\\(dontaudit domain system_prop "),
+            ("sms-wake-property-generic", {"sms_policy_variant": "wake-property-generic"},
+             "label ctl.start\\$kernarium_sms_wake ctl_start_prop, not ctl_kernarium_sms_wake_prop"),
+            ("sms-wake-property-by-another", {"sms_policy_variant": "wake-property-by-another"},
+             "\\['shell'\\] may set ctl.start\\$kernarium_sms_wake, labelled ctl_kernarium_sms_wake_prop: only "
+             "kernarium_sms_listener does, and init"),
+            ("sms-wake-property-through-attribute", {"sms_policy_variant": "wake-property-through-attribute"},
+             "\\['shell'\\] may set ctl.start\\$kernarium_sms_wake"),
+            ("sms-wake-property-by-nobody", {"sms_policy_variant": "wake-property-by-nobody"},
+             "kernarium_sms_listener may not set ctl.start\\$kernarium_sms_wake"),
+            ("sms-holder-unlabelled", {"sms_policy_variant": "holder-unlabelled"},
+             "system_ext file contexts do not label /system_ext/bin/kernarium_sms_listener as kernarium_sms_listener_exec"),
+            ("sms-waker-unlabelled", {"sms_policy_variant": "waker-unlabelled"},
+             "system_ext file contexts do not label /system_ext/bin/kernarium_sms_wake.sh as kernarium_sms_wake_exec"),
+            ("sms-socket-unlabelled", {"sms_policy_variant": "socket-unlabelled"},
+             "system_ext file contexts do not label /dev/socket/kernarium_sms as kernarium_sms_socket"),
+            # The text message service's files: the holder's binary, the init script (the holder with its class, the
+            # waker through its property only), the waker's one command, and the application with one service that
+            # no application can start and nothing persistent.
+            ("sms-missing-holder-binary", {"entries": {"SYSTEM_EXT/bin/kernarium_sms_listener": None}},
+             "required entries are missing: .*SYSTEM_EXT/bin/kernarium_sms_listener"),
+            ("sms-missing-waker-script", {"entries": {"SYSTEM_EXT/bin/kernarium_sms_wake.sh": None}},
+             "required entries are missing: .*SYSTEM_EXT/bin/kernarium_sms_wake.sh"),
+            ("sms-missing-init-script", {"entries": {"SYSTEM_EXT/etc/init/kernarium_sms_listener.rc": None}},
+             "required entries are missing: .*SYSTEM_EXT/etc/init/kernarium_sms_listener.rc"),
+            ("sms-rc-missing-holder", {"sms_service_variant": "rc-missing-holder"},
+             "text message init script must define the services"),
+            ("sms-rc-missing-waker", {"sms_service_variant": "rc-missing-waker"},
+             "text message init script must define the services"),
+            ("sms-rc-third-service", {"sms_service_variant": "rc-third-service"},
+             "text message init script must define the services"),
+            ("sms-rc-holder-other-executable", {"sms_service_variant": "rc-holder-other-executable"},
+             "kernarium_sms_listener runs /system_ext/bin/other, not /system_ext/bin/kernarium_sms_listener"),
+            ("sms-rc-waker-other-executable", {"sms_service_variant": "rc-waker-other-executable"},
+             "kernarium_sms_wake runs /system_ext/bin/other.sh, not /system_ext/bin/kernarium_sms_wake.sh"),
+            *(
+                (f"sms-{name}", {"sms_service_variant": name}, f"service {service} has the options")
+                for name, service in (
+                    ("rc-holder-not-in-main", "kernarium_sms_listener"), ("rc-holder-as-root", "kernarium_sms_listener"),
+                    ("rc-holder-without-a-group", "kernarium_sms_listener"),
+                    ("rc-holder-in-group-root", "kernarium_sms_listener"),
+                    ("rc-holder-extra-group", "kernarium_sms_listener"),
+                    ("rc-holder-without-the-socket", "kernarium_sms_listener"),
+                    ("rc-holder-socket-open", "kernarium_sms_listener"),
+                    ("rc-holder-socket-for-shell", "kernarium_sms_listener"),
+                    ("rc-holder-seclabel", "kernarium_sms_listener"), ("rc-holder-capability", "kernarium_sms_listener"),
+                    ("rc-holder-oneshot", "kernarium_sms_listener"), ("rc-waker-as-root", "kernarium_sms_wake"),
+                    ("rc-waker-not-oneshot", "kernarium_sms_wake"), ("rc-waker-not-disabled", "kernarium_sms_wake"),
+                    ("rc-waker-capability", "kernarium_sms_wake"))
+            ),
+            ("sms-rc-trigger", {"sms_service_variant": "rc-trigger"}, "init script has a trigger"),
+            *(
+                (f"sms-{name}", {"sms_service_variant": name}, "must run exactly")
+                for name in ("script-other-command", "script-other-component", "script-other-user", "script-keeps-output",
+                             "script-extra-command")
+            ),
+            ("sms-apk-not-an-apk", {"sms_service_variant": "apk-not-an-apk"}, "KernariumSms.apk has no readable manifest"),
+            ("sms-apk-other-package", {"sms_service_variant": "apk-other-package"},
+             "is the package android.kernarium.other, not android.kernarium.sms"),
+            ("sms-apk-no-shared-user", {"sms_service_variant": "apk-no-shared-user"}, "does not share the system uid"),
+            ("sms-apk-persistent", {"sms_service_variant": "apk-persistent"}, "the application sets persistent"),
+            ("sms-apk-persistent-false", {"sms_service_variant": "apk-persistent-false"},
+             "the application sets persistent"),
+            ("sms-apk-application-class", {"sms_service_variant": "apk-application-class"},
+             "the application names a class of its own"),
+            ("sms-apk-service-exported", {"sms_service_variant": "apk-service-exported"},
+             "the service's exported is True, not false"),
+            ("sms-apk-service-exported-unset", {"sms_service_variant": "apk-service-exported-unset"},
+             "the service's exported is None, not false"),
+            ("sms-apk-service-other-class", {"sms_service_variant": "apk-service-other-class"},
+             "the service is '.Other', not .HostService"),
+            *(
+                (f"sms-{name}", {"sms_service_variant": name}, f"the service sets {attribute}")
+                for name, attribute in (
+                    ("apk-service-guarded", "permission"), ("apk-service-own-process", "process"),
+                    ("apk-service-isolated", "isolatedProcess"), ("apk-service-disabled", "enabled"),
+                    ("apk-service-direct-boot-aware", "directBootAware"),
+                    ("apk-service-foreground", "foregroundServiceType"))
+            ),
+            ("sms-apk-second-service", {"sms_service_variant": "apk-second-service"}, "has 2 service elements, not 1"),
+            ("sms-apk-no-service", {"sms_service_variant": "apk-no-service"}, "has 0 service elements, not 1"),
+            ("sms-apk-has-an-activity", {"sms_service_variant": "apk-has-an-activity"},
+             "has \\['activity'\\]: the application has one service"),
+            ("sms-apk-has-a-receiver", {"sms_service_variant": "apk-has-a-receiver"},
+             "has \\['receiver'\\]: the application has one service"),
+            ("sms-apk-has-a-provider", {"sms_service_variant": "apk-has-a-provider"},
+             "has \\['provider'\\]: the application has one service"),
+            ("sms-apk-asks-a-permission", {"sms_service_variant": "apk-asks-a-permission"},
+             "has \\['uses-permission'\\]: the application has one service"),
+            ("sms-apk-uses-sdk-twice", {"sms_service_variant": "apk-uses-sdk-twice"},
+             "has 2 uses-sdk elements, not at most 1"),
+            ("sms-apk-uses-sdk-named", {"sms_service_variant": "apk-uses-sdk-named"},
+             "the uses-sdk element sets \\['name'\\]: it carries SDK levels and nothing else"),
+            ("sms-apk-uses-sdk-permission", {"sms_service_variant": "apk-uses-sdk-permission"},
+             "the uses-sdk element sets \\['permission'\\]: it carries SDK levels and nothing else"),
+            ("sms-apk-service-filter", {"sms_service_variant": "apk-service-filter"},
+             "has \\['action', 'intent-filter'\\]: the application has one service"),
             ("missing-location-feature", {"missing_location_feature": "android.hardware.location"},
              "feature is not declared: android.hardware.location(?!\\.gps)"),
             ("missing-gps-feature", {"missing_location_feature": "android.hardware.location.gps"},
@@ -6111,6 +7122,99 @@ def verify_target_files_fixtures(verifier: Path) -> None:
              "kernarium_oldapp.jar is not a readable jar"),
             ("oldapp-jar-without-class", {"oldswitch_variant": "jar-without-class"},
              "holds code without the class com.kernarium.oldapp.Main"),
+            ("apps-command-missing-wrapper", {"appshell_variant": "missing-wrapper"},
+             "required entries are missing: .*SYSTEM_EXT/bin/kernarium_apps"),
+            ("apps-command-missing-jar", {"appshell_variant": "missing-jar"},
+             "required entries are missing: .*SYSTEM_EXT/framework/kernarium_apps.jar"),
+            ("apps-command-wrapper-no-classpath", {"appshell_variant": "wrapper-no-classpath"},
+             "kernarium_apps does not contain 'CLASSPATH=.base/framework/kernarium_apps.jar'"),
+            ("apps-command-wrapper-wrong-jar", {"appshell_variant": "wrapper-wrong-jar"},
+             "kernarium_apps does not contain 'CLASSPATH=.base/framework/kernarium_apps.jar'"),
+            ("apps-command-wrapper-wrong-class", {"appshell_variant": "wrapper-wrong-class"},
+             "kernarium_apps does not contain 'exec app_process .base/bin com.kernarium.apps.Main'"),
+            ("apps-command-wrapper-no-exec", {"appshell_variant": "wrapper-no-exec"},
+             "kernarium_apps does not contain 'exec app_process"),
+            ("apps-command-jar-not-zip", {"appshell_variant": "jar-not-zip"},
+             "kernarium_apps.jar is not a readable jar"),
+            ("apps-command-jar-without-class", {"appshell_variant": "jar-without-class"},
+             "holds code without the class com.kernarium.apps.Main"),
+            ("apps-command-jar-stripped", {"appshell_variant": "jar-stripped"},
+             "kernarium_apps.jar has no classes.dex and no preoptimized odex and vdex"),
+            ("icons-app-missing", {"icons_variant": "missing"},
+             "required entries are missing: .*SYSTEM_EXT/app/KernariumIcons/KernariumIcons.apk"),
+            ("icons-app-privileged-copy", {"icons_variant": "privileged-copy"},
+             "priv-app/KernariumIcons/KernariumIcons.apk: the icon renderer is an ordinary application of app/"),
+            ("icons-app-not-an-apk", {"icons_variant": "not-an-apk"}, "KernariumIcons.apk has no readable manifest"),
+            ("icons-app-package-changed", {"icons_variant": "package-changed"},
+             "is the package com.kernarium.other, not com.kernarium.icons"),
+            ("icons-app-shared-user", {"icons_variant": "shared-user"}, "the manifest sets sharedUserId"),
+            ("icons-app-asks-a-permission", {"icons_variant": "asks-a-permission"},
+             "has uses-permission: the renderer asks for no permission"),
+            ("icons-app-asks-a-permission-from-sdk-m", {"icons_variant": "asks-a-permission-from-sdk-m"},
+             "has uses-permission-sdk-m: the renderer asks for no permission"),
+            ("icons-app-asks-a-permission-from-sdk-23", {"icons_variant": "asks-a-permission-from-sdk-23"},
+             "has uses-permission-sdk-23: the renderer asks for no permission"),
+            ("icons-provider-enabled-by-reference", {"icons_variant": "provider-enabled-by-reference"},
+             "the provider sets enabled"),
+            ("icons-provider-read-permission-by-reference", {"icons_variant": "provider-read-permission-by-reference"},
+             "the provider sets readPermission"),
+            ("icons-provider-class-changed", {"icons_variant": "provider-class-changed"},
+             "the provider is com.kernarium.icons.BackupIconProvider, not com.kernarium.icons.IconProvider"),
+            ("icons-provider-class-of-another-package", {"icons_variant": "provider-class-of-another-package"},
+             "the provider is com.example.IconProvider, not com.kernarium.icons.IconProvider"),
+            ("icons-service-class-changed", {"icons_variant": "service-class-changed"},
+             "the service is com.kernarium.icons.IconRenderServiceTwo, not com.kernarium.icons.IconRenderService"),
+            ("icons-service-app-zygote", {"icons_variant": "service-app-zygote"}, "the service sets useAppZygote"),
+            ("icons-seapp-isolated-for-another-seinfo", {"icons_variant": "seapp-isolated-for-another-seinfo"},
+             "put the icon renderer's isolated service in None, not isolated_app"),
+            ("icons-seapp-isolated-for-a-newer-target", {"icons_variant": "seapp-isolated-for-a-newer-target"},
+             "put the icon renderer's isolated service in None, not isolated_app"),
+            ("icons-app-has-an-activity", {"icons_variant": "has-an-activity"}, "has activity: the renderer asks for no permission"),
+            ("icons-app-has-a-receiver", {"icons_variant": "has-a-receiver"}, "has receiver: the renderer asks for no permission"),
+            ("icons-app-has-a-filter", {"icons_variant": "has-a-filter"}, "has intent-filter: the renderer asks for no permission"),
+            ("icons-app-second-provider", {"icons_variant": "second-provider"}, "has 2 provider elements, not 1"),
+            ("icons-provider-not-exported", {"icons_variant": "provider-not-exported"}, "the provider's exported is False, not True"),
+            ("icons-provider-open", {"icons_variant": "provider-open"},
+             "the provider's permission is None, not 'android.permission.ACCESS_CONTENT_PROVIDERS_EXTERNALLY'"),
+            ("icons-provider-other-permission", {"icons_variant": "provider-other-permission"},
+             "the provider's permission is 'android.permission.INTERACT_ACROSS_USERS'"),
+            ("icons-provider-grants-uris", {"icons_variant": "provider-grants-uris"}, "the provider sets grantUriPermissions"),
+            ("icons-provider-disabled", {"icons_variant": "provider-disabled"}, "the provider sets enabled"),
+            ("icons-provider-other-authority", {"icons_variant": "provider-other-authority"},
+             "the provider's authorities is 'com.kernarium.icon'"),
+            ("icons-provider-not-direct-boot-aware", {"icons_variant": "provider-not-direct-boot-aware"},
+             "the provider's directBootAware is None, not True"),
+            ("icons-service-not-isolated", {"icons_variant": "service-not-isolated"}, "the service's isolatedProcess is False, not True"),
+            ("icons-service-exported", {"icons_variant": "service-exported"}, "the service's exported is True, not False"),
+            ("icons-service-guarded", {"icons_variant": "service-guarded"}, "the service sets permission"),
+            ("icons-service-not-direct-boot-aware", {"icons_variant": "service-not-direct-boot-aware"},
+             "the service's directBootAware is None, not True"),
+            ("icons-application-allows-backup", {"icons_variant": "application-allows-backup"},
+             "the application's allowBackup is not false"),
+            ("icons-application-not-direct-boot-aware", {"icons_variant": "application-not-direct-boot-aware"},
+             "the application's directBootAware is not true"),
+            ("icons-application-closed-to-hidden-apis", {"icons_variant": "application-closed-to-hidden-apis"},
+             "the application's usesNonSdkApi is not true"),
+            ("icons-application-persistent", {"icons_variant": "application-persistent"}, "the application sets persistent"),
+            ("icons-app-no-target-sdk", {"icons_variant": "no-target-sdk"}, "has no integer targetSdkVersion"),
+            ("icons-app-platform-key", {"icons_variant": "platform-key"},
+             "KernariumIcons.apk is signed with 'build/make/target/product/security/platform.x509.pem'"),
+            ("icons-app-media-key", {"icons_variant": "platform-key-in-the-tree"}, "KernariumIcons.apk is signed with"),
+            ("icons-app-other-partition", {"icons_variant": "other-partition"}, "on 'system': the renderer takes the default key"),
+            ("icons-app-no-signing-line", {"icons_variant": "no-signing-line"}, "apkcerts.txt has no line for KernariumIcons.apk"),
+            ("icons-app-no-signing-table", {"icons_variant": "no-signing-table"}, "META/apkcerts.txt is missing"),
+            ("icons-seapp-by-name", {"icons_variant": "seapp-by-name"},
+             "seapp_contexts select untrusted_app for the icon renderer by name \\(com.kernarium.icons\\)"),
+            ("icons-seapp-by-prefix", {"icons_variant": "seapp-by-prefix"},
+             "seapp_contexts select kernarium_icons for the icon renderer by name \\(com.kernarium.\\*\\)"),
+            ("icons-seapp-app-domain-changed", {"icons_variant": "seapp-app-domain-changed"},
+             "put the icon renderer's provider in platform_app, not an untrusted_app domain"),
+            ("icons-seapp-privileged-domain", {"icons_variant": "seapp-privileged-domain"},
+             "put the icon renderer's provider in priv_app, not an untrusted_app domain"),
+            ("icons-seapp-isolated-changed", {"icons_variant": "seapp-isolated-changed"},
+             "put the icon renderer's isolated service in untrusted_app, not isolated_app"),
+            ("icons-seapp-no-isolated", {"icons_variant": "seapp-no-isolated"},
+             "put the icon renderer's isolated service in None, not isolated_app"),
             ("oldapp-missing-context", {"oldswitch_variant": "missing-context"},
              "is labelled default_prop, not kernarium_oldapp_prop"),
             ("oldapp-exact-context", {"oldswitch_variant": "exact-context"},
@@ -6586,6 +7690,12 @@ def verify_target_files_fixtures(verifier: Path) -> None:
         for label, options, appended in (
             ("oldapp-per-domain-reads", {"oldswitch_variant": "per-domain-reads"}, b""),
             ("oldapp-preoptimized-code", {"oldswitch_variant": "preopt-code"}, b""),
+            # The holder's right to listen on its own handoff socket, spelt with its own name as the target.
+            ("sms-handoff-holder-listens-by-its-own-name", {"sms_policy_variant": "handoff-holder-listens-by-its-own-name"}, b""),
+            # The built text message application's manifest carries the <uses-sdk> the build injects, with the
+            # platform's levels as numbers (the baseline) or as codenames, and a maximum level.
+            ("sms-uses-sdk-codenames", {"sms_service_variant": "apk-uses-sdk-codenames"}, b""),
+            ("sms-uses-sdk-max", {"sms_service_variant": "apk-uses-sdk-max"}, b""),
             # A byte that is no UTF-8 in a rule that no check looks at (a type of no check, a
             # permission none compares) is no reason to refuse the policy: the checks decode what
             # they compare, when they compare it.
@@ -7457,6 +8567,143 @@ def verify_secure_element_topic(android_root: Path) -> None:
         fail("the README does not describe the SecureElement topic (route p0024)")
 
 
+def verify_sms_holder(android_root: Path) -> None:
+    """The text message service starts on demand: the sources that produce the holder, the waker, the policy
+    and the service are what the target-files verifier looks for.
+
+    The target-files fixtures prove what the verifier rejects; this proves that the tracked sources say it:
+    the holder's policy is the socket's creation and nothing else of vsock, the waker holds none, the service
+    makes no socket, and the product carries the files the verifier requires."""
+    verifier = load_tool(android_root / "tools/verify-target-files.py")
+    overlay = android_root / "overlay"
+    private = overlay / "sepolicy/system_ext/private"
+    holder = (private / "kernarium_sms_listener.te").read_text()
+    waker = (private / "kernarium_sms_wake.te").read_text()
+    service = (private / "kernarium_sms.te").read_text()
+    for needle in (
+        "type kernarium_sms_listener, domain;",
+        "typeattribute kernarium_sms_listener coredomain;",
+        "typeattribute kernarium_sms_listener unconstrained_vsock_violators;",
+        "init_daemon_domain(kernarium_sms_listener)",
+        "allow kernarium_sms_listener self:vsock_socket { create bind listen };",
+        "allow init kernarium_sms_listener:unix_stream_socket { create bind };",
+        "allow kernarium_sms_listener self:unix_stream_socket { accept getattr getopt listen read write };",
+        "system_internal_prop(ctl_kernarium_sms_wake_prop)",
+        "set_prop(kernarium_sms_listener, ctl_kernarium_sms_wake_prop)",
+        "system_internal_prop(ctl_kernarium_sms_locked_prop)",
+        "dontaudit kernarium_sms_listener ctl_kernarium_sms_locked_prop:property_service set;",
+    ):
+        if needle not in holder:
+            fail(f"the holder's policy lacks '{needle}'")
+    for line in holder.splitlines():
+        if not line.startswith("#") and "vsock_socket" in line and "self:vsock_socket { create bind listen };" not in line:
+            fail(f"the holder's policy has a vsock rule beyond the socket's creation: {line}")
+    for needle in ("binder", "appdomain", "service_manager"):
+        if re.search(rf"^[^#\n]*{needle}", holder, re.M):
+            fail(f"the holder's policy has {needle}: it is a plain daemon and not the framework's client")
+    for needle in (
+        "type kernarium_sms_wake, domain;",
+        "typeattribute kernarium_sms_wake coredomain;",
+        "init_daemon_domain(kernarium_sms_wake)",
+        "allow kernarium_sms_wake activity_service:service_manager find;",
+        "allow kernarium_sms_wake system_server:binder transfer;",
+        "allow system_server kernarium_sms_wake:binder call;",
+        "allow system_server kernarium_sms_wake:fd use;",
+    ):
+        if needle not in waker:
+            fail(f"the waker's policy lacks '{needle}'")
+    if re.search(r"^[^#\n]*(vsock_socket|unconstrained_vsock_violators)", waker, re.M):
+        fail("the waker's policy touches a vsock socket")
+    for needle in (
+        "allow kernarium_sms kernarium_sms_listener:vsock_socket { accept read write shutdown getattr getopt };",
+        "allow kernarium_sms kernarium_sms_listener:fd use;",
+        "unix_socket_connect(kernarium_sms, kernarium_sms, kernarium_sms_listener)",
+        "typeattribute kernarium_sms unconstrained_vsock_violators;",
+        "typeattribute kernarium_sms mlstrustedsubject;",
+    ):
+        if needle not in service:
+            fail(f"the service's policy lacks '{needle}'")
+    for name, text in (("holder", holder), ("waker", waker)):
+        if re.search(r"^[^#\n]*mlstrustedsubject", text, re.M):
+            fail(f"the {name}'s policy makes it an mlstrustedsubject: it searches no directory of the user")
+    if re.search(r"^(?!neverallow)[^#\n]*self:vsock_socket", service, re.M):
+        fail("the service's policy gives it rights on a vsock socket of its own: it makes none")
+    contexts = (private / "file_contexts").read_text()
+    for path, label in (
+        (r"/(system_ext|system/system_ext)/bin/kernarium_sms_listener", "kernarium_sms_listener_exec"),
+        (r"/(system_ext|system/system_ext)/bin/kernarium_sms_wake\.sh", "kernarium_sms_wake_exec"),
+        (verifier.SMS_SOCKET_PATH, verifier.SMS_SOCKET_TYPE),
+    ):
+        if f"{path}  u:object_r:{label}:s0" not in contexts:
+            fail(f"the system_ext file contexts do not label {path} as {label}")
+    properties = (private / "property_contexts").read_text()
+    if f"{verifier.SMS_WAKE_PROPERTY}    u:object_r:{verifier.SMS_WAKE_PROPERTY_TYPE}:s0" not in properties:
+        fail("the system_ext property contexts do not label the control property that starts the waker")
+    # Every control key of the two services that the product labels carries an exact entry; all but the one the holder
+    # sets are the locked type, which nothing in the policy sources lets any domain set but init.
+    for key in verifier.SMS_CONTROL_OWN_KEYS:
+        if not verifier.property_entry_is_exact(key, properties.splitlines()):
+            fail(f"the system_ext property contexts have no exact entry for {key}")
+        wanted = verifier.SMS_WAKE_PROPERTY_TYPE if key == verifier.SMS_WAKE_PROPERTY else "ctl_kernarium_sms_locked_prop"
+        if verifier.property_label(key, properties.splitlines()) != wanted:
+            fail(f"the system_ext property contexts do not label {key} as {wanted}")
+    # The one other line that may name it is the holder's dontaudit of its own denied start of the waker (a dontaudit
+    # grants nothing).
+    if re.search(r"ctl_kernarium_sms_locked_prop", "\n".join(
+            line for line in (holder + waker + service).splitlines() if not line.lstrip().startswith("#")
+            and "system_internal_prop(ctl_kernarium_sms_locked_prop)" not in line
+            and line.strip() != "dontaudit kernarium_sms_listener ctl_kernarium_sms_locked_prop:property_service set;")):
+        fail("a policy source names ctl_kernarium_sms_locked_prop beyond its declaration: nothing sets it but init")
+    listener = overlay / "sms/listener"
+    blueprint = (listener / "Android.bp").read_text()
+    for needle in (
+        'name: "kernarium_sms_listener"',
+        'init_rc: ["kernarium_sms_listener.rc"]',
+        "system_ext_specific: true,",
+        'name: "kernarium_sms_wake_script"',
+        'src: "kernarium_sms_wake.sh"',
+    ):
+        if needle not in blueprint:
+            fail(f"overlay/sms/listener/Android.bp lacks {needle}")
+    product = (overlay / "lineage_andarium.mk").read_text()
+    for package in ("KernariumSms", "kernarium_sms_listener", "kernarium_sms_wake_script"):
+        if len(re.findall(rf"^PRODUCT_PACKAGES \+= .*\b{package}\b", product, re.M)) != 1:
+            fail(f"lineage_andarium.mk does not add {package} to PRODUCT_PACKAGES exactly once")
+    guard = (android_root / "build/build-aosp.sh").read_text()
+    for package in ("kernarium_sms_listener", "kernarium_sms_wake_script"):
+        if f'*" {package} "*' not in guard:
+            fail(f"build-aosp.sh does not guard {package}")
+    sources = overlay / "sms/src/android/kernarium/sms"
+    if (sources / "HostChannel.java").exists() or not (sources / "HostService.java").exists():
+        fail("the text message service is not the on-demand HostService")
+    for source in sorted(sources.glob("*.java")):
+        text = source.read_text()
+        if re.search(r"\bOs\.(socket|bind|listen)\(|\bnew (Server|Vsock)Socket\b", text):
+            fail(f"{source.name} makes a socket: the holder makes the vsock socket")
+    manifest = (overlay / "sms/AndroidManifest.xml").read_text()
+    if re.search(r"android:persistent|<(activity|receiver|provider|uses-permission)\b|android:name=\"\.[A-Za-z]*Application\"",
+                 re.sub(r"<!--.*?-->", "", manifest, flags=re.S)):
+        fail("the text message manifest declares more than its one service, or is persistent")
+    if len(re.findall(r"<service\b", manifest)) != 1:
+        fail("the text message manifest does not declare exactly one service")
+
+    # The waker runs its one command: with a stub for cmd, the script asks the activity manager to start the service.
+    script = listener / "kernarium_sms_wake.sh"
+    with tempfile.TemporaryDirectory(prefix="sms-wake-") as temporary:
+        stubs = Path(temporary)
+        calls = stubs / "calls"
+        (stubs / "cmd").write_text(f'#!/bin/sh\necho "cmd $*" >> {calls}\n')
+        (stubs / "cmd").chmod(0o755)
+        result = subprocess.run(["/bin/sh", str(script)], env={"PATH": f"{stubs}:/usr/bin:/bin"},
+                                capture_output=True, text=True)
+        if result.returncode != 0 or result.stdout or result.stderr:
+            fail(f"the waker's script exited {result.returncode} with output {result.stdout!r} {result.stderr!r}")
+        if calls.read_text().splitlines() != ["cmd activity start-service --user 0 -n android.kernarium.sms/.HostService"]:
+            fail(f"the waker's script ran {calls.read_text().splitlines()}")
+    if verifier.SMS_WAKE_COMMAND not in script.read_text():
+        fail("the waker's script is not the command the verifier requires")
+
+
 def verify_reclaim_boot_apps(android_root: Path) -> None:
     """The reclaim script kills only the cached processes of the listed packages.
 
@@ -7497,9 +8744,15 @@ def verify_reclaim_boot_apps(android_root: Path) -> None:
     product = (android_root / "overlay/lineage_andarium.mk").read_text()
     if len(re.findall(r"^PRODUCT_PACKAGES \+= kernarium_reclaim_boot_apps_script$", product, re.M)) != 1:
         fail("lineage_andarium.mk does not add the reclaim script to PRODUCT_PACKAGES exactly once")
-    verifier.check_reclaim_boot_apps((tools / "kernarium_reclaim_boot_apps.rc").read_text(), script.read_bytes())
+    reclaim_rc = (tools / "kernarium_reclaim_boot_apps.rc").read_text()
+    verifier.check_reclaim_boot_apps(reclaim_rc, script.read_bytes())
+    script_text = script.read_text()
+    packages = [entry[0] for entry in verifier.RECLAIM_APPS]
 
-    lru = "\n".join((
+    def listing(*rows: str) -> str:
+        return "\n".join(("ACTIVITY MANAGER LRU PROCESSES (dumpsys activity lru)", "  Other:", *rows)) + "\n"
+
+    base = "\n".join((
         "ACTIVITY MANAGER LRU PROCESSES (dumpsys activity lru)",
         "  Activities:",
         "  #30: fg       TOP  LCMNFUATI 1155:com.android.launcher3/u0a86 act:activities|recents",
@@ -7509,57 +8762,230 @@ def verify_reclaim_boot_apps(android_root: Path) -> None:
         "  #28: vis      BFGS LCMNFUATI 1321:android.ext.services/u0a104",
         # cached, one digit index
         "  # 9: cch  +15 CEM  --------- 1583:com.android.localtransport/1000",
-        # a started service: `kill` would take it, so the package is left alone
+        # a started service: the activity manager would end it, so the package is left alone
         "  #20: svc      SVC  --------- 1800:com.android.rkpdapp/u0a121",
         "  #21: cch  + 5 CEM  --------- 1840:com.android.statementservice/u0a89",
-        # not cached and `kill` leaves it: nothing to reclaim
+        # not cached and the activity manager leaves it: nothing to reclaim
         "  #22: prcp + 1 IMPB -------TI 1632:com.stevesoltys.seedvault/u0a85",
         # not listed
         "  #23: cch  + 5 CEM  --------- 1999:com.example.unlisted/u0a200",
         "  #24: cch  + 5 CEM  --------- 1744:com.android.ondevicepersonalization.services.extra/u0a113",
-    ))
-    with tempfile.TemporaryDirectory(prefix="reclaim-script-") as temporary:
-        stubs = Path(temporary)
-        calls = stubs / "calls"
-        for name, body in {
-            "dumpsys": f'[ "$*" = "activity lru" ] || exit 2\ncat {stubs}/lru\n',
-            "cmd": f'echo "cmd $*" >> {calls}\necho Killed\n',
-            "log": f'echo "log $*" >> {calls}\n',
-            "sleep": f'echo "sleep $*" >> {calls}\n',
-        }.items():
-            (stubs / name).write_text("#!/bin/sh\n" + body)
-            (stubs / name).chmod(0o755)
-        (stubs / "lru").write_text(lru + "\n")
-        env = {"PATH": f"{stubs}:/usr/bin:/bin"}
-        result = subprocess.run(["/bin/sh", str(script)], env=env, capture_output=True, text=True)
-        if result.returncode != 0:
-            fail(f"the reclaim script exited {result.returncode}: {result.stderr}")
-        recorded = calls.read_text().splitlines()
-        if recorded[0] != "sleep 120":
-            fail(f"the reclaim script does not wait 120 s first: {recorded[:1]}")
-        kills = [line for line in recorded if line.startswith("cmd ")]
-        expected = [
-            "cmd activity kill --user 0 android.ext.services",
-            "cmd activity kill --user 0 com.android.localtransport",
-            "cmd activity kill --user 0 com.android.statementservice",
-        ]
-        if kills != expected:
-            fail(f"the reclaim script killed {kills}, not {expected}")
-        text = "\n".join(recorded)
-        for needle in (
+        # Messaging, cached since its boot receiver ran
+        "  #31: cch  + 7 CEM  --------- 1870:com.android.messaging/u0a95",
+        # the SMS provider's process is not named after its package
+        "  #32: cch  + 8 CEM  --------- 1860:com.android.phone/1001",
+        # the icon renderer's provider, cached after the last listing; its isolated worker is another process
+        "  #33: cch  + 9 CEM  --------- 1900:com.kernarium.icons/u0a30",
+        "  #34: cch  +10 CEM  --------- 1901:com.kernarium.icons:IconRenderService/u0i1",
+    )) + "\n"
+    # (name, listings, expected kills, log lines). The listings are what `dumpsys activity lru` answers to the 1st,
+    # 2nd, ... call; the last one answers every later call.
+    scenarios = (
+        ("the cached processes of the listed packages", [base], [
+            "android.ext.services", "com.android.localtransport", "com.android.statementservice",
+            "com.android.messaging", "com.android.providers.telephony", "com.kernarium.icons"], [
             "com.android.rkpdapp left alone, not cached: com.android.rkpdapp:svc",
             "com.stevesoltys.seedvault has no cached process (kept: com.stevesoltys.seedvault:prcp)",
-            "android.ext.services killed cached .adservices (kept: android.ext.services:vis)",
+            "android.ext.services asked to end cached .adservices (kept: android.ext.services:vis)",
             "com.android.federatedcompute.services has no cached process (kept: none)",
-        ):
-            if needle not in text:
-                fail(f"the reclaim script did not log '{needle}': {text}")
+            "com.android.messaging asked to end cached com.android.messaging (kept: none)",
+            "com.android.providers.telephony asked to end cached com.android.phone (kept: none)",
+            "com.kernarium.icons asked to end cached com.kernarium.icons (kept: none)"]),
+        # An icon renderer that a listing holds (the shell tool's hold on its provider keeps the process above cached)
+        # is left alone, and Messaging in the foreground is too.
+        ("a held renderer and a foreground Messaging", [listing(
+            "  #33: fg       FGS  --------- 1900:com.kernarium.icons/u0a30",
+            "  #34: cch  +10 CEM  --------- 1901:com.kernarium.icons:IconRenderService/u0i1",
+            "  #35: fg       TOP  LCMNFUATI 1870:com.android.messaging/u0a95 act:activities|recents")], [], [
+            "com.kernarium.icons has no cached process (kept: com.kernarium.icons:fg)",
+            "com.android.messaging has no cached process (kept: com.android.messaging:fg)"]),
+        # The process name is compared whole: another application's private process is named
+        # <its package>:<name>, and it neither makes the provider's process look busy nor cached.
+        ("another application's private process named like the provider's, in the foreground, listed first", [listing(
+            "  #40: fg       SVC  --------- 2300:com.example.app:com.android.phone/u0a200",
+            "  #32: cch  + 8 CEM  --------- 1860:com.android.phone/1001")], ["com.android.providers.telephony"], [
+            "com.android.providers.telephony asked to end cached com.android.phone (kept: none)"]),
+        ("another application's private process named like the provider's, cached, listed first", [listing(
+            "  #40: cch  + 5 CEM  --------- 2300:com.example.app:com.android.phone/u0a200",
+            "  #32: prev     LAST --------I 1860:com.android.phone/1001")], [], [
+            "com.android.providers.telephony left alone, not cached: com.android.phone:prev"]),
+        # Only user 0's rows count: the kill is for user 0.
+        ("another user's cached Messaging listed before user 0's previous Messaging", [listing(
+            "  #40: cch  + 5 CEM  --------- 2400:com.android.messaging/u10a86",
+            "  #26: prev     LAST --------I 1870:com.android.messaging/u0a95")], [], [
+            "com.android.messaging left alone, not cached: com.android.messaging:prev"]),
+        ("another user's previous Messaging listed before user 0's cached Messaging", [listing(
+            "  #40: prev     LAST --------I 2400:com.android.messaging/u10a86",
+            "  #26: cch  + 7 CEM  --------- 1870:com.android.messaging/u0a95")], ["com.android.messaging"], [
+            "com.android.messaging asked to end cached com.android.messaging (kept: none)"]),
+        # Every row of the process counts: one that is not cached keeps the package, whatever comes first.
+        ("two user 0 rows of a process, the cached one first", [listing(
+            "  #40: cch  + 5 CEM  --------- 2500:com.android.messaging/u0a99",
+            "  #26: svc      SVC  --------- 1870:com.android.messaging/u0a95")], [], [
+            "com.android.messaging left alone, not cached: com.android.messaging:svc"]),
+        # A process name counts as cached only when every user 0 row that has it is cached: another uid's process that
+        # took the name must not stand for the real one, whichever row comes first.
+        ("the real Messaging in the foreground listed first, another uid's cached row of the same name after", [listing(
+            "  #35: fg       TOP  LCMNFUATI 1870:com.android.messaging/u0a95 act:activities|recents",
+            "  #40: cch  + 5 CEM  --------- 2300:com.android.messaging/u0a99")], [], [
+            "com.android.messaging has no cached process (kept: com.android.messaging:fg)"]),
+        ("another uid's cached row of the name of Messaging first, the real one in the foreground after", [listing(
+            "  #40: cch  + 5 CEM  --------- 2300:com.android.messaging/u0a99",
+            "  #35: fg       TOP  LCMNFUATI 1870:com.android.messaging/u0a95 act:activities|recents")], [], [
+            "com.android.messaging has no cached process (kept: com.android.messaging:fg)"]),
+        ("the provider's process perceptible beside another uid's cached row of its name", [listing(
+            "  #32: prcp + 1 IMPB -------TI 1860:com.android.phone/1001",
+            "  #40: cch  + 5 CEM  --------- 3000:com.android.phone/u0a200")], [], [
+            "com.android.providers.telephony has no cached process (kept: com.android.phone:prcp)"]),
+        # The one kill is the package's: cached processes of sibling packages and of private processes do not add to it.
+        ("the reviewed packages cached together with siblings by prefix", [listing(
+            "  #31: cch  + 7 CEM  --------- 1870:com.android.messaging/u0a95",
+            "  #32: cch  + 8 CEM  --------- 1860:com.android.phone/1001",
+            "  #40: cch  + 5 CEM  --------- 2600:com.android.messaging.demo/u0a97",
+            "  #41: cch  + 5 CEM  --------- 2602:com.android.phone.helper/u0a99",
+            "  #42: cch  + 5 CEM  --------- 2603:com.android.messaging:push/u0a95")],
+         ["com.android.messaging", "com.android.providers.telephony"], [
+            "com.android.messaging asked to end cached com.android.messaging (kept: none)",
+            "com.android.providers.telephony asked to end cached com.android.phone (kept: none)"]),
+        # A package or a process name that only starts or ends like a listed one is not that process.
+        ("processes whose names start or end like a listed process", [listing(
+            "  #40: cch  + 5 CEM  --------- 2600:com.android.messaging.demo/u0a97",
+            "  #41: cch  + 5 CEM  --------- 2601:org.example.com.android.messaging/u0a98",
+            "  #42: cch  + 5 CEM  --------- 2602:com.android.phone.helper/u0a99",
+            "  #43: cch  + 5 CEM  --------- 2603:x.com.android.phone/u0a99")], [], [
+            "com.android.messaging has no cached process (kept: none)",
+            "com.android.providers.telephony has no cached process (kept: none)"]),
+        # Each package is decided from a listing made for it: Messaging is cached in the first listing and the
+        # previous app in every later one.
+        ("a process that leaves the cached state after the first listing", [listing(
+            "  #31: cch  + 7 CEM  --------- 1870:com.android.messaging/u0a95",
+            "  #32: cch  + 8 CEM  --------- 1860:com.android.phone/1001"), listing(
+            "  #31: prev     LAST --------I 1870:com.android.messaging/u0a95",
+            "  #32: cch  + 8 CEM  --------- 1860:com.android.phone/1001")], ["com.android.providers.telephony"], [
+            "com.android.messaging left alone, not cached: com.android.messaging:prev"]),
         # No process list, no kills.
-        (stubs / "lru").write_text("")
-        calls.unlink()
-        result = subprocess.run(["/bin/sh", str(script)], env=env, capture_output=True, text=True)
-        if result.returncode == 0 or any(line.startswith("cmd ") for line in calls.read_text().splitlines()):
-            fail("the reclaim script acts without a process list")
+        ("no process list", [""], [], [f"{package} left alone: no process list" for package in packages]),
+    )
+
+    def run_reclaim(text: str, listings: list[str]) -> tuple[int, list[str], list[str], list[str], int]:
+        """The script on stub tools. dumpsys answers each call with the next listing; cmd records the kill it is
+        asked for and log what the script says. A tool that ends a process and that the script has no business
+        with is a stub that records the call and fails, first in PATH, and the shell's own kill is a function: a
+        mutated script never runs the host's tools."""
+        with tempfile.TemporaryDirectory(prefix="reclaim-script-") as temporary:
+            stubs = Path(temporary)
+            calls = stubs / "calls"
+            for number, answer in enumerate(listings, 1):
+                (stubs / f"lru.{number}").write_text(answer)
+            bodies = {
+                "dumpsys": (
+                    '[ "$*" = "activity lru" ] || exit 2\n'
+                    f'echo "dumpsys $*" >> {calls}\n'
+                    f'n=$(cat {stubs}/count 2>/dev/null || echo 0); n=$((n + 1)); echo $n > {stubs}/count\n'
+                    f'last={len(listings)}; [ $n -le $last ] || n=$last\n'
+                    f'cat {stubs}/lru.$n\n'),
+                "cmd": f'echo "cmd $*" >> {calls}\necho Killed\n',
+                "log": f'echo "log $*" >> {calls}\n',
+                "sleep": f'echo "sleep $*" >> {calls}\n',
+            }
+            for name in ("kill", "pkill", "killall", "pidof", "ps", "am", "toybox", "toolbox"):
+                bodies[name] = f'echo "FORBIDDEN {name} $*" >> {calls}\nexit 99\n'
+            for name, body in bodies.items():
+                (stubs / name).write_text("#!/bin/sh\n" + body)
+                (stubs / name).chmod(0o755)
+            wrapper = (f'kill() {{ echo "FORBIDDEN kill $*" >> {calls}; return 99; }}; . "$1"')
+            (stubs / "script.sh").write_text(text)
+            result = subprocess.run(["/bin/sh", "-c", wrapper, "sh", str(stubs / "script.sh")],
+                                    env={"PATH": f"{stubs}:/usr/bin:/bin"}, capture_output=True, text=True,
+                                    input="", cwd=temporary)
+            recorded = calls.read_text().splitlines() if calls.exists() else []
+            kills = [line for line in recorded if line.startswith("cmd activity kill --user 0 ")]
+            other = [line for line in recorded if line.startswith("cmd ") and not line.startswith("cmd activity kill --user 0 ")]
+            forbidden = [line for line in recorded if line.startswith("FORBIDDEN")] + other
+            listings_taken = sum(1 for line in recorded if line.startswith("dumpsys "))
+            return result.returncode, kills, recorded, forbidden, listings_taken
+
+    def reclaim_problem(text: str, first_only: bool = False) -> str | None:
+        """What the script does wrong on the scenarios (all of them, one line each; with first_only up to the first
+        scenario that goes wrong), or None."""
+        problems = []
+        for name, listings, expected, needles in scenarios:
+            if first_only and problems:
+                break
+            code, kills, recorded, forbidden, taken = run_reclaim(text, listings)
+            joined = "\n".join(recorded)
+            if forbidden:
+                problems.append(f"{name}: the script ran something outside the reviewed kill: {forbidden}")
+            if recorded[:1] != ["sleep 120"]:
+                problems.append(f"{name}: the script does not wait 120 s first: {recorded[:1]}")
+            # The complete call, so that a second package or an extra word in the one command is a failure.
+            wanted = [f"cmd activity kill --user 0 {package}" for package in expected]
+            if kills != wanted:
+                problems.append(f"{name}: the script asked for {kills}, not {wanted}")
+            if name == "no process list":
+                if code == 0:
+                    problems.append(f"{name}: the script exits 0 without a process list")
+            elif code != 0:
+                problems.append(f"{name}: the script exited {code}")
+            for needle in needles:
+                if needle not in joined:
+                    problems.append(f"{name}: the script did not log '{needle}'")
+            if "killed cached" in joined:
+                problems.append(f"{name}: the script claims a kill that only the activity manager can say happened")
+            # One listing for each package, taken for it.
+            if taken != len(packages):
+                problems.append(f"{name}: the script took {taken} listings for {len(packages)} packages")
+        return "\n  ".join(problems) or None
+
+    problem = reclaim_problem(script_text)
+    if problem:
+        fail(f"the reclaim script:\n  {problem}")
+
+    # Every mutation of the script that the review named must fail the verifier or a scenario above. A fix that no
+    # test would notice losing is not held.
+    kill_line = 'out=$(cmd activity kill --user 0 "$pkg" 2>&1 </dev/null)'
+    mutations = {
+        "an extra pkill by pattern": (kill_line, 'pkill -0 -f "^never-$pkg-x$"\n        ' + kill_line),
+        "an extra kill of the pid of a package": (kill_line, 'kill -TERM $(pidof "$pkg")\n        ' + kill_line),
+        "an extra am command": (kill_line, 'am kill "$pkg"\n        ' + kill_line),
+        "a second assignment to the list": (
+            "tag=kernarium_reclaim_boot_apps\n",
+            'reclaim_list="$reclaim_list\ncom.example.extra com.example.extra"\ntag=kernarium_reclaim_boot_apps\n'),
+        "a process name matched by its end": (
+            '[ "$row_name" = "$proc" ]', '[ "${row_name%"$proc"}" != "$row_name" ]'),
+        "a process name matched by its start": (
+            '[ "$row_name" = "$proc" ]', '[ "${row_name#"$proc"}" != "$row_name" ]'),
+        "rows of every user": ('[ -n "$row_user0" ]', "true"),
+        "the first row of a process decides": (
+            '                *) kept="$kept $proc:$label"; not_cached=1 ;;\n            esac\n',
+            '                *) kept="$kept $proc:$label"; not_cached=1 ;;\n            esac\n            break\n'),
+        "a log line that claims a kill": ("asked to end cached", "killed cached"),
+        "a cached row of the name stands although another row of it is not cached": (
+            'if [ -n "$is_cached" ] && [ -z "$not_cached" ]; then', 'if [ -n "$is_cached" ]; then'),
+        "the package named twice in the one kill": (kill_line, kill_line.replace('"$pkg" 2>&1', '"$pkg" "$pkg" 2>&1')),
+        "a loop over the cached siblings around the one kill": [
+            ('    cached=""\n', '    cached=""\n    siblings=""\n'),
+            ('            parse_row "$line"\n',
+             '            parse_row "$line"\n            case "$row_name:$label" in\n'
+             '                "$pkg".*:cch*) siblings="$siblings $row_name" ;;\n            esac\n'),
+            (kill_line, 'for pkg in "$pkg" $siblings; do\n            ' + kill_line + '\n        done')],
+        "one listing for every package": (
+            "lru=$(dumpsys activity lru 2>/dev/null </dev/null)",
+            '[ -n "$lru" ] || lru=$(dumpsys activity lru 2>/dev/null </dev/null)'),
+    }
+    for title, edits in mutations.items():
+        mutated = script_text
+        for old, new in (edits if isinstance(edits, list) else [edits]):
+            if old not in mutated:
+                fail(f"the reclaim script lacks '{old}' for the mutation '{title}'")
+            mutated = mutated.replace(old, new, 1)
+        try:
+            verifier.check_reclaim_boot_apps(reclaim_rc, mutated.encode())
+            caught = reclaim_problem(mutated, first_only=True)
+        except (SystemExit, Exception) as problem_found:  # the verifier's fail() raises its own error
+            caught = f"the verifier: {problem_found}"
+        if not caught:
+            fail(f"neither the verifier nor the scenarios notice: {title}")
 
 
 def verify_time_zone(android_root: Path) -> None:
@@ -10278,6 +11704,7 @@ def main() -> None:
     verify_decoder_output_delay_topic(android_root)
     verify_secure_element_topic(android_root)
     verify_reclaim_boot_apps(android_root)
+    verify_sms_holder(android_root)
     verify_time_zone(android_root)
     verify_keyboard_default(android_root)
     verify_default_wallpaper(android_root)

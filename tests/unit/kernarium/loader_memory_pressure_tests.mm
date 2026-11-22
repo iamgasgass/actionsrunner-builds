@@ -155,7 +155,7 @@ void tableTests()
     check(!validApi(&api, KERNARIUM_RUNTIME_GUEST_ANDROID), "a table of another guest flavor was taken");
     check(!validApi(nullptr, KERNARIUM_RUNTIME_GUEST_LINUX), "a null table was taken");
 
-    for (const uint32_t version : {39U, 40U, 41U, 42U, KERNARIUM_RUNTIME_API_VERSION + 1U}) {
+    for (const uint32_t version : {39U, 40U, 41U, 42U, 43U, 44U, 45U, KERNARIUM_RUNTIME_API_VERSION + 1U}) {
         api = fullTable(version);
         check(!validApi(&api, KERNARIUM_RUNTIME_GUEST_LINUX), "a table of another version was taken");
     }

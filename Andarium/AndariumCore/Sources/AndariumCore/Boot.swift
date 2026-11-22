@@ -166,8 +166,17 @@ public struct BootTracker: Equatable, Sendable {
 /// until Android reports `sys.boot_completed` (or Recovery is up). `count` is
 /// past the last. Preparing the guest's disk is the first step: it writes the
 /// system the application carries.
+///
+/// A start with root that has to put the Magisk app in the guest has a fifth,
+/// `rootAppStep`, which comes after Startup and is added only when Android's
+/// boot is done and the guest says the app is to be installed; the four steps'
+/// `count` is the same for every other start.
 public enum BootSteps {
     public static let count = 4
+    /// The index of the Magisk app step, and the number of steps of a start
+    /// that has it.
+    public static let rootAppStep = 4
+    public static let countWithRootApp = 5
 
     /// The step's name in English, for the text a report carries (the screen
     /// has its own, in the person's language).
@@ -176,6 +185,7 @@ public enum BootSteps {
         case 0: "System image"
         case 1: "Linux kernel"
         case 2: "Storage"
+        case rootAppStep: "Magisk app"
         default: recovery ? "Recovery" : "Startup"
         }
     }

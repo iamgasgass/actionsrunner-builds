@@ -6,24 +6,24 @@ package android.system;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 
-/** The calls the glue makes, each handed to the test's {@link Backend}. */
+/**
+ * The calls the glue makes, each handed to the test's {@link Backend}. What is public here is the platform's
+ * public API, with its signatures, and nothing else: the service is compiled against the platform's stubs, which
+ * leave out everything @hide. A hidden member is declared without {@code public}, so that code outside
+ * android.system cannot call it (javac refuses, as the image's compile does) and reflection still finds it.
+ * Socket, bind and listen are not here at all: the service never makes or binds a socket (the holder of the port
+ * does), so a call to one does not compile. test_sms_service.py holds the list of what is public.
+ */
 public final class Os {
     private Os() {}
 
     /** What a test scripts: the world the calls see. */
     public interface Backend {
-        FileDescriptor socket(int domain, int type, int protocol) throws ErrnoException;
-
-        void bind(FileDescriptor fd, SocketAddress address) throws ErrnoException, SocketException;
-
-        void listen(FileDescriptor fd, int backlog) throws ErrnoException;
-
         FileDescriptor accept(FileDescriptor fd, SocketAddress peer) throws ErrnoException, SocketException;
-
-        SocketAddress getpeername(FileDescriptor fd) throws ErrnoException;
 
         int poll(StructPollfd[] fds, int timeoutMillis) throws ErrnoException;
 
@@ -40,24 +40,24 @@ public final class Os {
 
     public static volatile Backend backend;
 
-    public static FileDescriptor socket(int domain, int type, int protocol) throws ErrnoException {
-        return backend.socket(domain, type, protocol);
+    /** The public overload: the platform fills an InetSocketAddress only; null asks for no address. */
+    public static FileDescriptor accept(FileDescriptor fd, InetSocketAddress peerAddress)
+            throws ErrnoException, SocketException {
+        return backend.accept(fd, peerAddress);
     }
 
-    public static void bind(FileDescriptor fd, SocketAddress address) throws ErrnoException, SocketException {
-        backend.bind(fd, address);
+    /** @hide on the platform: the overload that fills a VmSocketAddress. Reached by reflection only. */
+    static FileDescriptor accept(FileDescriptor fd, SocketAddress peerAddress) throws ErrnoException, SocketException {
+        return backend.accept(fd, peerAddress);
     }
 
-    public static void listen(FileDescriptor fd, int backlog) throws ErrnoException {
-        backend.listen(fd, backlog);
-    }
-
-    public static FileDescriptor accept(FileDescriptor fd, SocketAddress peer) throws ErrnoException, SocketException {
-        return backend.accept(fd, peer);
-    }
-
+    /**
+     * What the guest's libjavacore does for an AF_VSOCK socket: it converts the address of getsockname and
+     * getpeername for AF_UNIX, AF_INET, AF_INET6, AF_NETLINK and AF_PACKET only, and fails for any other
+     * family. No test can script it to answer: a peer's CID comes from the address that accept fills.
+     */
     public static SocketAddress getpeername(FileDescriptor fd) throws ErrnoException {
-        return backend.getpeername(fd);
+        throw new IllegalArgumentException("unsupported ss_family: " + OsConstants.AF_VSOCK);
     }
 
     public static int poll(StructPollfd[] fds, int timeoutMillis) throws ErrnoException {

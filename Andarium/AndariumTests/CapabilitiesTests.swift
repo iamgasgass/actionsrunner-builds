@@ -273,7 +273,6 @@ struct CapabilitiesFlowTests {
         #expect(s.model.guest?.location == false && s.model.guest?.microphone == false)
     }
 
-    #if !APP_STORE
     /// A harness launch that silences haptics runs as if the switch were off:
     /// the device plays nothing, and the person's choice, as shown and as
     /// stored, is not touched, whether the switch is turned meanwhile or not.
@@ -322,7 +321,6 @@ struct CapabilitiesFlowTests {
         // A view with no model (a preview) plays as it always did.
         #expect(InterfaceFeedback.playing(.selection, in: nil) == .selection)
     }
-    #endif
 
     @Test func aGuestStoredBeforeTheSwitchReadsAsOn() throws {
         let old = Data(#"{"cores":2,"memoryMiB":1024,"capacityGiB":8,"microphone":false,"includeInBackups":false}"#.utf8)

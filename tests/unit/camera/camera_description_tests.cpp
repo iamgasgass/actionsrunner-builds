@@ -763,6 +763,16 @@ void testHostMemoryReserve()
     const auto system = uml::platform::systemCameraStillWorkingBytesPerPixel;
     require(CameraUse {}.stillWorkingBytesPerPixel == system && system == 2, "the ceiling holds the system camera's working storage");
     require(small.stills == jpegCaptureBytes(pixels, system) + rawCaptureBytes(pixels), "the fullest capture: a JPEG with a RAW");
+    // The still the host turns half around holds its encoder's buffers beside the file; the front camera's largest, which
+    // is turned, costs the more for them and is still inside what the ceiling admits, with no RAW still to share it.
+    const auto turned = uml::platform::systemCameraTurnedStillWorkingBytesPerPixel;
+    require(turned == 4, "four bytes a pixel for the encoder's frame and its image");
+    for (const auto tier : {CameraTier::small, CameraTier::large}) {
+        const auto frontStill = jpegCaptureBytes(uml::platform::frontStillMaximumPixels, system + turned);
+        require(frontStill > jpegCaptureBytes(uml::platform::frontStillMaximumPixels, system), "a turned still costs more");
+        require(frontStill <= stillAdmissionBytes(limitsOf(tier), CameraUse {2, false, system}),
+                "and the ceiling of a tier admits it whatever else it holds");
+    }
     require(small.total() == 53'084'160ull + 3'110'400ull + 9'953'280ull + small.stills, "the parts add up");
     require(cameraHostMemoryReserveMiB(CameraTier::small) == 197, "196.31 MiB, rounded up");
     // The ceiling is the fullest use: both cameras streaming together and a RAW still. A use that holds less is less.

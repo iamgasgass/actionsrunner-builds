@@ -165,7 +165,9 @@ extension TwoDiskStorage {
     /// The restore's step on the guest's choices: the data disk is now the
     /// snapshot's, so the capacity is at least its size (a larger pending
     /// growth stays), and the guest's backup policy is applied again, because
-    /// the clone carried the snapshot's exclusion. `guest` is the choices in
+    /// the clone carried the snapshot's exclusion. What the application
+    /// remembers of the Magisk app is forgotten too, since the snapshot may
+    /// not have the app (`RootState.dataDiskReplaced`). `guest` is the choices in
     /// memory, or nil to read them from disk; with none there is nothing to
     /// settle.
     private func settle(_ guest: Guest?, after record: SnapshotRecord) throws -> Guest? {
@@ -176,6 +178,7 @@ extension TwoDiskStorage {
         guard var settled = current else { return nil }
         settled.capacityGiB = max(settled.capacityGiB, record.diskGiB)
         if let pending = settled.pendingCapacityGiB, pending <= settled.capacityGiB { settled.pendingCapacityGiB = nil }
+        settled.root.dataDiskReplaced()
         try save(settled)
         return settled
     }

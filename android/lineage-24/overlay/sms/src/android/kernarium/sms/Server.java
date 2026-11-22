@@ -23,13 +23,13 @@ final class Server implements Runnable {
 
     /** Where connections come from. */
     interface Listener {
-        /** Waits for the next connection. */
+        /** Waits for the next connection; null when there will be none, which ends the server. */
         Conn accept() throws IOException;
     }
 
     /** One accepted connection. Every wait ends at the deadline it is given, with an IOException. */
     interface Conn {
-        /** The peer's CID; throws when the peer is not a vsock address. */
+        /** The peer's CID, as the accept reported it; throws when the accept reported none. */
         int peerCid() throws Exception;
 
         /** Reads 1 to {@code length} bytes; 0 at the end of the stream. */
@@ -55,6 +55,7 @@ final class Server implements Runnable {
     private final LongSupplier clock;
     private final long retryMillis;
     private long refusals;
+    private long unaddressed;
 
     Server(Listener listener, Handler handler, Consumer<String> log, LongSupplier clock, long retryMillis) {
         this.listener = listener;
@@ -64,11 +65,12 @@ final class Server implements Runnable {
         this.retryMillis = retryMillis;
     }
 
+    /** Serves until the listener has no more connections to give, or the thread is interrupted. */
     @Override
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                serveOne();
+                if (!serveOne()) return;
             } catch (IOException | RuntimeException e) {
                 log.accept("host channel: " + e.getClass().getSimpleName());
                 try {
@@ -80,14 +82,16 @@ final class Server implements Runnable {
         }
     }
 
-    /** Accepts one connection and serves it to completion. */
-    void serveOne() throws IOException {
+    /** Accepts one connection and serves it to completion; false when the listener gave none, for good. */
+    boolean serveOne() throws IOException {
         final Conn conn = listener.accept();
+        if (conn == null) return false;
         try {
             serve(conn);
         } finally {
             conn.close();
         }
+        return true;
     }
 
     private void serve(Conn conn) {
@@ -95,7 +99,12 @@ final class Server implements Runnable {
         try {
             cid = conn.peerCid();
         } catch (Exception e) {
-            return; // not a vsock peer: fail closed, nothing read, nothing written
+            // No peer address: fail closed, nothing read, nothing written. Logged for the first connection, then
+            // one in 256, so that a connection that never gets served is never silent.
+            if (unaddressed++ % 256 == 0) {
+                log.accept("refused a connection with no peer address: " + e.getClass().getSimpleName());
+            }
+            return;
         }
         if (cid != HOST_CID) {
             if (refusals++ % 256 == 0) log.accept("refused a connection from CID " + Integer.toUnsignedString(cid));

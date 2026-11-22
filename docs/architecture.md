@@ -76,8 +76,29 @@ never returns address space while the process lives: the first run reserves it
 once (`runtime::reserve_process_native_window`) and every later run takes the
 same window. Guest pages are mapped over it with `MAP_FIXED`, and releasing one
 hands its range back as a reservation, never with `munmap`, which would let an
-unrelated `mmap(NULL)` take the gap. Guest RAM that a host-service view still
-borrows stays mapped until the last view is released. The linear physical window
+unrelated `mmap(NULL)` take the gap. Before the kernel starts, a run checks the
+geometry of the guest's size and reserves its window, and then the process's
+heap region (`runtime::reserve_process_heap`), whose first block the kernel's
+mapping takes; no host's placement of the window is displaced by the region,
+and a size with no layout reserves nothing. A start refused the region leaves the
+process's window as it was before the start: what the start reserved for itself
+(the window's growth, or a new window beside the held one) is given back and
+nothing else (`runtime::undo_process_window`), so that a smaller guest tried
+next has its room and the signed kernel text an earlier load kept stays where
+it is; a region once reserved stays. The run
+then maps its RAM beyond the first 64 MiB of the window (the kernel image and
+its reserved prefix, where a signed text alias of an earlier guest is
+permanent) as the kernel will and hands the range back to the reservation
+(`runtime::native_guest_memory_mappable`); a refusal of that trial keeps the
+window and the region. A host that will not reserve the window or the region or
+map the RAM ends the run with `-UML_EMULATOR_OUT_OF_MEMORY`, which leaves the
+process's guest unspent, where the kernel would end the process, and marks the
+run of that handle (`emulator/src/start_refusal.hpp`): the same status also
+comes from a failed allocation of the library's own, so the Kernarium runtime
+returns its own result (`KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED`) for a
+marked run of its handle alone, whatever another handle's run did. Guest
+RAM that a host-service view still borrows stays mapped until the last view is
+released. The linear physical window
 is the anonymous RAM root; consumers borrow it or create non-copying Mach
 aliases, and disks stay file-backed.
 
@@ -186,9 +207,18 @@ signed 14 GiB envelope (`device_window_guest_memory_maximum_mib`, pinned by the
 layout tests against `runtime/native_kernel_layout.hpp`), and the host's RAM
 (at most 1 TiB, the largest limit a launch states) in a macOS window, which a
 Mac and an iOS application on a Mac use; where the host sets no limit `G_max`
-is C. A run starts exactly the sizes from 512 MiB through C in 64 MiB steps
-(`guest_memory_admitted`, with `process_guest_memory_ceiling_mib` for a
-process): the runtime refuses any other, and the loader answers both
+is C. In an iOS application signed without Extended Virtual Addressing C is also
+held to the address space the process has: the system gives such an application
+one run of a few GiB (its highest mappable address is under 512 GiB), and the
+guest's window (`native_window_bytes`) and the process's heap region (1 GiB,
+`memory/heap_region_size.hpp`, which has no other hole of that size there) must
+fit in it. The loader measures the run once at launch, for that process alone
+(`platform/apple/os_address_space.hpp`: the Simulator, a macOS process and an
+entitled application are not measured and are answered as they always were), and
+`address_space_guest_memory_mib` turns it into the largest RAM that fits, which
+bounds C, the offered sizes and the defaults alike. A run starts exactly the sizes from 512 MiB through C in
+64 MiB steps (`guest_memory_admitted`, with `process_guest_memory_ceiling_mib`
+for a process): the runtime refuses any other, and the loader answers both
 applications with the same two functions. The settings of Kernarium and
 Andarium offer no more than `G_max(v)` under a set that counts none of A,
 E_rest and S (`maximum_memory_set`), so every size they offer is one a run
@@ -343,12 +373,9 @@ The region is sized from the process's JIT cache budget, which is the gadget
 cache's term of the guest memory budget (executors times the arena, the tracked
 store and the single-instruction arena), so the GPU budget and the memory limit
 do not move; a process prepares it once, for the guest memory and vCPU count of
-its first run. Only the development configurations compile it
-(`UML_IOS_DEBUGGER_JIT`): the App Store runtime has no JIT engine, no owner and
-no entry, Andarium's JIT row and the loader's preparation entries are compiled
-out of its application, and `check-app-store-bundle.py` refuses the symbols,
-text and the `brk` instruction. A start that cannot have the JIT runs on
-gadgets and says why; it never fails. Andarium asks for the preparation through
+its first run. Only the iOS device product compiles it
+(`UML_IOS_DEBUGGER_JIT`). A start that cannot have the JIT runs on gadgets and
+says why; it never fails. Andarium asks for the preparation through
 runtime API 30 (`prepare_jit`, `use_jit`) as it opens, because StikDebug spins
 until it is served and is ended by the system within a minute; the region then
 sits wired until the process ends, and a run that does not use it (the JIT is
@@ -376,9 +403,13 @@ translated by its engines, never loaded. Kernarium's app embeds every selectable
 runtime framework, links none at launch, and loads exactly one guest flavour for
 the process lifetime.
 
-The macOS, iOS device, and iOS Simulator products build at a 27.0 minimum
-(`cmake/toolchains/Apple.cmake`), so their code carries no availability guard or
-fallback for an older release. Apple products consume accepted kernel bundles
+The macOS product builds at a 27.0 minimum and the iOS device and iOS Simulator
+products at 26.0 (`cmake/toolchains/Apple.cmake`); the iPad applications that
+also run on a Mac name that 27.0 in their `LSMinimumSystemVersion`, which the
+App Store would otherwise take from the iOS minimum. Code that reaches an iOS API
+newer than 26.0 sits behind an availability check with the earlier API as its
+fallback, and a floor-driven fallback names the release that introduced the
+API. Apple products consume accepted kernel bundles
 and never invoke Kbuild: one mainline artifact for arm64 userspace on macOS and
 the iOS device, a separately identified 4 KiB mainline slice for macOS x86_64
 userspace, and a separate accepted 4 KiB `android-6.18` artifact (the same
@@ -594,21 +625,36 @@ AArch32 `cacheflush()` writes nothing and calls
 An arm64 guest that rewrites code and synchronizes it (`IC IVAU`, broadcast on
 hardware and keyed by the physical address) changes what every process running
 the frame executes, but a store or a publication reaches only its own address
-space's generation. So each frame of a mapped backing has a holder word
-(`darwin/memory/mmu/code_holders.hpp`): the arm64 instruction-fetch path
-registers the fetching generation in it before it reads the frame's bytes, and
-a guest code synchronization or the kernel's remote-write paths take the
-word and publish a whole-space code change in every generation it named. A
-publication consumes the word, so a reader registers again at its next fetch;
-a publisher that has emptied a word stays counted until its publication
-finishes, and one that meets such a count publishes to every generation, so an
-empty word never hides a reader another publisher has yet to tell. A remote
-write takes the word of the frame it names, whatever the target maps at the
-address, and publishes to every generation, the target included, for a frame it
-cannot name or when it meets an unfinished take. `invalidate_code()` takes the
-word of every page the target maps, whatever its permission, and does the same
-for a page the target has not mapped yet (its software page table fills at
-faults, so the frame is unknown). The words
+space's generation. A guest's code synchronization is made in the generation of
+the execution context its thread has entered, not in the generation the thread
+last activated for the kernel's calls. So each frame of a mapped backing has a
+holder word (`darwin/memory/mmu/code_holders.hpp`): the arm64 instruction-fetch
+path registers the fetching generation in it before it reads the frame's
+bytes, and a guest code synchronization or the kernel's remote-write paths take
+the word and publish a whole-space code change in every generation they named. Both
+also move the frame's code-page stamp (version and epoch) where some mapping
+executes the frame: through the publisher's own view of the frame, whether or
+not that view can execute, or, for a frame the kernel names that the target
+does not map at the address, through the frame's record. The step is ordered
+before the publisher reads the word, and a verifier's registration before it
+reads the stamp, so a verifier is told of a publication or shown its step. A
+kernel write that names no frame (a page the target's address space does not
+map, or a frame Linux cannot name) moves no stamp, so it moves the epoch of
+every page at once instead. A publication consumes the word, so a reader
+registers again at its next fetch; a publisher that has emptied a word stays
+counted until its publication finishes, and one that meets such a count
+publishes to every generation, so an empty word never hides a reader another
+publisher has yet to tell. A remote write takes the word of the frame it names,
+whatever the target maps at the address, and publishes to every generation,
+the target included, for a frame it cannot name or when it meets an unfinished
+take. `invalidate_code()` takes the word of every page the target maps,
+whatever its permission, and does the same for a page the target has not
+mapped yet (its software page table fills at faults, so the frame is
+unknown). The target itself hears of a change at every address (a whole-space
+change) when it holds the frame or the list goes to every generation, because
+it may run or have verified the frame at an address other than the view
+written, one that cannot execute or none at all; a target that holds nothing
+hears of the range written. The words
 live in 4 KiB leaves made on a frame's first registration (a leaf per 512
 frames), and the leaves and their roots (4 KiB per GiB of backing, made with
 the backing in every build) come from the ordinary allocator, sized by the
@@ -619,6 +665,194 @@ The x86 engines neither register nor consult it: they hold their frames in the
 [frame accounting](#x86-64-frame-accounting), which the arm64 engines never
 consult, and the kernel's remote-write and flush paths run both publications,
 each on its own condition.
+
+### Ahead-of-time code
+
+The Android image's own arm64 libraries (`tools/aot/libraries.txt`) and the
+compiled Java of its boot image (every `boot*.oat` with code) are rewritten
+ahead of time by `tools/aot` into one blob, which the gadget engine runs as
+native code in place of its translation. The blob is a release artifact
+(`tools/aot/release_artifact.py`): built once from an accepted Android release,
+bound to its release ID, its system partition and the files the rewrite is a
+function of, and accepted with that release by
+`android/lineage-24/metadata/accepted-aot.env`. A product wraps the blob in
+`UmlArm64Aot.framework` and generates nothing; macOS, the iOS Simulator and the
+iOS device each do. Only a build that qualifies a release or measures a
+variant generates the blob from the release's image (`UML_AOT_IMAGE`; the
+diagnostics build needs it). A new accepted image needs the AOT differential
+run, its scan of every word of every function included, before its artifact is
+accepted: the scan judges the image it was built against.
+`UML_AOT_MODE` (`AUTO`, `ON`, `OFF`) says whether a build has the component
+at all: `AUTO` builds it when an artifact is available, and a build without
+one has no AOT target, and the gadget executor compiles none of its hooks. The
+framework is text and read-only tables only:
+no data segment, no relocation, no executable allocation, so its pages are
+clean and file-backed and one copy serves every process at any load bias.
+`darwin/cpu/arm64/aot` is a gadget-kind CPU component whose only caller is
+`GadgetExecutor::run_aot`; it includes no engine and reaches memory only
+through the executor's TLB and `StaticGuestMemory::fetch`.
+
+- Switch: the component is on wherever a product carries it and the launch boots
+  the release the blob was made from (Release, below). `DARWIN_UML_AOT=0`
+  in the environment, or `--aot=off` on the launch, runs the engine alone;
+  `--aot=on` (or `--aot`) fails a launch whose build has none, and the launch's
+  word beats the environment. Each run makes the choice before its first
+  executor and any per-thread table exist, and only once it owns the process
+  (the address-space admission), so no other handle reads or changes the
+  choice between a session's end and the next one's; a restart in the same
+  process decides again, and a release the blob no longer fits runs on the
+  engine.
+  A session that ran without the component does not turn it on later, but the
+  release of its guest after Android's clean power-off ends the session, and
+  the next boot in the process decides again, for the release it states. An
+  application's own word is the boot request's `android_aot_disabled`, which
+  keeps the release out of the launch (Release, below): Andarium's Home switch
+  sets it at each start, on by default. An
+  archive of Andarium's Release configuration carries the component only when
+  `accepted-aot.env` sets `LINEAGE24_ACCEPTED_AOT_ARCHIVES` to `yes`: the iOS
+  device runtimes take the accepted artifact only then.
+  `scripts/check-embedded-artifacts.py --aot` fails a
+  packaged framework without an accepted artifact or while the field is `no`,
+  one whose blob is not the accepted digest or was not made from the packaged
+  system (the three values the launch compares, below), and an application whose
+  packaged runtime links the framework (its load commands name it) while the
+  framework is absent, since dyld refuses to launch it; the application's
+  optional embed step (`embed-device-framework.sh --optional`) stops the build
+  for the same missing slice.
+- Release: the blob runs only with the release it was made from. Its header
+  carries the release ID, the SHA-256 of the release manifest and the SHA-256
+  of the system partition; the launcher (macOS and iOS) reads the same three
+  values from the verified release it boots (`Storage::releaseIdentity()`) and
+  states them to the emulator (`--aot-release=`). Selection compares them
+  before anything else: another release, a proof or test image, an updated
+  image whose blob is stale, or a launch that states none (a Linux guest, a
+  release with no identity, or a boot request with `android_aot_disabled`) runs
+  without the component under `auto` and fails
+  UNSUPPORTED under `on`, and allocates no AOT state. Only a launcher that
+  attaches an Android release states the release; the Linux launcher refuses
+  `--aot-release=` on its command line. The tests of a build with
+  `UML_AOT_DIAGNOSTICS` select it without a stated release; a product has no
+  such entry.
+- Units: each library is a self-contained unit of the framework. Branches
+  between libraries mapped in one address space stay in rewritten code when
+  the target page is verified (below); any other target leaves to the engine.
+- Binding: the framework stores the SHA-256 of every guest page it stands
+  for, whole and untruncated. A mapped text page authorizes native execution
+  only after its own SHA-256 equals the stored one, made at the first entry
+  into that page and again after the address space's code-change history
+  names it or no longer reaches back; a 64-bit digest of a page only finds
+  which library it belongs to. Rewritten code therefore runs for bytes other
+  than the ones it was built from only on a collision of SHA-256, and no
+  weaker digest, truncation or checksum takes its place. The hash is
+  CommonCrypto's `CC_SHA256`, part of libSystem on macOS, iOS and the iOS
+  Simulator, on the host's SHA-2 instructions. Every edge that leaves a
+  verified page (a branch, a fall-through, an indirect branch, a call between
+  libraries) tests the state of the page it reaches, so rewritten code never
+  runs from a page that was not verified. A page the
+  guest has not mapped yet is not entered and is tried again later; a page
+  that differs retires the library's instance for that address space, and the
+  engine runs the code. A page is entered only while its mapping carries the
+  kernel's immutable fact (bit 1 of the map call's `guest_code`): without it
+  another alias or process can change the bytes with no word to the address
+  space that compared them, because a store that no code synchronization
+  follows reaches no holder. A mapping without the fact is the engine's
+  (counted as refused), and one that loses it is published as a code change of
+  the page, so the pages compared on its strength are compared again or
+  refused. Verifying a page registers the address space as a holder of its
+  frame (a fetch of one byte) before the first stamp is read, whether the page
+  is then judged by the shared table or by hashing, so another address space's
+  code synchronization or the kernel's write of the frame clears the compared
+  pages of every address space that compared the page, and a verdict is never
+  answered under a stamp that a publication has moved.
+- Shared verdicts: the SHA-256 comparison of a physical page is kept for
+  every address space that maps the page, under the page's identity and
+  epoch, only when the kernel reports the page immutable in the mapping
+  being verified (bit 1 of the map call's `guest_code`) and the page's record
+  counts its executable mappings (a record that ran out of count or of epoch
+  answers none, for good). The epoch moves at a publication that names the
+  page's frame, through any view of it the publisher has or the frame the
+  kernel names, and when its last executable mapping departs; a kernel write
+  that names no frame (a target page its address space does not map, or a
+  frame Linux cannot name) moves the epoch of every page at once (a
+  process-wide count of such writes, which at its limit turns sharing off for
+  good). So a verdict is answered only while the page has
+  stayed executable in some address space since it was filed and no change has
+  reached it. A mapping that cannot execute or has no stamp is never answered,
+  and one that is not immutable is not entered; the table (process-global,
+  direct-mapped) is a hint that may forget.
+  `UML_AOT_SHARED_VERDICTS=OFF` builds a runtime that never asks, to measure
+  what sharing buys; the differential's shared rows expect a second hash
+  there and pass in both settings.
+- Entry: only at an instruction the framework covers, in a state the engine
+  would run the same way: no single step, PSTATE.SM clear, no FPCR trap
+  enable, FPCR.FIZ, AH and NEP clear (read as the guest's, whether or not its
+  floating-point state is loaded yet), no open exclusive monitor, top-byte
+  ignore on, and a 16-byte aligned SP. Guest state is canonical at every
+  instruction boundary, so entry and exit are possible at any covered
+  instruction. Rewritten code keeps SP aligned: an instruction that can leave
+  it misaligned ends the entry after it commits, so the engine's check
+  applies to every SP-based access.
+- Exit: whatever the framework does not inline stops with committed state and
+  the engine runs exactly that instruction, so faults, system calls, signals
+  and debugger exits are the engine's own. When such an instruction faults,
+  the engine also runs it again where the guest resumes, without entering
+  rewritten code for it. An entry runs at most the engine's chaining limit, plus one unpaid run of
+  at most `RUN_LIMIT` (32) instructions and two more (the differential test's
+  `entry_bound`), and the executor goes on into the next entry only while
+  nothing the dispatcher checks has changed (the interrupt, mapping and
+  code-change sequences, SVCR, the FPCR trap enables), so interrupts and
+  shootdowns are noticed as they are in the engine. The limit counts
+  instructions, not bytes or time: one memory copy or set is one instruction
+  here as it is in the engine.
+- Admission: an address whose entries keep retiring too few instructions to
+  repay the cost of entering and leaving is left to the engine, and is
+  entered again from time to time to find out whether it has become worth
+  it. That history and the retry above are hints kept per executor and keyed
+  by address alone. They can only decline an entry; every entry that is taken
+  is validated against the address space as it is at that moment, so changed
+  text, a remap or another address space can cost a declined entry and never
+  run stale code.
+- Memory and atomics: an inline probe of the engine's TLB entry, refilled
+  through the executor on a miss (a scalar of more than one byte indexes the
+  entry by its last byte and compares the tag with its first, so a page
+  crossing misses; a stack access with an immediate offset inside one aligned
+  16-byte granule cannot cross a page and is probed by its first byte);
+  ordered accesses, the LSE atomic operations
+  and compare-and-swap run as the host's own instruction on naturally aligned
+  addresses. Advanced SIMD structure loads and stores (LD1 to LD4, ST1 to
+  ST4, the lane forms and LDnR) run as the host's own instruction on the
+  host address of the guest bytes when both ends are in pages the probe
+  holds. A page-crossing access, an unaligned address, an SP base, a pair
+  and an exclusive are the engine's. The epilogue of CPY, CPYF and SET (the
+  engine's option B, `darwin/cpu/arm64/detail/memory_copy_set.hpp`) runs in
+  rewritten code for a small forward copy or set inside mapped pages; every
+  other case calls the engine's own routine on the same registers. A fault,
+  or registers the prologue cannot have produced, steps the instruction with
+  the registers committed at that region, so the engine takes the fault with
+  its own state.
+- Floating point and SIMD run under the guest FPCR/FPSR in the host registers
+  the way gadget code does; the engine restores the host environment at the
+  dispatcher boundary.
+- Diagnostics: the CMake option `UML_AOT_DIAGNOSTICS` (off) composes a second
+  compilation of the runtime with counters, a report file written by a thread
+  of its own, and the test switches, and links a second compilation of the
+  static MMU with the executable-mapping count audit the report reads
+  (`UML_STATIC_MMU_TARGET` names the one a composition links). The product
+  targets hold none of it in any configuration (`arm64-aot-runtime-product`
+  and `memory-product-carries-no-count-audit` check the objects;
+  `scripts/check-no-aot-diagnostics.py` fails the XCFramework and Kernarium
+  packaging and the Andarium archive phase on a binary that linked a
+  diagnostics compilation of either), and
+  in no build does a vCPU thread do file I/O or allocate while it is inside
+  rewritten code. The report says why the gadget engine ran instead of
+  rewritten code (the engine's dispatches by refusal or find result, with the
+  instructions it ran on covered pages), why a memory probe refilled the TLB
+  (an empty slot, another page of the same slot, a page access of the other
+  kind, a page-crossing access), and how many lookups a dispatch made; the
+  executor's counters exist only in a diagnostics tree. A per-site refill
+  histogram goes to a second file when the environment names one.
+
+Build and tests: `tools/aot/README.md`.
 
 ## Kernel and Android ownership
 
@@ -913,8 +1147,7 @@ values of the launch's `androidboot.serialno`, `androidboot.kernarium.adb_key`
 and `androidboot.kernarium.timezone` arguments wherever they stand (also a
 write that ends inside one), the assignments of those names and any hardware
 address in its colon spelling are replaced by `<masked>`, `<time zone>` and
-`<address>`, the words the application's start log uses, so no reader of the
-file has them. An end is the last state on disk unless the process dies between
+`<address>`, so no reader of the file has them. An end is the last state on disk unless the process dies between
 a delayed checkpoint's write and its repair: the end formats its record before
 it writes it, and a checkpoint whose write lands after it writes that record
 again at once. The file is text of a fixed layout (`uml-session 8`) of 19200

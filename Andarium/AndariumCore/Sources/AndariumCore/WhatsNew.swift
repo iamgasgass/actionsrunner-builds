@@ -8,10 +8,10 @@ import Foundation
 /// nothing.
 public struct WhatsNewRelease: Identifiable, Hashable, Decodable, Sendable {
     /// The build (`CFBundleVersion`) that first carried these notes. The
-    /// TestFlight builds share one marketing version, so the build orders
-    /// releases; every archive's is above the one before.
+    /// marketing version can change between releases ("1.0", then "1.1"), so
+    /// the build orders them; every archive's is above the one before.
     public let build: Int
-    /// The version as Info shows it: "1.0 (12)".
+    /// The version as Info shows it: "1.1 (16)".
     public let version: String
     /// The day the release came out, "2026-11-12"; left out where the day is
     /// not known when the notes are written.
@@ -77,8 +77,7 @@ public struct WhatsNewEntry: Identifiable, Hashable, Decodable, Sendable {
     /// The entry's name, which the ribbon lists: "File browser".
     public let title: String
     /// What it does, in a sentence or two, true on every device: an entry
-    /// a device cannot use is still listed in Info's history. (A feature
-    /// the build itself lacks is not: see `WhatsNewFeature`.) Nil for an
+    /// a device cannot use is still listed in Info's history. Nil for an
     /// entry that is only its points.
     public let text: String?
     /// Short points under the title, one line to two each, for an entry that
@@ -89,8 +88,8 @@ public struct WhatsNewEntry: Identifiable, Hashable, Decodable, Sendable {
     public let symbol: String
     /// Where the feature lives, for one the person finds outside Home.
     public var place: WhatsNewPlace?
-    /// What the device and the build must offer for the ribbon and its notes
-    /// to show the entry at all.
+    /// What the device must offer for the ribbon and its notes to show the
+    /// entry at all.
     public var requirement: WhatsNewRequirement?
 
     public init(
@@ -172,7 +171,7 @@ public enum WhatsNewPlace: String, Hashable, Decodable, Sendable {
     }
 }
 
-/// What a device or the build must offer for an entry to be announced. A
+/// What a device must offer for an entry to be announced. A
 /// field the code does not know, a `device` or `feature` it does not know, a
 /// field set to `null`, or no field at all is a mistake in the notes and
 /// refuses them: the notes and the code that reads them ship in one build, so
@@ -184,7 +183,10 @@ public struct WhatsNewRequirement: Hashable, Decodable, Sendable {
     public var memoryAboveMiB: Int?
     /// The kind of device the feature is for.
     public var device: WhatsNewDevice?
-    /// The build has this feature.
+    /// The feature the entry is about, for one that the application shows
+    /// only where its own rule says so. The rule is the feature's, never the
+    /// notes': it is asked each time the notes are drawn (`isShown`), not at
+    /// launch (`isMet`).
     public var feature: WhatsNewFeature?
     /// `true` is an entry for a device that can give the guest a compass (an
     /// iPhone, an iPad), which a Mac and the Simulator cannot. `false` is no
@@ -235,10 +237,10 @@ public struct WhatsNewRequirement: Hashable, Decodable, Sendable {
         }
     }
 
-    /// Whether the device and the build offer all it asks for; `features` is
-    /// what the build has.
-    public func isMet(by host: HostDevice, vCPUs: Int, features: Set<WhatsNewFeature>) -> Bool {
-        guard isPresent(in: features) else { return false }
+    /// Whether the device offers all it asks for that a launch can know: its
+    /// memory, kind, compass and camera. The feature is not asked here
+    /// (`isShown`).
+    public func isMet(by host: HostDevice, vCPUs: Int) -> Bool {
         if let memoryAboveMiB, host.memory.maximumMiB(vCPUs: vCPUs) <= memoryAboveMiB { return false }
         if let device, !device.isMet(by: host) { return false }
         if compass == true, !host.hasCompass { return false }
@@ -246,12 +248,10 @@ public struct WhatsNewRequirement: Hashable, Decodable, Sendable {
         return true
     }
 
-    /// Whether the build has the feature the entry is about, true when it
-    /// names none. Unlike the device and the memory, which one install has
-    /// and another does not, this is true or false of the build wherever its
-    /// notes show.
-    public func isPresent(in features: Set<WhatsNewFeature>) -> Bool {
-        feature.map(features.contains) ?? true
+    /// Whether the feature the entry is about is shown now, by the
+    /// application's own rule for it (`shows`); true when it names none.
+    public func isShown(by shows: (WhatsNewFeature) -> Bool) -> Bool {
+        feature.map(shows) ?? true
     }
 }
 
@@ -273,14 +273,13 @@ public enum WhatsNewDevice: String, Hashable, Decodable, Sendable {
     }
 }
 
-/// A feature a build may be made without, written in the notes as
-/// `"sendFeedback"`. The build reports what it has, so an entry about a
-/// feature a build lacks is left out of the ribbon, its notes and Info's
-/// history alike (`WhatsNewCatalog.available`).
-public enum WhatsNewFeature: String, Hashable, Decodable, Sendable {
-    /// Send feedback: only a build made with a receiver for it has the sheet
-    /// and its two entrances.
-    case sendFeedback
+/// A feature that the application shows only where its own rule says so,
+/// written in the notes as `"addToHomeScreen"`. An entry about one is left out
+/// of the ribbon and its notes on a device that does not show the feature, and
+/// stays in Info's history as written.
+public enum WhatsNewFeature: String, Hashable, Decodable, Sendable, CaseIterable {
+    /// Add to Home Screen, in Settings.
+    case addToHomeScreen
 }
 
 private struct AnyKey: CodingKey {
@@ -304,10 +303,7 @@ extension Decoder {
     }
 }
 
-/// The bundled notes: a JSON array of releases. A build bundles one of two
-/// tracks, each its own file (`WhatsNewTrack` in the application): the beta
-/// track's notes per beta build, or the App Store track's, which is empty
-/// until the App Store version has notes.
+/// The bundled notes: a JSON array of releases, one file for every build.
 public enum WhatsNewCatalog {
     public enum Problem: Error, Equatable, Sendable {
         case releaseBeforeNotes(build: Int)
@@ -335,16 +331,6 @@ public enum WhatsNewCatalog {
             }
         }
         return releases
-    }
-
-    /// The notes as this build has them: without the entries about a feature
-    /// it lacks, and without a release that leaves empty. Every screen starts
-    /// from these; the device's own requirements then apply to the ribbon and
-    /// its notes only, while Info lists the rest as written.
-    public static func available(_ releases: [WhatsNewRelease], features: Set<WhatsNewFeature>) -> [WhatsNewRelease] {
-        releases
-            .map { $0.keeping { $0.requirement?.isPresent(in: features) ?? true } }
-            .filter { !$0.entries.isEmpty }
     }
 }
 
@@ -409,7 +395,7 @@ public enum WhatsNewRules {
     /// last one seen, up to this build, newest first, with only the entries
     /// this device can use; it offers nothing when none is left, and nothing
     /// after `ribbonLaunchLimit` launches. A build older than the last one
-    /// seen (TestFlight installs any) offers nothing and keeps the record.
+    /// seen offers nothing and keeps the record.
     public static func launch(
         releases: [WhatsNewRelease], record: WhatsNewRecord?, currentBuild: Int, hasGuest: Bool,
         offers: (WhatsNewEntry) -> Bool

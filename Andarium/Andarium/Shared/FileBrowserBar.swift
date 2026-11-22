@@ -250,9 +250,8 @@ private extension View {
     }
 }
 
-/// The system document picker, or what the preview shows in its place. The
-/// App Store configuration opens the files in place (`fileImporter`); every
-/// other build takes copies (`CopyDocumentPicker`).
+/// The system document picker, or what the preview shows in its place. It
+/// takes copies of the files (`CopyDocumentPicker`).
 struct ImportPickerPresenter: ViewModifier {
     @Bindable var browser: FileBrowserModel
     /// Optional: the bar shown without a model is the phone's.
@@ -262,16 +261,6 @@ struct ImportPickerPresenter: ViewModifier {
         if let standIn = browser.backend.importPickerStandIn(deliver: { browser.received($0) }) {
             content.sheet(isPresented: $browser.picking) { standIn }
         } else {
-            #if APP_STORE
-            content.fileImporter(
-                isPresented: $browser.picking, allowedContentTypes: [.item], allowsMultipleSelection: true
-            ) { result in
-                switch result {
-                case let .success(urls): browser.received(urls.map { FilePick.picked($0) })
-                case let .failure(error): failed(error)
-                }
-            }
-            #else
             content.documentCopyPicker(
                 isPresented: $browser.picking, types: [.item], allowsMultipleSelection: true
             ) { result in
@@ -281,7 +270,6 @@ struct ImportPickerPresenter: ViewModifier {
                 case let .failure(error): failed(error)
                 }
             }
-            #endif
         }
     }
 

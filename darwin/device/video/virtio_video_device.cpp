@@ -171,6 +171,7 @@ const char* profileName(uml::platform::VideoProfile profile) noexcept
     case uml::platform::VideoProfile::hevcMain10: return "hevc-main10";
     case uml::platform::VideoProfile::jpegBaseline: return "jpeg-baseline";
     case uml::platform::VideoProfile::vp9Profile0: return "vp9-profile0";
+    case uml::platform::VideoProfile::vp9Profile2: return "vp9-profile2";
     }
     return "unknown";
 }
@@ -563,13 +564,16 @@ public:
         for (;;) {
             pump(id, stream);
             if (stream.held.empty() || stream.frames.size() >= framesInFlight) return;
+            /* The request stays held until the decoder has taken its packet, so
+             * a packet it refuses is returned once, with the error, by the
+             * cancellation that follows. */
+            stream.decoder->submit(stream.held.front().packet, stream.held.front().timestamp);
             auto held = std::move(stream.held.front());
             stream.held.pop_front();
             stream.heldBytes -= held.size;
             const auto found = stream.resources.find(
                 resourceKey(VIRTIO_VIDEO_QUEUE_TYPE_INPUT, held.resource));
             if (found != stream.resources.end()) found->second.queued = false;
-            stream.decoder->submit(held.packet, held.timestamp);
             ++stream.packets;
             stream.packetBytes += held.size;
             auto result = load<virtio_video_resource_queue_resp>(queued(id, held.timestamp, 0));
@@ -762,6 +766,11 @@ public:
             if (cap == capabilities.end() || !validQueue(p.queue_type) || !p.frame_width || !p.frame_height ||
                 p.frame_width > cap->maximumWidth || p.frame_height > cap->maximumHeight)
                 throw std::invalid_argument("invalid video parameters");
+            // The range the device states starts at the VP9 minimum, and its hardware opens nothing below it.
+            if (cap->codec == uml::platform::VideoCodec::vp9 &&
+                (p.frame_width < uml::platform::kVp9DecodeMinimumSide ||
+                 p.frame_height < uml::platform::kVp9DecodeMinimumSide))
+                throw std::invalid_argument("video parameters below the advertised minimum");
             if (p.queue_type == VIRTIO_VIDEO_QUEUE_TYPE_INPUT) {
                 if (p.format != stream.coded) {
                     if (!stream.resources.empty() || stream.sourceKnown)

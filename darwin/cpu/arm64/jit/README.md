@@ -3,8 +3,8 @@
 The JIT emits native blocks for A64, A32 and T32 guest code into its executable
 arena. It runs on macOS and, in the development configurations, on an iOS
 device whose executable memory a debugger prepares
-([`docs/architecture.md`](../../../../docs/architecture.md#executable-code));
-the App Store runtime has none of it. The gadget engine includes none of it. Exclusives,
+([`docs/architecture.md`](../../../../docs/architecture.md#executable-code)).
+The gadget engine includes none of it. Exclusives,
 alignment, the SME profile, the AArch32 profile and the semantic slow path's
 role are cross-engine contracts in
 [`docs/architecture.md`](../../../../docs/architecture.md). This file records
@@ -36,8 +36,8 @@ translating: its processes' working sets together outgrow the cache at any
 budget a device can afford, so the arena is emptied every few seconds and the
 guest's boot, launches and background work run several times slower than on
 gadgets, while a long single-process computation runs faster in CPU time. The
-JIT's products are macOS and development builds, so the cold path is not
-optimized
+JIT's products are macOS and iOS device builds that a debugger serves, so the
+cold path is not optimized
 ([history](../../../../docs/optimization-history.md#jit-cold-code-per-process)).
 
 ## Cache budget

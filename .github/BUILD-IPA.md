@@ -13,8 +13,9 @@ Artifact prebuilt:
 
 | Artifact | Nome atteso (da questo commit: vedi i file `accepted-*.env`) | Contenuto |
 |---|---|---|
-| Kernel Android (facoltativo: se manca viene compilato dal sorgente, ~1 h la prima volta, poi in cache) | `android-6.18-arm64-4k-20261118-6.18.60-kf5` | `kernel-artifact.json`, `kernel/vmlinux`, ... |
-| Release LineageOS 24 (**obbligatoria**) | `lineage24-mainline6.18-4k-20261115-los24-r28` | `release-manifest.json`, `guest/system.img` (anche `.zst/.xz/.gz`), ... |
+| Kernel Android (facoltativo: se manca viene compilato dal sorgente, ~1 h la prima volta, poi in cache) | `android-6.18-arm64-4k-20261119-6.18.60-ca1` | `kernel-artifact.json`, `kernel/vmlinux`, ... |
+| Artifact AOT (facoltativo: librerie Android precompilate ARM64, più veloci; se manca il runtime ne fa a meno) | `lineage24-mainline6.18-4k-20261121-los24-r29` | `artifact.json`, `blob.bin`, ... |
+| Release LineageOS 24 (**obbligatoria**) | `lineage24-mainline6.18-4k-20261121-los24-r29` | `release-manifest.json`, `guest/system.img` (anche `.zst/.xz/.gz`), ... |
 
 Facoltativi (se mancano vengono compilati dal sorgente e messi in cache, la prima volta 1-3 h):
 
@@ -39,15 +40,15 @@ interna: il workflow li riconosce dal contenuto.
    Per una repo privata aggiungi il secret `PREBUILT_TOKEN` (token con lettura su quella repo).
 2. **Niente di tutto questo:** il workflow cerca da solo, tra le release della tua repo e poi di
    `imxieyi/Kernarium` (variabile `ANDARIUM_UPSTREAM` per cambiarla), gli asset il cui nome (o il
-   tag della release) contiene gli ID accettati sopra (`20261118-6.18.60-kf5`, `20261115-los24-r28`).
+   tag della release) contiene gli ID accettati sopra (`20261119-6.18.60-ca1`, `20261121-los24-r29`).
 3. **Cartella `prebuilt/`** nella repo (archivi o cartelle già estratte). Attenzione: GitHub rifiuta
    file > 100 MB e `.gitignore` esclude `*.img`, quindi per la system image usa il punto 1.
 
 Preparazione sul Mac che ha gli artifact:
 
 ```sh
-tar -C .build/kernel/artifacts -cf - android-6.18-arm64-4k-20261118-6.18.60-kf5 | zstd -19 -T0 -o kernel.tar.zst
-tar -C .build/android/releases -cf - lineage24-mainline6.18-4k-20261115-los24-r28 | zstd -19 -T0 --long=31 -o android.tar.zst
+tar -C .build/kernel/artifacts -cf - android-6.18-arm64-4k-20261119-6.18.60-ca1 | zstd -19 -T0 -o kernel.tar.zst
+tar -C .build/android/releases -cf - lineage24-mainline6.18-4k-20261121-los24-r29 | zstd -19 -T0 --long=31 -o android.tar.zst
 split -b 1900m -d -a 3 android.tar.zst android.tar.zst.      # un asset di release deve stare sotto i 2 GiB
 gh release create prebuilt-1 kernel.tar.zst android.tar.zst.0* --repo OWNER/REPO
 ```
@@ -60,6 +61,10 @@ poi `ANDARIUM_PREBUILT = gh-release:OWNER/REPO@prebuilt-1`.
 - Con `release: true` (o un push di tag `v1.0`) anche una GitHub Release; se l'IPA supera 2 GiB viene
   pubblicata in parti: `cat Andarium.ipa.0* > Andarium.ipa`.
 
-Input utili: `configuration` (`Release` = runtime con JIT per sideload, `AppStore` / `TestFlight` =
 runtime App Store con tutti i controlli del bundle; un'immagine Android "unsigned proof" è accettata
 solo con `Release`), `xcode` (versione precisa), `rebuild_dependencies` (ignora la cache).
+
+Input utili: `configuration` (`Release` = la build distribuita, con l'opzione JIT; `Debug`), `xcode`
+(versione precisa), `rebuild_dependencies` (ignora la cache). Upstream ha tolto le configurazioni
+AppStore e TestFlight: un'immagine Android "unsigned proof" viene preparata in ogni configurazione
+(solo un archive la rifiuterebbe).

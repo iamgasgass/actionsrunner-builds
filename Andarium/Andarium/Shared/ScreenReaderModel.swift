@@ -97,12 +97,29 @@ final class ScreenReaderSession {
     var declined = false
     /// VoiceOver has been told that the screen reader is on, and how to come
     /// back, in this session: by the change that turned it on, or at the first
-    /// read that found it on.
+    /// read that found it on, where the display's own words did not carry it.
     var toldOn = false
+    /// Android's first answer in this session found the screen reader on: it
+    /// was on before the run began, and no change of this session turned it on.
+    @ObservationIgnored private(set) var wasOnAtStart = false
+    @ObservationIgnored private var answered = false
     /// The card that says the image has none has been shown in this session.
     var toldMissing = false
     /// How many Settings sheets watch the state.
     var settingsOpen = 0
+    /// The sentence that says what the run is, announced as the run began, is
+    /// still being spoken to VoiceOver: neither the card that asks nor the
+    /// display's direct-touch element takes VoiceOver's focus until it has
+    /// been.
+    var runStartAnnouncing = false
+    /// The sentence of the run's start is being spoken and Android's state is
+    /// still unread: what VoiceOver says of the display on landing there is
+    /// composed now and spoken after the sentence, so a value that says
+    /// "checking" would be stale by then. The display carries none yet.
+    var displayWaitsForRead: Bool { runStartAnnouncing && state == nil }
+    /// Which announcement of the run's start `runStartAnnouncing` is for: the
+    /// end of an earlier one does not release a later one.
+    @ObservationIgnored var runStartGeneration = 0
     /// The loop that reads while VoiceOver runs.
     @ObservationIgnored var watcher: Task<Void, Never>?
     /// The session is over: nothing begins in it, and what was under way was
@@ -171,6 +188,10 @@ final class ScreenReaderSession {
         state = answer
         readFailed = answer == nil
         if let answer {
+            if !answered {
+                answered = true
+                wasOnAtStart = answer.isOn
+            }
             noticeTurnedOff(answer)
             // What the card said about not being able to ask is answered.
             if failure == nil { cardFailure = nil }
@@ -199,6 +220,7 @@ final class ScreenReaderSession {
         changing = nil
         state = after
         readFailed = false
+        answered = true
         noticeTurnedOff(after)
     }
 

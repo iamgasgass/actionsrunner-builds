@@ -3,6 +3,7 @@
 
 #include "video_encoder.hpp"
 
+#include <cstdint>
 #include <string>
 
 #if UML_VIDEO_ENCODER_TESTING
@@ -31,6 +32,14 @@ struct PropertyFault {
 };
 void failProperty(const char* key, int status);
 [[nodiscard]] PropertyFault propertyFault();
+
+// While `split` holds, every sample the encoder is handed is rebuilt as two Core Media blocks before it is read, as an
+// encoder that returns an image in pieces does; the hardware returns one block. `sampleBytesCopied` counts the bytes the
+// encoder has copied out of a sample into a scratch buffer to read it (a one-block sample is read in place) since
+// `resetSampleBytesCopied`.
+void splitSamples(bool split);
+[[nodiscard]] std::uint64_t sampleBytesCopied();
+void resetSampleBytesCopied();
 
 } // namespace uml::platform::testing
 #endif

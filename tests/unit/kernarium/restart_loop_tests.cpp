@@ -37,6 +37,8 @@ struct Boot final {
     int status {0};
     RunEnd end {RunEnd::Kind::powerOff, ""};
     std::chrono::seconds lasted {60};
+    /* The library marked the run as refused for want of memory. */
+    bool refusedForMemory {false};
 };
 
 Boot powersOff(std::chrono::seconds lasted = 60s)
@@ -145,6 +147,11 @@ public:
         record("end");
         end = current_.end;
         return !endUnknown;
+    }
+
+    bool startRefusedForMemory() noexcept override
+    {
+        return current_.refusedForMemory;
     }
 
     void stopBoot() noexcept override { record("stop-services"); }
@@ -523,6 +530,72 @@ void fiveEarlyRestartsInARowEndTheLoopWithItsOwnResult()
             "the loop guard's end was not logged");
     require(KERNARIUM_RUNTIME_RESULT_RESTART_LOOP < -UML_EMULATOR_RUNTIME_ERROR,
             "the loop result collides with a uml_emulator error");
+    /* The applications name the host's refusal of the guest's memory by its
+     * own constant, which no uml_emulator error, the loop result or a status
+     * the emulator returns shares. */
+    require(KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED < -UML_EMULATOR_RUNTIME_ERROR &&
+                KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED !=
+                    KERNARIUM_RUNTIME_RESULT_RESTART_LOOP,
+            "the memory-refused result collides with another result");
+}
+
+/* The status the library returns for a run the host refused for want of
+ * memory, and the one it returns for a failed allocation of its own, which
+ * is the same number. */
+Boot refusedForMemory()
+{
+    return {-UML_EMULATOR_OUT_OF_MEMORY, {RunEnd::Kind::none, ""}, 0s, true};
+}
+
+Boot outOfMemoryWithoutARefusal()
+{
+    return {-UML_EMULATOR_OUT_OF_MEMORY, {RunEnd::Kind::none, ""}, 0s, false};
+}
+
+void aRunTheHostRefusedForMemoryHasAResultOfItsOwn()
+{
+    FakeMachine machine;
+    machine.script = {refusedForMemory()};
+    require(kernarium::restart::run(machine, quickly) ==
+                KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED,
+            "a run refused for want of memory did not return its own result");
+    require(machine.count("enter") == 1U, "the refused run was entered again");
+}
+
+void aBareOutOfMemoryIsNotARefusalOfTheGuestsSize()
+{
+    /* The library's own allocation failed (the argument vector, say): the
+     * run returned the same status with no window and no mark. */
+    FakeMachine bare;
+    bare.script = {outOfMemoryWithoutARefusal()};
+    require(kernarium::restart::run(bare, quickly) == -UML_EMULATOR_OUT_OF_MEMORY,
+            "an allocation failure of the library read as a refusal of the "
+            "guest's size");
+
+    /* A guest that ran and ended with the same number as its status. */
+    FakeMachine guest;
+    guest.script = {{-UML_EMULATOR_OUT_OF_MEMORY,
+        {RunEnd::Kind::failed, ""}, 30s, false}};
+    require(kernarium::restart::run(guest, quickly) == -UML_EMULATOR_OUT_OF_MEMORY,
+            "a guest's own status of the same number read as a refusal");
+}
+
+void aRestartedBootTheHostRefusedForMemoryEndsTheLaunchWithTheResult()
+{
+    FakeMachine machine;
+    machine.script = {restarts(), refusedForMemory()};
+    require(kernarium::restart::run(machine, quickly) ==
+                KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED,
+            "a restarted boot refused for want of memory did not return its "
+            "own result");
+    require(contains(machine.said(), "unable to boot the restarted guest: -2"),
+            "the refused restart was not logged");
+
+    FakeMachine bare;
+    bare.script = {restarts(), outOfMemoryWithoutARefusal()};
+    require(kernarium::restart::run(bare, quickly) == -UML_EMULATOR_OUT_OF_MEMORY,
+            "a restarted boot's allocation failure read as a refusal of the "
+            "guest's size");
 }
 
 void aBootThatLastsFifteenSecondsResetsTheCount()
@@ -873,6 +946,9 @@ const uml::testing::NamedTest tests[] {
     {"a-guest-with-no-console-signal-keeps-the-window",
         aGuestWhoseConsoleSaysNothingKeepsTheWindowAlone},
     {"a-boot-that-cannot-be-built", aBootThatCannotBeBuiltFailsTheLaunch},
+    {"a-run-the-host-refused-for-memory", aRunTheHostRefusedForMemoryHasAResultOfItsOwn},
+    {"a-bare-out-of-memory-is-no-refusal", aBareOutOfMemoryIsNotARefusalOfTheGuestsSize},
+    {"a-restarted-boot-refused-for-memory", aRestartedBootTheHostRefusedForMemoryEndsTheLaunchWithTheResult},
     {"the-booted-event-follows-the-console",
         theBootedEventFollowsTheNewGuestsConsole},
     {"the-first-boot-asks-nothing-of-the-console",

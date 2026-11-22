@@ -42,6 +42,24 @@ public struct SessionRecord: Equatable, Sendable {
     /// a guest whose console says so; nil in a record that does not say (an
     /// earlier runtime, or a guest that never reports it).
     public var bootFinished: Bool?
+    /// How far the guest's boot had got, for a guest whose console reports it,
+    /// with "unobserved" kept apart from a record that says nothing of the
+    /// boot (nil): a guest that panics before init's first line leaves
+    /// "unobserved".
+    public var bootProgress: BootProgress?
+    /// Which ramdisk the boot started with, when the record says (the runtime
+    /// writes it for a guest that reports its boot): the release's own, the
+    /// Magisk-patched one, or recovery's. The record of a boot the runtime
+    /// never began has none.
+    public var ramdisk: BootRamdisk?
+
+    public enum BootProgress: String, Equatable, Sendable {
+        case completed, unfinished, unobserved
+    }
+
+    public enum BootRamdisk: String, Equatable, Sendable {
+        case stock, root, recovery
+    }
     /// How many times the guest had restarted in the process before this
     /// session, for a guest whose boot the record follows.
     public var restarts: Int?
@@ -120,6 +138,8 @@ public struct SessionRecord: Equatable, Sendable {
         kernelOutput = parts.count > 1 ? Self.withoutPadding(parts[1]) : nil
         memory = fields["memory"].flatMap(Self.memory(from:))
         bootFinished = fields["boot"].flatMap { ["completed": true, "unfinished": false][$0] }
+        bootProgress = fields["boot"].flatMap(BootProgress.init(rawValue:))
+        ramdisk = fields["ramdisk"].flatMap(BootRamdisk.init(rawValue:))
         restarts = fields["restarts"].flatMap { Int($0) }
         terms = fields["terms"]
         peakTerms = fields["peak-terms"]
@@ -331,20 +351,198 @@ public enum DiagnosticRedaction {
     }
 }
 
-/// The previous session's record at launch: read once, then kept as
+/// The previous session's record at launch: read, then kept as
 /// `previous-session.txt` for the bug report, so the next boot can write its
-/// own and a second launch says nothing more.
+/// own and a second launch says nothing more. The start's record
+/// (`StartRecord`) is kept as `previous-start.txt` the same way.
 public enum PreviousSession {
-    /// The record and the notice Home shows for it. `endedOutOfForeground`
-    /// is whether the pause marker said the previous process ended paused.
-    public static func consume(in diagnostics: URL, endedOutOfForeground: Bool)
+    /// The previous session's record and the notice Home shows for it, left
+    /// where the runtime wrote it. `endedOutOfForeground` is whether the pause
+    /// marker said the previous process ended paused. Nothing is moved: the
+    /// record stays readable until `keep` says what was decided from it is
+    /// safe, so that a launch that ends in between reads it again.
+    public static func read(in diagnostics: URL, endedOutOfForeground: Bool)
         -> (record: SessionRecord, notice: HomeNotice?)?
     {
         let current = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
         guard let record = SessionRecord.read(at: current) else { return nil }
+        return (record, record.notice(endedOutOfForeground: endedOutOfForeground).map { .sessionEnded($0) })
+    }
+
+    /// Keeps the record `read` returned as `previous-session.txt` for the bug
+    /// report, so that the next boot can write its own and a second launch
+    /// says nothing more. The start's own record goes with the session's,
+    /// whether or not the runtime got as far as writing the session's. What is
+    /// kept follows what this launch found: a session record with no start
+    /// record before it leaves no kept start, so the one an earlier session
+    /// kept is never read as this session's choice (`BugReportAttachments`
+    /// pairs the two again by what they say of themselves). A launch that
+    /// finds no readable session record still keeps the start record, marked
+    /// as belonging to no session.
+    public static func keep(in diagnostics: URL) {
+        let start = diagnostics.appendingPathComponent(BugReportAttachments.startRecord)
+        let current = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let record = SessionRecord.read(at: current)
+        let started = FileManager.default.fileExists(atPath: start.path)
+        if started || record != nil {
+            let keptStart = diagnostics.appendingPathComponent(BugReportAttachments.previousStartRecord)
+            try? FileManager.default.removeItem(at: keptStart)
+            if started { keep(start, as: keptStart, orphaned: record == nil) }
+        }
+        guard record != nil else { return }
         let kept = diagnostics.appendingPathComponent(BugReportAttachments.previousSessionRecord)
         try? FileManager.default.removeItem(at: kept)
         try? FileManager.default.moveItem(at: current, to: kept)
-        return (record, record.notice(endedOutOfForeground: endedOutOfForeground).map { .sessionEnded($0) })
+    }
+
+    /// Moves the start record to its kept place. With no session record of its
+    /// own to go with it, the record is kept only if it can be marked first,
+    /// so that no retained session whose process and time happen to fit can
+    /// take it for its own: one that cannot be read, or written marked, is
+    /// dropped.
+    private static func keep(_ start: URL, as kept: URL, orphaned: Bool) {
+        guard orphaned else {
+            try? FileManager.default.moveItem(at: start, to: kept)
+            return
+        }
+        if var record = StartRecord.read(at: start) {
+            record.orphaned = true
+            if !record.write(to: kept) { try? FileManager.default.removeItem(at: kept) }
+        }
+        try? FileManager.default.removeItem(at: start)
+    }
+
+    /// At launch, before anything is reported or decided from a record: no run
+    /// of this process has begun, so an `earlier-run.txt` is the process
+    /// before's (`RunRecord`). When that process left no `session.txt`, its
+    /// last run was one whose record was already moved aside, a start with
+    /// root that failed and whose pause was saved, and it is the previous
+    /// session's: it becomes `previous-session.txt`, and nothing is decided
+    /// from it. Otherwise the record at `session.txt` is the previous session's
+    /// and the earlier run is dropped. A move or removal that fails leaves the
+    /// file where it is, and a bug report does not carry an earlier run that
+    /// this process did not retire itself (`BugReportAttachments.entries`).
+    public static func settleEarlierRun(in diagnostics: URL) {
+        let manager = FileManager.default
+        let earlier = diagnostics.appendingPathComponent(BugReportAttachments.earlierRunRecord)
+        guard manager.fileExists(atPath: earlier.path) else { return }
+        let current = diagnostics.appendingPathComponent(BugReportAttachments.sessionRecord)
+        if manager.fileExists(atPath: current.path) {
+            try? manager.removeItem(at: earlier)
+        } else {
+            let kept = diagnostics.appendingPathComponent(BugReportAttachments.previousSessionRecord)
+            try? manager.removeItem(at: kept)
+            try? manager.moveItem(at: earlier, to: kept)
+            // The start that went with that run is kept with it, not marked as
+            // belonging to no session: `BugReportAttachments` pairs the two by
+            // what they say of themselves.
+            let start = diagnostics.appendingPathComponent(BugReportAttachments.startRecord)
+            let keptStart = diagnostics.appendingPathComponent(BugReportAttachments.previousStartRecord)
+            if manager.fileExists(atPath: start.path) {
+                try? manager.removeItem(at: keptStart)
+                try? manager.moveItem(at: start, to: keptStart)
+            }
+        }
+    }
+
+    /// `read`, then `keep`: for a reader that decides nothing from the record
+    /// that must outlive the launch.
+    public static func consume(in diagnostics: URL, endedOutOfForeground: Bool)
+        -> (record: SessionRecord, notice: HomeNotice?)?
+    {
+        let previous = read(in: diagnostics, endedOutOfForeground: endedOutOfForeground)
+        keep(in: diagnostics)
+        return previous
+    }
+}
+
+/// The runtime's record of the runs of this process, in the diagnostics
+/// directory. A run's record is the file that is there once the run began: the
+/// record of an earlier run is moved aside as the new run is asked for
+/// (`retire`), so that no time or counter has to tell them apart. A decision
+/// made from the earlier record is made and saved by then: a start is not
+/// begun while one is owed (`AppModel.start`).
+///
+/// A record that cannot be moved aside never reads as the run's. It is
+/// emptied where it is; and one that can be neither moved nor emptied is not
+/// read at all until a later `retire` gets it out of the way. The runtime
+/// puts its record in the file by opening it for writing, the access the
+/// emptying lacked, so a record that stays has not been replaced by one of
+/// this run's either.
+public final class RunRecord: @unchecked Sendable {
+    /// What `retire` found and did.
+    public enum Retirement: Equatable, Sendable {
+        /// No record was at the run's place.
+        case nothing
+        /// The record was moved aside for the bug report.
+        case moved
+        /// The record could not be moved aside (the copy of the run before
+        /// could not be replaced) and was emptied where it was. The bug
+        /// report does not carry it.
+        case emptied
+        /// The record could be neither moved nor emptied; it is not read, and
+        /// a run that begins with it in place takes no root decision from a record.
+        case stays
+    }
+
+    private let directory: URL
+    private let lock = NSLock()
+    private var staysInPlace = false
+    private var movedOne = false
+
+    /// Whether a retirement in this process moved a record aside: the file
+    /// `earlier-run.txt` is then this process's own. One a launch found
+    /// there is an older process's, and a bug report does not carry it.
+    public var retiredAnEarlierRun: Bool { lock.withLock { movedOne } }
+
+    public init(in diagnostics: URL) {
+        directory = diagnostics
+    }
+
+    /// Takes the record at the run's place away: kept as `earlier-run.txt`
+    /// for the bug report, so that the next run writes its own there. The
+    /// previous process's record, `previous-session.txt`, is not touched: a
+    /// bug report carries it for the whole life of the process.
+    @discardableResult
+    public func retire() -> Retirement {
+        let manager = FileManager.default
+        let current = directory.appendingPathComponent(BugReportAttachments.sessionRecord)
+        let kept = directory.appendingPathComponent(BugReportAttachments.earlierRunRecord)
+        let outcome: Retirement
+        if !manager.fileExists(atPath: current.path) {
+            outcome = .nothing
+        } else {
+            try? manager.removeItem(at: kept)
+            if (try? manager.moveItem(at: current, to: kept)) != nil {
+                outcome = .moved
+            } else if Self.empty(current) {
+                outcome = .emptied
+            } else {
+                outcome = .stays
+            }
+        }
+        lock.withLock {
+            staysInPlace = outcome == .stays
+            if outcome == .moved { movedOne = true }
+        }
+        return outcome
+    }
+
+    private static func empty(_ file: URL) -> Bool {
+        guard let handle = try? FileHandle(forWritingTo: file) else { return false }
+        defer { try? handle.close() }
+        return (try? handle.truncate(atOffset: 0)) != nil
+    }
+
+    /// The record as it stands; nil while the runtime has written none. The
+    /// runtime rewrites the state in one write, and a read that lands in the
+    /// middle of one is read again.
+    public func read() -> SessionRecord? {
+        if lock.withLock({ staysInPlace }) { return nil }
+        let file = directory.appendingPathComponent(BugReportAttachments.sessionRecord)
+        for _ in 0..<3 {
+            if let record = SessionRecord.read(at: file) { return record }
+        }
+        return nil
     }
 }

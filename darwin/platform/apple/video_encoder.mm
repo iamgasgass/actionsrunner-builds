@@ -103,6 +103,41 @@ PropertyFaultState& propertyFaultState()
     static PropertyFaultState state;
     return state;
 }
+
+struct SampleTestState {
+    std::atomic<bool> split {};
+    std::atomic<std::uint64_t> copied {};
+};
+SampleTestState& sampleTestState()
+{
+    static SampleTestState state;
+    return state;
+}
+
+// `block` as the same bytes in two blocks held by one composite, so that the sample is not contiguous.
+CFRef<CMBlockBufferRef> splitInTwo(CMBlockBufferRef block)
+{
+    const std::size_t total = CMBlockBufferGetDataLength(block);
+    if (total < 2) return {};
+    const std::size_t first = total / 2;
+    const std::size_t lengths[2] = {first, total - first};
+    CMBlockBufferRef composite = nullptr;
+    if (CMBlockBufferCreateEmpty(kCFAllocatorDefault, 2, 0, &composite) != kCMBlockBufferNoErr) return {};
+    auto owner = CFRef<CMBlockBufferRef>::adopt(composite);
+    for (std::size_t part = 0; part < 2; ++part) {
+        CMBlockBufferRef piece = nullptr;
+        if (CMBlockBufferCreateWithMemoryBlock(kCFAllocatorDefault, nullptr, lengths[part], kCFAllocatorDefault, nullptr, 0, lengths[part],
+                                               kCMBlockBufferAssureMemoryNowFlag, &piece) != kCMBlockBufferNoErr)
+            return {};
+        const auto held = CFRef<CMBlockBufferRef>::adopt(piece);
+        char* pointer = nullptr;
+        if (CMBlockBufferGetDataPointer(piece, 0, nullptr, nullptr, &pointer) != kCMBlockBufferNoErr ||
+            CMBlockBufferCopyDataBytes(block, part == 0 ? 0 : first, lengths[part], pointer) != kCMBlockBufferNoErr ||
+            CMBlockBufferAppendBufferReference(composite, piece, 0, lengths[part], 0) != kCMBlockBufferNoErr)
+            return {};
+    }
+    return owner;
+}
 #endif
 
 bool sessionLoss(OSStatus status) noexcept
@@ -316,6 +351,8 @@ struct AssemblyConfig {
     bool separateParameterSets {};
     bool parameterSetsWithEveryKeyFrame {true};
     unsigned temporalLayers {1};
+    // JPEG: the largest image returned (VideoEncodeSettings::maximumJpegBytes); zero: no bound.
+    std::uint64_t maximumJpegBytes {};
     // What decides the level the parameter sets state, in place of the one
     // VideoToolbox wrote (levels::restateLevel). A zero floor leaves them as
     // written.
@@ -453,8 +490,28 @@ private:
         Assembled result;
         CMBlockBufferRef block = CMSampleBufferGetDataBuffer(sample);
         if (!block) return result;
+#if UML_VIDEO_ENCODER_TESTING
+        CFRef<CMBlockBufferRef> pieces;
+        if (sampleTestState().split.load()) {
+            pieces = splitInTwo(block);
+            if (pieces) block = pieces.get();
+        }
+#endif
         const std::size_t total = CMBlockBufferGetDataLength(block);
         if (total == 0) return result;
+        // An image past the bound is not copied: not even into a scratch buffer, and no larger copy of it is made. The
+        // length of the file the caller gets is the sample's and the JFIF segment's the encoder leaves out, which the
+        // image's first bytes say, so it is known before any of the sample is copied, whether it is in one block or in
+        // several.
+        const bool jpeg = config_.codec == VideoCodec::jpeg;
+        bool jfif = false;
+        if (jpeg) {
+            std::uint8_t head[4] {};
+            if (total < sizeof(head) || CMBlockBufferCopyDataBytes(block, 0, sizeof(head), head) != kCMBlockBufferNoErr) return result;
+            if (head[0] != 0xff || head[1] != 0xd8) return result;
+            jfif = head[2] == 0xff && head[3] == 0xe0;
+            if (config_.maximumJpegBytes != 0 && total + (jfif ? 0 : sizeof(kJfifSegment)) > config_.maximumJpegBytes) return result;
+        }
         char* pointer = nullptr;
         std::size_t contiguous = 0;
         std::vector<std::uint8_t> copy;
@@ -462,6 +519,9 @@ private:
         if (CMBlockBufferGetDataPointer(block, 0, &contiguous, nullptr, &pointer) == kCMBlockBufferNoErr && contiguous == total) {
             data = reinterpret_cast<const std::uint8_t*>(pointer);
         } else {
+#if UML_VIDEO_ENCODER_TESTING
+            sampleTestState().copied += total;
+#endif
             copy.resize(total);
             if (CMBlockBufferCopyDataBytes(block, 0, total, copy.data()) != kCMBlockBufferNoErr) return result;
             data = copy.data();
@@ -483,8 +543,6 @@ private:
         if (config_.codec == VideoCodec::jpeg) {
             frame.type = VideoFrameType::key;
             frame.bytes.reserve(total + sizeof(kJfifSegment));
-            const bool jfif = total >= 4 && data[2] == 0xff && data[3] == 0xe0;
-            if (total < 4 || data[0] != 0xff || data[1] != 0xd8) return result;
             frame.bytes.insert(frame.bytes.end(), data, data + 2);
             if (!jfif) frame.bytes.insert(frame.bytes.end(), std::begin(kJfifSegment), std::end(kJfifSegment));
             frame.bytes.insert(frame.bytes.end(), data + 2, data + total);
@@ -1111,6 +1169,7 @@ private:
         assembly.separateParameterSets = settings.separateParameterSets;
         assembly.parameterSetsWithEveryKeyFrame = settings.parameterSetsWithEveryKeyFrame;
         assembly.temporalLayers = settings.temporalLayers;
+        assembly.maximumJpegBytes = settings.maximumJpegBytes;
         assembly.levelPolicy = levels::makePolicy(settings, plan_.reorders, !plan_.lowLatency);
         if (settings.hdr) assembly.hdrSei = hdrSeiUnit(*settings.hdr);
         std::uint64_t epoch = 0;
@@ -1721,6 +1780,10 @@ testing::PropertyFault testing::propertyFault()
     std::lock_guard lock(state.mutex);
     return state.fault;
 }
+
+void testing::splitSamples(bool split) { apple_encoder::sampleTestState().split.store(split); }
+std::uint64_t testing::sampleBytesCopied() { return apple_encoder::sampleTestState().copied.load(); }
+void testing::resetSampleBytesCopied() { apple_encoder::sampleTestState().copied.store(0); }
 
 void testing::failProperty(const char* key, int status)
 {

@@ -597,6 +597,50 @@ void a_t32_instruction_split_over_an_unfetchable_page_faults_at_its_second_halfw
 	}
 }
 
+/* The PC wraps at the top of the 32-bit address space, and so does the key
+ * of the block a fallthrough runs on into: it names address zero by the
+ * canonical key, the one a translation is stored under, and not by one that
+ * carries into the key's 33rd bit. The block there faults at its first
+ * instruction, and the faulting block's precharged count is given back as for
+ * any other: the one instruction before the wrap retired and none after it. */
+void an_a32_fallthrough_past_the_top_of_memory_wraps_to_address_zero()
+{
+	Guest guest{1700};
+	guest.map_code(0xffff'f000U).put32(0xffc, a::mov_r0_1);
+	auto &zero = guest.map_code(0);
+	zero.put32(0, a::ldr_r1_r2);
+	zero.put32(4, a::svc);
+	auto cpu = a32_state(0xffff'fffcU);
+	cpu.registers[2] = unmapped + 0x40;
+	const auto result = guest.run(cpu);
+	require(result.reason == ExitReason::memory_fault);
+	require(result.retired_instructions == 1);
+	require(cpu.pc == aarch32::a32_key(0));
+	require(result.fault.address == unmapped + 0x40);
+	require(result.fault.access == ::uml::memory::MemoryAccess::read);
+	require(reg(cpu, 0) == 1);
+}
+
+void a_t32_fallthrough_past_the_top_of_memory_wraps_to_address_zero()
+{
+	Guest guest{1701};
+	const std::uint16_t movs = t::movs_r0_1;
+	guest.map_code(0xffff'f000U).put(0xffe,
+		std::as_bytes(std::span{&movs, 1}));
+	auto &zero = guest.map_code(0);
+	const std::uint16_t zero_code[] = {t::str_r1_r2, t::svc};
+	zero.put(0, std::as_bytes(std::span{zero_code}));
+	auto cpu = t32_state(0xffff'fffeU);
+	cpu.registers[2] = unmapped + 0x80;
+	const auto result = guest.run(cpu);
+	require(result.reason == ExitReason::memory_fault);
+	require(result.retired_instructions == 1);
+	require(cpu.pc == aarch32::t32_key(0));
+	require(result.fault.address == unmapped + 0x80);
+	require(result.fault.access == ::uml::memory::MemoryAccess::write);
+	require(reg(cpu, 0) == 1);
+}
+
 void the_pc_reads_as_the_architectural_value()
 {
 	{
@@ -3123,6 +3167,8 @@ int main()
 	an_a32_target_with_bit_one_set_is_a_pc_alignment_exit();
 	a_fetch_fault_reports_the_unfetchable_address();
 	a_t32_instruction_split_over_an_unfetchable_page_faults_at_its_second_halfword();
+	an_a32_fallthrough_past_the_top_of_memory_wraps_to_address_zero();
+	a_t32_fallthrough_past_the_top_of_memory_wraps_to_address_zero();
 	the_pc_reads_as_the_architectural_value();
 	the_instruction_budget_ends_a_loop();
 	single_step_retires_one_instruction_at_a_time();

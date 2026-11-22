@@ -61,6 +61,17 @@ starts during one, or the guest suspending and resuming, joins the mute. Taking
 the session back runs on another thread while the mute clock goes on, so no
 guest write waits longer than its stream's buffer lasts.
 
+iOS 27 reports an interruption through the session becoming inactive, which
+carries an interruption context for the system's own, and the system's
+resumption recommendation. Earlier iOS reports both in
+`AVAudioSessionInterruptionNotification`, whose end carries the same advice in
+its options. The sink and the microphone observe whichever the running system
+posts. The sink acts on interruption events in the order they arrived, an end
+that a later beginning overtook being skipped, and the microphone ignores a
+route change that began before an interruption did. The engine and player calls
+that report an error exist from iOS 27; earlier systems use the calls without a
+report, and a player that is not playing after its start is a failed start.
+
 An engine made on an output route that was lost (the app spent time in the
 background) never starts again, so the sink replaces it. A start with no route,
 or with a session the system will not activate yet, plays muted and starts a
@@ -145,7 +156,8 @@ the microphone or showing a prompt), `audio-mute-clock`, `audio-output-cycle`,
 stream, see [`../../../kernel/common/README.md`](../../../kernel/common/README.md))
 and `guest-virtio-sound-delay` (a guest's `snd_pcm_delay()` against when its
 last period completes) cover the device. `UML_TEST_APPLE_AUDIO=ON` adds
-`apple-audio-playback`, `apple-audio-interruption` and
+`apple-audio-playback`, `apple-audio-interruption` (on iOS 27, and
+`apple-audio-interruption-ios26` on iOS 26, the floor) and
 `guest-virtio-sound-delay-host` (see
 [`../../../docs/testing.md`](../../../docs/testing.md)); a real interruption on
 a device comes from Kernarium's `AudioInterrupter` test application (see

@@ -69,8 +69,10 @@ struct CameraPresentation {
     // The camera as discovered: its device type, the rotation coordinator's
     // fixed clockwise angles for the four interface orientations (portrait,
     // portrait upside down, landscape right, landscape left), the orientation
-    // the platform states for it, the turn set on the video connection and
-    // whether the camera imitates an earlier front camera (presentedMountingOf).
+    // the platform states for it, the turn set on the video connection, the
+    // half turn the host applies to every picture of the camera on top of it
+    // (0 or 180, CameraInfo::presentationTurn) and whether the camera imitates
+    // an earlier front camera (presentedMountingOf).
     // The angles are -1 where the platform has no coordinator. The device that
     // tells the guest sets `stated` to the orientation of the guest's own
     // description (which the application may have turned for the layout it
@@ -80,6 +82,7 @@ struct CameraPresentation {
     std::uint16_t stated {};
     std::uint16_t platformStated {};
     std::uint16_t turn {};
+    std::uint16_t presentationTurn {};
     bool earlier {};
     // The camera's anchor (the one format it runs in): its size, the ratios it
     // lists (a mask of aspectRatioBit) and its field of view in degrees,
@@ -172,6 +175,7 @@ inline constexpr std::int32_t ratioPending = std::numeric_limits<std::int32_t>::
     kept.stated = discovered.stated;
     kept.platformStated = discovered.platformStated;
     kept.turn = discovered.turn;
+    kept.presentationTurn = discovered.presentationTurn;
     kept.earlier = discovered.earlier;
     kept.anchorWidth = discovered.anchorWidth;
     kept.anchorHeight = discovered.anchorHeight;

@@ -3,12 +3,9 @@
 import AndariumCore
 import Foundation
 
-#if !APP_STORE
-
 /// The names a harness launch gives `LaunchOverrides` settings in the
 /// environment (`Andarium/README.md#automation`). The `KERNARIUM_` names mean
-/// what they mean in Kernarium; the `ANDARIUM_` ones are Andarium's own. An
-/// App Store build compiles this file out, so it reads no launch setting.
+/// what they mean in Kernarium; the `ANDARIUM_` ones are Andarium's own.
 extension LaunchOverrides {
     static func environmentName(_ setting: Setting) -> String {
         switch setting {
@@ -78,6 +75,23 @@ nonisolated enum HeatLimitLaunch {
     }
 }
 
+/// The state of Home's "120 Hz" a harness launch states for its run
+/// (`ANDARIUM_HIGH_REFRESH`): "1" asks for the 120 Hz display at the start of
+/// Android, where the screen can show it, and "0" does not, whatever the person
+/// chose; anything else is no setting. The stored choice stays as it is
+/// (`HighRefreshPreference.launch`).
+nonisolated enum HighRefreshLaunch {
+    static let environmentName = "ANDARIUM_HIGH_REFRESH"
+
+    static func stated(in environment: [String: String]) -> Bool? {
+        switch environment[environmentName] {
+        case "1"?: true
+        case "0"?: false
+        default: nil
+        }
+    }
+}
+
 /// A harness launch's silent phone (`ANDARIUM_HAPTICS=0`): for that launch the
 /// device plays none of the guest's haptics, as it does while the person's
 /// Haptics switch is off, and the stored switch stays as it is. Anything else
@@ -99,7 +113,7 @@ nonisolated enum HapticsLaunch {
 /// mouse drive the real application with it, because the runtime is out of
 /// reach of a test that runs in another process. The probe's guest registers
 /// each device when it is plugged, as a kernel with the hot-plug topic does;
-/// `unregistered` makes it one that never does, as the accepted kernel is.
+/// `unregistered` makes it one that never does, as a kernel without it is.
 nonisolated enum InputProbeLaunch {
     static let environmentName = "ANDARIUM_INPUT_PROBE"
     static let unregisteredValue = "unregistered"
@@ -139,22 +153,16 @@ nonisolated enum OldAppsProbeLaunch {
     }
 }
 
-/// A development launch's text message entrance (`ANDARIUM_TEXT_MESSAGES=1`).
-/// The application offers no text message until an accepted release image
-/// carries the service (`Capabilities.device`); tests and proof images switch
-/// it on with this setting. An App Store build compiles it out.
-nonisolated enum TextMessagesLaunch {
-    static let environmentName = "ANDARIUM_TEXT_MESSAGES"
+/// A probe session with a played list of Android's apps in place of the
+/// image's `kernarium_apps` tool (`ANDARIUM_ANDROID_APPS_PROBE=1`): Settings >
+/// Apps > Add to Home Screen is reachable without a guest, and the cache and
+/// the App Shortcuts hold the made-up apps, so Apple's Shortcuts shows their
+/// tiles under Andarium.
+nonisolated enum AndroidAppsProbeLaunch {
+    static let environmentName = "ANDARIUM_ANDROID_APPS_PROBE"
 
     static func requested(in environment: [String: String]) -> Bool {
-        environment[environmentName] == "1"
-    }
-
-    /// The device's capabilities for a launch with this environment.
-    static func capabilities(in environment: [String: String]) -> Capabilities {
-        var capabilities = Capabilities.device
-        if requested(in: environment) { capabilities.textMessages = true }
-        return capabilities
+        InputProbeLaunch.requested(in: environment) && environment[environmentName] == "1"
     }
 }
 
@@ -172,23 +180,36 @@ nonisolated enum CompassReadoutLaunch {
 extension AppEntry {
     /// Whether the launch is the person's own, which announces the release
     /// notes (`announceWhatsNew`). A launch that states any setting, the JIT
-    /// or the thermal state or the heat limit included, or runs under XCTest is a
+    /// or the thermal state or the heat limit or the 120 Hz display included, or runs under XCTest is a
     /// harness's.
     static func isPersonsLaunch(overrides: LaunchOverrides, environment: [String: String]) -> Bool {
         overrides.isEmpty && JitPreference.stated(in: environment) == nil
             && ThermalOverride.stated(in: environment) == nil
             && HeatLimitLaunch.stated(in: environment) == nil
+            && HighRefreshLaunch.stated(in: environment) == nil
             && !InputProbeLaunch.requested(in: environment)
             && !CompassReadoutLaunch.requested(in: environment)
             && environment[OldAppsProbeLaunch.environmentName] == nil
+            && environment[AndroidAppsProbeLaunch.environmentName] == nil
             && environment["XCTestConfigurationFilePath"] == nil
+    }
+
+    /// How Home's AOT row begins for a launch: the person's last choice for
+    /// their own launch, and on, keeping nothing, for every launch
+    /// `isPersonsLaunch` refuses, so that a harness whose only mark is an
+    /// environment value (the JIT's, the thermal state's) never inherits the
+    /// person's choice or stores a change.
+    static func translatedLibrariesLaunch(
+        overrides: LaunchOverrides, environment: [String: String],
+        preference: TranslatedLibrariesPreference = TranslatedLibrariesPreference()
+    ) -> TranslatedLibrariesPreference.Launch {
+        preference.launch(automated: !isPersonsLaunch(overrides: overrides, environment: environment))
     }
 
     /// The file in an isolated guest instance's directory whose number, in
     /// mebibytes, stands for the device's free space while it exists, so that
     /// a harness launch drives the run's low-space pause without filling the
-    /// disk. Only an isolated instance reads it, and an App Store build
-    /// compiles it out.
+    /// disk. Only an isolated instance reads it.
     static let harnessFreeSpaceFile = "free-space-mib"
 
     static func harnessFreeSpace(
@@ -231,5 +252,3 @@ extension AppEntry {
         }
     }
 }
-
-#endif

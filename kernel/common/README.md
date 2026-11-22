@@ -201,6 +201,13 @@ it. The bridge fields used below are defined by the comments in
   (`guest-fork-flush-*`, `guest-mmu-stress`). That rests on `dup_mmap()`
   flushing the parent after `arch_dup_mmap()` on every path that changed one
   of its entries; a kernel uprev rechecks it.
+- A user PTE the kernel sends as guest code carries the immutable fact, bit 1
+  of `guest_code` (bridge ABI 29), when it names an up-to-date page-cache page
+  of a file on EROFS, decided from the PTE under its page-table lock. Kernel
+  mappings, anonymous pages (a copy-on-write page of a private file mapping),
+  other file systems and DAX never carry it, and the host runs rewritten
+  code, and shares a verification between address spaces, for no other page.
+  The AOT share rows (`aot-guest-workloads`) check it.
 - Because of that slot rule, a kernel alias outside the linear map shares
   memory with the frames' other views only in whole aligned groups of four
   pages, so the architecture reports a vmap group of four. vmalloc and `vmap()`

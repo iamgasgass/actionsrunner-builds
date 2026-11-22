@@ -12,11 +12,10 @@
  * executable-memory hooks.
  *
  * There are two routes to JIT memory. On macOS a mapping made for JIT is written
- * inside the calling thread's write window. On an iOS device that is not an
- * App Store build, a debugger prepares one region for the process once, and
- * the memory is written through a second, writable mapping of the same pages
- * (writable_alias) with no write window. The second route does not exist in
- * the App Store build, which does not compile or link it.
+ * inside the calling thread's write window. On an iOS device a debugger
+ * prepares one region for the process once, and the memory is written through
+ * a second, writable mapping of the same pages (writable_alias) with no write
+ * window.
  */
 namespace uml::cpu::jit_memory {
 
@@ -76,14 +75,13 @@ void invalidate_instruction_cache(void *code, std::size_t size);
 /* Releases a reservation reserve_guarded made of size bytes. */
 void release_guarded(void *data, std::size_t size);
 
-/* How an iOS device gets its JIT memory. The App Store build has none of it. */
+/* How an iOS device gets its JIT memory. */
 enum class RegionStatus : std::uint8_t {
 	/* The region is mapped, a debugger blessed it, the process detached from
 	 * it and code written through the alias ran from the executable mapping.
 	 * It stays so for the life of the process. */
 	ready,
-	/* This product has no such route: macOS, the Simulator, an App Store build.
-	 */
+	/* This product has no such route: macOS or the Simulator. */
 	unsupported,
 	/* No debugger is attached to the process (P_TRACED is clear), so no
 	 * request is made. */

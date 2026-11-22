@@ -66,6 +66,7 @@ TYPE_START_NAMESPACE = 0x0100
 TYPE_END_NAMESPACE = 0x0101
 TYPE_START_ELEMENT = 0x0102
 TYPE_END_ELEMENT = 0x0103
+VALUE_REFERENCE = 0x01
 VALUE_STRING = 0x03
 VALUE_INT = 0x10
 VALUE_BOOLEAN = 0x12
@@ -73,9 +74,15 @@ NONE = 0xFFFFFFFF
 
 
 @dataclass(frozen=True)
+class Reference:
+    """An attribute value that names a resource (``@string/label``): its id."""
+    id: int
+
+
+@dataclass(frozen=True)
 class Element:
     tag: str
-    attributes: tuple[tuple[str, str | int | bool], ...] = ()
+    attributes: tuple[tuple[str, str | int | bool | Reference], ...] = ()
     children: tuple["Element", ...] = ()
     #: Attributes in the android namespace; the others (``package``) have none.
     plain: tuple[str, ...] = ("package",)
@@ -103,8 +110,8 @@ def manifest_tree() -> Element:
 class _Strings:
     """The string pool: the attribute names first (they carry the resource map), then the rest."""
 
-    def __init__(self) -> None:
-        self.items: list[str] = list(ATTRIBUTES)
+    def __init__(self, attributes: dict[str, int]) -> None:
+        self.items: list[str] = list(attributes)
 
     def index(self, text: str) -> int:
         if text not in self.items:
@@ -126,10 +133,12 @@ def _pool(strings: list[str]) -> bytes:
     return struct.pack("<HHI", TYPE_STRING_POOL, 28, 8 + len(body)) + body
 
 
-def encode_manifest(tree: Element | None = None) -> bytes:
-    """Android's binary XML for the tree (default: this package's manifest)."""
+def encode_manifest(tree: Element | None = None, attributes: dict[str, int] | None = None) -> bytes:
+    """Android's binary XML for the tree (default: this package's manifest). `attributes` is the table of the
+    attribute names the tree uses and their android.R.attr ids (default: ATTRIBUTES)."""
     root = tree or manifest_tree()
-    strings = _Strings()
+    known = ATTRIBUTES if attributes is None else attributes
+    strings = _Strings(known)
     android = strings.index("android")
     namespace = strings.index(ANDROID_NAMESPACE)
     body = bytearray()
@@ -140,10 +149,12 @@ def encode_manifest(tree: Element | None = None) -> bytes:
         attributes = bytearray()
         # Android reads the attributes in the order of their resource ids, the plain ones after them.
         for name, value in sorted(
-                element.attributes, key=lambda item: (item[0] in element.plain, ATTRIBUTES.get(item[0], 0), item[0])):
+                element.attributes, key=lambda item: (item[0] in element.plain, known.get(item[0], 0), item[0])):
             plain = name in element.plain
             raw = NONE
-            if isinstance(value, bool):
+            if isinstance(value, Reference):
+                kind, data = VALUE_REFERENCE, value.id
+            elif isinstance(value, bool):
                 kind, data = VALUE_BOOLEAN, 0xFFFFFFFF if value else 0
             elif isinstance(value, int):
                 kind, data = VALUE_INT, value
@@ -167,8 +178,8 @@ def encode_manifest(tree: Element | None = None) -> bytes:
     walk(root)
     start = struct.pack("<HHIII", TYPE_START_NAMESPACE, 16, 24, 1, NONE) + struct.pack("<II", android, namespace)
     end = struct.pack("<HHIII", TYPE_END_NAMESPACE, 16, 24, line, NONE) + struct.pack("<II", android, namespace)
-    resource_map = struct.pack("<HHI", TYPE_RESOURCE_MAP, 8, 8 + 4 * len(ATTRIBUTES)) + struct.pack(
-        f"<{len(ATTRIBUTES)}I", *ATTRIBUTES.values())
+    resource_map = struct.pack("<HHI", TYPE_RESOURCE_MAP, 8, 8 + 4 * len(known)) + struct.pack(
+        f"<{len(known)}I", *known.values())
     document = _pool(strings.items) + resource_map + start + bytes(body) + end
     return struct.pack("<HHI", TYPE_XML, 8, 8 + len(document)) + document
 
@@ -178,7 +189,7 @@ def encode_manifest(tree: Element | None = None) -> bytes:
 @dataclass
 class Node:
     tag: str
-    attributes: dict[str, str | int | bool]
+    attributes: dict[str, str | int | bool | Reference]
     children: list["Node"]
 
 
@@ -206,12 +217,14 @@ def decode_manifest(data: bytes) -> Node:
                 strings.append(data[at + 2:at + 2 + 2 * length].decode("utf-16-le"))
         elif kind == TYPE_START_ELEMENT:
             name, attribute_start, _, count = struct.unpack_from("<4xiHHH", data, offset + 16)
-            attributes: dict[str, str | int | bool] = {}
+            attributes: dict[str, str | int | bool | Reference] = {}
             for index in range(count):
                 _, attribute, raw, _, _, value_kind, value = struct.unpack_from(
                     "<IIIHBBI", data, offset + 16 + attribute_start + 20 * index)
                 if value_kind == VALUE_STRING:
                     attributes[strings[attribute]] = strings[raw]
+                elif value_kind == VALUE_REFERENCE:
+                    attributes[strings[attribute]] = Reference(value)
                 elif value_kind == VALUE_BOOLEAN:
                     attributes[strings[attribute]] = bool(value)
                 else:
@@ -232,18 +245,18 @@ def decode_manifest(data: bytes) -> Node:
 
 def build_apk(destination: pathlib.Path, workdir: pathlib.Path | None = None,
               tree: Element | None = None, files: dict[str, bytes] | None = None,
-              keystore: pathlib.Path | None = None) -> pathlib.Path:
+              keystore: pathlib.Path | None = None, attributes: dict[str, int] | None = None) -> pathlib.Path:
     """Writes the signed package to `destination`: a throwaway key signs it, so the result belongs to no one.
     The package is this module's orientation probe, or the application of another manifest `tree` with the
     other entries `files` names, such as classes.dex (property_probe_apk.py). `keystore` names a throwaway
     key to share between packages (made on first use, and left in place): packages signed with one key can
-    update each other."""
+    update each other. `attributes` is passed on to encode_manifest."""
     own = workdir is None
     scratch = pathlib.Path(tempfile.mkdtemp(prefix="uml-orientation-apk-")) if own else workdir
     try:
         unsigned = scratch / "probe.apk"
         with zipfile.ZipFile(unsigned, "w", zipfile.ZIP_DEFLATED) as package:
-            package.writestr("AndroidManifest.xml", encode_manifest(tree))
+            package.writestr("AndroidManifest.xml", encode_manifest(tree, attributes))
             for name, content in (files or {}).items():
                 package.writestr(name, content)
         keystore = keystore or scratch / "throwaway.p12"

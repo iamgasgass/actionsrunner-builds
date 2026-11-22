@@ -27,6 +27,12 @@ struct LaunchConfiguration {
 	/* A file or directory the launcher created for this run only, removed
 	 * once the launch ends. */
 	std::filesystem::path run_scratch;
+	/* Whether this launcher states the release the guest boots to the
+	 * emulator (--aot-release=, from that release's own files), which the
+	 * ahead-of-time component trusts. Only a launcher that attaches an
+	 * Android release's disks does; any other refuses the option, so a
+	 * caller cannot name the release a guest runs. */
+	bool states_aot_release{};
 	/* The command line of the boot after the guest restarted itself, in the
 	 * form of runEmbeddedKernel's `command_line`, or empty to boot the same
 	 * command line again. It must ask for the host devices the first command

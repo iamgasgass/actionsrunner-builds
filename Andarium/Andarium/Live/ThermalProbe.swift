@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if !APP_STORE
-
 import AndariumCore
 import Darwin
 import Foundation
@@ -10,8 +8,7 @@ import Foundation
 /// the other end of the connection the thermal session makes, which reads
 /// each record the host writes and says what Android would be told. The probe
 /// session has no guest, so this is what lets a test see the notice, the
-/// choice in Settings and the severity together. An App Store build compiles
-/// it out.
+/// choice in Settings and the severity together.
 nonisolated final class ThermalProbeHal: GuestStreamOpener, @unchecked Sendable {
     /// The reading of one connection's records, on the HAL's own queue.
     private final class Reader: @unchecked Sendable {
@@ -55,5 +52,3 @@ nonisolated final class ThermalProbeHal: GuestStreamOpener, @unchecked Sendable 
         return pair[0]
     }
 }
-
-#endif

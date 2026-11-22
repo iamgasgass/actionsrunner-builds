@@ -812,9 +812,7 @@ std::optional<CodecDiscovery> discoverCodec(Prober& prober, const DiscoveryHooks
 
 NSString* cachePath()
 {
-#ifndef UML_APP_STORE_RUNTIME
     if (const char* override_ = std::getenv("UML_VIDEO_ENCODE_CACHE")) return override_[0] ? [NSString stringWithUTF8String:override_] : nil;
-#endif
 #if TARGET_OS_OSX
     return [NSTemporaryDirectory() stringByAppendingPathComponent:@"uml-video-encoder-capabilities.json"];
 #else

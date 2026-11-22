@@ -77,17 +77,19 @@ void check_fixture_frames(const std::map<std::string, Bytes>& fixture) {
     // The bytes the design lists, one by one.
     require(frame("none") == Bytes({0x41, 0x54, 0x48, 0x31, 0, 0, 0, 0}), "none");
     require(frame("light") == Bytes({0x41, 0x54, 0x48, 0x31, 1, 0, 0, 0}), "light");
+    require(frame("moderate") == Bytes({0x41, 0x54, 0x48, 0x31, 2, 0, 0, 0}), "moderate");
     require(frame("severe") == Bytes({0x41, 0x54, 0x48, 0x31, 3, 0, 0, 0}), "severe");
     require(frame("critical") == Bytes({0x41, 0x54, 0x48, 0x31, 4, 0, 0, 0}), "critical");
     require(frame("reject-emergency") == Bytes({0x41, 0x54, 0x48, 0x31, 5, 0, 0, 0}), "reject-emergency");
     require(frame("reject-shutdown") == Bytes({0x41, 0x54, 0x48, 0x31, 6, 0, 0, 0}), "reject-shutdown");
     require(frame("reject-magic") == Bytes({0x41, 0x54, 0x48, 0x32, 0, 0, 0, 0}), "reject-magic");
     require(frame("reject-reserved") == Bytes({0x41, 0x54, 0x48, 0x31, 1, 0, 1, 0}), "reject-reserved");
-    require(fixture.size() == 8, "the fixture holds the four records and the four rejects");
+    require(fixture.size() == 9, "the fixture holds the five records and the four rejects");
 
     // The guest reads each record as the severity it names.
     require(decode_record(frame("none")) == Severity::none, "none decodes");
     require(decode_record(frame("light")) == Severity::light, "light decodes");
+    require(decode_record(frame("moderate")) == Severity::moderate, "moderate decodes");
     require(decode_record(frame("severe")) == Severity::severe, "severe decodes");
     require(decode_record(frame("critical")) == Severity::critical, "critical decodes");
 

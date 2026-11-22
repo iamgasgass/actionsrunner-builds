@@ -248,8 +248,6 @@ nonisolated final class CoreHapticsPlayer: HapticPlayer, @unchecked Sendable {
 /// What the haptics say about themselves, in the development builds only.
 nonisolated enum HapticsDiagnostics {
     static func note(_ text: @autoclosure () -> String) {
-        #if !APP_STORE
         print("Andarium: \(text())")
-        #endif
     }
 }

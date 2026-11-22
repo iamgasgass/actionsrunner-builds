@@ -18,12 +18,37 @@ struct MemoryFault final {
 	MemoryAccess access{MemoryAccess::read};
 };
 
+/* A stable name for the bytes of a code page: the same page at the same
+ * version. The translation caches rely on it, and it is part of the layout of
+ * what they keep, so it stays two words. */
 struct CodePageStamp final {
 	std::uint64_t identity{};
 	std::uint64_t version{};
 
 	friend bool operator==(const CodePageStamp &, const CodePageStamp &) =
 		default;
+};
+
+/* What a code page says about itself, for a consumer that keeps verdicts
+ * about the page's bytes across address spaces. `epoch` moves at a
+ * publication that names the page's frame and when the last executable
+ * mapping of the page departs, and, for every page at once, at a kernel write
+ * whose target page its address space does not map; nowhere else. `immutable` is the kernel's fact for the mapping the stamp was
+ * taken through: no one can change the page's bytes while it holds. A page
+ * without it can be rewritten through another mapping of the frame with no
+ * word to the address space that checked it, so a consumer that keeps a
+ * verdict about the bytes in a mapping must require it. `shareable` is true
+ * when `immutable` holds and the page's record counts its executable mappings
+ * exactly. A verdict is kept across address spaces only for a shareable page,
+ * under (identity, epoch). */
+struct ExtendedCodePageStamp final {
+	CodePageStamp stamp{};
+	std::uint64_t epoch{};
+	bool shareable{};
+	bool immutable{};
+
+	friend bool operator==(const ExtendedCodePageStamp &,
+			       const ExtendedCodePageStamp &) = default;
 };
 
 #if DARWIN_UML_X86_64_GUEST
@@ -113,6 +138,12 @@ public:
 	 */
 	[[nodiscard]] virtual bool code_page_stamp(
 		std::uint64_t, void *, CodePageStamp &) noexcept
+	{
+		return false;
+	}
+	/* The same page's stamp with its epoch and whether it may be shared. */
+	[[nodiscard]] virtual bool extended_code_page_stamp(
+		std::uint64_t, void *, ExtendedCodePageStamp &) noexcept
 	{
 		return false;
 	}

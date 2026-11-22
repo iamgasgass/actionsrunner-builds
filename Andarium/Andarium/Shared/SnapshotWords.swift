@@ -129,7 +129,7 @@ enum SnapshotWords {
 
     /// The sentence that says a restore ends the unfinished update, when it does.
     private static func endingUpdate(_ endsUpdate: Bool) -> [String] {
-        endsUpdate ? [String(localized: "Andarium\u{2019}s unfinished update ends.")] : []
+        endsUpdate ? [String(localized: "The unfinished system image update ends.")] : []
     }
 
     private static let cannotBeUndone = String(localized: "This can\u{2019}t be undone.")
@@ -266,7 +266,7 @@ enum SnapshotWords {
         case .notShutDown:
             String(localized: "Android wasn\u{2019}t shut down when the virtual machine last ran. Start the virtual machine and shut it down from Android, then take a snapshot.")
         case .unfinishedUpdate:
-            String(localized: "Not while Andarium\u{2019}s update is unfinished. Update and start tries it again, or use Restore on Home.")
+            String(localized: "Not while the system image update is unfinished. Update and start tries it again, or use Restore on Home.")
         case .mismatch: String(localized: "Not while the virtual machine\u{2019}s files do not match this app version.")
         case .volumeCannotClone: String(localized: "The virtual machine\u{2019}s data cannot be snapshotted (it needs an APFS volume).")
         case .restoreUnfinished: unfinishedReason(restore)
@@ -361,7 +361,7 @@ enum SnapshotWords {
             paragraphs.append(String(localized: "This \(device) measures only part of what snapshots share, so they use at least the size shown."))
         }
         if hasUpdateCopy {
-            paragraphs.append(String(localized: "Andarium\u{2019}s unfinished update keeps its own copy until it ends. Restoring a snapshot ends it."))
+            paragraphs.append(String(localized: "The unfinished system image update keeps its own copy until it ends. Restoring a snapshot ends it."))
         }
         paragraphs += [
             String(localized: "Deleting files in Android frees nothing a snapshot still keeps. Deleting or restoring a snapshot gives space back."),

@@ -206,7 +206,8 @@ struct DisplayAreaProbe: View {
             .background {
                 WindowReader {
                     window = $0
-                    model.screenDidChange(nativeScale: $0.nativeScale)
+                    model.screenDidChange(
+                        nativeScale: $0.nativeScale, maximumFramesPerSecond: $0.maximumFramesPerSecond)
                     publish()
                 }
             }
@@ -235,6 +236,8 @@ struct DisplayAreaProbe: View {
 /// What the window says of itself that the display's size depends on.
 struct WindowReading: Equatable {
     var nativeScale = 1.0
+    /// The most frames a second the window's screen shows.
+    var maximumFramesPerSecond = 60
     var topInset: CGFloat = 0
     var bottomInset: CGFloat = 0
     var isPhone = false
@@ -278,6 +281,7 @@ private final class WindowReadingView: UIView {
         guard let window, let scene = window.windowScene else { return }
         let reading = WindowReading(
             nativeScale: Double(scene.screen.nativeScale),
+            maximumFramesPerSecond: scene.screen.maximumFramesPerSecond,
             topInset: window.safeAreaInsets.top, bottomInset: window.safeAreaInsets.bottom,
             isPhone: UIDevice.current.userInterfaceIdiom == .phone)
         guard reading != reported else { return }

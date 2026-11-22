@@ -18,7 +18,7 @@ import SwiftUI
 /// A start that has run for three minutes (`SlowStart`; eight for a first
 /// start and the first after an update) without reaching Android puts a notice
 /// above the steps: what the screen is waiting for, the step and the time, Stop
-/// (which asks first) and, where Send feedback is compiled in, Send feedback.
+/// (which asks first).
 /// The boot goes on behind it, and it goes away when the boot completes. There
 /// is no way to dismiss it. It sits above the steps and pushes them down;
 /// where the screen is short, the screen scrolls.
@@ -64,8 +64,8 @@ struct BootView: View {
         .onCardHalf(.boot)
         .background { backdrop }
         // The screen is dark over the guest's display, whatever the system's
-        // appearance is. UIKit presents the Stop alert and the feedback sheet
-        // in the window's appearance, which a SwiftUI preference leaves
+        // appearance is. UIKit presents the Stop alert in the window's
+        // appearance, which a SwiftUI preference leaves
         // alone: the window is asked for dark while this screen is in it.
         // Recovery's own screen follows the system, and so does what follows
         // the boot.
@@ -113,11 +113,7 @@ struct BootView: View {
     /// The Simulator preview holds the steps still and lets the clock run, to
     /// capture one clock on the status line and the notice at two moments.
     private var clockRuns: Bool {
-        #if APP_STORE
-        false
-        #else
         model.previewClockRuns
-        #endif
     }
 
     /// The guest's display shows through, dimmed, on every boot but Recovery's.
@@ -147,11 +143,14 @@ struct BootView: View {
                 ?? String(localized: "Preparing")
             steps[0] = Step(title: steps[0].title, detail: detail, seconds: 0)
         }
-        #if !APP_STORE
         if model.preparingJit {
             steps[0] = Step(title: steps[0].title, detail: JitStatus.preparing, seconds: 0)
         }
-        #endif
+        // A start with root that puts the Magisk app in the guest has one more
+        // step, after Startup; no other start does (`RootAppStep`).
+        if model.rootAppInstalling, kind != .recovery {
+            steps.append(Step(title: RootWords.stepTitle, detail: RootWords.stepDetail, seconds: 1.0))
+        }
         return steps
     }
 
@@ -164,7 +163,13 @@ struct BootView: View {
             try? await Task.sleep(for: .milliseconds(200))
         }
         if Task.isCancelled { return }
-        withAnimation(.snappy) { stage = stepCount }
+        // Android is up. With root, the Magisk app is checked and put in before
+        // the screen ends: the fifth step is added only when an install begins.
+        await model.runRootAppStep(kind: kind) {
+            withAnimation(.snappy) { stage = BootSteps.rootAppStep }
+        }
+        if Task.isCancelled { return }
+        withAnimation(.snappy) { stage = model.rootAppInstalling ? BootSteps.countWithRootApp : stepCount }
         try? await Task.sleep(for: .seconds(0.4))
         if Task.isCancelled { return }
         model.finishBoot(kind)
@@ -211,6 +216,10 @@ struct BootView: View {
                 .padding(.horizontal, 4)
                 .accessibilityAddTraits(.isHeader)
 
+            if let pending = model.androidApps.open.pending, pending.stage == .starting {
+                AppOpenBootCard(request: pending.request, dimmed: dimmed)
+            }
+
             if model.slowStart.showing {
                 slowNotice(steps: steps, current: current)
             }
@@ -240,7 +249,6 @@ struct BootView: View {
                 .modifier(BootPanel(dimmed: dimmed, radius: 22))
             }
 
-            #if !APP_STORE
             if let sentence = model.jitLastStart?.fallbackSentence {
                 Label {
                     Text(sentence)
@@ -255,7 +263,6 @@ struct BootView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .modifier(BootPanel(dimmed: dimmed, radius: 22))
             }
-            #endif
 
             // Last, below every sentence the boot says of itself.
             if NoGoogleNotice.showsOnBoot(kind, firstBootPending: model.bootStartedUnfinished) {
@@ -330,24 +337,15 @@ struct BootView: View {
         .accessibilityIdentifier("boot-slow-notice")
     }
 
-    /// The notice has Send feedback beside Stop.
-    private var offersFeedback: Bool {
-        #if FEEDBACK_MAIL
-        model.feedbackAddress != nil
-        #else
-        false
-        #endif
-    }
-
-    /// Both buttons are the application's ordinary size: 44 points at the
+    /// Stop is the application's ordinary size: 44 points at the
     /// default text size, as the end screen's Copy report is, and no less at
     /// any size (the minimum touch target). The bordered style pads its label
     /// by 7 points above and below, so a label this tall makes 44.
     private static let slowButtonLabelHeight: CGFloat = 30
 
-    /// Side by side, at one width (`EqualWidthRow`), only where both labels fit
-    /// at their own; stacked, a label wraps. Stop's label is as wide as its
-    /// longer state, so that choosing it moves nothing.
+    /// In a row (`EqualWidthRow`) only where the label fits at its own width;
+    /// stacked, a label wraps. Stop's label is as wide as its longer state, so
+    /// that choosing it moves nothing.
     @ViewBuilder
     private func slowButtons(lineLimit: Int?, axis: Axis) -> some View {
         let layout = axis == .horizontal
@@ -360,9 +358,7 @@ struct BootView: View {
                     stopLabel(stopping: true, lineLimit: lineLimit, axis: axis).hidden()
                     stopLabel(stopping: model.slowStart.stopping, lineLimit: lineLimit, axis: axis)
                 }
-                // Beside Send feedback, one width with it; alone, as wide as
-                // its label and no more.
-                .frame(maxWidth: offersFeedback ? .infinity : nil, minHeight: Self.slowButtonLabelHeight)
+                .frame(minHeight: Self.slowButtonLabelHeight)
             }
             .buttonStyle(.bordered)
             .tint(.red)
@@ -384,23 +380,6 @@ struct BootView: View {
             // dark alert's glass, this one 4.1:1 to 4.7:1. After the alert,
             // so the alert is inside it; Stop's own red is inside it too.
             .tint(alertIsDark ? Self.darkAlertTint : Color.accentColor)
-            #if FEEDBACK_MAIL
-            if model.feedbackAddress != nil {
-                Button {
-                    model.feedbackFromBoot = true
-                } label: {
-                    Text("Send feedback", tableName: "Feedback")
-                        .font(.body.weight(.semibold))
-                        .lineLimit(lineLimit)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: axis == .horizontal, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: Self.slowButtonLabelHeight)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-                .accessibilityIdentifier("boot-send-feedback")
-            }
-            #endif
         }
     }
 
@@ -586,7 +565,7 @@ private struct EqualWidthRow: Layout {
 /// The boot screen's panels: a flat translucent fill over the dimmed
 /// display, which needs no backdrop sampling, and glass over Recovery's
 /// opaque screen.
-private struct BootPanel: ViewModifier {
+struct BootPanel: ViewModifier {
     let dimmed: Bool
     let radius: CGFloat
 

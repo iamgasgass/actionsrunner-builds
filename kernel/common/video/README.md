@@ -48,7 +48,8 @@ failed to deliver, or 0 for a buffer that stands for none. The
 The wire names the H.264 levels 1.0 to 6.2, the HEVC levels 1 to 6.2, and
 Constrained Baseline and Constrained High as H.264 profiles of their own. The
 host lists the levels up to the highest its decoder decodes, and the driver
-turns them into the read-only V4L2 profile and level menus; a value appended to
+turns them into the read-only V4L2 profile and level menus; VP9 has a profile
+menu of the profiles the host decodes and no level menu. A value appended to
 the wire needs its row in `virtio_video_helpers.c`, which reads an unknown value
 as the menu's first entry. The [device README](../../../darwin/device/video/README.md)
 owns which levels the host decodes.

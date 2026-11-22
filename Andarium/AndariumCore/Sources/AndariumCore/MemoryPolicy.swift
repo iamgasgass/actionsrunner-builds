@@ -34,7 +34,11 @@ import Foundation
 ///
 /// The least a person may choose is `Limits.minimumMemoryMiB`, or the bound
 /// where a device's limit leaves less than that: the bound always wins, so the
-/// picker is never empty and never offers what the host cannot honour.
+/// picker is never empty and never offers what the host cannot honour. A bound
+/// of zero is the one exception, and the runtime's own answer where the
+/// process has no room for even the smallest virtual machine's window: nothing
+/// is startable there, so no size is offered and the default and the safe size
+/// are zero too (`hasRoom`); a start is refused (`MemoryRefusal`).
 public struct MemoryPolicy: Equatable, Sendable {
     /// The most guest RAM at 1, 2, ... vCPUs, each on the runtime's steps and
     /// inside its range.
@@ -75,10 +79,13 @@ public struct MemoryPolicy: Equatable, Sendable {
         cameraReserveMiB: ((_ budgetMiB: Int) -> Int)? = nil
     ) {
         let values = maximumsMiB.isEmpty ? [Limits.defaultMemoryRangeMiB.upperBound] : maximumsMiB
-        let bounds = values.map { Self.steppedDown($0) }
+        // Zero is kept: it is the runtime saying no size fits, not a size to
+        // raise to the least the runtime's range holds.
+        let bounds = values.map { $0 <= 0 ? 0 : Self.steppedDown($0) }
         maximums = bounds
         let steppedDefaults = bounds.indices.map { index in
-            index < defaultsMiB.count ? Self.steppedDown(defaultsMiB[index]) : bounds[index]
+            guard bounds[index] > 0 else { return 0 }
+            return index < defaultsMiB.count ? Self.steppedDown(defaultsMiB[index]) : bounds[index]
         }
         defaults = steppedDefaults
         let steppedSafes = bounds.indices.map { index in
@@ -137,7 +144,7 @@ public struct MemoryPolicy: Equatable, Sendable {
     ) -> [Int] {
         bounds.indices.map { index in
             let atLeast = defaults[index]
-            guard !table.isEmpty, !(index < holds.count && holds[index]) else {
+            guard bounds[index] > 0, !table.isEmpty, !(index < holds.count && holds[index]) else {
                 return atLeast
             }
             let row = table[index]
@@ -198,10 +205,19 @@ public struct MemoryPolicy: Equatable, Sendable {
         min(Limits.minimumMemoryMiB, maximumMiB(vCPUs: vCPUs))
     }
 
+    /// Whether any size can start at `vCPUs` vCPUs: false where the runtime's
+    /// bound is zero, because the process has no room for the window of even
+    /// the smallest virtual machine.
+    public func hasRoom(vCPUs: Int) -> Bool {
+        maximumMiB(vCPUs: vCPUs) > 0
+    }
+
     /// Every position of the picker at `vCPUs` vCPUs: the minimum up to the
-    /// bound, in the runtime's 64 MiB steps.
+    /// bound, in the runtime's 64 MiB steps; none where nothing can start
+    /// (`hasRoom`).
     public func stops(vCPUs: Int) -> [Int] {
-        Array(stride(
+        guard hasRoom(vCPUs: vCPUs) else { return [] }
+        return Array(stride(
             from: minimumMiB(vCPUs: vCPUs), through: maximumMiB(vCPUs: vCPUs), by: Limits.memoryStepMiB
         ))
     }
@@ -275,7 +291,7 @@ public struct MemoryPolicy: Equatable, Sendable {
     /// after the budget's own floor, so never below zero. Nil where the host
     /// does not say.
     public func graphicsMemoryMiB(forMemory mib: Int, vCPUs: Int, cameraLive: Bool = false) -> Int? {
-        guard !graphics.isEmpty else { return nil }
+        guard !graphics.isEmpty, hasRoom(vCPUs: vCPUs) else { return nil }
         let rowIndex = min(max(vCPUs, 1), graphics.count) - 1
         let range = Limits.runtimeMemoryRangeMiB
         let offset = min(max(mib, range.lowerBound), range.upperBound) - range.lowerBound
@@ -285,7 +301,8 @@ public struct MemoryPolicy: Equatable, Sendable {
     }
 
     /// A stored or requested size at `vCPUs` vCPUs: on the nearest step, at
-    /// least the minimum and no more than the bound.
+    /// least the minimum and no more than the bound; zero where nothing can
+    /// start.
     public func clamped(_ mib: Int, vCPUs: Int) -> Int {
         min(max(Self.nearestStep(mib), Limits.minimumMemoryMiB), maximumMiB(vCPUs: vCPUs))
     }

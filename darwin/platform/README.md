@@ -132,11 +132,28 @@ interface to the wire.
   apply by default; a Mac's cameras take none of this and state 0, and so do
   an iPad app's on a Mac or a Vision Pro, where the coordinator does not take
   the call (it is unavailable there and raises: it is asked, never sent, so the
-  camera keeps the mounting its sensor states). A built-in
-  front camera mounted with its sensor's top at the device's top (portrait 0 or
-  180) is presented like an earlier front camera instead
-  (`presentedMountingOf`): the guest is told 90, the video connection is turned
-  by the difference before the output's size is set, and the photo output's
+  camera keeps the mounting its sensor states). A built-in front camera states
+  270, which Android's face-scan applications assume of a front camera, and the
+  host turns every picture of it half around (`presentedMountingOf`,
+  `CameraInfo::presentationTurn` 180): the camera device turns each frame of its
+  video in the stream write, and a still is taken as an uncompressed full-range
+  4:2:0 photo that the backend turns and encodes itself in the hardware JPEG
+  encoder at the guest's quality (`turned_still.hpp`). The file has no colour
+  profile, as the platform's own stills have none (a reader takes sRGB): the
+  device's capture colour space is selected as sRGB, and the photo is delivered
+  only when what it states is BT.709's or sRGB's (BT.709 primaries with an sRGB
+  or BT.709 transfer, by its attachments, colour space or ICC profile, the
+  colour space Core Video makes of those attachments included); a photo
+  that states less is taken as sRGB only where the selection took effect. The
+  session's own wide-colour choice is the host's only while such a camera is in
+  the session. A photo that cannot be
+  turned, and a Bayer still of such a camera, is refused with a recorded reason
+  and never passed on unturned. The
+  guest's metering and focus regions are mapped back through the turn, and
+  through the connection's turn where there is one. A built-in front camera
+  mounted with its sensor's top at the device's top (portrait 0 or 180) is
+  presented like an earlier front camera as well: its video connection is turned
+  by a quarter turn before the output's size is set, and the photo output's
   orientation compensation, which turns the stills, is on, read only after the
   configuration is committed (before that its answer is not valid) and switched
   on where it is supported and off; the photo connection keeps its default
@@ -307,8 +324,7 @@ interface to the wire.
   `interrupt`, `interrupt background|multitasking|pressure`, `resume`; its path
   is the variable `UML_SYNTHETIC_CAMERA_CONTROL`, read when a launcher makes the
   camera, and nothing else reads it) for a guest in a process of its own; and,
-  with a manual clock, frames that a test pumps. App Store runtimes do not build
-  it. It is never a real camera. The test-only Android launcher
+  with a manual clock, frames that a test pumps. It is never a real camera. The test-only Android launcher
   (`uml-darwin-android17-edge-test`; no product launcher compiles the code) that
   makes it also reads a second pipe, `UML_BACKGROUND_EDGE_CONTROL` (a line each:
   `leave`, `return`), which plays an application's leaving and returning to the

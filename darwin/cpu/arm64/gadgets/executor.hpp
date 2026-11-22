@@ -79,6 +79,19 @@ public:
 	[[nodiscard]] ::uml::cpu::EngineEvent run_block(
 		CpuState &cpu, ::uml::memory::StaticGuestMemory &memory,
 		unsigned long generation, std::size_t &executed);
+	/* run_block with the ahead-of-time step (cpu/arm64/aot) in front, for
+	 * an engine whose aot_selected() is true; it is the engine that picks
+	 * the one or the other, once per entry. Defined only with UML_AOT. */
+	[[nodiscard]] ::uml::cpu::EngineEvent run_aot_block(
+		CpuState &cpu, ::uml::memory::StaticGuestMemory &memory,
+		unsigned long generation, std::size_t &executed);
+	/* Whether the ahead-of-time component was on when this executor was
+	 * made (DARWIN_UML_AOT): fixed for its life, false in a build without
+	 * the component. */
+	[[nodiscard]] bool aot_selected() const noexcept
+	{
+		return aot_selected_;
+	}
 	/* run_block for an AArch32 task (a32/a32_builder.hpp): cpu.pc is an
 	 * A32 or T32 key (aarch32/guest_key.hpp) and every exit leaves it one.
 	 * Retirement, fault positions and ITSTATE follow the contract in
@@ -154,6 +167,29 @@ private:
 
 	class ProgramCache;
 
+	/* The ahead-of-time component's state (cpu/arm64/aot), present only in
+	 * a build with an AOT framework; the member exists in every build so
+	 * that the layout does not depend on the option. */
+	struct AotState;
+	/* The body of run_block and run_aot_block: with Aot, the AOT step runs
+	 * first. */
+	template<bool Aot>
+	[[nodiscard]] ::uml::cpu::EngineEvent run_block_body(
+		CpuState &cpu, ::uml::memory::StaticGuestMemory &memory,
+		unsigned long generation, std::size_t &executed);
+	/* run_block_body's AOT step: when cpu.pc has rewritten code, runs it and
+	 * returns the event the run ends with, else nothing and the engine
+	 * runs the block as usual. Defined only with UML_AOT. */
+	[[nodiscard]] std::optional<::uml::cpu::EngineEvent> run_aot(
+		CpuState &cpu, ::uml::memory::StaticGuestMemory &memory,
+		unsigned long generation, std::uint64_t code_changes,
+		std::uint64_t mapping_changes, std::size_t &executed);
+	/* run_aot's engine step: the one instruction rewritten code left to the
+	 * engine, as run_trap_enabled_instruction runs it, from a cached
+	 * one-instruction program. Defined only with UML_AOT. */
+	[[nodiscard]] ::uml::cpu::EngineEvent step_aot(CpuState &cpu,
+		::uml::memory::StaticGuestMemory &memory, std::size_t &executed);
+
 	/* run_block for a guest SVCR other than 0, out of line so that the
 	 * mode-0 path stays as it was. */
 	[[nodiscard]] ::uml::cpu::EngineEvent run_sme_block(
@@ -227,6 +263,12 @@ private:
 	std::uint64_t retirements_seen_{};
 	/* Whether any SVCR mode cache was made, which note_run() then visits. */
 	bool sme_caches_made_{};
+	/* The ahead-of-time component's state and whether this executor runs
+	 * blocks through it (cpu/arm64/aot), after every member of the ordinary
+	 * path so that none moves; present in every build so that the layout
+	 * does not depend on the option. */
+	std::unique_ptr<AotState> aot_;
+	bool aot_selected_{};
 };
 
 #if defined(UML_GADGET_SWEEP_STRESS) && UML_GADGET_SWEEP_STRESS

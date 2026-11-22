@@ -49,7 +49,7 @@ struct SnapshotWordsTests {
         #expect(SnapshotWords.takeReason(.noData) == "Start the virtual machine once first. Until then there is no data to keep.")
         #expect(SnapshotWords.takeReason(.mismatch) == "Not while the virtual machine\u{2019}s files do not match this app version.")
         #expect(SnapshotWords.takeReason(.unfinishedUpdate)
-            == "Not while Andarium\u{2019}s update is unfinished. Update and start tries it again, or use Restore on Home.")
+            == "Not while the system image update is unfinished. Update and start tries it again, or use Restore on Home.")
         #expect(SnapshotWords.takeReason(.notShutDown)
             == "Android wasn\u{2019}t shut down when the virtual machine last ran. Start the virtual machine and shut it down from Android, then take a snapshot.")
         // An operation under way shows itself and says nothing.
@@ -64,7 +64,7 @@ struct SnapshotWordsTests {
         #expect(SnapshotWords.restoreNote(of: current, appRevision: appRevision, endsUpdate: false)
             == "Replaces the virtual machine\u{2019}s current data with this snapshot.")
         #expect(SnapshotWords.restoreNote(of: current, appRevision: appRevision, endsUpdate: true)
-            == "Replaces the virtual machine\u{2019}s current data with this snapshot. Andarium\u{2019}s unfinished update ends.")
+            == "Replaces the virtual machine\u{2019}s current data with this snapshot. The unfinished system image update ends.")
         #expect(SnapshotWords.restoreNote(of: older, appRevision: appRevision, endsUpdate: false)
             == "Replaces the virtual machine\u{2019}s current data with this snapshot, which is from r18. The next start updates it to r20.")
         #expect(SnapshotWords.restoreNote(of: newer, appRevision: appRevision, endsUpdate: false)
@@ -137,7 +137,7 @@ struct SnapshotWordsTests {
         #expect(SnapshotWords.restoreMessage(of: named, endsUpdate: false)
             == "The virtual machine\u{2019}s current data is replaced by this snapshot from \(date), and anything not in it is deleted. "
             + "Some apps may ask you to sign in again. The next start updates it to r20. This can\u{2019}t be undone.")
-        #expect(SnapshotWords.restoreMessage(of: unnamed, endsUpdate: true).contains(" Andarium\u{2019}s unfinished update ends. This"))
+        #expect(SnapshotWords.restoreMessage(of: unnamed, endsUpdate: true).contains(" The unfinished system image update ends. This"))
         #expect(SnapshotWords.deleteTitle(of: named) == "Delete \u{201C}Before r20\u{201D}?")
         #expect(SnapshotWords.deleteTitle(of: unnamed) == "Delete the snapshot from \(SnapshotWords.taken(unnamed.created))?")
         #expect(SnapshotWords.deleteMessage(frees: SnapshotFigure(bytes: 214 << 20))
@@ -222,7 +222,7 @@ struct SnapshotWordsTests {
         let plain = SnapshotWords.spaceParagraphs(device: "iPhone", lowerBound: false, hasUpdateCopy: false)
         let full = SnapshotWords.spaceParagraphs(device: "iPhone", lowerBound: true, hasUpdateCopy: true)
         #expect(plain.count == 4 && full.count == 6)
-        #expect(full.contains { $0.contains("at least the size shown") } && full.contains { $0.contains("unfinished update") })
+        #expect(full.contains { $0.contains("at least the size shown") } && full.contains { $0.contains("unfinished system image update") })
         #expect(plain.last == "Snapshots stay on this iPhone. They are not in backups, and Erase virtual machine deletes them.")
     }
 }
@@ -230,7 +230,12 @@ struct SnapshotWordsTests {
 /// The screens' model with a fake driver: each flow the sheet offers, the
 /// refusals and the busy states.
 @MainActor
-struct SnapshotsModelTests {
+final class SnapshotsModelTests {
+    // The model of a test adopts the process's App Intent hub, which the suites
+    // of Add to Home Screen replace: these take turns with them (`AndroidAppsHubLock`).
+    init() async { await AndroidAppsHubLock.shared.acquire() }
+    deinit { Task { await AndroidAppsHubLock.shared.release() } }
+
     private struct Setup {
         let model: AppModel
         let driver: FakeSnapshotDriver
@@ -807,7 +812,7 @@ struct SnapshotsModelTests {
         #expect(!s.store.endsUpdate)
         s.model.plan = .unfinishedUpdate(to: "20261109-los24-r20", canRetry: true, canRestore: true)
         #expect(s.store.endsUpdate)
-        #expect(s.store.restoreNote(of: s.store.items[0]).hasSuffix("Andarium\u{2019}s unfinished update ends."))
+        #expect(s.store.restoreNote(of: s.store.items[0]).hasSuffix("The unfinished system image update ends."))
     }
 
     // MARK: Delete and rename

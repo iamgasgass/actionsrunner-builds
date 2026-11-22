@@ -58,8 +58,13 @@ struct ResolutionScreenTests {
         return [node] + children.flatMap { nodes(in: $0, depth: depth + 1) }
     }
 
+    /// The node labelled `label`. Before iOS 27 a bar's button is hosted in a view that has the
+    /// label too and is no accessibility element, ahead of the element itself, so the one VoiceOver
+    /// reaches is taken there.
     private func node(labelled label: String, in root: UIView) -> NSObject? {
-        nodes(in: root).first { $0.accessibilityLabel == label }
+        let named = nodes(in: root).filter { $0.accessibilityLabel == label }
+        if #available(iOS 27.0, *) { return named.first }
+        return named.first { $0.isAccessibilityElement || $0 is UIControl } ?? named.first
     }
 
     private func labels(in root: UIView) -> [String] {

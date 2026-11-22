@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if !APP_STORE
-
 import Observation
 
 /// A UI test's window on the guest's keyboard and mouse. The UI tests drive
@@ -10,7 +8,7 @@ import Observation
 /// (`ANDARIUM_INPUT_PROBE`, `LaunchEnvironment.swift`) sends what the guest
 /// would receive to this log, which the session shows as one accessibility
 /// element, and gives Settings a text field to prove that a sheet keeps the
-/// keys it takes. An App Store build compiles it out.
+/// keys it takes.
 @Observable
 final class InputProbe {
     /// The newest lines last.
@@ -27,5 +25,3 @@ final class InputProbe {
 
     var text: String { lines.joined(separator: "\n") }
 }
-
-#endif

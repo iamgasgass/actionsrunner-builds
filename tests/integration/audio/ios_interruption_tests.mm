@@ -211,9 +211,102 @@ void installRouteHooks()
         method_getTypeEncoding(format));
 }
 
+// The observers of an engine's configuration changes that are registered, by
+// token, so that a test sees one that no owner removed. A token the sink kept
+// leaves the table when it is removed from the center; one it dropped stays,
+// registered for good.
+std::mutex observersLock;
+NSHashTable* engineObservers = [NSHashTable weakObjectsHashTable];
+
+[[nodiscard]] std::size_t registeredEngineObservers()
+{
+    const std::lock_guard guard(observersLock);
+    return engineObservers.count;
+}
+
+// How many of the next connections of a player to its engine raise, as one
+// does before iOS 27 when the engine's format has changed.
+std::atomic<int> connectsToRaise {};
+
+void raiseTheConnection()
+{
+    if (connectsToRaise.load() > 0) {
+        --connectsToRaise;
+        [NSException raise:NSInternalInconsistencyException
+                    format:@"the player could not be connected"];
+    }
+}
+
+void installObserverHooks()
+{
+    Method add = class_getInstanceMethod([NSNotificationCenter class],
+        @selector(addObserverForName:object:queue:usingBlock:));
+    using Add = id (*)(id, SEL, NSNotificationName, id, NSOperationQueue*,
+        void (^)(NSNotification*));
+    static const auto addOriginal =
+        reinterpret_cast<Add>(method_getImplementation(add));
+    method_setImplementation(add, imp_implementationWithBlock(
+        ^id(id center, NSNotificationName name, id object,
+            NSOperationQueue* queue, void (^block)(NSNotification*)) {
+          id token = addOriginal(center,
+              @selector(addObserverForName:object:queue:usingBlock:), name,
+              object, queue, block);
+          if (token != nil &&
+              [name isEqualToString:AVAudioEngineConfigurationChangeNotification]) {
+              const std::lock_guard guard(observersLock);
+              [engineObservers addObject:token];
+          }
+          return token;
+        }));
+
+    Method remove = class_getInstanceMethod(
+        [NSNotificationCenter class], @selector(removeObserver:));
+    using Remove = void (*)(id, SEL, id);
+    static const auto removeOriginal =
+        reinterpret_cast<Remove>(method_getImplementation(remove));
+    method_setImplementation(remove,
+        imp_implementationWithBlock(^(id center, id observer) {
+          if (observer != nil) {
+              const std::lock_guard guard(observersLock);
+              [engineObservers removeObject:observer];
+          }
+          removeOriginal(center, @selector(removeObserver:), observer);
+        }));
+
+    // Both connections: the one that reports its failure (iOS 27) and the one
+    // that raises it.
+    Method connect = class_getInstanceMethod(
+        [AVAudioEngine class], @selector(connect:to:format:));
+    using Connect = void (*)(id, SEL, AVAudioNode*, AVAudioNode*, AVAudioFormat*);
+    static const auto connectOriginal =
+        reinterpret_cast<Connect>(method_getImplementation(connect));
+    method_setImplementation(connect, imp_implementationWithBlock(
+        ^(id engine, AVAudioNode* from, AVAudioNode* to, AVAudioFormat* format) {
+          raiseTheConnection();
+          connectOriginal(
+              engine, @selector(connect:to:format:), from, to, format);
+        }));
+    Method reporting = class_getInstanceMethod(
+        [AVAudioEngine class], @selector(connect:to:format:error:));
+    if (reporting != nullptr) {
+        using Reporting = BOOL (*)(id, SEL, AVAudioNode*, AVAudioNode*,
+            AVAudioFormat*, NSError* __autoreleasing*);
+        static const auto reportingOriginal =
+            reinterpret_cast<Reporting>(method_getImplementation(reporting));
+        method_setImplementation(reporting, imp_implementationWithBlock(
+            ^BOOL(id engine, AVAudioNode* from, AVAudioNode* to,
+                AVAudioFormat* format, NSError* __autoreleasing* error) {
+              raiseTheConnection();
+              return reportingOriginal(engine,
+                  @selector(connect:to:format:error:), from, to, format, error);
+            }));
+    }
+}
+
 void installHooks()
 {
     installRouteHooks();
+    installObserverHooks();
     Method hint = class_getInstanceMethod([AVAudioSession class],
         @selector(secondaryAudioShouldBeSilencedHint));
     method_setImplementation(hint, imp_implementationWithBlock(^BOOL(id) {
@@ -811,11 +904,11 @@ void interruptionMutesAndResumes()
         "every played period reports the output's latency, and only that",
         seen.text());
 
-    postDeactivation(AVAudioSessionDeactivationSourceApp, false);
+    postDeactivation(DeactivationSource::app, false);
     seen = stream.window(400ms, 1500ms);
     check(seen.playing(), "the app's own deactivation leaves playback running",
         seen.text());
-    postDeactivation(AVAudioSessionDeactivationSourceSystem, false);
+    postDeactivation(DeactivationSource::system, false);
     seen = stream.window(400ms, 1500ms);
     check(seen.playing(),
         "a system deactivation that interrupts nothing leaves playback running",
@@ -901,6 +994,60 @@ void interruptionMutesAndResumes()
         "running",
         seen.text());
     check(stream.healthy(), "the sink never failed a period");
+    stream.close();
+}
+
+/* The device thread looks at what the system posted only now and then, so an
+ * end and the beginning of the next interruption can be waiting together. They
+ * are acted on in the order they came: an end that a later beginning overtook
+ * resumes nothing, because the session is another app's again, and the advice
+ * of an end is that end's alone. */
+void endsAndBeginningsThatWaitTogetherAreActedOnInOrder()
+{
+    routeComesBack();
+    otherAudioPlaying = false;
+    Stream stream;
+    check(stream.open(), "the stream opens before the queued events");
+    auto seen = stream.window(300ms, 600ms);
+    check(seen.playing(), "the stream plays before the queued events",
+        seen.text());
+
+    otherAudioPlaying = true;
+    postInterruptionBegan();
+    seen = stream.window(300ms, 600ms);
+    check(seen.muted(), "an interruption mutes the stream", seen.text());
+
+    // The system gives the session back with the advice to resume, and
+    // another app takes it again, before the device thread looks.
+    auto mark = activations.load();
+    postInterruptionEnded(true);
+    postInterruptionBegan();
+    seen = stream.window(700ms, 1000ms, true);
+    check(seen.muted(),
+        "an end that a new interruption overtook leaves the sink muted while "
+        "another app plays",
+        seen.text());
+    check(activations.load() == mark,
+        "and takes no session from the app that has it again",
+        std::to_string(activations.load() - mark) + " activations");
+
+    // The advice of the first end does not carry over to the last.
+    postInterruptionEnded(true);
+    postInterruptionBegan();
+    postInterruptionEnded(false);
+    seen = stream.window(700ms, 1000ms, true);
+    check(seen.muted() && activations.load() == mark,
+        "the advice to resume is that of its own end, not of an earlier one",
+        seen.text());
+    check(stream.healthy(), "the sink refused nothing");
+
+    // The other app stops: the sink takes the session back once.
+    otherAudioPlaying = false;
+    const auto polled = stream.untilPlayed(recoveryLimit);
+    check(polled < recoveryLimit && activations.load() == mark + 1,
+        "the sink resumes by one activation once that app has stopped",
+        std::to_string(polled.count()) + " ms, " +
+            std::to_string(activations.load() - mark) + " activations");
     stream.close();
 }
 
@@ -1322,9 +1469,10 @@ void backgroundReturnWaitsForTheRoute()
     const auto text = lines.finish();
     check(StderrCapture::count(text, "Audio output unavailable (") == 0,
         "a route that returns is not reported as a failure of the output");
-    check(StderrCapture::count(text, "Audio muted: the output route is not "
-                                     "available") == 1,
-        "the wait for the route is said once");
+    const auto saidRoute = StderrCapture::count(
+        text, "Audio muted: the output route is not available");
+    check(saidRoute == 1, "the wait for the route is said once",
+        std::to_string(saidRoute) + " times in: " + text);
 }
 
 // The same, with the route back before the app returns: the engine that
@@ -1619,6 +1767,69 @@ void aStreamThatFailedForGoodStaysFailed()
         "the failure is reported");
 }
 
+// An engine that stopped between its start and the player's: before iOS 27 the
+// player's start reports nothing and returns with the player stopped, and the
+// sink must not take that for a playing stream and hand it periods.
+void aPlayerThatDidNotStartIsNotTakenForPlaying()
+{
+    StderrCapture lines;
+    routeComesBack();
+    otherAudioPlaying = false;
+    Stream stream;
+    afterStart = [](AVAudioEngine* engine) { [engine stop]; };
+    (void)stream.open();
+    stream.idle(1000ms);
+    stream.forgetFailures();
+    // What the sink scheduled while it opened is not what a failed stream is handed afterwards.
+    const auto queued = scheduledPeriods.load();
+    const auto seen = stream.window(100ms, 800ms);
+    check(scheduledPeriods.load() == queued,
+        "a player that is not playing is handed no periods", seen.text());
+    check(!stream.healthy(),
+        "and the stream is failed, not running", seen.text());
+    stream.close();
+    afterStart = nullptr;
+    const auto text = lines.finish();
+    check(StderrCapture::count(text, "Audio output unavailable (") >= 1,
+        "the failure is reported");
+}
+
+// A connection that raises while the sink makes the engine that replaces one
+// that lost its route. The engine's observer is registered before the
+// connection, and it must still end with the sink.
+void aConnectionThatRaisesLeavesNoObserverBehind()
+{
+    StderrCapture lines;
+    routeComesBack();
+    otherAudioPlaying = false;
+    const auto registered = registeredEngineObservers();
+    {
+        Stream stream;
+        check(stream.open(), "the stream opens before the connection raises");
+        const auto seen = stream.window(300ms, 600ms);
+        check(seen.playing(), "the stream plays before the connection raises",
+            seen.text());
+        stream.reset();
+        routeGoesDown();
+        postEngineChanges();
+        stream.idle(300ms);
+        routeComesBack();
+        connectsToRaise = 1;
+        (void)stream.open();
+        stream.idle(500ms);
+        check(connectsToRaise.load() == 0,
+            "the connection of the engine that replaced the lost one raised");
+        stream.close();
+    }
+    connectsToRaise = 0;
+    const auto left = registeredEngineObservers();
+    check(left == registered,
+        "no observer of an engine outlives the sink",
+        std::to_string(left) + " registered, " + std::to_string(registered) +
+            " before");
+    (void)lines.finish();
+}
+
 // The guest resumes before the app is active, and the system would not
 // activate the session yet: the stream plays muted and the sink asks again
 // every second, then plays.
@@ -1687,6 +1898,7 @@ int main()
         installHooks();
         firstOutputOfTheProcessComesUp();
         interruptionMutesAndResumes();
+        endsAndBeginningsThatWaitTogetherAreActedOnInOrder();
         beganWithNoEnd();
         slowActivationKeepsTheClock();
         idleMuteBuildsNoCredit();
@@ -1704,6 +1916,8 @@ int main()
         interruptionDuringTheWaitForTheRoute();
         routeLostDuringTheHandback();
         aStreamThatFailedForGoodStaysFailed();
+        aPlayerThatDidNotStartIsNotTakenForPlaying();
+        aConnectionThatRaisesLeavesNoObserverBehind();
         refusedActivationAtStartIsTriedAgain();
         aSessionThatNeverActivatesIsReported();
     }

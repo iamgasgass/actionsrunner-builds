@@ -3,6 +3,8 @@
 #include "KernariumRuntime.h"
 #include "KernariumAdbChannel.hpp"
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
+#include "KernariumAndroidRoot.hpp"
+#include "KernariumAotRelease.hpp"
 #include "KernariumCamera.hpp"
 #endif
 #include "KernariumConsoleInput.hpp"
@@ -49,10 +51,9 @@
 #include "console/protocol.hpp"
 #include "gnss/in_process_service.hpp"
 #include "gnss/protocol.hpp"
-#ifndef UML_APP_STORE_RUNTIME
 #include "gpu/frame_tap.hpp"
-#endif
 #include "gpu/in_process_service.hpp"
+#include "gpu/native_display.hpp"
 #include "gpu/protocol.hpp"
 #include "input/virtio/hardware_input.hpp"
 #include "input/virtio/hardware_input_run.hpp"
@@ -64,6 +65,7 @@
 #include "block/ubd_path.hpp"
 #include "gpu_budget_plan.hpp"
 #include "options.hpp"
+#include "start_refusal.hpp"
 #include "runtime/execution_engine.hpp"
 #include "runtime/guest_memory_budget.hpp"
 #include "runtime/memory_pressure_response.hpp"
@@ -97,6 +99,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <dlfcn.h>
 #include <mach/mach.h>
 #include <mach/mach_time.h>
 #include <malloc/malloc.h>
@@ -223,12 +226,10 @@ uml::gpu::InProcessGpuService* activeGpu;
 /* Longest a hold waits for a GPU request already running. The application
  * holds inside didEnterBackground, which iOS gives about five seconds. */
 constexpr std::chrono::milliseconds gpuHoldBudget {1000};
-#ifndef UML_APP_STORE_RUNTIME
 /* Process lifetime, like the input callers it serves: the application's
  * terminal can still write while the process exits. */
 kernarium::console::InputRegistry& consoleInputs =
     *new kernarium::console::InputRegistry;
-#endif
 /* What the application has told the runtime about the guest's life, which the
  * run loop reads between boots: a stop, a quiesce, the GPU hold. Process
  * lifetime, like the callers that reach it. */
@@ -440,12 +441,7 @@ public:
     {
         if (context_ == nullptr)
             throw std::bad_alloc {};
-#ifndef UML_APP_STORE_RUNTIME
         const char* forwarding = std::getenv("KERNARIUM_HOST_FORWARD");
-#else
-        /* An App Store runtime reads no environment knob. */
-        const char* forwarding = nullptr;
-#endif
         if (forwarding != nullptr && forwarding[0] != '\0') {
             const int error = uml_slirp_net_add_forward(context_, forwarding);
             if (error != 0) {
@@ -594,7 +590,6 @@ public:
     ActiveRuntime& operator=(const ActiveRuntime&) = delete;
 };
 
-#ifndef UML_APP_STORE_RUNTIME
 /* The figures the memory of a restarting guest is checked by, which a guest
  * that gives its RAM back must return to the first boot's level. */
 struct MemoryFigures final {
@@ -610,6 +605,10 @@ struct MemoryFigures final {
      * the zone holds, which empty chunks keep until the system takes them. */
     std::uint64_t inUse {};
     std::uint64_t allocated {};
+    /* The resident pages of the ahead-of-time blob's mapping: file pages the
+     * footprint does not count, which the system keeps or reads again. Zero
+     * when the runtime does not carry the blob. */
+    std::uint64_t aotResident {};
 };
 
 /* The resident pages of every mapping that holds a wire. */
@@ -642,6 +641,30 @@ std::uint64_t wiredBytes() noexcept
     return wired;
 }
 
+/* The resident pages of the mapping that holds the ahead-of-time blob. */
+std::uint64_t aotResidentBytes() noexcept
+{
+    const void* blob = dlsym(RTLD_DEFAULT, "uml_aot_blob");
+    if (blob == nullptr)
+        return 0;
+    vm_address_t address = reinterpret_cast<vm_address_t>(blob);
+    vm_size_t size = 0;
+    natural_t depth = 0;
+    vm_region_submap_info_data_64_t information {};
+    mach_msg_type_number_t count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    if (vm_region_recurse_64(
+            mach_task_self(),
+            &address,
+            &size,
+            &depth,
+            reinterpret_cast<vm_region_recurse_info_t>(&information),
+            &count) != KERN_SUCCESS ||
+        address > reinterpret_cast<vm_address_t>(blob))
+        return 0;
+    return static_cast<std::uint64_t>(information.pages_resident) *
+        vm_page_size;
+}
+
 MemoryFigures measureMemory() noexcept
 {
     MemoryFigures figures;
@@ -654,6 +677,7 @@ MemoryFigures measureMemory() noexcept
         figures.virtualSize = info.virtual_size;
     }
     figures.wired = wiredBytes();
+    figures.aotResident = aotResidentBytes();
     malloc_statistics_t zone {};
     malloc_zone_statistics(malloc_default_zone(), &zone);
     figures.inUse = zone.size_in_use;
@@ -669,14 +693,16 @@ void reportMemory(const char* label)
     constexpr double mebibyte = 1048576.0;
     std::printf(
         "Kernarium: memory %s footprint %.1f MiB peak %.1f MiB wired %.1f MiB "
-        "virtual %.1f MiB in-use %.1f MiB allocated %.1f MiB\n",
+        "virtual %.1f MiB in-use %.1f MiB allocated %.1f MiB "
+        "aot-resident %.1f MiB\n",
         label,
         figures.footprint / mebibyte,
         figures.peak / mebibyte,
         figures.wired / mebibyte,
         figures.virtualSize / mebibyte,
         figures.inUse / mebibyte,
-        figures.allocated / mebibyte);
+        figures.allocated / mebibyte,
+        figures.aotResident / mebibyte);
 }
 
 /* KERNARIUM_FOOTPRINT_LOG_MS reports the process footprint, the figure iOS
@@ -825,7 +851,6 @@ private:
     std::uint64_t leastRemaining_ {UINT64_MAX};
     std::thread thread_;
 };
-#endif
 
 class ActiveEmulatorRegistration final {
 public:
@@ -1087,12 +1112,10 @@ public:
     ConsoleBridge(const ConsoleBridge&) = delete;
     ConsoleBridge& operator=(const ConsoleBridge&) = delete;
 
-#ifndef UML_APP_STORE_RUNTIME
     [[nodiscard]] kernarium::console::HostEnd& host() noexcept
     {
         return *host_;
     }
-#endif
 
     [[nodiscard]] std::string kernelArgument() const
     {
@@ -1106,7 +1129,6 @@ private:
     std::thread relay_;
 };
 
-#ifndef UML_APP_STORE_RUNTIME
 class ActiveConsoleRegistration final {
 public:
     explicit ActiveConsoleRegistration(ConsoleBridge& console)
@@ -1125,7 +1147,6 @@ public:
     ActiveConsoleRegistration& operator=(
         const ActiveConsoleRegistration&) = delete;
 };
-#endif
 
 #if !KERNARIUM_RUNTIME_ANDROID_GUEST
 bool usableFile(const char* path)
@@ -1178,9 +1199,6 @@ bool immutableExt4Rootfs(const char* path)
  */
 const char* selectedExecutionEngine()
 {
-#ifdef UML_APP_STORE_RUNTIME
-    return "auto";
-#else
     const char* requested = std::getenv("KERNARIUM_EXECUTION_ENGINE");
     if (requested == nullptr)
         return "auto";
@@ -1191,7 +1209,6 @@ const char* selectedExecutionEngine()
     std::fputs(
         "Kernarium: ignoring unknown KERNARIUM_EXECUTION_ENGINE\n", stderr);
     return "auto";
-#endif
 }
 
 /* Whether quiescing also hibernates the guest's RAM. "auto" is what the
@@ -1200,9 +1217,6 @@ const char* selectedExecutionEngine()
  * the Simulator, for diagnosis. */
 const char* selectedGuestHibernation()
 {
-#ifdef UML_APP_STORE_RUNTIME
-    return "auto";
-#else
     const char* requested = std::getenv("KERNARIUM_GUEST_HIBERNATION");
     if (requested == nullptr)
         return "auto";
@@ -1213,7 +1227,6 @@ const char* selectedGuestHibernation()
     std::fputs(
         "Kernarium: ignoring unknown KERNARIUM_GUEST_HIBERNATION\n", stderr);
     return "auto";
-#endif
 }
 
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
@@ -1289,12 +1302,7 @@ void appendKernelCommandLine(
         arguments.emplace_back(
             std::string {kernarium::adb::keyPrefix} + std::string {adbPublicKey});
     }
-#ifdef UML_APP_STORE_RUNTIME
-    /* An App Store runtime reads no environment knob, so it has no forward. */
-    const char* hostForward = nullptr;
-#else
     const char* hostForward = std::getenv("KERNARIUM_HOST_FORWARD");
-#endif
     if (kernarium::adb::tcpDisabled(hostForward)) {
         arguments.emplace_back(std::string {kernarium::adb::tcpPrefix} + "0");
     }
@@ -1443,6 +1451,9 @@ struct GuestRequest final {
      * request's android_host_features; a Linux guest ignores them. */
     std::uint32_t hostFeatures {};
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
+    /* The boot request asked for a launch without the ahead-of-time component
+     * (android_aot_disabled): the release is not stated to the emulator. */
+    bool aotDisabled {};
     /* What the boot request states about the guest's cameras, and the host GPU
      * budget in bytes that sets their memory tier. */
     kernarium::camera::Request camera;
@@ -1462,6 +1473,8 @@ struct GuestRequest final {
      * data disk. */
     std::optional<uml::android::Storage> androidStorage;
     uml::android::BootMode androidBootMode {};
+    /* Whether the guest boots the release's root ramdisk (android_root). */
+    uml::android::RootMode androidRoot {};
 #else
     std::string rootfsPath;
     std::string overlayPath;
@@ -1489,12 +1502,11 @@ void sayBootloaderConsumed()
 #endif
 
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
-/* The platform camera that serves the cameras: the host's, or, in a runtime
- * that is not an App Store build, the synthetic ones its environment names (a
- * value that names none gives the guest no cameras, never the host's). */
+/* The platform camera that serves the cameras: the host's, or the synthetic
+ * ones its environment names (a value that names none gives the guest no
+ * cameras, never the host's). */
 uml::camera::CameraSourceHandle chooseCameraSource()
 {
-#ifndef UML_APP_STORE_RUNTIME
     const auto choice = kernarium::camera::parseSource(
         std::getenv(kernarium::camera::sourceVariable));
     if (choice.invalid)
@@ -1505,9 +1517,6 @@ uml::camera::CameraSourceHandle chooseCameraSource()
             kernarium::camera::sourceVariable);
     return kernarium::camera::chooseSource(
         choice, [] { return uml::camera::makeHostCameraSource(); });
-#else
-    return uml::camera::makeHostCameraSource();
-#endif
 }
 
 /* The cameras this run presents, discovered once for the run. The layout is
@@ -1629,6 +1638,11 @@ public:
             ignoreBrokenPipes();
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
             chooseAndroidBoot(restarts);
+            /* The record says which ramdisk this boot starts with, so that an
+             * application reads from it, and not from what it asked for,
+             * whether a boot that did not finish was the root ramdisk's: a
+             * restart in place may have chosen recovery's. */
+            uml::runtime::set_session_boot_ramdisk(bootRamdisk(androidBoot_));
 #endif
             /* Ends the old guest's connection, which resets its device and
              * its renderer, and opens the next one. The hold on the request
@@ -1661,6 +1675,11 @@ public:
             static_cast<int>(boot_->pointers.size()),
             boot_->pointers.data(),
             nullptr);
+    }
+
+    bool startRefusedForMemory() noexcept override
+    {
+        return uml::emulator::start_refused_for_memory(emulator_);
     }
 
     bool runEnd(kernarium::restart::RunEnd& end) override
@@ -1741,10 +1760,8 @@ public:
 
     void restarting(unsigned restarts) noexcept override
     {
-#ifndef UML_APP_STORE_RUNTIME
         if (FootprintReporter::enabled())
             reportMemory("ended");
-#endif
         publishRestart(KERNARIUM_RUNTIME_RESTART_BEGAN, restarts);
     }
 
@@ -1765,10 +1782,8 @@ public:
             "Kernarium: restart %u: the new guest's console %s\n",
             restarts,
             answered ? "answers" : "has not answered; sending the event anyway");
-#ifndef UML_APP_STORE_RUNTIME
         if (FootprintReporter::enabled())
             reportMemory("booted");
-#endif
         publishRestart(KERNARIUM_RUNTIME_RESTART_BOOTED, restarts);
     }
 
@@ -1805,9 +1820,7 @@ private:
         std::optional<ConsoleBridge> console;
         std::vector<std::string> arguments;
         std::vector<const char*> pointers;
-#ifndef UML_APP_STORE_RUNTIME
         std::optional<ActiveConsoleRegistration> consoleRegistration;
-#endif
         std::optional<ActiveInputRegistration> inputRegistration;
         std::optional<ActiveVsockRegistration> vsockRegistration;
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
@@ -1856,7 +1869,6 @@ private:
         if (!request_.sessionRecordPath.empty())
             arguments.emplace_back(
                 "--session-record=" + request_.sessionRecordPath);
-#ifndef UML_APP_STORE_RUNTIME
         if (request_.jitCacheBudget != 0) {
             /* The later engine argument wins, and the budget is the one the
              * executable memory was prepared for. */
@@ -1865,7 +1877,6 @@ private:
                 "--jit-cache-budget=" +
                 std::to_string(request_.jitCacheBudget));
         }
-#endif
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
         /* Android tags heap pointers, so the guest must run with the top byte
          * ignored exactly as it does on the macOS Android product. */
@@ -2017,6 +2028,19 @@ private:
         for (auto& argument :
              request_.androidStorage->kernelArguments(androidBoot_))
             arguments.push_back(std::move(argument));
+        /* The release the guest boots, as its files state it: the
+         * ahead-of-time component runs only with the release it was made
+         * from. A release that states none gets no such code, and neither
+         * does a launch whose request keeps it out (android_aot_disabled). */
+        if (request_.aotDisabled)
+            std::fputs(
+                "Kernarium: the launch states no ahead-of-time release; the "
+                "guest runs on the engine alone\n",
+                stderr);
+        if (auto argument = kernarium::aot::releaseArgument(
+                request_.aotDisabled, *request_.androidStorage);
+            !argument.empty())
+            arguments.push_back(std::move(argument));
         appendKernelCommandLine(
             arguments,
             *request_.androidStorage,
@@ -2039,9 +2063,7 @@ private:
         for (const auto& argument : arguments)
             boot->pointers.push_back(argument.c_str());
         requireKernelCommandLineFits(boot->pointers);
-#ifndef UML_APP_STORE_RUNTIME
         boot->consoleRegistration.emplace(*boot->console);
-#endif
         boot->inputRegistration.emplace(*boot->touchscreen, *boot->keyboard);
         boot->vsockRegistration.emplace(boot->vsock->endpoint);
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
@@ -2077,20 +2099,36 @@ private:
     /* The first boot asks for the mode the application chose. The ramdisk of
      * every restart is picked again from the misc partition in automatic mode,
      * so that `reboot recovery` boots recovery and anything else boots
-     * normally, and a bootloader request is consumed. */
+     * normally, and a bootloader request is consumed. A run that asked for
+     * root boots the release's root ramdisk for every normal boot. */
     void chooseAndroidBoot(unsigned restarts)
     {
         if (restarts == 0) {
             if (request_.androidStorage->consumeBootloaderCommand())
                 sayBootloaderConsumed();
             androidBoot_ = request_.androidStorage->selectBoot(
-                request_.androidBootMode);
+                request_.androidBootMode, request_.androidRoot);
             return;
         }
-        const auto next = request_.androidStorage->selectRestartBoot();
+        const auto next =
+            request_.androidStorage->selectRestartBoot(request_.androidRoot);
         if (next.bootloaderConsumed)
             sayBootloaderConsumed();
         androidBoot_ = next.boot;
+    }
+
+    static uml::runtime::BootRamdisk bootRamdisk(
+        const uml::android::BootSelection& boot) noexcept
+    {
+        switch (boot.kind()) {
+        case uml::android::RamdiskKind::root:
+            return uml::runtime::BootRamdisk::root;
+        case uml::android::RamdiskKind::recovery:
+            return uml::runtime::BootRamdisk::recovery;
+        case uml::android::RamdiskKind::stock:
+            break;
+        }
+        return uml::runtime::BootRamdisk::stock;
     }
 
     uml::android::BootSelection androidBoot_ {};
@@ -2128,12 +2166,8 @@ uml::emulator::GpuBudgetPlan planGpuBudget(
     bool usesPreparedJitMemory)
 {
     std::uint64_t unusedJitMemory = 0;
-#ifndef UML_APP_STORE_RUNTIME
     if (!usesPreparedJitMemory)
         unusedJitMemory = uml::runtime::prepared_jit_region_bytes();
-#else
-    (void)usesPreparedJitMemory;
-#endif
     auto plan = uml::emulator::plan_gpu_budget(
         static_cast<std::uint64_t>(guestMemoryMiB) * mebibyte,
         /* The host sets the limit; a launch states neither it nor the
@@ -2218,7 +2252,6 @@ constexpr std::size_t bootSizeBeforeHostFeatures =
     offsetof(kernarium_runtime_boot, android_host_features);
 #endif
 
-#ifndef UML_APP_STORE_RUNTIME
 /* The JIT cache budget a boot that asks for the JIT runs with, or zero when it
  * runs on gadgets. Preparing again is cheap when an earlier prepare_jit
  * succeeded, and it is what prepares the memory for a caller that never called
@@ -2252,7 +2285,6 @@ std::size_t readyJitCacheBudget(
         "Kernarium: running on gadgets, not the JIT: %s\n", reason);
     return 0;
 }
-#endif
 
 int runtimeRun(
     KernariumMetalView view,
@@ -2343,6 +2375,7 @@ int runtimeRun(
             return -UML_EMULATOR_INVALID_ARGUMENT;
         }
         GuestRequest request;
+        std::uint32_t grantedRefreshRate = 60;
         request.adbPublicKey = std::move(adbPublicKey);
         request.timeZone = std::move(timeZone);
         if (boot->struct_size >= bootSizeBeforeJit &&
@@ -2360,13 +2393,11 @@ int runtimeRun(
         request.dotsPerInch = dotsPerInch;
         request.guestMemoryMiB = guestMemoryMiB;
         request.guestProcessorCount = guestProcessorCount;
-#ifndef UML_APP_STORE_RUNTIME
         if (boot->struct_size >=
                 bootSizeBeforeJit + sizeof(boot->use_jit) &&
             boot->use_jit != 0)
             request.jitCacheBudget =
                 readyJitCacheBudget(guestMemoryMiB, guestProcessorCount);
-#endif
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
         /* A bit the runtime has no row for is dropped, because a feature
          * never fails a boot: the guest finds the others and not that one. */
@@ -2380,7 +2411,29 @@ int runtimeRun(
                     "Kernarium: ignoring unknown host features 0x%x\n",
                     unknown);
             request.hostFeatures = boot->android_host_features & ~unknown;
+            /* The one 120 Hz mode is granted here, once: to a run on an iPhone
+             * or iPad whose boot view's own screen shows 100 frames a second
+             * or more, for a display size whose EDID can state 120 Hz. The
+             * answer is the host-feature bit and the guest's boot property,
+             * the display's rate (EDID and pacing), and what the application
+             * reads of the run (statistics.display_refresh_hz). A request on
+             * any other keeps the 60 Hz display, and the guest is not told of
+             * a mode it will not find. */
+            if ((request.hostFeatures &
+                 KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH) != 0) {
+                grantedRefreshRate = uml::gpu::NativeDisplay::grantedRefreshRate(
+                    120U, (__bridge void*)view, width, height);
+                if (grantedRefreshRate != 120U) {
+                    std::fputs(
+                        "Kernarium: this display has no 120 Hz mode: keeping "
+                        "60 Hz\n",
+                        stderr);
+                    request.hostFeatures &=
+                        ~KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH;
+                }
+            }
         }
+        request.aotDisabled = kernarium::aot::aotDisabled(*boot);
         /* The identity a request states is kept as given: a value that is not
          * valid fails the run, since the caller wants exactly that one. */
         const auto statedIdentity = kernarium::identity::readRequest(*boot);
@@ -2453,6 +2506,21 @@ int runtimeRun(
             }
             request.identity = resolved.identity;
             request.androidStorage.emplace(release, dataDisk);
+            /* The root ramdisk is the release's own file; a release that has
+             * none cannot be asked for root. */
+            request.androidRoot = kernarium::androidroot::rootMode(*boot);
+            if (request.androidRoot == uml::android::RootMode::on) {
+                if (!request.androidStorage->carriesRoot()) {
+                    std::fputs(
+                        "Kernarium: this Android release carries no root "
+                        "boot image\n",
+                        stderr);
+                    return -UML_EMULATOR_INVALID_ARGUMENT;
+                }
+                std::fputs(
+                    "Kernarium: Android boots the release's root ramdisk\n",
+                    stderr);
+            }
         } catch (const std::exception& error) {
             std::fprintf(
                 stderr, "Kernarium: cannot prepare the Android disks: %s\n",
@@ -2489,9 +2557,7 @@ int runtimeRun(
         lifecycle.begin();
         ignoreBrokenPipes();
         (void)setvbuf(stdout, nullptr, _IONBF, 0);
-#ifndef UML_APP_STORE_RUNTIME
         const auto bootingAt = std::chrono::steady_clock::now();
-#endif
         std::printf(
             "Kernarium: booting %ux%u guest at %u DPI with mem=%uM "
             "ncpus=%u\n",
@@ -2597,6 +2663,7 @@ int runtimeRun(
                     .dotsPerInch = dotsPerInch,
                     .nativeView = (__bridge void*)view,
                     .autoResizeGuest = boot->auto_resize_guest != 0,
+                    .refreshRate = grantedRefreshRate,
                     .sharedMemoryRegions = sharedMemoryRegions,
                     .deviceMemoryLimit = deviceMemoryLimit,
                 });
@@ -2664,14 +2731,12 @@ int runtimeRun(
             }
             emulator.reset(created);
             guest.attach(emulator.get());
-#ifndef UML_APP_STORE_RUNTIME
             /* The host devices, the GPU driver among them, start before the
              * guest does; the footprint log times that stretch. */
             if (FootprintReporter::enabled())
                 std::printf("Kernarium: emulator created %.1f ms after booting\n",
                     std::chrono::duration<double, std::milli>(
                         std::chrono::steady_clock::now() - bootingAt).count());
-#endif
             {
                 /* The handle and the GPU stay registered between boots: a sync
                  * flushes what the last guest left open, a hold is applied to the
@@ -2681,9 +2746,7 @@ int runtimeRun(
 #if KERNARIUM_RUNTIME_ANDROID_GUEST
                 const ActiveHardwareInputRun hardwareInputRequests;
 #endif
-#ifndef UML_APP_STORE_RUNTIME
                 const FootprintReporter footprintReporter;
-#endif
                 result = kernarium::restart::run(guest);
             }
         }
@@ -2997,6 +3060,8 @@ int runtimeReadStatistics(kernarium_runtime_statistics* statistics)
                 display = kernarium::statistics::DisplayFigures {
                     .presentedFrames = frames->presentedFrames,
                     .offeredFrames = frames->guestFrames,
+                    .refreshRate =
+                        activeGpu->displayRefreshRate().value_or(0U),
                 };
             scanout = activeGpu->guestScanoutActive();
             memoryRefusals = activeGpu->memoryRefusals();
@@ -3131,17 +3196,6 @@ int runtimeSetBackgroundThrottle(int enabled)
     return changed;
 }
 
-#ifdef UML_APP_STORE_RUNTIME
-/* An App Store runtime has no frame mirror; the table keeps the entry. */
-int runtimeSetFrameSink(
-    kernarium_runtime_frame_sink,
-    void*,
-    std::uint32_t,
-    std::uint32_t)
-{
-    return -ENOTSUP;
-}
-#else
 int runtimeSetFrameSink(
     kernarium_runtime_frame_sink sink,
     void* context,
@@ -3160,7 +3214,6 @@ int runtimeSetFrameSink(
         {.maximumWidth = maximumWidth, .framesPerSecond = framesPerSecond});
     return 0;
 }
-#endif
 
 void runtimeSetConsoleOutputCallback(
     kernarium_runtime_console_output_callback callback,
@@ -3169,19 +3222,11 @@ void runtimeSetConsoleOutputCallback(
     kernarium::console::output().setCallback(callback, context);
 }
 
-#ifdef UML_APP_STORE_RUNTIME
-/* An App Store runtime takes no console input; the table keeps the entry. */
-int runtimeSendConsoleInput(const void*, std::size_t)
-{
-    return -ENOTSUP;
-}
-#else
 int runtimeSendConsoleInput(const void* buffer, std::size_t length)
 {
     const int error = consoleInputs.send(buffer, length);
     return error == 0 ? 0 : -error;
 }
-#endif
 
 int runtimeConnectVsock(uint32_t port, uint32_t timeoutMilliseconds)
 {
@@ -3422,12 +3467,6 @@ int runtimePrepareJit(
     std::uint32_t guestMemoryMiB,
     std::uint32_t guestProcessorCount)
 {
-#ifdef UML_APP_STORE_RUNTIME
-    (void)enable;
-    (void)guestMemoryMiB;
-    (void)guestProcessorCount;
-    return KERNARIUM_RUNTIME_JIT_UNSUPPORTED;
-#else
     if (enable == 0) {
         uml::runtime::release_jit_debugger();
         return KERNARIUM_RUNTIME_JIT_DISABLED;
@@ -3450,7 +3489,6 @@ int runtimePrepareJit(
         break;
     }
     return KERNARIUM_RUNTIME_JIT_FAILED;
-#endif
 }
 
 const kernarium_runtime_api runtimeApi {

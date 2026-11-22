@@ -131,10 +131,14 @@ struct RigOptions {
     /* The working storage a source holds for each pixel of a still it makes, where a test is to state it (the synthetic
      * source's is 11 bytes). */
     std::optional<std::uint32_t> workingBytes;
+    /* The working storage a source holds besides that while it turns a still of a camera presented half around. */
+    std::optional<std::uint32_t> turnedWorkingBytes;
     /* The RAW size the host declares for its first camera, where a test is to state it. */
     std::optional<uml::platform::CameraStillSize> rawStillSize;
     /* The application's statement of each camera's SENSOR_ORIENTATION, where a test is to state it. */
     std::function<std::uint32_t(const uml::platform::CameraInfo&)> sensorOrientation;
+    /* The synthetic front camera is mounted at 90 and states 270 with a half turn (SyntheticCameraOptions). */
+    bool frontPresentedAt90 {};
 };
 
 class Recorder final : public CameraSessionDelegate {
@@ -214,9 +218,14 @@ public:
     std::uint64_t now() const noexcept override { return host->now(); }
     std::unique_ptr<Nv12Transformer> makeFrameTransformer() const override { return host->makeFrameTransformer(); }
     std::optional<std::uint32_t> workingBytes;
+    std::optional<std::uint32_t> turnedWorkingBytes;
     std::uint32_t stillWorkingBytesPerPixel() const noexcept override
     {
         return workingBytes ? *workingBytes : host->stillWorkingBytesPerPixel();
+    }
+    std::uint32_t turnedStillWorkingBytesPerPixel() const noexcept override
+    {
+        return turnedWorkingBytes ? *turnedWorkingBytes : host->turnedStillWorkingBytesPerPixel();
     }
 
     class Session final : public CameraSession {
@@ -310,6 +319,7 @@ struct Rig final {
         synthetic.profile = rigOptions.profile;
         synthetic.manualClock = true;
         synthetic.authorized = rigOptions.authorized;
+        synthetic.frontPresentedAt90 = rigOptions.frontPresentedAt90;
         camera = makeSyntheticCamera(synthetic);
         store = rigOptions.store ? rigOptions.store : std::make_shared<CalibrationStore>();
         CameraDeviceOptions options;
@@ -339,6 +349,7 @@ struct Rig final {
         };
         watched = std::make_shared<WatchedCamera>(camera);
         watched->workingBytes = rigOptions.workingBytes;
+        watched->turnedWorkingBytes = rigOptions.turnedWorkingBytes;
         watched->rawStillSize = rigOptions.rawStillSize;
         device = std::make_unique<VirtioCameraDevice>(watched, std::move(options));
         device->setGuestMapper([this](std::uint64_t offset, std::size_t size) {
@@ -984,6 +995,127 @@ void testPipeline()
                 rig.rotations[1] == std::array<std::uint32_t, 3> {0, 4, 270},
             "the rotation hook says automatic with 90 and then 270 degrees, once each");
     reference->stop();
+}
+
+/* A picture of the camera's frames and the guest's buffers alike, turned half around. */
+std::vector<std::uint8_t> halfTurned(const std::vector<std::uint8_t>& picture, std::uint32_t width, std::uint32_t height)
+{
+    const auto pitch = rawPitch(width);
+    std::vector<std::uint8_t> out(picture.size());
+    const Nv12Source source {picture.data(), pitch, picture.data() + std::size_t(pitch) * height, pitch, width, height};
+    const Nv12Target target {out.data(), pitch, out.data() + std::size_t(pitch) * height, pitch, width, height};
+    require(transformNv12(source, {0, 0, width, height}, 180, target), "the reference half turn failed");
+    return out;
+}
+
+/* A front camera whose picture the host turns by 180 degrees (it states 270 over a mounting at 90): every video stream the
+ * device writes is the platform's frame turned half around, at the capture's size (the fused row copy) and scaled or cropped
+ * (the transformer), alone and with ROTATE_AND_CROP's turn added to it. The chart's marker is readable in the guest's buffer
+ * only after the half turn is undone; a camera with no turn (a back camera, a front camera that states 270 as it is) is
+ * written as it was. */
+void testAFrontCameraWithAHalfTurnIsWrittenTurned()
+{
+    struct Case {
+        std::uint32_t width, height, control, degrees;
+        const char* what;
+    };
+    // `degrees` is the turn the device must apply in all: the half turn plus ROTATE_AND_CROP's.
+    const Case cases[] = {
+        {640, 480, 0, 180, "native size: the rows go in reversed"},
+        {640, 360, 0, 180, "cropped to 16:9 at the capture's width: the rows of the crop go in reversed"},
+        {320, 240, 0, 180, "scaled down"},
+        {176, 144, 0, 180, "scaled to a small size"},
+        {640, 480, 2, 0, "the half turn and ROTATE_AND_CROP's 180 cancel"},
+        {480, 640, 1, 270, "ROTATE_AND_CROP's 90 on top of the half turn, as a portrait"},
+        {480, 640, 3, 90, "ROTATE_AND_CROP's 270 on top of the half turn, as a portrait"},
+    };
+    RigOptions options;
+    options.frontPresentedAt90 = true;
+    for (const auto& test : cases) {
+        Rig rig(options);
+        Recorder recorder;
+        auto reference = rig.camera->openSession(recorder);
+        require(reference != nullptr, test.what);
+        const auto front = rig.camera->cameras()[1];
+        require(front.position == CameraPosition::front && front.sensorOrientation == 270 && front.presentationTurn == 180, test.what);
+        rig.create(1, 1, videoKind);
+        rig.setVideo(1, test.width, test.height);
+        if (test.control != 0) rig.setOk(1, {{VIRTIO_VIDEO_CAMERA_CID_ROTATE_AND_CROP, std::int64_t(test.control), {}}});
+        rig.attach(1, 1, nv12Size(test.width, test.height));
+        rig.attach(1, 2, nv12Size(test.width, test.height));
+        const auto first = rig.queue(1, 1);
+        const auto second = rig.queue(1, 2);
+        require(reference->startVideo(1, test.width, test.height, 30), test.what);
+        rig.pumpSteps(1, 2);
+        require(recorder.frames.size() == 2, test.what);
+        for (std::size_t index = 0; index < 2; ++index) {
+            const auto answer = rig.result(index == 0 ? first : second);
+            require(answer.base.flags == 0 && answer.base.data_sizes[0] == nv12Size(test.width, test.height), test.what);
+            const auto wanted = expectedNv12(recorder.frames[index], test.width, test.height, test.degrees);
+            require(rig.bytes(1, std::uint32_t(index + 1), wanted.size()) == wanted, test.what);
+        }
+        reference->stop();
+    }
+
+    // The chart: the platform's frame carries the marker as it was drawn, the guest's buffer carries it turned, and it reads
+    // again once the guest's picture is turned half around. Every stream of the camera is turned (a second one alongside).
+    {
+        Rig rig(options);
+        for (std::uint32_t stream : {1u, 2u}) {
+            rig.create(stream, 1, videoKind);
+            rig.setVideo(stream, 640, 480);
+            rig.attach(stream, 1, nv12Size(640, 480));
+            rig.queue(stream, 1);
+        }
+        rig.pumpSteps(1, 1);
+        for (std::uint32_t stream : {1u, 2u}) {
+            const auto picture = rig.bytes(stream, 1, nv12Size(640, 480));
+            // (The check word survives a reversal of the cells, so what tells the turned marker is the tag and counter.)
+            const auto turned = decodeChartMarker(picture.data(), 640, 640, 480);
+            require(!(turned.valid && turned.tag == chartTag(1)) && turned.counter != 1, "the marker does not read in the turned picture");
+            const auto upright = halfTurned(picture, 640, 480);
+            const auto marker = decodeChartMarker(upright.data(), 640, 640, 480);
+            require(marker.valid && marker.tag == chartTag(1) && marker.counter == 1, "it reads once the half turn is undone");
+        }
+    }
+
+    // The guest's metering and focus regions are in the picture it is given: the platform is told the area of its own
+    // picture, which is the opposite one.
+    {
+        Rig rig(options);
+        rig.create(1, 1, videoKind);
+        rig.setVideo(1, 640, 480);
+        rig.attach(1, 1, nv12Size(640, 480));
+        rig.queue(1, 1);
+        const auto wire = [](std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height, std::uint32_t weight) {
+            std::vector<std::uint8_t> region(regionPayloadSize);
+            const std::uint32_t words[5] = {x, y, width, height, weight};
+            std::memcpy(region.data(), words, sizeof(words));
+            return region;
+        };
+        rig.setOk(1, {{VIRTIO_VIDEO_CAMERA_CID_AE_REGION, 0, wire(16384, 32768, 16384, 8192, 5)}});
+        const auto applied = rig.camera->appliedSettings(1);
+        require(applied.aeRegion && applied.aeRegion->weight == 5 && applied.aeRegion->x == 0.5f && applied.aeRegion->y == 0.375f &&
+                    applied.aeRegion->width == 0.25f && applied.aeRegion->height == 0.125f,
+                "the metering region reaches the platform mapped back");
+    }
+
+    // A back camera, and a front camera that states 270 as it is, are not turned: the marker reads as it was written.
+    for (const bool presented : {true, false}) {
+        RigOptions plain;
+        plain.frontPresentedAt90 = presented;
+        Rig rig(plain);
+        const std::uint32_t camera = presented ? 0 : 1;
+        rig.create(1, camera, videoKind);
+        rig.setVideo(1, 640, 480);
+        rig.attach(1, 1, nv12Size(640, 480));
+        rig.queue(1, 1);
+        rig.pumpSteps(camera, 1);
+        const auto picture = rig.bytes(1, 1, nv12Size(640, 480));
+        const auto marker = decodeChartMarker(picture.data(), 640, 640, 480);
+        require(marker.valid && marker.tag == chartTag(camera) && marker.counter == 1,
+                presented ? "a back camera is written as it is" : "a front camera that is not turned is written as it is");
+    }
 }
 
 void testBlockedNeverOpensASession()
@@ -3575,6 +3707,28 @@ void testStillsAreAdmittedInTheOrderTheyAsked()
     require(rig.done(second) && rig.done(third) && rig.result(second).base.flags == 0 && rig.result(third).base.flags == 0, "all are delivered");
 }
 
+// A still the host turns half around and encodes holds the encoder's buffers beside the file: the capture of a camera whose
+// pictures are presented half around costs the more for them, and the same capture of a camera that is not turned costs no more.
+void testATurnedStillHoldsTheEncodersBuffersBesideItsFile()
+{
+    // The budget is the 12.7 MP ceiling with no working storage and no RAW: 38.1 MB, where one 2016x1512 JPEG capture is 9.1 MB
+    // and the encoder's four bytes a pixel add 12.2 MB to a turned one.
+    const auto run = [](bool presented, std::uint32_t turnedBytes) {
+        RigOptions options;
+        options.use = {1, false, 0};
+        options.workingBytes = 0;
+        options.turnedWorkingBytes = turnedBytes;
+        options.frontPresentedAt90 = presented;
+        Rig rig(options);
+        stillStream(rig, 1, 1, 2016, 1512, 4);
+        for (unsigned index = 1; index <= 4; ++index) (void)rig.queue(1, index, 100 + index);
+        return rig.camera->stillsTaken();
+    };
+    require(run(true, 0) == 4, "four 9.1 MB captures fit the budget while the encoder's buffers are not counted");
+    require(run(true, 4) == 1, "a turned still's buffers are counted: one capture of 21.3 MB fits, and the rest wait");
+    require(run(false, 4) == 4, "a camera that is not turned is charged no more");
+}
+
 // A capture that costs more than the device admits at all is refused before it starts, and is not admitted as the first.
 void testACaptureBeyondTheWholeBudgetIsRefusedBeforeItStarts()
 {
@@ -4271,6 +4425,7 @@ int main()
     testVideoAndMetadata();
     testDecimation();
     testPipeline();
+    testAFrontCameraWithAHalfTurnIsWrittenTurned();
     testBlockedNeverOpensASession();
     testBlockedSaysWhenTheGuestOpensACamera();
     testLiveNeverReportsBlockedUse();
@@ -4329,6 +4484,7 @@ int main()
     testAWaitingCaptureThatGrowsBeyondTheWholeBudgetIsRefused();
     testAResultsPayloadIsFreedBeforeTheNextCaptureStarts();
     testStillsAreAdmittedInTheOrderTheyAsked();
+    testATurnedStillHoldsTheEncodersBuffersBesideItsFile();
     testACaptureBeyondTheWholeBudgetIsRefusedBeforeItStarts();
     testBlackPicturesHoldNothingOfTheirOwn();
     testAStillThatFailsSaysWhy();

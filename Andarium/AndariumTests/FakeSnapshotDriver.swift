@@ -27,6 +27,10 @@ final class FakeSnapshotDriver: SnapshotDriver {
     /// What a restore does to the files besides its data, as a test plays it
     /// (the files now say what a start would be).
     var onRestore: (@MainActor () -> Void)?
+    /// Runs at the instant the operation is over for the screens (the runtime
+    /// unlocks the guest's files) and before the result reaches the caller: a
+    /// tap delivered now lands between the unlock and the model's adoption.
+    var atUnlock: (@MainActor () -> Void)?
 
     private(set) var log: [String] = []
     private(set) var measuredReads = 0
@@ -174,6 +178,7 @@ final class FakeSnapshotDriver: SnapshotDriver {
         }
         activity.operation = nil
         activity.revision += 1
+        atUnlock?()
         return result
     }
 }

@@ -5,11 +5,9 @@
 #include "cpu/arm64/gadgets/sme_support.hpp"
 #include "cpu/arm64/fp_environment.hpp"
 #include "cpu/arm64/sme_profile.hpp"
-#if UML_ARM64_JIT_ENGINE
 #include "cpu/arm64/jit/jit_cache_geometry.hpp"
 #include "cpu/arm64/jit/jit_memory_preparation.hpp"
 #include "cpu/arm64/jit/jit_sme_support.hpp"
-#endif
 
 #include <cctype>
 #include <cstdint>
@@ -21,9 +19,7 @@ namespace uml::cpu {
  * so a guest on an SME host is told of every form of the profile but SME2's,
  * which neither engine may then take as illegal. */
 static_assert(arm64::gadgets::sme_support >= arm64::SmeSupport::complete);
-#if UML_ARM64_JIT_ENGINE
 static_assert(arm64::jit::sme_support >= arm64::SmeSupport::complete);
-#endif
 
 std::unique_ptr<CpuEngine> make_cpu_engine(
 	EngineKind kind, EngineConfiguration configuration)
@@ -32,11 +28,7 @@ std::unique_ptr<CpuEngine> make_cpu_engine(
 	case EngineKind::gadgets:
 		return arm64::detail::make_gadget_engine(configuration);
 	case EngineKind::jit:
-#if UML_ARM64_JIT_ENGINE
 		return arm64::detail::make_jit_engine(configuration);
-#else
-		return nullptr;
-#endif
 	}
 	return nullptr;
 }
@@ -47,25 +39,17 @@ bool cpu_engine_available(EngineKind kind) noexcept
 	case EngineKind::gadgets:
 		return true;
 	case EngineKind::jit:
-#if UML_ARM64_JIT_ENGINE
 		return arm64::detail::native_jit_engine_available();
-#else
-		return false;
-#endif
 	}
 	return false;
 }
 
 HostCapabilities engine_host_capabilities(
-	[[maybe_unused]] EngineKind kind, HostCapabilities host) noexcept
+	EngineKind kind, HostCapabilities host) noexcept
 {
-#if UML_ARM64_JIT_ENGINE
 	const bool jit = kind == EngineKind::jit;
 	const auto support = jit ? arm64::jit::sme_support :
 				   arm64::gadgets::sme_support;
-#else
-	const auto support = arm64::gadgets::sme_support;
-#endif
 	return ::uml::platform::without_sve(
 		arm64::sme_host_for_support(std::move(host), support));
 }
@@ -75,7 +59,26 @@ void materialize_architectural_state(arm64::CpuState &cpu) noexcept
 	arm64::restore_native_fp_environment(cpu);
 }
 
-#if UML_ARM64_JIT_ENGINE
+bool select_aot(AotSelection selection, const AotRelease *release) noexcept
+{
+	return arm64::detail::select_aot(selection, release);
+}
+
+void end_aot_session() noexcept
+{
+	arm64::detail::end_aot_session();
+}
+
+int aot_choice() noexcept
+{
+	return arm64::detail::aot_choice();
+}
+
+void restore_aot_choice(int choice) noexcept
+{
+	arm64::detail::restore_aot_choice(choice);
+}
+
 bool set_translation_cache_budget(std::size_t total_bytes,
 	unsigned executors, std::size_t per_executor_bytes) noexcept
 {
@@ -93,7 +96,6 @@ void release_translation_cache_run_session() noexcept
 	arm64::release_jit_cache_run_session();
 }
 
-#ifndef UML_APP_STORE_RUNTIME
 JitMemoryStatus prepare_jit_memory(std::size_t total_bytes,
 	unsigned executors, std::size_t per_executor_bytes) noexcept
 {
@@ -115,22 +117,6 @@ std::size_t prepared_jit_region_bytes() noexcept
 {
 	return arm64::prepared_jit_region_bytes();
 }
-#endif
-#else
-/* No JIT engine, so no translated-code cache to size or to serialize. */
-bool set_translation_cache_budget(std::size_t, unsigned,
-	std::size_t) noexcept
-{
-	return false;
-}
-
-bool acquire_translation_cache_run_session() noexcept
-{
-	return false;
-}
-
-void release_translation_cache_run_session() noexcept {}
-#endif
 
 std::size_t parse_translation_cache_quantity(const char *text) noexcept
 {

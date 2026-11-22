@@ -11,6 +11,8 @@ laid out, for:
   android       the LineageOS release (release-manifest.json and
                 guest/system.img, which may also come compressed as
                 system.img.zst/.xz/.gz) -> .build/android/releases/<its name>
+  aot           the AOT artifact of the Android release (artifact.json and
+                blob.bin) -> .build/android/aot/<accepted release directory>
   xcframeworks  an already packaged .build/kernarium-xcframeworks (it holds
                 KRuntime_Android_6_18_4K.xcframework): the runtime then need
                 not be built -> .build/kernarium-xcframeworks
@@ -30,7 +32,7 @@ workflow rebuilds from source any prefix that is missing or fails that check.
 
 Anything else is ignored. The result is printed, and written as step outputs
 to $GITHUB_OUTPUT when it is set: kernel_dir, android_dir (paths or empty)
-and xcframeworks, gpu, network, storage, zstd (true/false).
+and aot, xcframeworks, gpu, network, storage, zstd (true/false).
 """
 
 from __future__ import annotations
@@ -80,6 +82,10 @@ def is_android_release(directory: Path) -> bool:
     return (guest / "system.img").is_file() or any((guest / f"system.img{suffix}").is_file() for suffix in COMPRESSED_SUFFIXES)
 
 
+def is_aot(directory: Path) -> bool:
+    return (directory / "artifact.json").is_file() and (directory / "blob.bin").is_file()
+
+
 def is_xcframeworks(directory: Path) -> bool:
     return (directory / "KRuntime_Android_6_18_4K.xcframework").is_dir()
 
@@ -103,6 +109,7 @@ def is_zstd(directory: Path) -> bool:
 KINDS = (
     ("xcframeworks", is_xcframeworks),
     ("kernel", is_kernel),
+    ("aot", is_aot),
     ("android", is_android_release),
     ("gpu", is_gpu),
     ("network", is_network),
@@ -194,6 +201,11 @@ def main() -> int:
         result["android_dir"] = str(placed)
     else:
         result["android_dir"] = ""
+
+    aot = choose("aot", found["aot"], android_accepted.get("LINEAGE24_ACCEPTED_DIRECTORY_NAME"))
+    if aot:
+        put(aot, build / "android/aot" / android_accepted.get("LINEAGE24_ACCEPTED_DIRECTORY_NAME", aot.name))
+    result["aot"] = "true" if aot else "false"
 
     xcframeworks = choose("xcframeworks", found["xcframeworks"], "kernarium-xcframeworks")
     if xcframeworks:

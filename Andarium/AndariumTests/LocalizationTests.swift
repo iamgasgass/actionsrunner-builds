@@ -69,6 +69,11 @@ struct LocalizationTests {
         }
     }
 
+    /// The notes that every language writes as English does: a term and a unit.
+    /// `Localization/english-only.json` lists them as identical (the check of
+    /// `scripts/localization.py` refuses any other that is).
+    private static let notesEveryLanguageKeeps: Set<String> = ["AOT", "120 Hz"]
+
     @Test(arguments: LocalizationTests.languages)
     func everyNoteOfTheReleasesIsTranslated(language: String) throws {
         let releases = WhatsNewCatalog.load()
@@ -78,8 +83,14 @@ struct LocalizationTests {
         try #require(!notes.isEmpty)
         for note in notes {
             let translated = text(String.LocalizationValue(note), table: "WhatsNew", in: language)
-            #expect(translated != note, "\(language) shows \"\(note)\" in English")
+            if Self.notesEveryLanguageKeeps.contains(note) {
+                #expect(translated == note, "\(language) shows \"\(translated)\" for \"\(note)\"")
+            } else {
+                #expect(translated != note, "\(language) shows \"\(note)\" in English")
+            }
         }
+        // The terms are notes of the releases, so a list that outlives them is found.
+        #expect(Self.notesEveryLanguageKeeps.isSubset(of: Set(notes)))
     }
 
     /// Each permission text of the Info.plist reads differently in each

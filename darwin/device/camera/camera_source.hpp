@@ -11,10 +11,7 @@ namespace uml::camera {
 /* Where a launcher gets the platform camera that VirtioCameraDevice serves.
  * The camera device itself links no backend; this library owns the two a
  * launcher can choose between, so that a launcher reaches them through the
- * device layer.
- *
- * The synthetic camera is not built for an App Store runtime, and
- * syntheticCameraAvailable() says whether this build carries it. */
+ * device layer. */
 
 /* A platform camera, ready for makeInProcessCameraService(). */
 using CameraSourceHandle = std::shared_ptr<uml::platform::Camera>;
@@ -24,16 +21,15 @@ using CameraSourceHandle = std::shared_ptr<uml::platform::Camera>;
  * a process of its own, and the only way to interrupt a Mac session. Unset, the camera is deaf. */
 inline constexpr const char* syntheticControlVariable = "UML_SYNTHETIC_CAMERA_CONTROL";
 
-/* The cameras the synthetic camera presents. */
-enum class SyntheticProfile : std::uint8_t { phone, tablet, laptop };
-
-[[nodiscard]] bool syntheticCameraAvailable() noexcept;
+/* The cameras the synthetic camera presents. `phoneTurnedFront` is the phone whose front camera is mounted at 90 and
+ * turned half around by the host, as an iPhone's is (SyntheticCameraOptions::frontPresentedAt90). */
+enum class SyntheticProfile : std::uint8_t { phone, tablet, laptop, phoneTurnedFront };
 
 /* Whether the system's camera permission is already granted to this process.
  * It only reads the answer: nothing here shows a prompt. */
 [[nodiscard]] bool hostCameraPermissionGranted();
 
-/* The synthetic camera. Throws std::runtime_error when this build lacks it. */
+/* The synthetic camera. */
 [[nodiscard]] CameraSourceHandle makeSyntheticCameraSource(SyntheticProfile profile);
 
 /* The host's own cameras, discovered and not opened. It does not read the

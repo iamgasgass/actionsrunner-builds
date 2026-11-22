@@ -15,7 +15,7 @@ target_include_directories(uml_gnss_device
 target_link_libraries(uml_gnss_device PRIVATE UML::VhostUserTransport)
 
 # The `--location` test sources. Only the launcher and their unit test link
-# them, so the App Store runtime cannot.
+# them.
 add_library(uml_gnss_synthetic_source STATIC synthetic_source.cpp)
 add_library(UML::GnssSyntheticSource ALIAS uml_gnss_synthetic_source)
 uml_declare_architecture_target(uml_gnss_synthetic_source device)

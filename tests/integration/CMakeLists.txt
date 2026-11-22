@@ -219,7 +219,7 @@ uml_add_guest_integration_test(
 # device, and the stop waits for it). No switch in a production target can do
 # any of these, so the device is the production one behind the delayed-answer
 # shim, which resets it or holds its requests.
-if(TARGET UML::CameraSource AND TARGET UML::SyntheticCamera)
+if(TARGET UML::CameraSource)
     uml_add_freestanding_cxx_payload(UML_GUEST_CAMERA_RESET_INIT
         guest-video-camera-reset-init
         video/camera_reset_init.cpp
@@ -528,6 +528,7 @@ uml_add_guest_integration_test(
 
 add_subdirectory(aarch32)
 add_subdirectory(android)
+add_subdirectory(aot)
 add_subdirectory(exclusive)
 add_subdirectory(memory_pressure)
 add_subdirectory(no_sve)

@@ -13,7 +13,7 @@ enum StatisticsViewer: Hashable {
 }
 
 enum SheetKind: String, Identifiable, Hashable, CaseIterable {
-    case create, resize, info, system, resolution, whatsNew, snapshots
+    case create, resize, info, system, resolution, whatsNew, snapshots, appUpdate
 
     var id: String { rawValue }
 }
@@ -30,6 +30,12 @@ struct SessionPreset: Equatable {
     var settingsScroll: String?
     /// Settings opens on the Old app compatibility page (the preview).
     var oldAppsPage = false
+    /// Settings opens on the Add to Home Screen page (the preview), and on the
+    /// guide of the app with this identifier when one is stated.
+    var addToHomePage = false
+    var addToHomeGuide: String?
+    /// The text the Add to Home Screen page's search starts with (the preview).
+    var addToHomeQuery: String?
     var powerMenu = false
     var leftEdge = false
     var guestScreen: GuestScreen = .home
@@ -116,6 +122,13 @@ final class AppModel {
         }
     }
     var host: HostDevice
+    /// Whether the iPad app runs on a Mac or on an Apple Vision Pro, and what
+    /// its system offers: this process's.
+    private let processPadAppHost = IPadAppHost.system
+    var padAppHost: IPadAppHost {
+        if let playedPadAppHost { return playedPadAppHost }
+        return processPadAppHost
+    }
     /// The guest's files, when the runtime behind the screens can reach them.
     var fileBrowser: FileBrowserModel? {
         didSet { fileBrowser?.isAvailable = { [weak self] in self?.filesAvailable ?? false } }
@@ -196,10 +209,16 @@ final class AppModel {
     /// devices; nothing in the application does.
     var statedNativeScale: Double?
     var statedDisplayPoints: CGSize?
-    /// What the scene reads of the screen the window is on.
-    func screenDidChange(nativeScale: Double) {
+    var statedMaximumFramesPerSecond: Int?
+    /// What the scene reads of the screen the window is on. A caller that
+    /// does not read the frame rate leaves it as it was.
+    func screenDidChange(nativeScale: Double, maximumFramesPerSecond: Int? = nil) {
         let scale = statedNativeScale ?? nativeScale
         if screenNativeScale != scale { screenNativeScale = scale }
+        if let rate = statedMaximumFramesPerSecond ?? maximumFramesPerSecond,
+           screenMaximumFramesPerSecond != rate {
+            screenMaximumFramesPerSecond = rate
+        }
     }
     /// What Home reads of the window: the display's size as the guest will
     /// get it.
@@ -248,18 +267,64 @@ final class AppModel {
     /// The release notes: Info's history and the ribbon above Start after an
     /// update.
     var whatsNew = WhatsNewModel()
+    /// The notice that a newer version of Andarium exists, in a build that
+    /// has an address for its updates and a launch that is the person's own;
+    /// nil elsewhere, where Home and Info show nothing of it.
+    var appUpdate: UpdateNotice?
     /// The launch decided whether the statistics show (automation, see
     /// `StatsPreference.launch`): the value belongs to that run and is not kept.
     var statsDecidedByLaunch = false
     /// What is kept of Settings' "Show on screen" across launches
     /// (`StatsPreference`); nil where the launch decided it.
     var showStatsToKeep: Bool? { statsDecidedByLaunch ? nil : session.showStats }
-    #if !APP_STORE
+    // AOT (Home's AOT row): Android's system libraries run from the code
+    // translated from them ahead of time. The switch applies to the next start,
+    // and only a build that carries the translated-code framework has it.
+    /// This build carries the translated-code framework (what Acknowledgements
+    /// reads, `Acknowledgements.carries`), so Home shows the row.
+    var translatedLibrariesAvailable = false
+    /// Whether the person wants them. On is the default. Kept for the install
+    /// (`TranslatedLibrariesPreference`).
+    var translatedLibrariesOn = true
+    /// The launch decided it (automation): the value belongs to that run and
+    /// is not kept.
+    var translatedLibrariesDecidedByLaunch = false
+    /// What is kept of the row across launches; nil where the launch decided
+    /// it.
+    var translatedLibrariesToKeep: Bool? { translatedLibrariesDecidedByLaunch ? nil : translatedLibrariesOn }
+    /// The person turns the translated libraries on or off. It changes nothing
+    /// until Android next starts: the choice is read at each start.
+    func setTranslatedLibraries(_ on: Bool) {
+        translatedLibrariesOn = on
+    }
+    /// The note under Performance's panel: what JIT does at the next start
+    /// (`JitStatus.footer`). The ready sentence shows only while the JIT row is
+    /// on; the sentences that say how to enable it, that the guest changed
+    /// after it was prepared, or that a start ran without it show whatever the
+    /// row says.
+    var jitNote: String? {
+        let status = jitStatus
+        return status.readyForNextStart && !jitOn ? nil : status.footer
+    }
+    /// The next start runs on the JIT engine, which does not use the translated
+    /// libraries: the JIT is on and the note under its row says it is ready
+    /// (its memory is, or can be, prepared for the guest, and no earlier start
+    /// fell back), so that this row and that note agree.
+    var jitInUseForNextStart: Bool {
+        jitAvailable && jitOn && jitStatus.readyForNextStart
+    }
+    /// What a start does about the translated libraries, for the runtime's boot
+    /// request and the start record. `jitInUse` is whether this start runs on
+    /// the JIT engine.
+    func translatedLibrariesStart(jitInUse: Bool) -> TranslatedLibrariesStart {
+        TranslatedLibrariesStart(
+            buildCarries: translatedLibrariesAvailable, optionOn: translatedLibrariesOn, jitInUse: jitInUse)
+    }
     // JIT (Home's JIT row): the guest runs on the JIT engine when the person
     // turned it on and a debugger they attached has prepared the executable
-    // memory. A development build only; an App Store build has no JIT.
-    /// This build on this device can run the guest on the JIT engine: a
-    /// development build on a device. The Simulator and the preview offer it
+    // memory.
+    /// This build on this device can run the guest on the JIT engine: a build
+    /// on a device, Debug or Release. The Simulator and the preview offer it
     /// only as a mock.
     var jitAvailable = false
     /// Whether the person wants the JIT. It applies to the next start.
@@ -387,7 +452,6 @@ final class AppModel {
     }
     /// Whether the preview, which has no runtime, plays a debugger.
     var previewJitDebugger = true
-    #endif
     /// How the last run ended, for the screen that says so.
     var runEnd = RunEnd(result: 0)
     var runUptimeSeconds: Int?
@@ -398,11 +462,9 @@ final class AppModel {
     /// Seconds the boot screen shows when it is held.
     var frozenElapsed = 9
 
-    #if !APP_STORE
     /// The launch's automation work (create, erase, start) has run; a scene
     /// that connects to this model again does not repeat it.
     var launchApplied = false
-    #endif
 
     /// The runtime and storage behind the screens; nil plays mock data.
     var driver: (any RuntimeDriver)? {
@@ -419,13 +481,23 @@ final class AppModel {
     /// What the snapshot driver is doing, which it sets around each
     /// operation: the controls of a screen follow `snapshotGate`.
     var snapshotActivity = SnapshotActivity() {
-        didSet { snapshots.activityChanged(from: oldValue, to: snapshotActivity) }
+        didSet {
+            snapshots.activityChanged(from: oldValue, to: snapshotActivity)
+            // A request to open an Android app that waited for it goes on.
+            if oldValue.holdsGuestFiles, !snapshotActivity.holdsGuestFiles { androidAppsSnapshotOperationEnded() }
+        }
     }
     /// What the snapshot screens show and do (`SnapshotsModel`).
     let snapshots = SnapshotsModel()
+    /// Android's apps, the cache of them and the request to open one
+    /// (`AppModel+AndroidApps.swift`).
+    let androidApps = AndroidAppsState()
     /// Home's notice after a snapshot was restored, until the guest starts or
     /// the person puts it away.
-    var restoredSnapshot: RestoredSnapshotNotice?
+    var restoredSnapshot: RestoredSnapshotNotice? {
+        // The data is what the snapshot held: the apps may differ from the cache's list.
+        didSet { if restoredSnapshot != nil { androidApps.invalidated() } }
+    }
     /// A long task the screens wait for.
     var busy: BusyState? {
         didSet { if busy == nil { busyOverSheet = false } }
@@ -434,44 +506,10 @@ final class AppModel {
     /// way itself, and the screens do not: set for the task a sheet starts,
     /// and cleared with it.
     var busyOverSheet = false
-    #if FEEDBACK_MAIL
-    /// What Send feedback asks of the system (`SendFeedbackServices`); a test
-    /// or the Simulator preview replaces it.
-    @ObservationIgnored var feedbackServices = SendFeedbackServices()
-    /// The Send feedback sheet is open, over Home or over the session's Settings.
-    var feedbackSheetOpen = false
-    /// The Send feedback sheet the boot screen's notice opened is open. The
-    /// root presents it, so it stays up, with what the person typed, when the
-    /// boot ends or the run does.
-    var feedbackFromBoot = false
-    #endif
-    #if TIP_JAR
-    /// What Buy me tokens asks of the App Store and of the build
-    /// (`TipJarServices`); a test or the Simulator preview replaces it.
-    @ObservationIgnored var tipJarServices = TipJarServices()
-    /// The Buy me tokens sheet is open, over Home. Nothing else about it is
-    /// kept: the sheet's state belongs to one opening.
-    var tipJarSheetOpen = false
-    #endif
-    #if APP_REVIEW
-    /// What Review on the App Store asks of the build and of the system
-    /// (`ReviewServices`); a test replaces it.
-    @ObservationIgnored var reviewServices = ReviewServices()
-    /// The rating prompt (`ReviewAsk`): made by the application's own launch,
-    /// so a model built any other way (a test, the preview) never asks.
-    @ObservationIgnored var reviewAsk: ReviewAsk?
-    #endif
     #if FOLLOW_X
     /// The handle Follow developer on X opens, from Info.plist, which only a
     /// build that names one has; a test replaces it.
     @ObservationIgnored var followXHandle: () -> String? = { FollowXProfile.handle }
-    #endif
-    #if ICP_FILING
-    /// The filing number Info's footnote shows, from Info.plist, which only a
-    /// build that names one has, and the storefront that decides whether it
-    /// shows; a test replaces each.
-    @ObservationIgnored var icpNumber: () -> String? = { ICPFiling.number }
-    @ObservationIgnored var icpStorefront = ICPStorefrontServices.live
     #endif
     /// The update's Restore is under way (waiting for a snapshot operation, or running).
     private var restoringUpdate = false
@@ -498,7 +536,13 @@ final class AppModel {
     }
     /// The guest is paused because the device is nearly out of space; the
     /// screen over the session asks what to do.
-    var spacePause: SpacePause?
+    var spacePause: SpacePause? {
+        // The pause for space that held a request to open an Android app is over.
+        didSet {
+            if oldValue != nil, spacePause == nil { androidAppsHoldEnded(.space) }
+            if oldValue == nil, spacePause != nil { androidAppsSpacePaused() }
+        }
+    }
     var alert: AppAlert?
     /// What a Files picker's failure says, over Settings (`documentPickerFailed`).
     var documentPickerProblem: AppAlert?
@@ -518,14 +562,8 @@ final class AppModel {
     var slowStart = SlowStart()
     /// The notice's Stop asked first (`askToStop`): the dialog is up.
     var confirmingStop = false
-    #if !APP_STORE
     /// The preview's frozen boot screen shows the start's own clock, which runs.
     @ObservationIgnored var previewClockRuns = false
-    #endif
-    /// What tells the runtime's session record of the boot under way from any
-    /// other (`BootRecordBinding`): made as a start begins, and counted on at
-    /// each restart of the guest in place. nil before the first start.
-    @ObservationIgnored var bootRecord: BootRecordBinding?
     /// The time the boot screen counts a start by, in seconds: a monotonic
     /// reading that does not run while the guest is held (a background span, a
     /// pause for space). A runtime supplies its pause-aware clock; a test
@@ -539,6 +577,45 @@ final class AppModel {
     /// play on. The runtime states it; an iPad, a Mac and the Simulator have
     /// none, and Capabilities then has no Haptics row.
     var hapticsAvailable = false
+    /// The Android release this copy carries holds root (`RootRelease`): Home
+    /// shows the Root section only then, and a start boots Magisk only then.
+    /// The device application reads it from the staged release; nothing else
+    /// sets it.
+    var rootAvailable = false
+    /// The alert that asks before root is turned on is up (`Model+Root.swift`).
+    var rootWarningShowing = false
+    /// The boot screen's Magisk app step is under way: Android has booted with
+    /// root and the app is being put in the guest (`runRootAppStep`). The
+    /// screen adds its fifth step only while this is set.
+    var rootAppInstalling = false
+    /// Counts the starts, restarts and run ends of the guest: a Magisk app
+    /// step belongs to the boot it began in and changes nothing of Home or
+    /// the boot screen once this number has moved (`runRootAppStep`).
+    private(set) var bootRun = 0
+    /// Counts the changes of the Root switch and of what pauses it: a result
+    /// of a Magisk app step belongs to the period of the switch it began in,
+    /// as well as to its boot (`runRootAppStep`).
+    @ObservationIgnored
+    var rootPeriod = 0
+    /// A fallback decided at launch, before a driver could save the guest.
+    @ObservationIgnored
+    var rootStateUnsaved = false
+    /// The previous session's record is left where the runtime wrote it while
+    /// a decision made from it (a pause of root) is not saved, so that a
+    /// launch that ends first reads it again (`PreviousSession`).
+    @ObservationIgnored
+    var previousSessionHeld = false
+    /// The record of a run that ended is left at its place while the pause
+    /// decided from it is not saved, and moved aside once it is
+    /// (`keepRunRecordIfDecided`): a launch that comes after "Try with root
+    /// again" does not read it again.
+    @ObservationIgnored
+    var runRecordHeld = false
+    /// The ramdisk the last boot before the run under way used, as its record
+    /// said: the previous session's, or a run of this process whose record
+    /// was moved aside.
+    @ObservationIgnored
+    var previousBootRamdisk: SessionRecord.BootRamdisk?
     /// Settings' "Use the pointer as touch": the system pointer's clicks are the
     /// guest's touches and the guest has no mouse. Kept for the install
     /// (`PointerPreference`); off, Android sees a mouse with its own cursor.
@@ -566,11 +643,9 @@ final class AppModel {
     /// An Android application captured the pointer and the guest should have
     /// the pointer lock; the scene's root asks iOS for it.
     var pointerLockWanted = false
-    #if !APP_STORE
     /// A UI test's launch: the guest's keyboard and mouse send to a log the
     /// test reads, and Settings carries a text field to take the keys.
     var inputProbe: InputProbe?
-    #endif
     var microphoneState = MicrophoneState.notAsked
     /// How far iOS lets Andarium use the device's cameras, and `unavailable`
     /// for a device that has none.
@@ -653,9 +728,21 @@ final class AppModel {
     /// Whether VoiceOver is running; a test answers for it.
     @ObservationIgnored var voiceOverRunning: @MainActor () -> Bool = { UIAccessibility.isVoiceOverRunning }
     /// What VoiceOver is told of its own accord; a test collects it.
-    @ObservationIgnored var announcer: @MainActor (_ text: String, _ queued: Bool) -> Void = {
-        VoiceOver.announce($0, queued: $1)
+    @ObservationIgnored var announcer: @MainActor (_ text: String, _ queued: Bool, _ highPriority: Bool) -> Void = {
+        VoiceOver.announce($0, queued: $1, priority: $2 ? .high : nil)
     }
+    /// Says what a run is as it begins, at high priority (VoiceOver's own
+    /// speech of the element it lands on after the screen change would cut a
+    /// queued or default announcement off), and tells whether the sentence was
+    /// spoken to its end; a test collects the words and reports the end itself.
+    @ObservationIgnored var runStartAnnouncer: @MainActor (String, @escaping @MainActor @Sendable (Bool) -> Void) -> Void = {
+        VoiceOver.announce($0, priority: .high, finished: $1)
+    }
+    /// How long the card and the display wait for that sentence's end before
+    /// they go on without it, where VoiceOver never reports one. The sentence
+    /// takes about seven seconds at VoiceOver's default rate; the bound leaves
+    /// room for slower speech and longer languages.
+    @ObservationIgnored var runStartBound: Duration = .seconds(15)
     /// The preview's mock guest screen reader, where no runtime is behind the
     /// screens; nil in the application.
     @ObservationIgnored var screenReaderStandIn: (any ScreenReaderStandIn)?
@@ -676,9 +763,7 @@ final class AppModel {
                 refreshStatistics()
                 refreshGraphicsNotice()
                 refreshNetworkWatch()
-                #if !APP_STORE
                 refreshJit()
-                #endif
             }
         }
     }
@@ -686,10 +771,8 @@ final class AppModel {
     private(set) var statisticsMeter = StatsMeter()
     /// Holds back the readings that draw what the views show already.
     @ObservationIgnored private var statisticsGate = StatsPublishGate<Readout.Drawn>()
-    #if !APP_STORE
     /// A launch for automation prints each reading.
     var printsStatistics = false
-    #endif
     /// Waits between readings; a test paces them by hand.
     @ObservationIgnored var statisticsSleep: @MainActor (Duration) async -> Void = { duration in
         try? await Task.sleep(for: duration)
@@ -737,6 +820,70 @@ final class AppModel {
     /// What is kept of the option across launches; nil where the launch
     /// decided it.
     var heatLimitToKeep: Bool? { heatLimitDecidedByLaunch ? nil : heatLimitOn }
+    /// The most frames a second the screen the window is on can show: 60 until
+    /// the scene says (`screenDidChange`, on connection and on every move
+    /// between screens), and then 120 on a ProMotion iPhone or iPad.
+    private(set) var screenMaximumFramesPerSecond = 60
+    /// The host can show the 120 Hz display: an iPhone or an iPad. An iPad app
+    /// on a Mac or on a Vision Pro has none that the display link can pace, so
+    /// nothing of the setting is offered or asked there (the gate the list of
+    /// Android's apps uses).
+    var hostOffersHighRefresh: Bool {
+        host.idiom != .mac && padAppHost.hasHomeScreen
+    }
+    /// Whether Home offers "120 Hz": the screen shows at least 100 frames a
+    /// second, the host is an iPhone or an iPad, and the display the next
+    /// start gives the guest is a size whose 120 Hz mode the EDID can state (a
+    /// 12.9- or 13-inch iPad Pro at its native size is not, and is offered the
+    /// setting again at a smaller resolution).
+    var highRefreshOffered: Bool {
+        HighRefresh.isOffered(
+            maximumFramesPerSecond: screenMaximumFramesPerSecond, displaySize: nextDisplaySize,
+            hostIsMacOrVision: !hostOffersHighRefresh)
+    }
+    /// The size in pixels of the display the next start lays out, once Home has
+    /// read the window.
+    private var nextDisplaySize: (width: Int, height: Int)? {
+        resolutionLayout.map { ($0.width, $0.height) }
+    }
+    /// Home's "120 Hz" in Performance: whether the next Android start asks
+    /// for a 120 Hz display. Off is the default. Kept for the install
+    /// (`HighRefreshPreference`).
+    var highRefreshOn = false
+    /// The launch decided it (automation): the value belongs to that run and
+    /// is not kept.
+    var highRefreshDecidedByLaunch = false
+    /// What is kept of the setting across launches; nil where the launch
+    /// decided it.
+    var highRefreshToKeep: Bool? { highRefreshDecidedByLaunch ? nil : highRefreshOn }
+    /// Whether a start now asks for the 120 Hz display: the setting is on and
+    /// the offer holds. The runtime decides at the start (the screen of the
+    /// display's own view and the size it boots at) and the run has what it
+    /// granted (`runStarted`).
+    var asksForHighRefresh: Bool { asksForHighRefresh(displaySize: nextDisplaySize) }
+    /// The same for a start whose display size is known: the size it boots at.
+    func asksForHighRefresh(displaySize: (width: Int, height: Int)?) -> Bool {
+        HighRefresh.asksAtBoot(
+            isOn: highRefreshOn, maximumFramesPerSecond: screenMaximumFramesPerSecond,
+            displaySize: displaySize, hostIsMacOrVision: !hostOffersHighRefresh)
+    }
+    /// Whether the run in progress has the 120 Hz display, as the runtime
+    /// granted it, which no change of the setting alters until Android next
+    /// starts. False until the runtime has said.
+    private(set) var runHasHighRefresh = false
+    /// Home's "120 Hz". It applies at the next start (Home shows only while no
+    /// guest runs).
+    func setHighRefresh(_ on: Bool) {
+        guard on != highRefreshOn else { return }
+        highRefreshOn = on
+    }
+    /// What this run's display is: the runtime granted the 120 Hz display, or
+    /// did not (it checks the screen, the host and the size once at the start,
+    /// whatever the start asked).
+    func runStarted(withHighRefresh granted: Bool) {
+        runHasHighRefresh = granted
+    }
+
     /// The thermal policy holds the device hot (iOS's critical state, the
     /// policy's hold after it included), whether or not Android is told.
     /// Settings' footnote reads it.
@@ -770,6 +917,14 @@ final class AppModel {
         self.capabilities = capabilities
         self.createRequirementBytes = createRequirementBytes
         snapshots.app = self
+        // The notes show an entry about a feature only where the feature's own
+        // rule offers it on this device.
+        whatsNew.showsFeature = { [weak self] feature in
+            guard let self else { return true }
+            return switch feature {
+            case .addToHomeScreen: hostOffersAddToHomeScreen
+            }
+        }
     }
 
     var guest: Guest? {
@@ -802,15 +957,30 @@ final class AppModel {
     func adoptDiagnostics(in diagnostics: URL, containers: [String], endedOutOfForeground: Bool) {
         diagnosticsDirectory = diagnostics
         diagnosticsContainers = containers
-        guard let previous = PreviousSession.consume(in: diagnostics, endedOutOfForeground: endedOutOfForeground)
-        else { return }
+        // An earlier run a process before left there is not this process's.
+        PreviousSession.settleEarlierRun(in: diagnostics)
+        guard let previous = PreviousSession.read(in: diagnostics, endedOutOfForeground: endedOutOfForeground)
+        else {
+            // No session record to hold: the start's own record still goes
+            // aside for the bug report.
+            PreviousSession.keep(in: diagnostics)
+            return
+        }
         print("Andarium: \(previous.record.summary)")
         if guest != nil, let notice = previous.notice { self.notice = notice }
-        #if APP_REVIEW
-        // The record is the run's end as the runtime wrote it, also when the
-        // application was not running to say so.
-        reviewAsk?.previousRunEnded(normally: previous.record.orderly)
-        #endif
+        previousBootRamdisk = previous.record.ramdisk
+        // A start with root that ended before Android booted is told by the
+        // record alone, which names the ramdisk of the boot that ended: a
+        // guest kernel's panic ends the process, so no run end is seen
+        // (`RootFallbackRule`). The record stays where it is until the pause
+        // is saved.
+        if guest?.root.on == true, RootFallbackRule.endedBeforeBoot(previous.record) {
+            previousSessionHeld = true
+            applyRootFallback()
+            keepPreviousSessionIfDecided()
+        } else {
+            PreviousSession.keep(in: diagnostics)
+        }
     }
 
     var canCreate: Bool { host.hasRoom(for: createRequirementBytes) }
@@ -870,13 +1040,19 @@ final class AppModel {
         }
     }
 
-    func persistNow() {
+    /// Writes the guest's choices now; whether they were written. A failure
+    /// tells the person, and a caller whose decision must outlast the process
+    /// (`applyRootFallback`) does not go on as if it were saved.
+    @discardableResult
+    func persistNow() -> Bool {
         persistTask?.cancel()
-        guard let driver, let guest else { return }
+        guard let driver, let guest else { return false }
         do {
             try driver.save(guest)
+            return true
         } catch {
             alert = AppAlert(title: String(localized: "Settings not saved"), message: error.localizedDescription)
+            return false
         }
     }
 
@@ -914,6 +1090,8 @@ final class AppModel {
         defer { restoringUpdate = false }
         do {
             try await driver.restoreUpdate()
+            // The data is what the update started from: its apps may differ.
+            androidApps.invalidated()
         } catch {
             alert = AppAlert(title: String(localized: "The virtual machine could not be restored"), message: error.localizedDescription)
         }
@@ -929,6 +1107,7 @@ final class AppModel {
             textMessageNotice.reset()
             plan = .firstStart
             forgetSnapshots()
+            androidAppsErased()
             return
         }
         runBusy(
@@ -943,6 +1122,7 @@ final class AppModel {
             self.smsSender.forget()
             self.textMessageNotice.reset()
             self.forgetSnapshots()
+            self.androidAppsErased()
             self.resizePreset = nil
             self.sheet = nil
             self.refreshPlan()
@@ -1358,7 +1538,8 @@ final class AppModel {
     /// What making a bug report does, whoever asks for it: Android's report,
     /// and the host's records and the guest's counters inside it.
     func bugReportWork() -> @MainActor (@escaping @Sendable (BusyUpdate) -> Void) async throws -> URL {
-        { [driver, diagnosticsDirectory, diagnosticsContainers, plays = playsBugReport] update in
+        let root = rootReportEntry()
+        return { [driver, diagnosticsDirectory, diagnosticsContainers, plays = playsBugReport] update in
             let file = if let driver, !plays {
                 try await driver.createBugReport(update: update)
             } else {
@@ -1367,10 +1548,13 @@ final class AppModel {
             // The host's records and the guest's counters travel inside
             // Android's own report.
             if let diagnosticsDirectory {
-                let guest = await driver?.guestStallFiles() ?? []
+                let stalls = await driver?.guestStallFiles() ?? []
+                let guest = root.map { stalls + [$0] } ?? stalls
+                let earlierRun = driver?.retiredAnEarlierRun ?? false
                 _ = await Task.detached(priority: .userInitiated) {
                     BugReportAttachments.attach(
-                        to: file, from: diagnosticsDirectory, containers: diagnosticsContainers, guest: guest)
+                        to: file, from: diagnosticsDirectory, containers: diagnosticsContainers, guest: guest,
+                        includingEarlierRun: earlierRun)
                 }.value
             }
             // A cancel that came as the report finished: nobody takes the file.
@@ -1415,29 +1599,20 @@ final class AppModel {
         }
         try FileManager.default.createDirectory(at: BugReportStaging.directory, withIntermediateDirectories: true)
         let file = BugReportStaging.directory.appendingPathComponent("bugreport-preview.zip")
-        #if FEEDBACK_MAIL && !APP_STORE
-        // A small made-up report the Send feedback viewer can read.
-        try SendFeedbackSampleReport.write(to: file)
-        #else
         // An empty zip: its end-of-central-directory record.
         try Data([0x50, 0x4B, 0x05, 0x06] + [UInt8](repeating: 0, count: 18)).write(to: file)
-        #endif
         return file
     }
 
-    #if !APP_STORE
     /// What the hosted tests put in place of the picked file's access, to see
-    /// when it is held. The App Store configuration leaves this out.
+    /// when it is held.
     @ObservationIgnored
     var accessPickedFileStub: (@MainActor (URL) -> (@MainActor () -> Void))?
-    #endif
 
     /// Starts the access that a picked file's URL carries and returns what
     /// ends it.
     private func accessPickedFile(_ url: URL) -> @MainActor () -> Void {
-        #if !APP_STORE
         if let accessPickedFileStub { return accessPickedFileStub(url) }
-        #endif
         guard url.startAccessingSecurityScopedResource() else { return {} }
         return { url.stopAccessingSecurityScopedResource() }
     }
@@ -1502,6 +1677,8 @@ final class AppModel {
                 } else {
                     Task { await self.refreshOldApps() }
                 }
+                // The app is in Android's list now: the apps Andarium offers follow it.
+                Task { await self.refreshAndroidApps(afterAChange: true) }
                 // 100% for a moment, then the result. Nothing is left to stop, so
                 // the Cancel that came back for an app's data goes.
                 update(BusyUpdate(progress: 1, cancellable: false))
@@ -1623,37 +1800,35 @@ final class AppModel {
         documentPickerProblem = AppAlert(title: title, message: error.localizedDescription)
     }
 
-    #if !APP_STORE
     /// What one attempt of the preview's install does instead of
     /// `playInstall`, for a preview that plays how the install can end.
-    /// The App Store configuration leaves this out.
     @ObservationIgnored
     var previewInstallAttempt: (@Sendable (_ bypassLowTargetSdkBlock: Bool, _ update: @Sendable (BusyUpdate) -> Void) async throws -> Void)?
-    /// How the preview's install ends. The App Store configuration leaves
-    /// this out, and its install always ends as installed.
+    /// How the preview's install ends; an install ends as installed by default.
     @ObservationIgnored
     var previewInstallOutcome = ApkInstallOutcome.installed
     /// The list of old apps the preview and a UI test's probe session play,
-    /// in place of the runtime's (`ScriptedOldApps`). The App Store
-    /// configuration leaves this out.
+    /// in place of the runtime's (`ScriptedOldApps`).
     @ObservationIgnored
     var scriptedOldApps: (any OldAppsSource)?
+    /// Android's apps and the way to open one that a preview or a UI test's
+    /// probe session plays in place of the runtime's (`ScriptedAndroidApps`).
+    @ObservationIgnored
+    var scriptedAndroidApps: (any AndroidAppsSource)?
+    /// The iPad-app host a test plays in place of this process's
+    /// (`padAppHost`).
+    @ObservationIgnored
+    var playedPadAppHost: IPadAppHost?
     /// A UI test's probe session makes the preview's bug report (`playBugReport`) though a runtime is
-    /// there: its guest is none. The App Store configuration leaves this out.
+    /// there: its guest is none.
     @ObservationIgnored
     var playsBugReport = false
-    #else
-    private var playsBugReport: Bool { false }
-    private var previewInstallOutcome: ApkInstallOutcome { .installed }
-    #endif
 
     private func playInstall(bypassLowTargetSdkBlock: Bool, _ update: @Sendable (BusyUpdate) -> Void) async throws {
-        #if !APP_STORE
         if let previewInstallAttempt {
             try await previewInstallAttempt(bypassLowTargetSdkBlock, update)
             return
         }
-        #endif
         try await Self.playInstall(update)
     }
 
@@ -1675,35 +1850,48 @@ final class AppModel {
     /// operation under way is not a reason to say anything: the start is
     /// ignored, as the screens offer none while one runs (`snapshotGate`); a
     /// rename is not one, and the start waits for it.
-    func start(_ mode: StartMode) {
+    func start(_ mode: StartMode, withoutRoot: Bool = false) {
         guard !snapshotActivity.holdsGuestFiles else { return }
+        // A pause of root decided from the previous session's record and not
+        // saved yet is settled first: the run's own record replaces that one.
+        // Without it saved, no run begins (the alert says why).
+        saveRootStateIfPending()
+        guard !rootStateUnsaved else { return }
         switch lifecycle.start(mode, host: host, plan: plan) {
         case let .allowed(kind):
-            #if APP_REVIEW
-            reviewAsk?.runBegan()
-            #endif
+            // A request to open an Android app that waited for this answer starts with it.
+            androidAppsPersonStarted()
             restoredSnapshot = nil
             snapshots.cancelReads()
             frozenBootStage = nil
             bootTracker = BootTracker()
             bootStartedUnfinished = driver?.firstBootPending() ?? false
             slowStart.begin(at: clock(), kind: kind, firstBootPending: bootStartedUnfinished)
-            // The record the file holds now is not the run's: the runtime rewrites it for the run, after this.
-            bootRecord = BootRecordBinding(
-                processID: Int(ProcessInfo.processInfo.processIdentifier),
-                recordAtStart: diagnosticsDirectory.flatMap {
-                    SessionRecord.read(at: $0.appendingPathComponent(BugReportAttachments.sessionRecord))
-                })
             preparingDisk = false
             diskProgress = nil
-            #if !APP_STORE
             jitLastStart = nil
             preparingJit = false
-            #endif
             if case let .update(from, _) = plan { bootFrom = from } else { bootFrom = nil }
-            if let driver, let guest {
-                persistNow()
-                driver.begin(guest: guest, mode: mode, kind: kind)
+            rootAppInstalling = false
+            bootRun &+= 1
+            // Whether this start asks for the Magisk ramdisk. Nothing of it is
+            // saved: which ramdisk a boot used is the runtime's record of that
+            // boot (`SessionRecord.ramdisk`).
+            if let current = guest {
+                guest?.root.startRooted = current.bootsRooted(
+                    mode: mode, releaseCarriesRoot: rootAvailable, withoutRootOnce: withoutRoot)
+                // "Start without root" is the person's answer to a stopped start.
+                if withoutRoot, current.root.attention == .stoppedStart { guest?.root.attention = nil }
+            }
+            if let driver, var begun = guest {
+                // The choices are written before the runtime is handed the
+                // start. A start with root whose write failed begins without
+                // root (the alert says the settings were not saved).
+                if !persistNow(), begun.root.startRooted {
+                    begun.root.startRooted = false
+                    guest?.root.startRooted = false
+                }
+                driver.begin(guest: begun, mode: mode, kind: kind)
             }
         case .lowSpace: startBlocked = true
         // The screens offer no start the plan refuses (`StartPlan.allowsStart`),
@@ -1725,6 +1913,7 @@ final class AppModel {
         let kind = bootTracker.recovery ? BootKind.recovery : started
         let firstStart = plan == .firstStart
         lifecycle.finishBoot(kind)
+        rootBootFinished(kind)
         // The display lets touches through to Android's screen reader only
         // while it is on, so a run under VoiceOver reads it as soon as Android
         // is up and goes on reading; without VoiceOver Settings reads it when
@@ -1743,6 +1932,9 @@ final class AppModel {
                 guest?.usedBytes = UInt64(2.1 * Double(Limits.bytesPerGiB))
             }
         }
+        // A request to open an Android app that started this boot opens now,
+        // and the app list is brought up to date once the guest has settled.
+        androidAppsBootFinished(recovery: kind == .recovery)
     }
 
     func powerOff() {
@@ -1753,14 +1945,12 @@ final class AppModel {
         runEnd = end
         runUptimeSeconds = uptimeSeconds
         lifecycle.fail()
-        #if APP_REVIEW
-        reviewAsk?.runEnded(normally: false)
-        #endif
     }
 
     /// The runtime's run returned: the guest powered off, or stopped for a
     /// reason the failure screen reports.
     func runEnded(_ end: RunEnd, uptimeSeconds: Int?) {
+        androidAppsRunEnded()
         abandonOperation()
         fileBrowser?.reset()
         endAdbOverNetwork()
@@ -1776,6 +1966,8 @@ final class AppModel {
         cameraNotice.runEnded()
         runEnd = end
         runUptimeSeconds = uptimeSeconds
+        rootAppInstalling = false
+        bootRun &+= 1
         if end.poweredOff {
             sheet = nil
             sessionPreset = SessionPreset()
@@ -1788,23 +1980,15 @@ final class AppModel {
         // The run changed the data disk: what Home states of the storage is
         // what the disk holds now, not what it held when the guest loaded.
         if let driver { lifecycle.guest?.usedBytes = driver.measuredUsedBytes() }
+        rootRunEnded(end)
         persistNow()
         refreshPlan()
-        #if APP_REVIEW
-        reviewAsk?.runEnded(normally: end.poweredOff)
-        #endif
-    }
-
-    /// The runtime began to boot the guest again in place for the `count`th time
-    /// in this run: the session record of the boot that follows says that
-    /// number, and the record of the boot before is not this boot's.
-    func guestRestartsCounted(_ count: Int) {
-        bootRecord?.restarts = count
     }
 
     /// Android's own Restart boots the guest again in place. ADB and the
     /// install list belong to the run that ended.
     func restart() {
+        androidAppsRunEnded()
         abandonOperation()
         fileBrowser?.reset()
         endAdbOverNetwork()
@@ -1822,6 +2006,8 @@ final class AppModel {
         session.showStats = showStats
         statisticsMeter = StatsMeter()
         bootTracker = BootTracker()
+        rootAppInstalling = false
+        bootRun &+= 1
         // A restart before the start finished is the same start; a running
         // session's restart begins a boot of its own.
         var unfinished = false
@@ -1869,6 +2055,7 @@ final class AppModel {
 
     func factoryReset() {
         lifecycle.factoryReset()
+        androidApps.invalidated()
         // Only the preview knows the data is empty; on a device the data
         // disk stays and Android sets itself up again by itself.
         if driver == nil { plan = .firstStart }
@@ -1885,19 +2072,15 @@ final class AppModel {
     /// is on until the person turns it off.
     var hapticsOn: Bool { guest?.haptics ?? true }
 
-    #if !APP_STORE
     /// The launch plays none of the guest's haptics on the device, whatever
     /// the switch says (`HapticsLaunch`): the switch and the stored choice stay
     /// the person's, and the guest keeps its vibrator.
     var hapticsSilencedByLaunch = false
-    #endif
 
     /// Whether the device plays what the guest's vibrator asks for: the
     /// switch, unless the launch silences it.
     var hapticsPlays: Bool {
-        #if !APP_STORE
         if hapticsSilencedByLaunch { return false }
-        #endif
         return hapticsOn
     }
 
@@ -1905,9 +2088,7 @@ final class AppModel {
     /// rulers' tick) plays. The Haptics switch does not govern it; only a
     /// launch that silences haptics does.
     var interfaceFeedbackPlays: Bool {
-        #if !APP_STORE
         if hapticsSilencedByLaunch { return false }
-        #endif
         return true
     }
 
@@ -2199,14 +2380,11 @@ final class AppModel {
         cameraNotice.dismiss()
     }
 
-    #if !APP_STORE
     /// The Simulator preview plays a camera notice: it has no runtime to
-    /// interrupt, and its guest has no camera to open. The App Store
-    /// configuration leaves this out.
+    /// interrupt, and its guest has no camera to open.
     func previewCameraNotice(_ capture: CameraCapture = .interruptedByMultitasking) {
         cameraCaptureChanged(capture)
     }
-    #endif
 
     // MARK: Statistics
 
@@ -2286,11 +2464,9 @@ final class AppModel {
         if statisticsGate.admits(readout.drawn(memoryMiB: memoryMiB)) {
             session.readout = readout
         }
-        #if !APP_STORE
         if printsStatistics {
             print(ConsoleReport.statistics(statisticsMeter, guestMemoryMiB: guest?.memoryMiB ?? 0))
         }
-        #endif
     }
 
     // MARK: Graphics notice
@@ -2449,13 +2625,27 @@ final class AppModel {
         setHeatLimit(false)
     }
 
-    #if !APP_STORE
     /// The Simulator preview plays the notice: it has no runtime to start a cap.
-    /// The App Store configuration leaves this out.
     func previewThermalNotice() {
         thermalNotice.show()
     }
-    #endif
+
+    // MARK: App update notice
+
+    /// Whether the update notice may read its file now: Home is showing, the
+    /// application is the active one and no start is pending (an app that
+    /// Shortcuts or an icon asked to open waits for one).
+    var appUpdateReadAllowed: Bool {
+        phase == .home && applicationActive && androidApps.open.pending == nil
+    }
+
+    /// Home's task: reads the version file when one is due, a few seconds
+    /// after Home shows. A start that begins meanwhile cancels the task, and
+    /// nothing of it ever stands before Start.
+    func readAppUpdateWhenHomeShows() async {
+        guard let appUpdate else { return }
+        await appUpdate.readWhenHomeShows(moment: { self.appUpdateReadAllowed })
+    }
 
     // MARK: Network notice
 
@@ -2498,21 +2688,15 @@ final class AppModel {
         networkWatcher?.dismiss()
     }
 
-    #if !APP_STORE
     /// The Simulator cannot be denied the network, so the preview plays a
-    /// denial. The App Store configuration leaves this out.
+    /// denial.
     func previewNetworkNotice(_ denial: NetworkDenial) {
         networkNotice.apply(.denied(denial))
     }
-    #endif
 
     /// The debugger is preparing the JIT, which keeps the boot at its first step.
     private var preparingJitNow: Bool {
-        #if APP_STORE
-        false
-        #else
         preparingJit
-        #endif
     }
 
     /// The step of the boot under way, from the runtime's milestones.

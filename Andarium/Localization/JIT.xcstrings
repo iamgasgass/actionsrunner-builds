@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Not used while JIT is on." : {
+      "comment" : "Under the AOT switch on Home while JIT is on and ready for the next start. AOT and JIT are names and stay as they are.",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JITがオンの間は使用されません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT开启期间不使用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JIT開啟期間不使用。"
+          }
+        }
+      }
+    },
     "Preparing JIT" : {
       "comment" : "The detail of the system step on the boot screen while StikDebug prepares JIT. JIT is a name and stays as it is.",
       "localizations" : {

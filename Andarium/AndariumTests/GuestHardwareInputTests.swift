@@ -606,7 +606,8 @@ struct GuestHardwareInputTests {
         #expect(!InputProbeLaunch.requested(in: [:]))
         #expect(!InputProbeLaunch.requested(in: [InputProbeLaunch.environmentName: "0"]))
         #expect(InputProbeLaunch.guestRegisters(in: environment))
-        // The guest that never registers its devices, like the accepted kernel.
+        // The guest that never registers its devices, like a kernel without the
+        // hot-plug topic.
         let unregistered = [InputProbeLaunch.environmentName: InputProbeLaunch.unregisteredValue]
         #expect(InputProbeLaunch.requested(in: unregistered))
         #expect(!InputProbeLaunch.guestRegisters(in: unregistered))

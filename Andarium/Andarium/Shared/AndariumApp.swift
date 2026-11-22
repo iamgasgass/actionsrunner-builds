@@ -34,33 +34,36 @@ final class AndariumProcess {
     let entry: AppEntry
     let model: AppModel
 
+    /// What a process that ended left in the temporary directory is of no use: a
+    /// report staged for sharing, a file staged for an export, the copies of a
+    /// pick, and what an older build staged for a feedback draft. A test gives
+    /// a root of its own.
+    static func sweepLeftovers(in temporary: URL = FileManager.default.temporaryDirectory) {
+        BugReportStaging.sweep(in: temporary)
+        GuestFileStaging.sweep(in: temporary)
+        PickedFolder.sweep(in: PickedFolder.directory(in: temporary))
+        LegacyFeedbackFolder.sweep(in: temporary)
+    }
+
     private init() {
         entry = AppEntry.fromArguments()
         entry.configureTips()
-        // A report staged for sharing by a process that ended is of no use.
         // This is the process's launch: a test that builds a model does not
-        // sweep the folder a running test stages its files in.
-        BugReportStaging.sweep()
-        GuestFileStaging.sweep()
-        PickedFolder.sweep()
-        #if FEEDBACK_MAIL
-        SendFeedbackStaging().sweep()
-        #endif
+        // sweep the folders a running test stages its files in.
+        Self.sweepLeftovers()
         model = entry.makeModel()
-        #if TIP_JAR
-        // From launch: a purchase the store delivers outside the sheet (an
-        // approval, an interrupted purchase) is finished, whether or not the
-        // sheet is ever opened.
-        #if !APP_STORE
-        // A hosted test owns StoreKit's queue, and the launch's own listener
-        // would finish its transactions before the test looks.
+        // An App Intent that runs in this process hands its request to this model.
+        AndroidAppsHub.shared.attach(model)
+        // The tiles under Andarium in Shortcuts come from the cache, which
+        // answers while Android is off: each launch tells the system to ask for
+        // them again, and finishes a write to Spotlight that an earlier run did
+        // not (the switch's last word, a withdrawal that failed), through the
+        // one ordered path to the index.
+        // A hosted test owns the hub (it replaces the index and the switch), and the
+        // launch's own write would land on what the test put there.
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
-            TipJarUpdates.listen(model.tipJarServices.store)
+            Task { await AndroidAppsHub.shared.writer.reconcile() }
         }
-        #else
-        TipJarUpdates.listen(model.tipJarServices.store)
-        #endif
-        #endif
     }
 }
 
@@ -70,6 +73,12 @@ final class AndariumSceneDelegate: UIResponder, UIWindowSceneDelegate {
     private(set) var model: AppModel?
 
     func windowScene(_ windowScene: UIWindowScene, didUpdateEffectiveGeometry previousGeometry: UIWindowScene.Geometry) {
+        // Called whenever a scene moves between screens: what the new screen
+        // shows is what Home's "120 Hz" is offered by, and what holds the
+        // guest of a run on the 120 Hz display.
+        model?.screenDidChange(
+            nativeScale: Double(windowScene.screen.nativeScale),
+            maximumFramesPerSecond: windowScene.screen.maximumFramesPerSecond)
         (window?.rootViewController as? SceneGeometryObserver)?.sceneGeometryDidChange()
     }
 
@@ -84,7 +93,9 @@ final class AndariumSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let entry = process.entry
         let model = process.model
         self.model = model
-        model.screenDidChange(nativeScale: Double(scene.screen.nativeScale))
+        model.screenDidChange(
+            nativeScale: Double(scene.screen.nativeScale),
+            maximumFramesPerSecond: scene.screen.maximumFramesPerSecond)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = AndariumHostingController(
             rootView: RootView(entry: entry).environment(model), model: model)
@@ -98,8 +109,8 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     let entry: AppEntry
 
-    /// What VoiceOver says as a run begins; other screens speak for
-    /// themselves from their first element.
+    /// What VoiceOver is told as a run begins (`AppModel.announceRunStart`);
+    /// other screens speak for themselves from their first element.
     static func spoken(_ phase: Phase) -> String? {
         switch phase {
         case .running(.normal):
@@ -157,7 +168,7 @@ struct RootView: View {
         // A new screen replaces the old one under VoiceOver's cursor: it
         // starts again at the top, and hears what the run now is.
         .onChange(of: model.phase) { _, phase in
-            VoiceOver.screenChanged(Self.spoken(phase))
+            model.announceRunStart(phase)
         }
         .animation(.easeInOut(duration: 0.2), value: model.busy != nil)
         .animation(.easeInOut(duration: 0.2), value: model.spacePause != nil)
@@ -172,12 +183,6 @@ struct RootView: View {
             Text(alert.message.keepingTogether)
         }
         .legacyInstallAlert()
-        #if FEEDBACK_MAIL
-        // The sheet the boot screen's notice opens: over every phase, so a
-        // draft survives the boot that ends.
-        .sendFeedbackFromBootSheet(model)
-        #endif
-        #if !APP_STORE
         .task {
             // The launch's automation work happens once per model: a scene
             // that connects again must not create, erase or start the guest
@@ -186,7 +191,6 @@ struct RootView: View {
             model.launchApplied = true
             await entry.applyDeferred(to: model)
         }
-        #endif
     }
 }
 

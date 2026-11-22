@@ -26,6 +26,10 @@ struct InProcessGpuOptions {
         uml::input::vnc::PointerMode::mouse};
     void* nativeView {};
     bool autoResizeGuest {true};
+    /* The refresh rate of the one mode the guest sees: 60, or 120 on the iOS
+     * native display of a device whose screen can show it
+     * (Display::refreshRate). */
+    std::uint32_t refreshRate {60};
     /* What the windowless display (DisplayMode::offscreen) presents into. */
     OffscreenDisplayOptions offscreen {};
     /* Where the display's keys and pointer go instead of the guest's
@@ -162,6 +166,12 @@ public:
      * the call alone. Any thread, whether or not requests are held. Nothing
      * once stop() has let the display go. */
     [[nodiscard]] std::optional<DisplayStatistics> displayStatistics()
+        const noexcept;
+
+    /* The rate the host granted the display's mode (Display::refreshRate): 60,
+     * or 120 for a run granted the 120 Hz display. Nothing once stop() has let
+     * the display go. Any thread. */
+    [[nodiscard]] std::optional<std::uint32_t> displayRefreshRate()
         const noexcept;
 
     /* How many times the device answered the guest that the host GPU had no

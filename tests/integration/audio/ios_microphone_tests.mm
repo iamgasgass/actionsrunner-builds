@@ -87,6 +87,11 @@ void tornPoint(int point)
 }
 // The engine the microphone started last, to post its configuration change.
 AVAudioEngine* __weak startedEngine {};
+// The callback the microphone gave the notification center for the engine's
+// configuration change, as the center would call it. A route change that was
+// already running when an interruption began calls it later; removing the
+// observer does not stop that.
+void (^routeChangeCallback)(NSNotification*) = nil;
 
 void changeSession(NSString* category, NSString* mode, NSUInteger options)
 {
@@ -133,6 +138,22 @@ struct Counts final {
 
 void installHooks()
 {
+    Method observe = class_getInstanceMethod([NSNotificationCenter class],
+        @selector(addObserverForName:object:queue:usingBlock:));
+    using ObserveFunction = id (*)(id, SEL, NSNotificationName, id,
+        NSOperationQueue*, void (^)(NSNotification*));
+    const auto observeOriginal =
+        reinterpret_cast<ObserveFunction>(method_getImplementation(observe));
+    method_setImplementation(observe, imp_implementationWithBlock(
+        ^id(NSNotificationCenter* center, NSNotificationName name, id object,
+            NSOperationQueue* queue, void (^block)(NSNotification*)) {
+          if ([name isEqualToString:AVAudioEngineConfigurationChangeNotification])
+              routeChangeCallback = [block copy];
+          return observeOriginal(center,
+              @selector(addObserverForName:object:queue:usingBlock:), name,
+              object, queue, block);
+        }));
+
     Method hint = class_getInstanceMethod([AVAudioSession class],
         @selector(secondaryAudioShouldBeSilencedHint));
     method_setImplementation(hint, imp_implementationWithBlock(^BOOL(id) {
@@ -245,11 +266,20 @@ void installHooks()
         imp_implementationWithBlock(^AVAudioFormat*(id, AVAudioNodeBus) {
           return format;
         }));
+#ifdef UML_AUDIO_LEGACY_SESSION
+    // Before iOS 27 the only tap call is the one that raises on failure.
+    Method tap = class_getInstanceMethod([AVAudioInputNode class],
+        @selector(installTapOnBus:bufferSize:format:block:));
+    method_setImplementation(tap, imp_implementationWithBlock(
+        ^(id, AVAudioNodeBus, AVAudioFrameCount, AVAudioFormat*,
+            AVAudioNodeTapBlock) {}));
+#else
     Method tap = class_getInstanceMethod([AVAudioInputNode class],
         @selector(installTapOnBus:bufferSize:format:error:block:));
     method_setImplementation(tap, imp_implementationWithBlock(
         ^BOOL(id, AVAudioNodeBus, AVAudioFrameCount, AVAudioFormat*,
             NSError* __autoreleasing*, AVAudioNodeTapBlock) { return YES; }));
+#endif
     Method untap = class_getInstanceMethod(
         [AVAudioInputNode class], @selector(removeTapOnBus:));
     method_setImplementation(untap,
@@ -271,8 +301,9 @@ struct Recording final {
     uml::audio::CaptureRing ring;
 };
 
+#ifndef UML_AUDIO_LEGACY_SESSION
 // The resumption notification with no context, as a recommendation the
-// system does not give.
+// system does not give. Systems before iOS 27 have no such notification.
 void postRecommendationWithoutContext()
 {
     [[NSNotificationCenter defaultCenter]
@@ -280,6 +311,7 @@ void postRecommendationWithoutContext()
                       object:[AVAudioSession sharedInstance]
                     userInfo:nil];
 }
+#endif
 
 void startsAndStops()
 {
@@ -303,8 +335,8 @@ void deactivationsThatInterruptNothing()
     Recording recording;
     check(recording.start(), "the microphone starts before the deactivations");
     const auto before = Counts::now();
-    postDeactivation(AVAudioSessionDeactivationSourceApp, false);
-    postDeactivation(AVAudioSessionDeactivationSourceSystem, false);
+    postDeactivation(DeactivationSource::app, false);
+    postDeactivation(DeactivationSource::system, false);
     const auto seen = since(before);
     check(seen == Counts {},
         "the app's own deactivation and a system deactivation that "
@@ -378,11 +410,13 @@ void noAdviceWhileAnotherAppPlays()
         "a recommendation not to resume while another app plays starts "
         "nothing and takes no session",
         seen.text());
+#ifndef UML_AUDIO_LEGACY_SESSION
     before = Counts::now();
     postRecommendationWithoutContext();
     seen = since(before);
     check(seen == Counts {},
         "so does a recommendation that carries no advice", seen.text());
+#endif
 
     // It stays closed until the next recommendation to resume.
     otherAudioPlaying = false;
@@ -407,12 +441,14 @@ void noAdviceWhileNoAppPlays()
         "app plays",
         seen.text());
 
+#ifndef UML_AUDIO_LEGACY_SESSION
     postInterruptionBegan();
     before = Counts::now();
     postRecommendationWithoutContext();
     seen = since(before);
     check(seen.starts == 1 && seen.activations == 1,
         "so does a recommendation that carries no advice", seen.text());
+#endif
 }
 
 void guestRestartsRecording()
@@ -892,6 +928,45 @@ void routeChangeRebuildsTheEngineOnTheSameSession()
 // opens the engine again, at most once a second. An interruption leaves the
 // engine to the system's advice instead, and a stopped microphone opens
 // nothing.
+/* A route change reaches the microphone through a callback that takes the
+ * microphone's lock. One that was entered before another app took the session
+ * runs after the interruption began, and must not open the microphone: it
+ * would take the session from the app that has it. Nor may one that was
+ * entered for an engine that has since been replaced rebuild the engine that
+ * replaced it. */
+void aRouteChangeThatBeganBeforeAnInterruptionStartsNothing()
+{
+    otherAudioPlaying = false;
+    refuseBluetoothOptions = false;
+    Recording recording;
+    check(recording.start(), "the microphone starts before the late route change");
+    const auto entered = routeChangeCallback;
+    check(entered != nil, "the microphone listens for its engine's route");
+
+    otherAudioPlaying = true;
+    postInterruptionBegan();
+    auto before = Counts::now();
+    entered(nil);
+    auto seen = since(before);
+    check(seen == Counts {},
+        "a route change that began before the interruption leaves the "
+        "microphone closed while another app plays",
+        seen.text());
+
+    // The interruption ends and the microphone opens a new engine; a route
+    // change that was entered for the old one does not touch the new one.
+    postInterruptionEnded(true);
+    AVAudioEngine* const resumed = startedEngine;
+    before = Counts::now();
+    entered(nil);
+    seen = since(before);
+    check(seen == Counts {} && startedEngine == resumed,
+        "and one entered for the engine that was replaced leaves the new "
+        "engine alone",
+        seen.text());
+    recording.stop();
+}
+
 void aRebuildThatCannotTakeTheSessionIsTriedAgain()
 {
     otherAudioPlaying = false;
@@ -968,6 +1043,7 @@ void aRefusedReopenAfterTheAdviceIsTriedAgain()
     recording.stop();
 }
 
+#ifndef UML_AUDIO_LEGACY_SESSION
 // The notification iOS 27 deprecates is no longer observed.
 void deprecatedNotificationIsIgnored()
 {
@@ -989,6 +1065,7 @@ void deprecatedNotificationIsIgnored()
     check(seen == Counts {},
         "the deprecated interruption notification does nothing", seen.text());
 }
+#endif
 
 } // namespace
 
@@ -1007,6 +1084,7 @@ int main()
         sessionAllowsTheHeadsetMicrophone();
         refusedBluetoothOptionsFallBack();
         routeChangeRebuildsTheEngineOnTheSameSession();
+        aRouteChangeThatBeganBeforeAnInterruptionStartsNothing();
         aRebuildThatCannotTakeTheSessionIsTriedAgain();
         aRefusedReopenAfterTheAdviceIsTriedAgain();
         sessionCategoryIsSetOnlyWhenItChanges();
@@ -1014,7 +1092,9 @@ int main()
         refusedBluetoothOptionsAreAskedAgainWhenTheMicrophoneIsBuiltAgain();
         aChangeBetweenTheSetAndTheReadingIsNotRemembered();
         aChangeBetweenTwoReadingsIsCaught();
+#ifndef UML_AUDIO_LEGACY_SESSION
         deprecatedNotificationIsIgnored();
+#endif
     }
     std::printf("%s: %d failure(s)\n", failures == 0 ? "PASS" : "FAIL",
         failures);

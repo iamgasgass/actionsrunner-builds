@@ -506,14 +506,15 @@ void aBootStatesTheOrientationAndALaterTurnIsADelta()
     require(next.automaticRotation(back) == 0);
 }
 
-// An iPhone 15 Pro Max's cameras all state 90 (the platform's angle for portrait), a front camera's too: through the
-// runtime's callbacks, the wire description and the read-only control, a boot's turn reaches the guest as 90 + turn for a
-// back camera and 90 - turn for a front camera, and the body's later turns as the difference from the boot's.
-void aFrontCameraStated90FollowsTheBodyThroughTheRuntime()
+// An iPhone 15 Pro Max's back cameras state 90 (the platform's angle for portrait) and its front camera 270 (the platform's
+// 90, turned half around by the host): through the runtime's callbacks, the wire description and the read-only control, a
+// boot's turn reaches the guest as 90 + turn for a back camera and 270 - turn for a front camera, and the body's later turns
+// as the difference from the boot's.
+void aFrontCameraStated270FollowsTheBodyThroughTheRuntime()
 {
     using uml::platform::CameraPosition;
     constexpr std::array<std::uint32_t, 4> turns {0, 90, 180, 270};
-    constexpr std::array<std::uint32_t, 4> fronts {90, 0, 270, 180};
+    constexpr std::array<std::uint32_t, 4> fronts {270, 180, 90, 0};
     constexpr std::array<std::uint32_t, 4> backs {90, 180, 270, 0};
     const auto presentation =
         present(uml::camera::makeSyntheticCameraSource(uml::camera::SyntheticProfile::phone), CameraTier::large, "");
@@ -525,7 +526,7 @@ void aFrontCameraStated90FollowsTheBodyThroughTheRuntime()
         info.identifier = std::to_string(infos.size());
         info.lens = position == CameraPosition::external ? uml::platform::CameraLensKind::external
                                                          : uml::platform::CameraLensKind::wide;
-        info.sensorOrientation = uml::platform::sensorOrientationOf(position, 90);
+        info.sensorOrientation = uml::platform::presentedMountingOf(position, 90).stated;
         info.videoFormats = {{640, 480, 1, 30, false}};
         infos.push_back(info);
     }
@@ -558,7 +559,6 @@ void aFrontCameraStated90FollowsTheBodyThroughTheRuntime()
     }
 }
 
-#ifndef UML_APP_STORE_RUNTIME
 void theEnvironmentNamesTheSyntheticCamera()
 {
     require(std::string {sourceVariable} == "KERNARIUM_CAMERA_SOURCE");
@@ -727,7 +727,6 @@ void theBackKnobNeverReachesTheFrontCamera()
     // A host that is not there stays none.
     require(chooseSource(parseSource("host:back"), []() -> uml::camera::CameraSourceHandle { return nullptr; }) == nullptr);
 }
-#endif
 
 } // namespace
 
@@ -751,12 +750,10 @@ int main()
         {"the-rotation-takes-quarter-turns", theRotationTakesQuarterTurns},
         {"the-device-options-carry-the-sessions-statements", theDeviceOptionsCarryTheSessionsStatements},
         {"a-boot-states-the-orientation-and-a-later-turn-is-a-delta", aBootStatesTheOrientationAndALaterTurnIsADelta},
-        {"a-front-camera-stated-90-follows-the-body-through-the-runtime", aFrontCameraStated90FollowsTheBodyThroughTheRuntime},
-#ifndef UML_APP_STORE_RUNTIME
+        {"a-front-camera-stated-270-follows-the-body-through-the-runtime", aFrontCameraStated270FollowsTheBodyThroughTheRuntime},
         {"the-environment-names-the-synthetic-camera", theEnvironmentNamesTheSyntheticCamera},
         {"an-unknown-source-never-falls-back-to-the-hosts-camera", anUnknownSourceNeverFallsBackToTheHostsCamera},
         {"the-back-knob-never-reaches-the-front-camera", theBackKnobNeverReachesTheFrontCamera},
-#endif
     };
     return uml::testing::runNamedTests(tests);
 }

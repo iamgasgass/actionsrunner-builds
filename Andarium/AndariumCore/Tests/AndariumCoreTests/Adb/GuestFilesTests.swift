@@ -382,6 +382,20 @@ struct GuestFilesTransferTests {
         #expect(guest.shellCommands.isEmpty && guest.sent(root + "/D/a") == nil)
     }
 
+    @Test func theLongestFailTheProtocolAllowsStillReachesTheCaller() throws {
+        let guest = storage([root + "/D": .folder])
+        let text = String(repeating: "x", count: 64 * 1024)
+        guest.sendFailure = text
+        let adbd = FakeAdbd(features: v2Features, services: guest.services)
+        defer { adbd.shutdown() }
+        let connection = try connected(adbd)
+        #expect(throws: AdbError.remote(text)) {
+            try GuestFiles.upload(
+                MemorySource(Data(count: 1000)), modified: .now, to: root + "/D/a", temporary: root + "/D/.andarium-1.part",
+                replacing: true, on: connection, progress: { _ in })
+        }
+    }
+
     @Test func aTemporaryNameInAnotherFolderOrOutsideTheRootIsRefused() throws {
         let guest = storage([root + "/D": .folder])
         let adbd = FakeAdbd(features: v2Features, services: guest.services)

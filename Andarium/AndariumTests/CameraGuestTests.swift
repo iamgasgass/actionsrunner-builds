@@ -8,8 +8,7 @@ import Testing
 /// vendor SKU the runtime composes from its source, the camera IDs Android
 /// lists, and the camera lens cover on the side-key device, which only a
 /// blocked session with cameras advertises. The runtime's source is the
-/// synthetic phone (`KERNARIUM_CAMERA_SOURCE=synthetic`, a runtime that is not
-/// an App Store build), so no real camera is opened, and the fake access source
+/// synthetic phone (`KERNARIUM_CAMERA_SOURCE=synthetic`), so no real camera is opened, and the fake access source
 /// of the Camera setting's hosted tests stands in for iOS's permission, which
 /// the Simulator cannot grant. The guest boots twice, live and then blocked.
 ///

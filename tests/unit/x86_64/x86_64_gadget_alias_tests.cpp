@@ -987,7 +987,9 @@ void test_registration_failure()
 	const auto backing = testing::mapped_backing(frame.descriptor());
 	require(backing != nullptr);
 	const auto before = space.diagnostics();
-	testing::fail_allocation_at(testing::AllocationSite::records, 1);
+	/* The frame's record exists from the mapping, so the registration's own
+	 * allocation, the list of holders, is the one that fails. */
+	testing::fail_allocation_at(testing::AllocationSite::holders, 1);
 	const auto failed = space.run(executable);
 	testing::clear_allocation_failure();
 	require(failed.event == EngineEvent::continued && failed.retired == 1,

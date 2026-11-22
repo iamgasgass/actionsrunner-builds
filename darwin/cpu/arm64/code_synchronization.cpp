@@ -39,6 +39,11 @@ bool take_unmapped_code_synchronization(std::uint64_t &address) noexcept
 	return true;
 }
 
+bool has_unmapped_code_synchronization() noexcept
+{
+	return unmapped_pending;
+}
+
 void discard_unmapped_code_synchronization() noexcept
 {
 	unmapped_pending = false;

@@ -13,17 +13,23 @@ struct GuestDisplayGeometry {
 }
 
 /// What VoiceOver makes of the guest's display, in the application's words.
-/// With `directTouch`, the display is a direct-touch area: a touch on it
-/// reaches the guest as it does with VoiceOver off, so a screen reader in the
-/// guest takes it. Without it, VoiceOver's own gestures work over the
-/// display, which reads as one element. Activating the element, a VoiceOver
-/// double-tap, sends the guest no touch.
+/// Without `directTouch` the display is one element: VoiceOver's own gestures
+/// work over it. With `directTouch` it is a container of one element that
+/// covers it, a direct-touch area: its touches reach the guest, so a screen
+/// reader in the guest takes them, and VoiceOver says nothing of them. The
+/// element is a child of the display, not the display itself, because
+/// VoiceOver passes touches on only to a child element. Activating the
+/// element, a VoiceOver double-tap, sends the guest no touch.
 struct GuestDisplayAccessibility: Equatable {
     var label: String
     /// What the display says of the guest, as its value.
     var value: String?
     var hint: String?
     var directTouch = false
+    /// Whether VoiceOver's focus may go to the direct-touch element as it
+    /// appears: false while another screen covers the display or an
+    /// announcement is still being spoken.
+    var takesFocus = false
 }
 
 struct GuestDisplayView: UIViewControllerRepresentable {
@@ -169,6 +175,12 @@ final class GuestDisplayViewController: UIViewController {
 
 
 
+/// The display's accessibility element while a screen reader in the guest is
+/// on: it covers the display and takes no activation.
+final class GuestDisplayElement: UIAccessibilityElement {
+    override func accessibilityActivate() -> Bool { true }
+}
+
 private extension Notification.Name {
     static let guestDisplayResizeWillBegin = Notification.Name(
         "org.linux-um-darwin.guest-display-resize-will-begin"
@@ -198,6 +210,12 @@ class GuestMetalView: MTKView, UIGestureRecognizerDelegate, UIPointerInteraction
     /// became meanwhile, and a touch that began as a finger stays one.
     private var pointerTouchIDs = Set<ObjectIdentifier>()
     private var windowObserver: NSObjectProtocol?
+    /// The direct-touch element while the display describes itself that way,
+    /// and whether the focus was last allowed to go to it.
+    private var directTouchElement: GuestDisplayElement?
+    private var focusWasAllowed = false
+    /// What the display last described itself as, for `didMoveToWindow`.
+    private var appliedAccessibility: GuestDisplayAccessibility?
 
     /// The hardware keyboard and mouse this view hands the system's events
     /// to. Without one the view leaves presses, hover and scroll to UIKit, and
@@ -254,6 +272,7 @@ class GuestMetalView: MTKView, UIGestureRecognizerDelegate, UIPointerInteraction
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        directTouchElement?.accessibilityFrameInContainerSpace = bounds
         reportLayout()
         pointerStyleDidChange()
     }
@@ -310,11 +329,43 @@ class GuestMetalView: MTKView, UIGestureRecognizerDelegate, UIPointerInteraction
     }
 
     func applyAccessibility(_ accessibility: GuestDisplayAccessibility?) {
-        isAccessibilityElement = accessibility != nil
-        accessibilityLabel = accessibility?.label
-        accessibilityValue = accessibility?.value
-        accessibilityHint = accessibility?.hint
-        accessibilityTraits = accessibility?.directTouch == true ? .allowsDirectInteraction : .none
+        appliedAccessibility = accessibility
+        guard let accessibility, accessibility.directTouch else {
+            directTouchElement = nil
+            focusWasAllowed = false
+            accessibilityElements = nil
+            isAccessibilityElement = accessibility != nil
+            accessibilityLabel = accessibility?.label
+            accessibilityValue = accessibility?.value
+            accessibilityHint = accessibility?.hint
+            accessibilityTraits = .none
+            return
+        }
+        isAccessibilityElement = false
+        accessibilityLabel = nil
+        accessibilityValue = nil
+        accessibilityHint = nil
+        accessibilityTraits = .none
+        let appeared = directTouchElement == nil
+        let element = directTouchElement ?? GuestDisplayElement(accessibilityContainer: self)
+        element.accessibilityLabel = accessibility.label
+        element.accessibilityValue = accessibility.value
+        element.accessibilityHint = accessibility.hint
+        // The trait first: the options apply to a direct-touch element.
+        element.accessibilityTraits = .allowsDirectInteraction
+        element.accessibilityDirectTouchOptions = .silentOnTouch
+        element.accessibilityFrameInContainerSpace = bounds
+        directTouchElement = element
+        accessibilityElements = [element]
+        // VoiceOver's focus is on the element before the first touch, as the
+        // element appears or as nothing covers it any more, so that touch is
+        // not spent moving the focus there. A post before the view is in a
+        // window is lost: it waits for `didMoveToWindow`.
+        let mayPost = accessibility.takesFocus && window != nil
+        if mayPost, appeared || !focusWasAllowed, UIAccessibility.isVoiceOverRunning {
+            UIAccessibility.post(notification: .screenChanged, argument: element)
+        }
+        focusWasAllowed = mayPost
     }
 
     /// A VoiceOver activation of the display is no touch: the default would tap
@@ -497,6 +548,9 @@ class GuestMetalView: MTKView, UIGestureRecognizerDelegate, UIPointerInteraction
             hardwareInput?.releaseAll()
         } else if hardwareFocusWanted {
             claimHardwareFocus()
+        }
+        if window != nil, appliedAccessibility?.takesFocus == true, !focusWasAllowed {
+            applyAccessibility(appliedAccessibility)
         }
     }
 

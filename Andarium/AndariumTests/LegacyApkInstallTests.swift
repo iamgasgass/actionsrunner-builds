@@ -601,6 +601,48 @@ struct LegacyApkInstallAlertTests {
         return nil
     }
 
+    /// What VoiceOver's double tap does to `element`: the element is asked to activate, and a control
+    /// that declines it is tapped. Whether it took the activation is the result: an element that is
+    /// no control and declines it has not been activated, whatever it did. Before iOS 27 the label is
+    /// on the text inside a button, and the views around it up to the alert answer in its place.
+    private func activate(_ element: UIView) -> Bool {
+        var candidate: UIView? = element
+        while let view = candidate {
+            if view.accessibilityActivate() { return true }
+            if let control = view as? UIControl {
+                control.sendActions(for: .touchUpInside)
+                return true
+            }
+            guard #unavailable(iOS 27.0) else { return false }
+            candidate = view.superview
+        }
+        return false
+    }
+
+    /// The double tap on the alert's button `title`: the element is asked to activate. Before iOS 27
+    /// UIKit's view for an alert's button declines that and does nothing, and VoiceOver then taps the
+    /// button where it is; a hosted test has no finger, so the button's action runs, as the tap
+    /// makes UIKit run it.
+    private func activate(_ element: UIView, titled title: String, on alert: UIAlertController) -> Bool {
+        if activate(element) { return true }
+        guard #unavailable(iOS 27.0) else { return false }
+        guard let action = alert.actions.first(where: { $0.title == title }),
+              let handler = action.value(forKey: "handler") as AnyObject? else { return false }
+        unsafeBitCast(handler, to: (@convention(block) (UIAlertAction) -> Void).self)(action)
+        return true
+    }
+
+    /// The views from `element` up to the window, as a failure names them.
+    private func chain(_ element: UIView) -> String {
+        var parts: [String] = []
+        var candidate: UIView? = element
+        while let view = candidate {
+            parts.append("\(type(of: view))(label \(view.accessibilityLabel ?? "nil"), element \(view.isAccessibilityElement), control \(view is UIControl))")
+            candidate = view.superview
+        }
+        return parts.joined(separator: " < ")
+    }
+
     /// Raises the question for a file Android refuses for its version, with the real screens up.
     private func raise(
         _ model: AppModel, _ driver: StubDriver, over controller: AndariumHostingController<some View>
@@ -639,8 +681,11 @@ struct LegacyApkInstallAlertTests {
         let styles = Dictionary(uniqueKeysWithValues: shown.actions.map { ($0.title ?? "", $0.style) })
         #expect(styles == ["Cancel": .cancel, "Install anyway": .default])
         #expect(shown.actions.count == 2)
-        // Cancel is the default action, the one an alert shows in bold.
-        #expect(shown.preferredAction?.title == "Cancel")
+        // Cancel is the default action, the one an alert shows in bold. From iOS 27 UIKit names it the
+        // alert's preferred action; before it the cancel style is all that makes it the bold one.
+        if #available(iOS 27.0, *) {
+            #expect(shown.preferredAction?.title == "Cancel")
+        }
         // VoiceOver finds both buttons by name.
         #expect(control(labelled: "Cancel", in: shown.view) != nil)
         #expect(control(labelled: "Install anyway", in: shown.view) != nil)
@@ -665,9 +710,7 @@ struct LegacyApkInstallAlertTests {
             let title = installAnyway ? "Install anyway" : "Cancel"
             let button = try #require(control(labelled: title, in: shown.view), "\(title) is not on the alert")
             // What VoiceOver does with a double tap; a control that declines it is tapped.
-            if !button.accessibilityActivate(), let control = button as? UIControl {
-                control.sendActions(for: .touchUpInside)
-            }
+            try #require(activate(button, titled: title, on: shown), "\(title) takes no activation: \(chain(button))")
             try #require(await eventually { model.legacyInstallQuestion == nil }, "\(title) answered nothing")
             if installAnyway {
                 try #require(await eventually { model.busy?.result != nil })
@@ -733,7 +776,7 @@ struct LegacyApkInstallAlertTests {
         // The alert is on screen before its buttons are built.
         try #require(await eventually { control(labelled: "Cancel", in: shown.view) != nil }, "no Cancel on the alert")
         let cancel = try #require(control(labelled: "Cancel", in: shown.view))
-        if !cancel.accessibilityActivate(), let control = cancel as? UIControl { control.sendActions(for: .touchUpInside) }
+        try #require(activate(cancel, titled: "Cancel", on: shown), "Cancel takes no activation: \(chain(cancel))")
         try #require(await eventually { alert(over: controller) == nil && model.busy == nil })
         #expect(driver.installAttempts == [false])
     }

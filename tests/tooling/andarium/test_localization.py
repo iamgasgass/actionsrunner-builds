@@ -13,10 +13,8 @@ from __future__ import annotations
 
 __import__("sys").dont_write_bytecode = True
 
-import contextlib
 import copy
 import importlib.util
-import io
 import json
 import pathlib
 import shutil
@@ -30,9 +28,9 @@ SCRIPT = REPOSITORY / "Andarium/scripts/localization.py"
 BOUND_SECONDS = 120
 
 NOTE = "Browse the virtual machine’s storage."
-STORE_NOTE = "Rate the app from Info."
 PERMISSION = "Andarium records from the microphone only when you turn on Microphone."
 LANGS = ("ja", "zh-Hans", "zh-Hant")
+PHRASE = "Open ${target} in ${applicationName}"
 
 
 def load_script():
@@ -45,6 +43,11 @@ def load_script():
 
 def unit(value: str, state: str = "translated") -> dict:
     return {"stringUnit": {"state": state, "value": value}}
+
+
+def phrases(*values: str, state: str = "translated") -> dict:
+    """An App Shortcut's phrases in one language."""
+    return {"stringSet": {"state": state, "values": list(values)}}
 
 
 def entry(**values: str) -> dict:
@@ -76,20 +79,21 @@ class Tree:
                 "Retina": {"shouldTranslate": False},
             }),
             "JIT": catalog({"Preparing JIT": entry(ja="JITを準備中", zh_Hans="正在准备JIT", zh_Hant="正在準備JIT")}),
-            "Feedback": catalog({"Send feedback": entry(ja="フィードバックを送信", zh_Hans="发送反馈", zh_Hant="傳送回饋")}),
-            "TipJar": catalog({"Buy me tokens": entry(ja="トークンをおごる", zh_Hans="请我喝点Token", zh_Hant="請我喝點Token")}),
-            "Review": catalog({"Review on the App Store": entry(
-                ja="App Storeでレビューを書く", zh_Hans="在App Store中撰写评论", zh_Hant="在App Store中撰寫評論")}),
             "FollowX": catalog({"Follow developer on %@": entry(
                 ja="%@でデベロッパをフォロー", zh_Hans="在%@上关注开发者", zh_Hant="在%@上追蹤開發者")}),
+            "AppShortcuts": catalog({PHRASE: {"localizations": {
+                "en": phrases("Open ${target} in ${applicationName}", "Open an Android app in ${applicationName}"),
+                "ja": phrases("${applicationName}で${target}を開く", "${applicationName}でAndroidアプリを開く"),
+                "zh-Hans": phrases("在${applicationName}中打开${target}", "在${applicationName}中打开Android应用"),
+                "zh-Hant": phrases("在${applicationName}中打開${target}", "在${applicationName}中打開Android應用程式"),
+            }}}),
             "AndariumCore": catalog({"Paused": entry(ja="一時停止", zh_Hans="已暂停", zh_Hant="已暫停")}),
+            "GuestHostCore": catalog({"Later": entry(ja="後で", zh_Hans="稍后", zh_Hant="稍後")}),
             "InfoPlist": catalog({"NSMicrophoneUsageDescription": {"localizations": {
                 "en": unit(PERMISSION), **{lang: unit(f"{lang}: 麦克风") for lang in LANGS}}}}),
             "WhatsNew": catalog({
                 NOTE: {"extractionState": "manual", **entry(
                     ja="ストレージを参照します。", zh_Hans="浏览存储空间。", zh_Hant="瀏覽儲存空間。")},
-                STORE_NOTE: {"extractionState": "manual", **entry(
-                    ja="情報から評価できます。", zh_Hans="可在信息中评价。", zh_Hant="可在資訊中評價。")},
             }),
         }
         self.english_only = {
@@ -97,9 +101,7 @@ class Tree:
             "english": [{"text": "JIT", "file": "Andarium/Andarium/Shared/Dev.swift", "reason": "development only"}],
         }
         self.sources = {"Andarium/Andarium/Shared/Dev.swift": 'Text(verbatim: "JIT")\n'}
-        # The beta track and the App Store track, each a file of its own.
         self.whats_new = [{"entries": [{"text": NOTE}]}]
-        self.whats_new_app_store = [{"entries": [{"text": STORE_NOTE}]}]
         self.project = (
             '{ "targets": [ {\n  "name": "Andarium",\n  "id": "A1",\n  "settings": {\n'
             f'    "INFOPLIST_KEY_NSMicrophoneUsageDescription": "{PERMISSION}"\n  }} }},\n'
@@ -110,9 +112,7 @@ class Tree:
         for name, relative in self.script.CATALOGS.items():
             self.put(relative, json.dumps(self.files[name], ensure_ascii=False, indent=2))
         self.put(self.script.ENGLISH_ONLY, json.dumps(self.english_only, indent=2))
-        beta, app_store = self.script.WHATS_NEW
-        self.put(beta, json.dumps(self.whats_new, ensure_ascii=False))
-        self.put(app_store, json.dumps(self.whats_new_app_store, ensure_ascii=False))
+        self.put(self.script.WHATS_NEW, json.dumps(self.whats_new, ensure_ascii=False))
         self.put(self.script.PROJECT, self.project)
         for relative, text in self.sources.items():
             self.put(relative, text)
@@ -197,6 +197,21 @@ class CheckTests(unittest.TestCase):
         plural["many"] = plural.pop("other")
         self.assertFinds("plural variations without 'other'")
 
+    def test_app_shortcut_phrases_pass_and_each_is_checked(self) -> None:
+        self.assertEqual(self.problems(), [])
+        self.tree.string("AppShortcuts", PHRASE)["localizations"]["ja"] = phrases(
+            "${applicationName}で${target}を開く", "Open an Android app in ${applicationName}")
+        self.assertFinds("(ja/phrase 2): is an English form of the key")
+
+    def test_app_shortcut_phrases_not_marked_translated(self) -> None:
+        self.tree.string("AppShortcuts", PHRASE)["localizations"]["zh-Hant"] = phrases(
+            "在${applicationName}中打開${target}", "在${applicationName}中打開Android應用程式", state="new")
+        self.assertFinds("is in the state 'new'")
+
+    def test_app_shortcut_phrases_missing_a_language(self) -> None:
+        del self.tree.string("AppShortcuts", PHRASE)["localizations"]["zh-Hans"]
+        self.assertFinds("has no zh-Hans translation")
+
     def test_a_google_name_in_a_value(self) -> None:
         self.tree.string("Localizable", "Virtual machine")["localizations"]["zh-Hans"] = unit("Google 虚拟机")
         self.assertFinds("names a Google product")
@@ -207,7 +222,7 @@ class CheckTests(unittest.TestCase):
 
     def put_notice(self, catalog_name: str, translations: dict[str, str] | None = None) -> str:
         """The no-Google-apps notice's own title in a catalog, as the application carries it."""
-        key = "No Google apps" if catalog_name == "Localizable" else "Missing Google apps?"
+        key = "No Google apps"
         self.assertIn(key, self.script.GOOGLE_NOTICE_KEYS[catalog_name])
         values = {"ja": "Googleのアプリは意図的に非搭載", "zh_Hans": "有意不含Google应用", "zh_Hant": "刻意不內建Google應用程式"}
         values.update(translations or {})
@@ -215,8 +230,7 @@ class CheckTests(unittest.TestCase):
         return key
 
     def test_the_notice_may_name_google_in_every_language(self) -> None:
-        for catalog_name in ("Localizable", "Feedback"):
-            self.put_notice(catalog_name)
+        self.put_notice("Localizable")
         body = next(iter(sorted(self.script.GOOGLE_NOTICE_KEYS["Localizable"] - {"No Google apps"})))
         self.tree.files["Localizable"]["strings"][body] = entry(
             ja="Googleは、自社のアプリとGoogle Play開発者サービスを、認定済みデバイスのメーカーにのみライセンス供与しています。",
@@ -246,15 +260,15 @@ class CheckTests(unittest.TestCase):
         self.assertFinds("names a Google product")
 
     def test_another_key_may_not_name_google_beside_the_notice(self) -> None:
-        self.put_notice("Feedback")
-        self.tree.files["Feedback"]["strings"]["Open Google Play"] = entry(ja="開く", zh_Hans="打开", zh_Hant="開啟")
+        self.put_notice("Localizable")
+        self.tree.files["Localizable"]["strings"]["Open Google Play"] = entry(ja="開く", zh_Hans="打开", zh_Hant="開啟")
         self.assertFinds("names a Google product")
 
     def test_the_notice_in_another_catalog_may_not_name_google(self) -> None:
-        # The Feedback table's key in the Localizable catalog, or the reverse, is not the notice.
-        feedback_key = self.put_notice("Feedback")
-        del self.tree.files["Feedback"]["strings"][feedback_key]
-        self.tree.files["Localizable"]["strings"][feedback_key] = entry(
+        # The notice's key in another catalog is not the notice.
+        key = self.put_notice("Localizable")
+        del self.tree.files["Localizable"]["strings"][key]
+        self.tree.files["JIT"]["strings"][key] = entry(
             ja="Googleのアプリが見つかりませんか？", zh_Hans="找不到Google应用？", zh_Hant="找不到Google應用程式？")
         self.assertFinds("names a Google product")
 
@@ -361,6 +375,12 @@ class CheckTests(unittest.TestCase):
         self.tree.files["Localizable"]["strings"]["JIT"] = entry(ja="JIT", zh_Hans="即时编译", zh_Hant="即時編譯")
         self.assertFinds("a catalog translates it")
 
+    def test_a_note_with_the_text_of_an_english_text_translates_nothing(self) -> None:
+        self.tree.files["WhatsNew"]["strings"]["JIT"] = entry(ja="JIT", zh_Hans="JIT", zh_Hant="JIT")
+        self.tree.whats_new[0]["entries"].append({"title": "JIT", "text": NOTE})
+        self.tree.english_only["identical"].append({"catalog": "WhatsNew", "key": "JIT", "reason": "a term"})
+        self.assertEqual(self.problems(), [])
+
     def test_a_permission_text_without_an_entry(self) -> None:
         del self.tree.files["InfoPlist"]["strings"]["NSMicrophoneUsageDescription"]
         self.assertFinds("has no entry for NSMicrophoneUsageDescription")
@@ -383,30 +403,11 @@ class CheckTests(unittest.TestCase):
         self.tree.files["WhatsNew"]["strings"]["Removed note"] = entry(ja="a", zh_Hans="b", zh_Hant="c")
         self.assertFinds("is no note of")
 
-    def test_a_note_of_the_app_store_track_without_an_entry(self) -> None:
-        self.tree.whats_new_app_store[0]["entries"].append({"title": "Later", "points": ["An App Store point"]})
-        self.assertFinds("has no entry for the note 'An App Store point' of Andarium/Andarium/Shared/WhatsNewAppStore.json")
-
-    def test_an_entry_of_one_track_alone_is_a_note(self) -> None:
-        # The one table serves both tracks: a note of either keeps its entry.
-        self.assertEqual(self.problems(), [])
-        self.tree.whats_new_app_store = []
-        self.assertFinds(f"{STORE_NOTE!r} is no note of")
-        self.tree.whats_new_app_store = [{"entries": [{"text": STORE_NOTE}]}]
-        self.tree.whats_new = []
-        self.assertFinds(f"{NOTE!r} is no note of")
-
-    def test_an_empty_app_store_track_has_no_notes(self) -> None:
-        self.tree.whats_new_app_store = []
-        del self.tree.files["WhatsNew"]["strings"][STORE_NOTE]
-        self.assertEqual(self.problems(), [])
-
-    def test_a_missing_track_file(self) -> None:
+    def test_a_missing_notes_file(self) -> None:
         self.tree.write()
-        for relative in self.script.WHATS_NEW:
-            (self.tree.root / relative).unlink()
-            self.assertTrue(any(relative in problem and "is missing" in problem for problem in self.script.check(self.tree.root)))
-            self.tree.write()
+        relative = self.script.WHATS_NEW
+        (self.tree.root / relative).unlink()
+        self.assertTrue(any(relative in problem and "is missing" in problem for problem in self.script.check(self.tree.root)))
 
     def test_a_catalog_in_another_source_language(self) -> None:
         self.tree.files["AndariumCore"]["sourceLanguage"] = "de"
@@ -432,21 +433,24 @@ class SyncTests(unittest.TestCase):
         self.data = self.scratch / "build" / "Home.stringsdata"
 
     def extract(self, *keys: str, jit: tuple[str, ...] = ("Preparing JIT",),
-                feedback: tuple[str, ...] = ("Send feedback",), tipjar: tuple[str, ...] = ("Buy me tokens",),
-                review: tuple[str, ...] = ("Review on the App Store",),
-                follow: tuple[str, ...] = ("Follow developer on %@",)) -> None:
+                follow: tuple[str, ...] = ("Follow developer on %@",),
+                shortcuts: tuple[str, ...] = (PHRASE,)) -> None:
         self.data.parent.mkdir(parents=True, exist_ok=True)
 
         def table(texts: tuple[str, ...]) -> list[dict]:
             return [{"comment": "", "key": key, "location": {"startingColumn": 1, "startingLine": 1}} for key in texts]
 
         body = {"source": str(self.root / self.source), "tables": {
-            "Localizable": table(keys), "JIT": table(jit), "Feedback": table(feedback), "TipJar": table(tipjar),
-            "Review": table(review), "FollowX": table(follow)}, "version": 1}
+            "Localizable": table(keys), "JIT": table(jit),
+            "FollowX": table(follow),
+            "AppShortcuts": [
+                {"key": key, "location": {"startingColumn": 1, "startingLine": 1},
+                 "values": [key, "Open an Android app in ${applicationName}"] if key == PHRASE else [key]}
+                for key in shortcuts]}, "version": 1}
         self.data.write_text(json.dumps(body), encoding="utf-8")
 
     def sync(self, *extra: str) -> list[str]:
-        return self.script.sync(self.root, [self.data.parent], "--check" in extra, "--app-store" in extra)
+        return self.script.sync(self.root, [self.data.parent], "--check" in extra)
 
     def catalog(self) -> dict:
         return json.loads((self.root / self.script.CATALOGS["Localizable"]).read_text(encoding="utf-8"))["strings"]
@@ -482,56 +486,6 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("JIT: is out of step with the code: 1 to add ['A new JIT text']", problems[0])
 
-    def test_a_feedback_string_of_the_arranged_build_is_in_step(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of")
-        self.assertEqual(self.sync("--check"), [])
-
-    def test_a_missing_feedback_string_is_found(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of",
-                     feedback=("Send feedback", "A new feedback text"))
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("Feedback: is out of step with the code: 1 to add ['A new feedback text']", problems[0])
-
-    def test_a_development_build_without_send_feedback_is_refused_not_read_as_stale(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of", feedback=())
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("Feedback: has no extracted strings: build with FEEDBACK_ADDRESS=feedback@example.com", problems[0])
-
-    def test_a_missing_tip_or_review_string_is_found(self) -> None:
-        keys = ("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of")
-        self.extract(*keys, tipjar=("Buy me tokens", "A new tip text"))
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("TipJar: is out of step with the code: 1 to add ['A new tip text']", problems[0])
-        self.extract(*keys, review=("Review on the App Store", "A new review text"))
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("Review: is out of step with the code: 1 to add ['A new review text']", problems[0])
-
-    def test_a_development_build_without_a_feature_is_refused_not_read_as_stale(self) -> None:
-        keys = ("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of")
-        self.extract(*keys, tipjar=())
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("TipJar: has no extracted strings: build with TIP_LITE", problems[0])
-        self.extract(*keys, review=())
-        problems = self.sync("--check")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("Review: has no extracted strings: build with REVIEW_ID=id0000000000", problems[0])
-
-    def test_an_app_store_build_without_a_feature_has_no_table_to_compare(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=(), tipjar=(), review=(), follow=())
-        self.assertEqual(self.sync("--check", "--app-store"), [])
-
-    def test_an_app_store_build_with_a_tip_or_review_key_the_catalog_lacks_is_found(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=(), review=(), follow=(),
-                     tipjar=("Buy me tokens", "A new tip text"))
-        problems = self.sync("--check", "--app-store")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("TipJar: is out of step with the code: 1 to add ['A new tip text']", problems[0])
-
     def test_a_follow_x_string_of_the_arranged_build_is_in_step(self) -> None:
         self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of")
         self.assertEqual(self.sync("--check"), [])
@@ -549,47 +503,16 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("FollowX: has no extracted strings: build with FOLLOW_X_HANDLE=example_handle", problems[0])
 
-    def test_an_app_store_build_without_a_handle_has_no_follow_x_table_to_compare(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=(), tipjar=(), review=(), follow=())
-        self.assertEqual(self.sync("--check", "--app-store"), [])
-
-    def test_an_app_store_build_with_a_handle_is_held_to_the_follow_x_keys_it_lacks(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=(), tipjar=(), review=(),
-                     follow=("Follow developer on %@", "A new row text"))
-        problems = self.sync("--check", "--app-store")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("FollowX: is out of step with the code: 1 to add ['A new row text']", problems[0])
-
-    def test_an_app_store_build_without_a_receiver_has_no_feedback_table_to_compare(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=(), tipjar=(), review=(), follow=())
-        self.assertEqual(self.sync("--check", "--app-store"), [])
-
-    def test_an_app_store_build_with_a_receiver_is_held_to_the_feedback_keys_it_lacks(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=(), feedback=("Send feedback", "A new feedback text"),
-                     tipjar=(), review=(), follow=())
-        problems = self.sync("--check", "--app-store")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("Feedback: is out of step with the code: 1 to add ['A new feedback text']", problems[0])
-
-    def test_an_app_store_build_that_compiled_a_jit_string_is_refused(self) -> None:
+    def test_an_app_shortcut_phrase_of_the_arranged_build_is_in_step(self) -> None:
         self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of")
-        problems = self.sync("--check", "--app-store")
+        self.assertEqual(self.sync("--check"), [])
+
+    def test_a_missing_app_shortcut_phrase_is_found(self) -> None:
+        self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of",
+                     shortcuts=(PHRASE, "Close ${target} in ${applicationName}"))
+        problems = self.sync("--check")
         self.assertEqual(len(problems), 1, problems)
-        self.assertIn("has strings in an App Store build", problems[0])
-
-    def test_an_app_store_build_may_lack_the_keys_of_code_it_left_out(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "Retina", jit=())
-        self.assertEqual(self.sync("--check", "--app-store"), [])
-
-    def test_an_app_store_build_with_a_key_the_catalogs_lack_is_found(self) -> None:
-        self.extract("Virtual machine", "%@ of %@", "%lld snapshots", "Retina", "storage.of", "Brand new", jit=())
-        problems = self.sync("--check", "--app-store")
-        self.assertEqual(len(problems), 1, problems)
-        self.assertIn("1 to add ['Brand new']", problems[0])
-
-    def test_app_store_only_checks(self) -> None:
-        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
-            self.script.main(["sync", "--root", str(self.root), "--stringsdata", str(self.data.parent), "--app-store"])
+        self.assertIn("AppShortcuts: is out of step with the code: 1 to add ['Close ${target} in ${applicationName}']", problems[0])
 
     def test_a_build_without_extracted_strings(self) -> None:
         empty = self.scratch / "empty"

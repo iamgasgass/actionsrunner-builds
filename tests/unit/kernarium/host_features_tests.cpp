@@ -50,7 +50,9 @@ void everyBitIsOneBitOfItsOwn()
     require((knownBits() & KERNARIUM_RUNTIME_ANDROID_HOST_ORIENTATION) != 0U);
     require(KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS == 4U);
     require((knownBits() & KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS) != 0U);
-    require(knownBits() == 7U);
+    require(KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH == 8U);
+    require((knownBits() & KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH) != 0U);
+    require(knownBits() == 15U);
 }
 
 void aCollisionBetweenTwoRowsIsDetected()
@@ -152,6 +154,34 @@ void theCompassBitBecomesTheArgumentTheSubHalWillRead()
     }
 }
 
+void theHighRefreshBitBecomesTheArgumentTheGuestsSchedulerWillRead()
+{
+    require(kernelArguments(KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH) ==
+            std::vector<std::string> {"androidboot.kernarium.high_refresh=1"});
+    /* init makes "ro.boot.kernarium.high_refresh" of this argument, the
+     * property the guest's 120 Hz configuration is keyed by. */
+    const std::string argument =
+        kernelArguments(KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH).front();
+    require(argument.starts_with("androidboot."));
+    const std::string name = argument.substr(
+        std::string_view {"androidboot."}.size(),
+        argument.find('=') - std::string_view {"androidboot."}.size());
+    require("ro.boot." + name == "ro.boot.kernarium.high_refresh");
+    /* The other bits never make it, and without the bit no argument is
+     * composed: a 60 Hz host's command line is what it was. */
+    for (const std::uint32_t bit : {KERNARIUM_RUNTIME_ANDROID_HOST_HAPTICS,
+                                    KERNARIUM_RUNTIME_ANDROID_HOST_ORIENTATION,
+                                    KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS}) {
+        for (const std::string& other : kernelArguments(bit))
+            require(!other.starts_with("androidboot.kernarium.high_refresh="));
+    }
+    require(kernelArguments(0).empty());
+    require(kernelArguments(KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH |
+                            KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS) ==
+            std::vector<std::string> {"androidboot.kernarium.compass=1",
+                                      "androidboot.kernarium.high_refresh=1"});
+}
+
 void everyKnownBitMakesOneArgumentInTableOrder()
 {
     const auto arguments = kernelArguments(knownBits());
@@ -230,6 +260,8 @@ int main()
          theOrientationBitBecomesTheArgumentTheSubHalReads},
         {"the-compass-bit-becomes-the-argument-the-sub-hal-will-read",
          theCompassBitBecomesTheArgumentTheSubHalWillRead},
+        {"the-high-refresh-bit-becomes-the-argument-the-guests-scheduler-will-read",
+         theHighRefreshBitBecomesTheArgumentTheGuestsSchedulerWillRead},
         {"every-known-bit-makes-one-argument-in-table-order",
          everyKnownBitMakesOneArgumentInTableOrder},
         {"bits-the-runtime-has-no-row-for-are-reported-and-make-nothing",

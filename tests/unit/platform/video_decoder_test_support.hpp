@@ -29,6 +29,39 @@ inline std::vector<std::uint8_t> read(const std::string& name)
     return {std::istreambuf_iterator<char>(file), {}};
 }
 
+/* The packets of an IVF file, in order: the container the VP9 clips are kept in. */
+inline std::vector<Bytes> ivfPackets(const Bytes& file)
+{
+    const auto word = [&file](std::size_t offset, unsigned bytes) {
+        if (offset + bytes > file.size()) throw std::runtime_error("truncated IVF file");
+        std::uint64_t value = 0;
+        for (unsigned i = 0; i < bytes; ++i) value |= std::uint64_t(file[offset + i]) << (8 * i);
+        return value;
+    };
+    if (file.size() < 32 || file[0] != 'D' || file[1] != 'K' || file[2] != 'I' || file[3] != 'F')
+        throw std::runtime_error("not an IVF file");
+    std::vector<Bytes> packets;
+    for (auto offset = std::size_t(word(6, 2)); offset < file.size();) {
+        const auto size = std::size_t(word(offset, 4));
+        offset += 12;
+        if (size > file.size() - offset) throw std::runtime_error("truncated IVF packet");
+        packets.emplace_back(file.begin() + std::ptrdiff_t(offset), file.begin() + std::ptrdiff_t(offset + size));
+        offset += size;
+    }
+    return packets;
+}
+
+/* A hash of a decoded frame's samples as the decoder returns them: luma, then
+ * the interleaved chroma. A VP9 decoder is exact, so the hash of a picture is
+ * what a reference decoder's NV12 hashes to. */
+inline std::uint32_t frameHash(const uml::platform::DecodedVideoFrame& frame)
+{
+    std::uint32_t hash = 0x811c9dc5u;
+    for (const auto byte : frame.luma) hash = (hash ^ byte) * 0x01000193u;
+    for (const auto byte : frame.chroma) hash = (hash ^ byte) * 0x01000193u;
+    return hash;
+}
+
 /* The pictures of an Annex B stream, one buffer each with the parameter sets
  * that precede it: what a V4L2 client queues. */
 inline std::vector<Bytes> accessUnits(const Bytes& stream)

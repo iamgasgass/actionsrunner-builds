@@ -1,5 +1,78 @@
 [
   {
+    "build": 16,
+    "version": "1.1 (16)",
+    "entries": [
+      {
+        "id": "root-access",
+        "title": "Root access",
+        "text": "Apps you allow in Magisk can now run as root. Turn on Root access on Home, and the next start installs the official Magisk app.",
+        "symbol": "key.fill"
+      },
+      {
+        "id": "aot",
+        "title": "AOT",
+        "text": "Android’s system libraries now run from code translated ahead of time, so Android runs faster. It is on by default, in Performance on Home.",
+        "symbol": "books.vertical.fill"
+      },
+      {
+        "id": "high-refresh",
+        "title": "120 Hz",
+        "text": "On a ProMotion iPhone or iPad, Android can now run at 120 Hz for smoother motion, using more battery. It is off until you turn it on in Performance on Home.",
+        "symbol": "speedometer"
+      },
+      {
+        "id": "add-to-home-screen",
+        "title": "Add to Home Screen",
+        "text": "On iPhone and iPad with iOS 27, put an Android app’s icon on the Home Screen, and open the app from there, from Shortcuts or with Siri.",
+        "symbol": "plus.app.fill",
+        "place": "sessionSettings",
+        "requirement": {
+          "feature": "addToHomeScreen"
+        }
+      },
+      {
+        "id": "voiceover-talkback",
+        "title": "VoiceOver and TalkBack",
+        "text": "Andarium now works with VoiceOver. To hear Android’s screen, turn on TalkBack, Android’s screen reader, under Accessibility.",
+        "symbol": "accessibility",
+        "place": "sessionSettings"
+      },
+      {
+        "id": "frame-rate-when-hot",
+        "title": "Frame rate when hot",
+        "text": "Android now lowers the frame rate only when this device is very hot. To keep it even then, set When hot to Full frame rate under Performance.",
+        "symbol": "thermometer.medium",
+        "place": "sessionSettings"
+      },
+      {
+        "id": "text-messages",
+        "title": "Text messages",
+        "text": "Android can now receive a text message that you write. Choose Send text message… in Settings while Android is running, and it arrives as an incoming text.",
+        "symbol": "message.fill",
+        "place": "sessionSettings"
+      },
+      {
+        "id": "update-notice",
+        "title": "Update notice",
+        "text": "When a newer version of Andarium is out, Home tells you and shows how to update. It checks once a day, and you can turn it off in Info.",
+        "symbol": "arrow.down.app.fill"
+      },
+      {
+        "id": "build-16-fixes",
+        "title": "Fixes and improvements",
+        "points": [
+          "Fixed the virtual machine’s Wi-Fi dropping briefly when you return to Andarium",
+          "Fixed face scans failing in some apps that use the front camera",
+          "Fixed connections hanging after this device moves from Wi-Fi to cellular data",
+          "Fixed apps failing to reach servers for a while after the network returns",
+          "VP9 videos now play with this device’s hardware decoder"
+        ],
+        "symbol": "wrench.and.screwdriver.fill"
+      }
+    ]
+  },
+  {
     "build": 12,
     "version": "1.0 (12)",
     "entries": [
@@ -85,15 +158,6 @@
         "text": "Use Install APK to install an app built for a much older version of Android. Andarium warns you first that the app may not work properly.",
         "symbol": "square.and.arrow.down.fill",
         "place": "sessionSettings"
-      },
-      {
-        "id": "send-feedback",
-        "title": "Send feedback",
-        "text": "Email the developer from the Info menu on Home, or from Settings while the virtual machine runs, with screenshots and a bug report if you like.",
-        "symbol": "envelope.fill",
-        "requirement": {
-          "feature": "sendFeedback"
-        }
       },
       {
         "id": "more-fixes",

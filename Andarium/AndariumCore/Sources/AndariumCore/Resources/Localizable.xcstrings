@@ -719,6 +719,28 @@
         }
       }
     },
+    "it could not start (this device could not give it %@ of memory)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動できませんでした（このデバイスは%@のメモリを割り当てられませんでした）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法启动（此设备无法提供%@内存）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法啟動（此裝置無法提供%@記憶體）"
+          }
+        }
+      }
+    },
     "it was stopped from the boot screen" : {
       "comment" : "A clause of the line the end screen offers to copy, after \"Virtual machine ended:\".",
       "localizations" : {

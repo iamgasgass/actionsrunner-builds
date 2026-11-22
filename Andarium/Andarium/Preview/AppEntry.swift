@@ -113,18 +113,21 @@ struct AppEntry {
         "home-camera-alert": "capabilities", "home-camera-restricted-alert": "capabilities",
         "home-camera-ask": "capabilities",
         "home-backup": "backup",
-        "home-jit": "jit", "home-jit-no-debugger": "jit", "home-jit-fallback": "jit",
+        "home-jit": "performance", "home-jit-no-debugger": "performance", "home-jit-fallback": "performance",
+        "home-performance": "performance", "home-performance-on": "performance",
+        "home-aot": "performance", "home-aot-off": "performance", "home-aot-jit": "performance",
+        "home-aot-60hz": "performance",
     ]
 
     /// Where Settings scrolls to for a screen that shows a lower section.
     private static let settingsScrolls: [String: String] = [
         "settings-stats": "stats",
-        "settings-feedback": "diagnostics",
         "settings-text-message": "developer",
         "settings-accessibility": "accessibility",
         "settings-accessibility-left": "accessibility",
         "settings-performance": "stats", "settings-performance-menu": "stats", "settings-performance-off": "stats",
         "settings-performance-hot": "stats", "settings-performance-hot-off": "stats",
+        "settings-performance-120": "stats",
     ]
 
     /// The page of Info a screen opens on.
@@ -132,13 +135,15 @@ struct AppEntry {
         "info-acknowledgements": .acknowledgements,
         "info-license": .license("mesa"),
         "info-license-gpl": .license("linux"),
+        "info-acknowledgements-root": .acknowledgements,
+        "info-license-magisk": .license("magisk"),
         "whatsnew-history": .whatsNew,
-        "whatsnew-history-nofeedback": .whatsNew,
     ]
 
     var hints: ScreenHints {
         ScreenHints(
-            scrollTarget: Self.scrollTargets[screen] ?? SnapshotPreview.scrollTargets[screen],
+            scrollTarget: Self.scrollTargets[screen] ?? SnapshotPreview.scrollTargets[screen]
+                ?? RootPreview.scrollTargets[screen],
             infoPage: Self.infoPages[screen]
         )
     }
@@ -152,7 +157,8 @@ struct AppEntry {
             Tips.showAllTipsForTesting()
         } else if screen.hasPrefix("session") || screen.hasPrefix("settings") || screen.hasPrefix("files")
             || screen.hasPrefix("recovery") || screen.hasPrefix("boot")
-            || screen.hasPrefix("space-pause") || screen.hasPrefix("sms-") || Self.operationScreens.contains(screen) {
+            || screen.hasPrefix("space-pause") || screen.hasPrefix("sms-") || screen.hasPrefix("add-home")
+            || Self.operationScreens.contains(screen) {
             Tips.hideAllTipsForTesting()
         }
         try? Tips.configure([.displayFrequency(.immediate)])
@@ -161,7 +167,7 @@ struct AppEntry {
     func makeModel() -> AppModel {
         CaptureState.begin(screen: screen)
         applyColorScheme()
-        let lowSpace = lowSpace || ["create-low-space", "start-low-space", "home-low-space"].contains(screen)
+        let lowSpace = lowSpace || ["create-low-space", "start-low-space", "home-low-space", "add-home-wait-space"].contains(screen)
         let host = WhatsNewPreview.host(for: screen) ?? SnapshotPreview.host(for: screen)
             ?? PreviewData.host(lowSpace: lowSpace, device: device)
         var guest: Guest? = PreviewData.sampleGuest(on: host)
@@ -178,6 +184,10 @@ struct AppEntry {
         model.fileBrowser = browser
         let freeze = !play
         model.jitAvailable = true
+        // The preview carries no translated-code framework, so Home has no AOT
+        // row unless a screen plays a build that does (`home-aot`,
+        // `home-aot-off`, `home-aot-jit`).
+        model.translatedLibrariesAvailable = screen.hasPrefix("home-aot")
         // Only an iPhone has a Taptic Engine for the guest's haptics: an iPad's
         // preview, like the device, has no Haptics row.
         model.hapticsAvailable = host.hasHaptics
@@ -185,7 +195,11 @@ struct AppEntry {
         // screen states another access (and `-systemCamera` reads the
         // Simulator's own).
         model.cameraAccess = .notDetermined
-        if voiceOver { model.voiceOverRunning = { true } }
+        if voiceOver {
+            model.voiceOverRunning = { true }
+            // The Simulator's VoiceOver is off and reports no end of a sentence.
+            model.runStartAnnouncer = { _, finished in finished(true) }
+        }
         let mockReader = PreviewScreenReader()
         model.screenReaderStandIn = mockReader
         switch talkBack {
@@ -271,8 +285,15 @@ struct AppEntry {
         case "home-memory-warning", "system-memory-warning":
             model.guest = PreviewData.highMemoryGuest(on: host)
         case "home-options", "home-display", "home-capabilities", "home-backup", "system-edit",
-             "home-location-ask", "home-camera-ask":
+             "home-location-ask", "home-camera-ask", "home-performance", "home-performance-on":
             break
+        case "home-aot", "home-aot-60hz":
+            break
+        case "home-aot-off":
+            model.translatedLibrariesOn = false
+        case "home-aot-jit":
+            // JIT is on and a debugger is attached, so the next start runs on it.
+            model.jitOn = true
         case "home-jit":
             model.jitOn = true
         case "home-jit-no-debugger":
@@ -407,9 +428,10 @@ struct AppEntry {
             }
             model.previewTextMessage(screen)
         case "settings", "settings-medium", "settings-adb-off", "settings-adb-no-address", "settings-adb", "settings-stats",
-             "settings-feedback", "settings-text-message", "settings-accessibility", "settings-accessibility-left",
+             "settings-text-message", "settings-accessibility", "settings-accessibility-left",
              "settings-performance", "settings-performance-menu", "settings-performance-off",
-             "settings-performance-hot", "settings-performance-hot-off", "install-apk", "install-parts", "install-legacy", "install-done", "install-failed", "install-not-apk",
+             "settings-performance-hot", "settings-performance-hot-off", "settings-performance-120",
+             "install-apk", "install-parts", "install-legacy", "install-done", "install-failed", "install-not-apk",
              "install-app-bundle", "bug-report", "install-data", "install-done-without-data", "install-done-data-not-placed", "install-done-container",
              "install-encrypted", "install-damaged-or-encrypted", "install-no-app", "install-damaged", "install-missing-split",
              "install-part-too-large", "install-legacy-hint", "install-legacy-hint-data",
@@ -465,26 +487,28 @@ struct AppEntry {
         case "failed":
             // The failure path a real run takes: a crash after 42 minutes.
             model.fail()
+        case "failed-memory":
+            // What a run ends with where the host would not map the guest's
+            // memory: it never began. The size is the guest's own, as the
+            // report's second line states it. The result is the runtime's
+            // memory-refused one (-101); the screen shows the size.
+            model.fail(
+                RunEnd(
+                    result: -101,
+                    memoryRefusedMiB: model.guest?.memoryMiB ?? Limits.defaultMemoryRangeMiB.lowerBound),
+                uptimeSeconds: nil)
         case "stopped":
             // What Stop on the slow-start notice leaves: the run ended by the person.
             model.fail(RunEnd(result: -5, stoppedByUser: true), uptimeSeconds: 203)
-        case "feedback-boot", "feedback-boot-filled", "feedback-boot-details", "feedback-boot-finished",
-             "feedback-boot-removed":
-            slowBoot(stage: 3, seconds: 197)
+        case let name where AddToHomePreview.handles(name):
+            AddToHomePreview.prepare(screen: name, model: model, freeze: freeze)
         default:
             break
         }
         HeatLimitPreview.apply(screen: screen, to: model)
         WhatsNewPreview.apply(screen: screen, to: model)
-        #if FEEDBACK_MAIL
-        FeedbackPreview.configure(screen: screen, model: model)
-        #endif
-        #if TIP_JAR
-        TipJarPreview.configure(screen: screen, model: model)
-        #endif
-        #if ICP_FILING
-        ICPPreview.configure(model: model)
-        #endif
+        UpdatePreview.apply(screen: screen, to: model)
+        RootPreview.apply(screen: screen, to: model, freeze: freeze)
         if let statsReadings {
             model.session.readout = Readout(
                 previewReadings: statsReadings, memoryMiB: model.guest?.memoryMiB ?? Limits.defaultMemoryRangeMiB.lowerBound
@@ -729,6 +753,8 @@ struct AppEntry {
             default: break
             }
         }
+        await AddToHomePreview.applyDeferred(screen: screen, model: model)
+        UpdatePreview.applyDeferred(screen: screen, model: model)
         switch screen {
         case "create", "create-low-space":
             model.sheet = .create
@@ -759,20 +785,9 @@ struct AppEntry {
         case "erase":
             model.confirmingErase = true
         case "info", "info-acknowledgements", "info-license", "info-license-gpl", "whatsnew-info",
-             "whatsnew-history", "whatsnew-history-nofeedback":
+             "whatsnew-history", "info-acknowledgements-root", "info-license-magisk":
             model.sheet = .info
-        case "info-bottom":
-            // Info scrolled to its end, where the footnote of the filing number is.
-            model.sheet = .info
-            try? await Task.sleep(for: .milliseconds(1200))
-            await PreviewScroll.toBottomOfFrontSheet()
-        #if FEEDBACK_MAIL
-        case "home-menu", "welcome-menu":
-            // Home's toolbar menu open, as a tap leaves it.
-            try? await Task.sleep(for: .milliseconds(600))
-            PreviewMenu.openToolbarMenu()
-        #endif
-        case "whatsnew-open", "whatsnew-skipped-open":
+        case "whatsnew-open", "whatsnew-skipped-open", "whatsnew-unsupported-open":
             model.sheet = .whatsNew
         case "start-low-space":
             model.start(.normal)

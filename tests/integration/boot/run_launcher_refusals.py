@@ -43,6 +43,13 @@ CONSOLE_COLLISION = COLLISION.format(
 CONFIGURE = "Unable to configure host devices: "
 HARDWARE_INPUT_DISPLAY = (
     "--hardware-input requires --gpu with a VNC or native display")
+# The release a guest boots is stated by the launcher of an Android release
+# from that release's own files, never by a caller: this launcher refuses the
+# option, so a Linux guest cannot be given an Android release's identity.
+AOT_RELEASE = "--aot-release=r1," + "a" * 64 + "," + "b" * 64
+AOT_RELEASE_REFUSAL = (
+    CONFIGURE + "--aot-release is stated by the launcher of an Android release "
+    "from the release it boots; a command line cannot name it")
 
 # (arguments, the stderr line the launcher must print)
 REFUSALS: list[tuple[list[str], str]] = [
@@ -78,7 +85,8 @@ REFUSALS: list[tuple[list[str], str]] = [
      CONFIGURE + "--camera-profile requires --camera=synthetic or "
      "--camera=blocked"),
     (["--camera=synthetic", "--camera-profile=watch"],
-     CONFIGURE + "--camera-profile must be phone, tablet or laptop"),
+     CONFIGURE + "--camera-profile must be phone, tablet, laptop or "
+     "phone-turned-front"),
     (["--camera-layout=auto"],
      CONFIGURE + "--camera-layout requires --camera"),
     (["--camera=synthetic", "--camera-layout=front"],
@@ -173,6 +181,9 @@ REFUSALS: list[tuple[list[str], str]] = [
     (["--hardware-input"], CONFIGURE + HARDWARE_INPUT_DISPLAY),
     (["--hardware-input", "--gpu-display=offscreen"],
      CONFIGURE + HARDWARE_INPUT_DISPLAY),
+    ([AOT_RELEASE], AOT_RELEASE_REFUSAL),
+    (["--aot=on", AOT_RELEASE], AOT_RELEASE_REFUSAL),
+    (["--aot-release="], AOT_RELEASE_REFUSAL),
 ]
 
 # (arguments, the start of the stderr line): the service cannot bind its

@@ -110,6 +110,31 @@ uml_add_unit_test(NAME kernarium-host-features
     COMMAND uml_kernarium_host_features_tests
     LABELS kernarium)
 
+# Whether an Android launch states its release to the emulator, which the
+# ahead-of-time component needs: the boot request's word that keeps it out, and
+# the argument the runtime then gives (or does not give) the emulator.
+add_executable(uml_kernarium_aot_release_tests aot_release_tests.cpp)
+target_link_libraries(uml_kernarium_aot_release_tests PRIVATE UML::Emulator)
+target_include_directories(uml_kernarium_aot_release_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/Kernarium/Runtime
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/device
+    ${PROJECT_SOURCE_DIR}/darwin/emulator/src)
+uml_add_unit_test(NAME kernarium-aot-release
+    COMMAND uml_kernarium_aot_release_tests
+    LABELS kernarium)
+
+# Whether an Android launch asks for the root boot, the release's Magisk-patched
+# ramdisk: the boot request's word, which older requests never state.
+add_executable(uml_kernarium_android_root_tests android_root_tests.cpp)
+target_include_directories(uml_kernarium_android_root_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/Kernarium/Runtime
+    ${PROJECT_SOURCE_DIR}/darwin/device)
+target_link_libraries(uml_kernarium_android_root_tests PRIVATE UML::AndroidBoot)
+uml_add_unit_test(NAME kernarium-android-root
+    COMMAND uml_kernarium_android_root_tests
+    LABELS kernarium)
+
 # The installation identity an Android guest is given: the boot request's
 # statements and the file beside the data disk.
 add_executable(uml_kernarium_identity_tests identity_tests.cpp)
@@ -204,14 +229,12 @@ uml_add_unit_test(NAME kernarium-settle-plumbing
 # What an Android guest is told about the host's cameras: the camera fields of
 # the boot request, the layout composed from the host's cameras, the lens cover,
 # and the camera state and rotation the application and the device exchange.
-if(TARGET UML::SyntheticCamera)
-    add_executable(uml_kernarium_camera_tests camera_tests.cpp)
-    target_include_directories(uml_kernarium_camera_tests PRIVATE
-        ${PROJECT_SOURCE_DIR}/Kernarium/Runtime
-        ${PROJECT_SOURCE_DIR}/darwin/device)
-    target_link_libraries(uml_kernarium_camera_tests PRIVATE
-        UML::CameraSource)
-    uml_add_unit_test(NAME kernarium-camera
-        COMMAND uml_kernarium_camera_tests
-        LABELS "kernarium;camera")
-endif()
+add_executable(uml_kernarium_camera_tests camera_tests.cpp)
+target_include_directories(uml_kernarium_camera_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/Kernarium/Runtime
+    ${PROJECT_SOURCE_DIR}/darwin/device)
+target_link_libraries(uml_kernarium_camera_tests PRIVATE
+    UML::CameraSource)
+uml_add_unit_test(NAME kernarium-camera
+    COMMAND uml_kernarium_camera_tests
+    LABELS "kernarium;camera")

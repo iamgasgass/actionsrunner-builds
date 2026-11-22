@@ -390,6 +390,14 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
         help="boot the accepted release into recovery once, as a first-boot override",
     )
     parser.add_argument(
+        "--root",
+        action="store_true",
+        help=(
+            "boot the release's Magisk-patched ramdisk in place of its own "
+            "(only a release that carries root/ has one; recovery keeps its own)"
+        ),
+    )
+    parser.add_argument(
         "--build",
         action="store_true",
         help="incrementally rebuild the macos-android17 executable before boot",
@@ -520,6 +528,7 @@ def emulator_command(
         *([f"--android-data-gib={data_gib}"] if data_gib is not None else []),
         *identity_arguments(options, data_disk),
         f"--android-boot-mode={options.boot_mode}",
+        *(["--android-root"] if getattr(options, "root", False) else []),
         f"--net-forward=tcp:127.0.0.1:{options.adb_port}-{GUEST_ADB_PORT}",
         "--gpu",
         f"--gpu-display={options.display}",

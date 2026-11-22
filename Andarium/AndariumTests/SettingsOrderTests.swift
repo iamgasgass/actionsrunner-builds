@@ -178,6 +178,21 @@ struct SettingsOrderTests {
         #expect(!unlimited.contains(hotLimited))
     }
 
+    /// "120 Hz" is on Home, in Performance (`HomePerformanceTests`), so that
+    /// the guest's configuration is in one place: Settings, which a run opens,
+    /// has no row of it on any screen, and its footnote is gone with it.
+    @Test func settingsHasNoHundredAndTwentyHertzRowOnAnyScreen() async throws {
+        for maximum in [60, 120] {
+            let model = model()
+            model.screenDidChange(nativeScale: 3, maximumFramesPerSecond: maximum)
+            let labels = try await settled(of: model).map(\.label)
+            #expect(labels.contains("When hot"), "Performance is still there at \(maximum) Hz: \(labels)")
+            #expect(
+                !labels.contains { $0.hasPrefix("120 Hz") || $0.contains("Smoother motion") },
+                "Settings still has the 120 Hz row at \(maximum) Hz: \(labels)")
+        }
+    }
+
     @Test func theRowReadsItsNameAndItsValueAndFollowsTheChoice() async throws {
         let model = model()
         let on = try await settled(of: model)

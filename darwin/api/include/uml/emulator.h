@@ -231,6 +231,13 @@ int uml_emulator_get_capabilities(const struct uml_emulator *emulator,
  * kernel claims guest RAM, such as one refused for its arguments or cancelled
  * while queued, leaves the process's guest unspent.
  *
+ * A run whose guest the host cannot hold, because the process has not the
+ * address space for its kernel window or the memory limit for its RAM, returns
+ * -UML_EMULATOR_OUT_OF_MEMORY before the kernel starts, and so leaves the
+ * guest unspent: a run with a smaller guest memory may follow. The kernel
+ * itself answers a RAM mapping the host refuses by ending the process, so the
+ * run asks the host first.
+ *
  * Before it runs again after a restart, the caller must stop every service
  * that maps guest RAM, such as a device, display, disk or network backend that
  * holds a view of it, and the kernel's threads must have ended. The services

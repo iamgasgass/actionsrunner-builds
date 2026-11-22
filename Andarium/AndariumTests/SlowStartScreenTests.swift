@@ -9,8 +9,8 @@ import UIKit
 
 /// The boot screen's notice for a slow start, in the application: when the
 /// model puts it up (by a clock the test moves, so nothing waits three
-/// minutes), what Stop does, which controls the screen has with and without a
-/// receiver for feedback, and that the notice goes with the boot.
+/// minutes), what Stop does, that Stop is the screen's one control, and that
+/// the notice goes with the boot.
 @Suite(.serialized)
 @MainActor
 struct SlowStartScreenTests {
@@ -295,12 +295,6 @@ struct SlowStartScreenTests {
         kind: BootKind
     ) async throws {
         let fixture = fixture()
-        #if FEEDBACK_MAIL
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        services.canSendMail = { true }
-        fixture.model.feedbackServices = services
-        #endif
         begun(fixture, kind: kind)
         fixture.clock.advance(185)
         fixture.model.updateSlowStart()
@@ -337,11 +331,6 @@ struct SlowStartScreenTests {
             { fixture.model.askToStop() }, gone: { fixture.model.confirmingStop = false })
         #expect(alert == expected, "the Stop alert is not in the screen's appearance")
         #expect(lease.window.overrideUserInterfaceStyle == (kind == .recovery ? .light : .dark))
-        #if FEEDBACK_MAIL
-        let sheet = try await presented(
-            { fixture.model.feedbackFromBoot = true }, gone: { fixture.model.feedbackFromBoot = false })
-        #expect(sheet == expected, "the sheet is not in the screen's appearance")
-        #endif
         // What follows the boot is in the appearance the window had.
         fixture.model.finishBoot(kind)
         let leaving = ContinuousClock.now + .seconds(5)
@@ -460,7 +449,7 @@ struct SlowStartScreenTests {
         return fixture
     }
 
-    /// Stop alone (a build with no receiver for feedback, or none arranged): as
+    /// Stop alone: as
     /// tall as the application's ordinary button at the default text size, no
     /// less at any size, and as wide as its label and no more: it is not one bar
     /// across the notice.
@@ -485,167 +474,7 @@ struct SlowStartScreenTests {
         }
     }
 
-    #if FEEDBACK_MAIL
-    @Test func sendFeedbackIsOfferedWhereTheReceiverIs() async throws {
-        let fixture = fixture()
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        fixture.model.feedbackServices = services
-        begun(fixture)
-        fixture.clock.advance(185)
-        fixture.model.updateSlowStart()
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let (_, found) = try await screen(fixture, in: lease, finding: ["Stop", "Send feedback"])
-        guard let feedback = found["Send feedback"] else {
-            Issue.record("Send feedback was not found: is application accessibility on in this Simulator?")
-            return
-        }
-        #expect(found["Stop"] != nil)
-        #expect(feedback.accessibilityActivate())
-        // The root's own sheet, not Home's or Settings': it outlives the boot.
-        #expect(fixture.model.feedbackFromBoot && !fixture.model.feedbackSheetOpen)
-        fixture.model.feedbackFromBoot = false
-    }
-
-    /// The sheet the notice opens belongs to the root, over every phase: the
-    /// boot that completes, or a run that ends, leaves it open with the draft.
-    @Test(arguments: ["completes", "ends"]) func theSheetOutlivesTheBoot(how: String) async throws {
-        let fixture = fixture()
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        services.canSendMail = { true }
-        fixture.model.feedbackServices = services
-        fixture.model.phase = .booting(.normal)
-        fixture.model.slowStart.begin(at: fixture.clock.now)
-        fixture.clock.advance(185)
-        fixture.model.updateSlowStart()
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let host = AndariumHostingController(
-            rootView: RootView(entry: AppEntry(overrides: LaunchOverrides())).environment(fixture.model),
-            model: fixture.model)
-        lease.window.rootViewController = host
-        host.view.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(300))
-        fixture.model.feedbackFromBoot = true
-        func presented() async throws -> UIViewController? {
-            let deadline = ContinuousClock.now + .seconds(8)
-            while host.presentedViewController == nil, ContinuousClock.now < deadline {
-                try await Task.sleep(for: .milliseconds(50))
-            }
-            return host.presentedViewController
-        }
-        let sheet = try #require(try await presented(), "the sheet did not open over the boot screen")
-        if how == "completes" {
-            fixture.model.finishBoot(.normal)
-        } else {
-            fixture.model.runEnded(RunEnd(result: -11), uptimeSeconds: 190)
-        }
-        try await Task.sleep(for: .milliseconds(2500))
-        #expect(fixture.model.feedbackFromBoot, "the sheet was closed when the boot \(how)")
-        #expect(host.presentedViewController === sheet && sheet.view.window != nil, "the sheet was taken away")
-        fixture.model.feedbackFromBoot = false
-        host.dismiss(animated: false)
-    }
-
-    /// Stop and Send feedback are the application's ordinary button size: 44
-    /// points tall at the default text size, side by side at one width, and no
-    /// less than the touch target at any text size, stacked where a label does
-    /// not fit beside the other.
-    @Test func theButtonsAreTheApplicationsOrdinarySizeAtTheDefaultTextSize() async throws {
-        let fixture = noticeFixture()
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        fixture.model.feedbackServices = services
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let (_, found) = try await screen(fixture, in: lease, finding: ["Stop", "Send feedback"], contentSize: .large)
-        guard let stop = found["Stop"], let feedback = found["Send feedback"] else {
-            Issue.record("the buttons were not found: is application accessibility on in this Simulator?")
-            return
-        }
-        let (a, b) = (stop.accessibilityFrame, feedback.accessibilityFrame)
-        let context = "Stop \(a), Send feedback \(b)"
-        #expect(abs(a.height - Self.ordinaryButtonHeight) < 0.5 && abs(b.height - Self.ordinaryButtonHeight) < 0.5, "\(context)")
-        #expect(abs(a.minY - b.minY) < 0.5 && abs(a.width - b.width) < 1, "side by side at one width: \(context)")
-        #expect(a.minX < b.minX)
-    }
-
-    @Test(arguments: SlowStartScreenTests.contentSizes)
-    func theButtonsAreNoLessThanTheTouchTargetAtEverySize(size: UIContentSizeCategory) async throws {
-        let fixture = noticeFixture()
-        var services = SendFeedbackServices()
-        services.address = { "feedback@example.com" }
-        fixture.model.feedbackServices = services
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let (_, found) = try await screen(fixture, in: lease, finding: ["Stop", "Send feedback"], contentSize: size)
-        guard let stop = found["Stop"], let feedback = found["Send feedback"] else {
-            Issue.record("the buttons were not found: is application accessibility on in this Simulator?")
-            return
-        }
-        let (a, b) = (stop.accessibilityFrame, feedback.accessibilityFrame)
-        let context = "\(size.rawValue): Stop \(a), Send feedback \(b)"
-        #expect(a.height >= Self.ordinaryButtonHeight - 0.5 && b.height >= Self.ordinaryButtonHeight - 0.5, "under the touch target: \(context)")
-        #expect(abs(a.width - b.width) < 1, "one width: \(context)")
-    }
-
-    /// The mail names the step the notice shows, from the same source: while
-    /// the debugger prepares the JIT the screen is at its first step.
-    @Test func theMailNamesTheStepTheNoticeShows() {
-        let fixture = fixture()
-        begun(fixture)
-        fixture.clock.advance(185)
-        fixture.model.updateSlowStart()
-        #expect(fixture.model.feedbackInformation().boot?.step == "Linux kernel")
-        fixture.model.preparingDisk = true
-        #expect(fixture.model.feedbackInformation().boot?.step == "System image")
-        fixture.model.preparingDisk = false
-        #if !APP_STORE
-        fixture.model.preparingJit = true
-        #expect(fixture.model.feedbackInformation().boot?.step == "System image")
-        fixture.model.preparingJit = false
-        #endif
-    }
-
-    @Test func withoutAReceiverTheNoticeHasStopAlone() async throws {
-        let fixture = fixture()
-        var services = SendFeedbackServices()
-        services.address = { nil }
-        fixture.model.feedbackServices = services
-        begun(fixture)
-        fixture.clock.advance(185)
-        fixture.model.updateSlowStart()
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let (controller, found) = try await screen(fixture, in: lease, finding: ["Stop"])
-        #expect(found["Stop"] != nil, "is application accessibility on in this Simulator?")
-        #expect(button(labelled: "Send feedback", in: controller.view) == nil)
-    }
-
-    @Test func stopAloneIsTheOrdinaryButtonAndNotABar() async throws {
-        let fixture = noticeFixture()
-        var services = SendFeedbackServices()
-        services.address = { nil }
-        fixture.model.feedbackServices = services
-        try await checkStopAlone(fixture)
-    }
-    #else
     @Test func stopAloneIsTheOrdinaryButtonAndNotABar() async throws {
         try await checkStopAlone(noticeFixture())
     }
-
-    @Test func aBuildWithoutSendFeedbackHasStopAlone() async throws {
-        let fixture = fixture()
-        begun(fixture)
-        fixture.clock.advance(185)
-        fixture.model.updateSlowStart()
-        let lease = try await HostWindow.take()
-        defer { lease.give() }
-        let (controller, found) = try await screen(fixture, in: lease, finding: ["Stop"])
-        #expect(found["Stop"] != nil, "is application accessibility on in this Simulator?")
-        #expect(button(labelled: "Send feedback", in: controller.view) == nil)
-    }
-    #endif
 }

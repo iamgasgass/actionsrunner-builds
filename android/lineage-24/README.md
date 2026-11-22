@@ -84,9 +84,11 @@ UML implementation. `Build.SOC_MANUFACTURER` and `SOC_MODEL` are `Kernarium` and
   calculator, PDF viewer, backup). There is no browser, app store or install
   restriction, and no Google apps, services or closed-source Google code;
   open-source components built from source are allowed and are the ones listed
-  here. Applications that need absent hardware or
-  LineageOS cloud services are excluded by name in the product makefile, and the
-  build and the verifier assert that list.
+  here. The two prebuilt files under `root/` ([Root files](#root-files)) are
+  admitted too: the official Magisk release the pin names, unmodified, and the
+  `init_boot` Magisk's own patcher makes from it. Applications that need absent
+  hardware or LineageOS cloud services are excluded by name in the product
+  makefile, and the build and the verifier assert that list.
 - **Signature spoofing.** The image ships no microG, and
   no guest interface names Google's services; Andarium names them only to say
   that they are left out on purpose ([No Google
@@ -321,12 +323,27 @@ sends, and keeps its severity when the host link drops.
 `Andarium/AndariumCore/Sources/AndariumCore/ThermalProtocol.swift` own the wire,
 which the golden frames in `tests/unit/andarium/fixtures` pin.
 
-From SEVERE on, Android holds the display's render rate to 30 Hz; the display
-mode does not change. The map is the vendor default display configuration
-(`/vendor/etc/displayconfig/default.xml`, from `overlay/config/`), which the
-display topic of route `p0007` makes a display with no map of its own use.
+From SEVERE on, Android holds the display's render rate to 30 Hz, and at
+MODERATE to 60 Hz; the display mode does not change. The host application sends
+MODERATE only while a 120 Hz run is held to 60 Hz (Low Power Mode, or a screen
+that shows under 100 frames a second), so a 60 Hz run never meets it. The
+target-files verifier requires each point's range to be exactly one minimum
+and one maximum, and the thermal runner checks both ends of the vote. The map is the vendor default display
+configuration (`/vendor/etc/displayconfig/default.xml`, from `overlay/config/`),
+which the display topic of route `p0007` makes a display with no map of its own
+use.
 `tests/integration/android/run_android_thermal.py` drives the stream on a
 candidate image.
+
+### High-refresh display
+
+When the display the host shows is a 120 Hz mode, the launch passes
+`androidboot.kernarium.high_refresh=1` and the virtual display's one mode is
+120 Hz (its EDID). Android needs no other input: with one mode it renders at the
+mode's rate, picks a lower render rate for content that asks for one, and holds
+it to 60 Hz or 30 Hz at the thermal points above. Nothing in the image reads the
+property; the mode carries the rate. A 60 Hz host passes neither and behaves as
+before.
 
 ### Game controllers
 
@@ -512,25 +529,79 @@ and expects the same cameras).
 
 ### Text messages
 
-The guest receives text messages from the host and sends none. `KernariumSms`
-(`overlay/sms/`) is a persistent system application in an SELinux domain of its
-own that listens on vsock port 5560 and takes a request only from host CID 2.
-It has no other entry point, so neither an adb shell, adb over the network
-included, nor an application can deliver a message. `HostFrame.java` and
+The guest receives text messages from the host and sends none. Port 5560 on
+vsock is held from boot by `kernarium_sms_listener` (`overlay/sms/listener/`), a
+small native daemon in an SELinux domain of its own that creates, binds and
+listens on the socket and never accepts, reads, writes or connects it, so that
+the host's connections queue and no other guest domain can take the port. When a
+connection waits and no session runs, it sets the control property that starts
+`kernarium_sms_wake`, a script in a second domain that asks the activity manager
+to start the service as the system user (again after 20 s if no session attached,
+and after a session that ended early with a connection still waiting, after a wait
+that doubles from half a second to 2 s for the first seventeen such sessions, which
+outlast the host's 30 s window, and to 20 s after them); the service then takes the listening
+socket from the holder over its unix socket (`/dev/socket/kernarium_sms`), which
+only the service's domain may connect to; init makes and binds that socket and
+does not listen on it, so the holder listens on it itself. `KernariumSms` (`overlay/sms/`) is a
+system application with one non-exported, non-persistent service in a third
+domain. It serves the connections from the host's CID 2 alone, ends 30 s after
+the last message, and with it its process: nothing of it is resident in between.
+The waker starts it, and the system uid can, as the service is not exported; it
+serves the connections from CID 2 alone, so neither an adb shell, adb over the
+network included, nor an application can deliver a message. The end of the service loses no
+connection that it had not accepted, as the holder keeps the listening socket; a request it had
+accepted ends with it, and the record answers the host's retry as uncertain or as handed over
+earlier. If the holder ends while a
+connection waits that nothing has accepted (or while a session runs, and that session ends with
+one waiting), the kernel closes the connection: a request the host had already written gets no
+answer, a connection that arrives while no holder listens is refused and asked for again within
+the host's deadline, and the host's retry for the lost request is answered as uncertain and never
+handed over. That message is lost and never delivered twice. While the service keeps ending
+early with a request waiting (the holder runs, and the request stays queued), the request may get
+no answer within the host's 30 s: when the fault clears in about the last 2.5 s of it, or when the
+request arrives after the 2 s phase (the next try is up to 20 s later). The app then reports it as
+not confirmed, and the next send asks again with the same identifier, so that request is neither
+lost nor handed over twice. `HostFrame.java` and
 `Andarium/AndariumCore/Sources/AndariumCore/GuestSmsChannel.swift` own the
 frame. A message is a sender (a number or a short name), a text of limited
 length and an identifier the host chooses for it. `Message.java` and
 `Andarium/AndariumCore/Sources/AndariumCore/Adb/GuestSms.swift` own what is
 accepted and refused, each limit stated once.
 
-The target-files verifier holds that boundary. Only the reviewed types may
-create, bind or listen on a vsock socket, and no domain but the service holds a
-permission on its vsock sockets, except the platform's own `getattr` for
-`dumpstate`, which stats a socket and carries no data. Of the data, only the
-platform's managers of application data reach it. For the services it may find,
-`system_app_data_file` and the vsock sockets of other types, the service holds
-only what every ordinary application domain holds through one platform rule,
-plus the activity, package and role services.
+The target-files verifier holds that boundary. Only the reviewed types and the
+holder may create, bind or listen on a vsock socket; no domain but the holder
+and the service holds a permission on the holder's vsock sockets, the service
+only accept, read, write and shutdown, and the holder only the creation of its
+socket, none on the service's own. The waker holds no vsock socket, and neither it
+nor the holder holds a right in the network, capability or hardware service
+classes, however an attribute grants it. The holder has no rule of its own for
+binder, a service lookup or a file; the platform's grants to every domain still
+reach it (the binder device nodes, a binder call to `system_server` and the lookup
+of the binder statistics service), the verifier pins that set, and it can obtain
+no binder handle with it, as no rule gives it a call permission to the service
+manager. The waker's binder rights are call and transfer to the service manager and
+to `system_server` and no others, and neither daemon holds more than the platform's
+rights on the binder and hardware binder device nodes or any on the vendor's (a
+debuggable build adds the platform's call and transfer on the root shell). Init
+alone enters their domains and controls them: of the keys of the control properties
+that init checks for either service (`ctl.<service>`, which it checks first for
+start, stop and restart, and `ctl.<action>$<service>`), init alone may set every
+one but the key that starts the waker, which the holder sets too.
+The holder's start of the waker is denied on the legacy key, which init checks first
+and allows on the qualified one; the policy silences that denial, and the verifier
+requires it.
+The platform labels the directories of the user (`/data/data`, and `/data/user_de/<id>` from the
+second boot of a data image) with the user's categories, which the service's level lacks, so
+the service alone is an `mlstrustedsubject`, as every system application is: otherwise it could
+not search the path of its record, and every message after the first restart would be refused.
+Neither daemon is, and the verifier requires both. The compiled manifest of the
+service names SDK levels in a `uses-sdk` element, which the build adds, and no
+activity, receiver, provider, filter or permission request. The
+platform's own `getattr` for `dumpstate` stats a socket and carries no data. Of
+the data, only the platform's managers of application data reach it. For the
+services it may find, `system_app_data_file` and the vsock sockets of other types,
+the service holds only what every ordinary application domain holds through one
+platform rule, plus the activity, package and role services.
 
 The service hands Android the message as SMS-DELIVER PDUs, concatenated when
 the text needs more than one part: an `SMS_DELIVER` broadcast to the SMS role
@@ -551,7 +622,9 @@ afterwards.
 The product carries Messaging and TelephonyProvider and declares
 `android.hardware.telephony.messaging` and `config_sms_capable` (the SMS role
 needs both), but not `android.hardware.telephony`: there is no radio, SIM or
-SMS sending.
+SMS sending. Without TeleService, TelephonyProvider requests
+`MANAGE_APP_OPS_MODES` itself (route `p0034`), which its one-time-code check
+needs to reassert the SMS application's app-ops.
 
 ### Networking
 
@@ -972,7 +1045,14 @@ outcomes are known and not defects of the image:
 - The guest has a compressed swap of half its RAM (one zram entry in
   `fstab.uml`), enabled at `sys.boot_completed`. PinnerService does not lock the
   home app's files, and `kernarium_reclaim_boot_apps.sh` kills only the cached
-  processes of a reviewed list of boot-started apps after boot completes.
+  processes of a reviewed list of apps that boot, or the first listing of the
+  launcher applications, starts (Messaging, the SMS provider's process and the
+  icon renderer among them) after boot completes. Each package is decided from a
+  listing taken for it, by its complete process name, for user 0, and every row of
+  the process must be cached; a process that turns previous or service in the instant
+  between its own listing and the kill can still be ended once, as a low-memory
+  kill would end it. The next use starts them again: a text message from the host
+  starts Messaging and then the provider.
 - lmkd ends the cached app that holds the most host graphics memory while the
   kernel reports host GPU pressure in `/sys/class/drm/card0/gpu_memory_report`
   (route `p0027`; `ro.lmk.gpu_reclaim`, set by the product, turns it on). It does
@@ -1034,6 +1114,92 @@ the compatibility layer.
 - **Kept by a later release.** The property's name prefix, type and meaning, the
   eligibility and persistence rules, and the command's name, arguments, listing
   and statuses. `tests/integration/android/run_android_oldapp_switch.py`
+  qualifies it ([testing](../../docs/testing.md#android)).
+
+### Launcher applications
+
+Andarium's Add to Home Screen puts an Android application's icon on the iOS Home
+Screen, so the host asks the guest which applications have a launcher entry, with
+their labels and icons, and has one started. The image carries one command for
+both, `kernarium_apps` (`overlay/app_shortcuts`, a Java tool that `app_process`
+starts, installed on system_ext like `kernarium_oldapp`), and one application that
+draws, `KernariumIcons` (`overlay/app_icons`). The command runs as the adb shell
+user, holds no permission of its own and writes nothing: no file, property or
+setting. It reads the labels (string resources) and nothing else of an application's
+resources: it opens no image, drawable or icon file, and `icons` only asks the
+renderer for each picture and relays a PNG it has checked. It builds the framework's
+system assets for the labels itself, without the static
+overlays that target the framework (their idmaps come from `idmap2`, which the
+shell domain may not execute), and falls back to the framework's own
+initialisation when that is not possible. Reading any resources initialises the
+framework's display metrics, which read `qemu.sf.lcd_density` and fall back
+when the shell domain may not: the policy's one line for the tool
+(`overlay/sepolicy/system_ext/private/kernarium_apps.te`) is a `dontaudit` of
+that read, so no call draws a denial and the shell domain gains no permission.
+
+- **Renderer.** `KernariumIcons` (`com.kernarium.icons`) is an ordinary application of
+  system_ext: signed with the default key, in `app/` and not `priv-app/`, with no
+  launcher entry, no permission, no network, no backup, and no SELinux rule of its
+  own (its processes run as `untrusted_app` and `isolated_app`). Its one provider
+  (`content://com.kernarium.icons`) only brokers: the platform lets the shell user
+  and the system in (`ACCESS_CONTENT_PROVIDERS_EXTERNALLY`) and the provider
+  refuses any other uid again. It binds its one service, which runs in an isolated
+  process, and that process opens the target application's package files and
+  runtime overlays and draws the icon (a fixed density, day mode and locale, so
+  that a key is one picture); the PNG comes back to the tool through the provider. The shell
+  user cannot bind a service, so the tool reaches the provider through the activity
+  manager, for the user it listed the applications for, and takes only the image's own
+  provider (package, exact class, system application), checked at every acquisition.
+  A worker that dies or hangs costs the one icon (it is `error`, never
+  retried at a smaller size) and the next icon is drawn by a fresh one; a provider
+  that does not answer a call is no renderer at all. An image
+  without the renderer, or with another package's provider for its authority, fails
+  `icons` with status 1 and one line, and the tool's
+  other commands are unaffected. Each start of the isolated process leaves one
+  audit record, AOSP's own and tagged with its bug note: a denied `getattr` of the
+  application's data directory, which has no effect. `check_icons_app` in
+  `tools/verify-target-files.py` holds the package to this description.
+
+- **Entries.** One entry is a launcher activity of the foreground user: enabled for
+  that user (the package manager's own answer, so an alias the manifest disables
+  and `pm enable` enabled counts), exported, handling `MAIN` with `LAUNCHER`,
+  asking for no permission the shell user lacks. Its identity is `package/activity`, which an update or a
+  reinstall keeps. The grammar of both names (ASCII, at most 255 bytes each) is
+  the one place that says what the tool lists, takes and passes to a process.
+- **Commands.** `digest` prints a header block whose digest changes with the set
+  of entries, their versions and update times (a built-in application that was never
+  updated also carries the image's build time, an input of its own: its files carry one
+  fixed time), the foreground user and Android's language (it opens no application's
+  resources); `list` prints the
+  block and one row per entry with the label in Android's language list (read for one
+  fixed configuration, so the list is its only input), a built-in flag and an icon key; `icons` answers one PNG record (192 by 192, adaptive
+  icons composed from their layers with no mask, drawn for a fixed density, day mode
+  and locale so that a key is one picture) for each of up to eight components, with
+  its length and SHA-256; labels and icons come from the application's effective
+  resource files for the user (splits, shared libraries and overlays); the tool
+  passes on only a PNG whose signature, header (with its checksum), dimensions
+  (the size asked), 8-bit RGB or RGBA, non-interlaced layout and 96 KiB bound it has
+  checked, and an icon whose picture fails the check is `error`; `launch` starts exactly one entry as a
+  launcher's tap does, by running `cmd activity start-activity` with separate
+  arguments, and refuses (status 2) anything that is not an entry now.
+  A change of the set is noticed by comparing digests, and an icon is fetched only when
+  its key changed.
+- **Bounds.** A label is made safe (no control, separator, bidirectional or
+  invisible format character) and cut to 80 code points, and cleaned only as far as
+  the cut needs; one that cannot be read or does not fit in memory is listed under its
+  package name and costs no other entry; at most 8 entries per
+  package, 1024 rows, 8 icons per call, 96 KiB per PNG, 20 s before no further icon is
+  started and 7 s for one icon's request in the renderer (its queue, bind and drawing together: a drawing that
+  hangs or exhausts memory, which its isolated process contains, is `error` for that icon
+  alone) within 8 s of the tool's own, after which the renderer is taken as not there; every answer is under 1 MiB, and a command
+  that fails prints nothing on standard output and one line of the tool's own words
+  on standard error. A question without an answer (the foreground user, a
+  permission, the configuration) fails the command: there is no substitute.
+  The exit statuses are 0 done, 1 failure, 2 refused, 64 usage.
+- **Kept by a later release.** The command's name, verbs, answer framing, grammar,
+  bounds and statuses; an older image has no command (the shell's status 127) and
+  the host does not offer the feature. The renderer's authority, request and answer
+  are between the tool and the application of one image, which ship together. `tests/integration/android/run_android_app_shortcuts.py`
   qualifies it ([testing](../../docs/testing.md#android)).
 
 ### Branding and diagnostics
@@ -1116,15 +1282,21 @@ devices (Virtio video, [`darwin/device/video`](../../darwin/device/video/README.
 and the product exposes them through Codec2. The vendor service
 `android.hardware.media.c2-service-v4l2` of `external/v4l2_codec2` (route
 `p0018`, which also adds the HEVC component) serves AVC and HEVC encoders and
-decoders beside the software `c2.android.*` components; MediaCodec chooses the
-hardware decoders first. Encoder parameters come from the device, and a
-capability the device does not list is not advertised. HDR content is shown as
-SDR because the host has no P010 sampler.
+AVC, HEVC and VP9 decoders beside the software `c2.android.*` components;
+MediaCodec chooses the hardware decoders first. The VP9 decoder lists Profile 0
+and, where the host's hardware decodes it, Profile 2 (10-bit), which is shown
+as 8-bit as HEVC Main 10 is. A VP9 stream of 12 bits or of 4:4:4 or 4:2:2 is
+refused by the hardware decoder, so a player that picks the first VP9 decoder
+without stating the profile (Media3, for a WebM or MP4 file) reports a playback
+error; AV1, which the host does not decode, stays with the software decoder.
+Encoder parameters come from the device, and a capability the device does not
+list is not advertised. HDR content is shown as SDR because the host has no
+P010 sampler.
 
 `overlay/config/media_codecs_c2.xml` is the product's one vendor codec list. Its
 performance points, the encoder floors, the instance limits and pixel rates, and
 the service's SELinux and seccomp additions are required by the target-files
-verifier, which also refuses a hardware decoder beyond the two. Qualification is
+verifier, which also refuses a hardware decoder beyond the three. Qualification is
 opt-in
 ([`../../docs/testing.md`](../../docs/testing.md#android)).
 
@@ -1213,7 +1385,8 @@ verification, and `tools/verify-lineage-recovery.py` checks the recovery image.
 
 `support/release/release-manifest.schema.json` defines the compact rootfs
 release. It binds the system disk and its layout, boot ranges, command line,
-target-file support, and source provenance. The Android section records the
+target-file support, source provenance and, when the release has them, the
+[Magisk root files](#root-files). The Android section records the
 security patch level and the build number (`ro.build.version.incremental`),
 which a release sets to its release number (`build-aosp.sh --build-number N`:
 `r26` is 26 and `r10000` is 10000, up to ten digits), and so does every proof
@@ -1230,8 +1403,8 @@ the list. An object ID follows content, so it survives a history rewrite and a
 builder that works from an exported snapshot; the publisher takes it from the
 clean checkout it runs in. The accepted descriptor repeats the IDs
 (`LINEAGE24_ACCEPTED_INPUT_TREES`), and `install-release.py --print-acceptance`
-prints the whole descriptor for a candidate. The AppStore and TestFlight
-configurations of Andarium compare them with the commit they archive
+prints the whole descriptor for a candidate. Andarium's Release configuration
+compares them with the commit it archives
 ([`scripts/check-embedded-artifacts.py`](../../scripts/check-embedded-artifacts.py)).
 Verifier-only tools, documentation and tests are excluded, and a tracked file
 under this directory that the list does not classify fails
@@ -1247,7 +1420,12 @@ android/lineage-24/tools/install-release.py \
 
 The installer validates the candidate, including every system disk partition
 hash, and installs it atomically below `.build/android/releases`. It never
-replaces an existing release. Apple CMake does not import the rootfs release
+replaces an existing release. `--aot-artifact` also installs the release's AOT
+artifact (`tools/aot/release_artifact.py`) below `.build/android/aot`, once it
+verifies against the release; `metadata/accepted-aot.env` accepts it, and its
+`LINEAGE24_ACCEPTED_AOT_ARCHIVES` field is whether an archive of Andarium's
+Release configuration may carry it. The artifact is not part of the release's file
+inventory. Apple CMake does not import the rootfs release
 and does not invoke Repo, Soong, Kbuild, image assembly, publication, or
 transport.
 
@@ -1278,6 +1456,40 @@ outside `DIR`, and the tool requires the system's and the recovery's
 certificate. A presigned file keeps its upstream signature and is named in the
 build receipt. The key directory, its backup and the transfer to the builder are
 the maintainer's responsibility.
+
+### Root files
+
+A release can carry the Magisk root files of its own `init_boot` under `root/`:
+`init_boot-magisk.img`, that image as Magisk's patcher makes it, and the
+unmodified official `Magisk-<version>.apk`. The [`metadata/magisk.env`](metadata/magisk.env)
+pin names the Magisk release by name, version and the SHA-256 of its APK; it is a
+release input, the APK is given to the producer as a local file, and no Magisk
+file is in the repository.
+
+`build/assemble-image.sh --magisk-apk APK` makes the files on the builder after
+the disk is assembled (`tools/magisk-boot.py`), and `tools/publish-release.py`
+takes `--magisk-apk APK` or `--without-root`, never neither. A schema 8 manifest
+records them as its optional `root` object, which its
+[schema](support/release/release-manifest.schema.json) defines, and lists both
+files in its inventory. A release without root files is valid, as is every
+release of schema 6 and 7, which cannot carry them.
+
+`tools/verify-magisk-boot.py` is the one verifier. The producer, the installer
+and `Andarium/scripts/stage-system-image.py` run it, and it refuses by name a
+`root/` that is partial, holds anything beside the two files or is reached through
+a link, a file that is not the recorded one, and a patched image that is not its
+own disk's `init_boot` plus exactly what Magisk adds.
+
+A schema 8 accepted descriptor binds the root record
+(`LINEAGE24_ACCEPTED_ROOT_RECORD_SHA256`: a digest of it, or `none` for a release
+without root files), so a release with root files and one without never share a
+descriptor. `install-release.py --print-acceptance` also checks the candidate's
+Magisk release against the tracked pin; an accepted release installed later is
+history and is checked against its descriptor alone.
+`scripts/check-embedded-artifacts.py` ties the staged and the packaged root files
+to the installed accepted release's, and that release to the descriptor: a
+schema 6 or 7 descriptor admits no root files, and a schema 8 one must name the
+installed record's digest, or `none`.
 
 ### Superseded releases
 

@@ -9,7 +9,12 @@ import Testing
 /// The sender of the last text message belongs to the virtual machine's
 /// choices: Erase forgets it, and an erase that failed leaves it.
 @MainActor
-struct TextMessageSenderTests {
+final class TextMessageSenderTests {
+    // The model of a test adopts the process's App Intent hub, which the suites
+    // of Add to Home Screen replace: these take turns with them (`AndroidAppsHubLock`).
+    init() async { await AndroidAppsHubLock.shared.acquire() }
+    deinit { Task { await AndroidAppsHubLock.shared.release() } }
+
     private let host = HostDevice(
         name: "iPad", processorCount: 6, memory: MemoryPolicy(maximumsMiB: [4096]), freeStorageBytes: 40_000_000_000
     )

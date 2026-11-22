@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "camera_controls.hpp"
 
+#include "photo_dimensions.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -18,6 +20,7 @@ using uml::platform::CameraPosition;
 using uml::platform::CameraRegion;
 using uml::platform::CameraSettings;
 using uml::platform::CameraWhiteBalanceMode;
+using uml::platform::regionBeforeTurn;
 
 constexpr std::int64_t q16One = 65536;
 constexpr std::int64_t exposureUnitNanoseconds = 100'000;  // V4L2 states exposure in 100 microseconds
@@ -318,6 +321,9 @@ CameraSettings CameraControls::settings(const ControlValues& values) const
         return found == values.scalars.end() ? fallback : found->second;
     };
     const auto lock = scalar(UML_V4L2_CID_3A_LOCK, 0);
+    // The guest's regions are in the picture it is given, which the device turned by the camera's half turn: they are
+    // mapped back into the platform's picture, which is what its points of interest are in.
+    const std::uint32_t turn = info_.presentationTurn == 180 ? 180u : 0u;
     CameraSettings settings;
     // Exposure.
     if (scalar(UML_V4L2_CID_EXPOSURE_AUTO, 0) == UML_V4L2_EXPOSURE_MANUAL && info_.manualExposure) {
@@ -341,7 +347,7 @@ CameraSettings CameraControls::settings(const ControlValues& values) const
         settings.focusDistanceSerial = values.focusDistanceWrites;
         const auto af = regionOf(values.payloads.contains(VIRTIO_VIDEO_CAMERA_CID_AF_REGION)
                                      ? values.payloads.at(VIRTIO_VIDEO_CAMERA_CID_AF_REGION) : std::vector<std::uint8_t> {});
-        if (af.weight > 0) settings.afRegion = af;
+        if (af.weight > 0) settings.afRegion = regionBeforeTurn(af, turn);
     }
     // White balance.
     if (scalar(UML_V4L2_CID_AUTO_WHITE_BALANCE, 1) == 0) {
@@ -364,7 +370,7 @@ CameraSettings CameraControls::settings(const ControlValues& values) const
     settings.torch = scalar(UML_V4L2_CID_FLASH_LED_MODE, 0) == UML_V4L2_FLASH_LED_MODE_TORCH;
     const auto ae = regionOf(values.payloads.contains(VIRTIO_VIDEO_CAMERA_CID_AE_REGION)
                                  ? values.payloads.at(VIRTIO_VIDEO_CAMERA_CID_AE_REGION) : std::vector<std::uint8_t> {});
-    if (ae.weight > 0) settings.aeRegion = ae;
+    if (ae.weight > 0) settings.aeRegion = regionBeforeTurn(ae, turn);
     settings.stabilization = scalar(UML_V4L2_CID_IMAGE_STABILIZATION, 1) != 0;
     return settings;
 }

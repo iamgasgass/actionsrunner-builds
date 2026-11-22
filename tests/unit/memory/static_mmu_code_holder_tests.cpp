@@ -40,6 +40,21 @@
  *                a second synchronization of the frame meets an empty word
  *                (or a word of its own) and must still reach the first one's
  *                holders, with and without a holder that registered between.
+ *   own views    a generation that holds a frame is told of a change made
+ *                through another of its own views of it (one that cannot
+ *                execute, an executable alias, or none at all) at every
+ *                address, as it ran or verified the frame at another; one
+ *                that holds nothing is told of the range written.
+ *
+ * Not a row: the pairing between a publisher's stamp step and a verifier's
+ * registration (Binder::verify_page). The publisher steps the frame's stamp,
+ * fences, then reads the holder word; the verifier adds its generation to the
+ * word, fences, then reads the stamp. Store buffering: the word read sees the
+ * registration or the stamp read sees the step, never neither. The architecture
+ * allows neither without the publisher's fence (step_stamp in
+ * mmu/address_space.cpp), but no two-thread row can fail without it on Apple
+ * cores, so the pairing is held by that fence and by review, not by a row
+ * that cannot be red.
  */
 #include "uml_darwin_guest.h"
 #include "uml_darwin_static_mmu.h"
@@ -59,6 +74,7 @@
 #include <memory>
 #include <sys/mman.h>
 #include <thread>
+#include <vector>
 
 namespace {
 
@@ -131,6 +147,39 @@ std::uint64_t code_changes(unsigned long generation)
 		darwin_uml_static_vm_execution_context_sequences(context).code_changes;
 	darwin_uml_static_vm_execution_context_destroy(context);
 	return changes;
+}
+
+/* The code changes `generation` was told of after `sequence`; a change of
+ * the whole space is {0, 0}. */
+std::vector<darwin_uml_static_code_change> changes_after(
+	unsigned long generation, std::uint64_t sequence)
+{
+	void *context = darwin_uml_static_vm_execution_context_create(generation);
+	require(context != nullptr);
+	std::array<darwin_uml_static_code_change, 64> ranges{};
+	std::uint64_t current = 0;
+	const auto count = darwin_uml_static_vm_execution_context_code_change_ranges(
+		context, sequence, ranges.data(), ranges.size(), &current);
+	darwin_uml_static_vm_execution_context_destroy(context);
+	require(count >= 0, "the code change ring no longer described the span");
+	return {ranges.begin(), ranges.begin() + count};
+}
+
+bool told_of_the_whole_space(
+	const std::vector<darwin_uml_static_code_change> &changes)
+{
+	for (const auto &change : changes)
+		if (change.length == 0)
+			return true;
+	return false;
+}
+
+bool told_of_the_view(const std::vector<darwin_uml_static_code_change> &changes)
+{
+	for (const auto &change : changes)
+		if (change.address == writer_address && change.length == page)
+			return true;
+	return false;
 }
 
 /* A guest code synchronization by `writer` at its own view of the frame. */
@@ -403,9 +452,12 @@ void hold_the_publisher(memory_testing::AllocationSite site) noexcept
 }
 
 /* The second publisher is a guest synchronization by another process, or a
- * kernel write through the reader's own read-write view of the frame, the
- * reader being the target of the kernel call. */
-void two_publishers(bool late_holder, bool kernel_on_reader, unsigned long base)
+ * kernel write or a guest synchronization through the reader's own read-write
+ * view of the frame, the reader being the target of the call: the reader hears
+ * of it at every address, as the word the first publisher took was its own. */
+enum class Second { another_process, kernel_on_reader, sync_on_reader };
+
+void two_publishers(bool late_holder, Second second_kind, unsigned long base)
 {
 	ScratchBacking backing{backing_name, page};
 	backing.put32(0, old_word);
@@ -415,7 +467,7 @@ void two_publishers(bool late_holder, bool kernel_on_reader, unsigned long base)
 	map_code(late, backing);
 	map_writer(first, backing);
 	map_writer(second, backing);
-	if (kernel_on_reader)
+	if (second_kind != Second::another_process)
 		map_writer(reader, backing);
 	(void)fetch(reader);
 	const auto changes_before = code_changes(reader);
@@ -445,26 +497,32 @@ void two_publishers(bool late_holder, bool kernel_on_reader, unsigned long base)
 		late_before = code_changes(late);
 	}
 	backing.put32(0, third_word);
-	if (kernel_on_reader) {
+	if (second_kind == Second::kernel_on_reader) {
 		require(darwin_uml_static_vm_invalidate_code_generation(reader,
 			writer_address, 4) == 0);
+	} else if (second_kind == Second::sync_on_reader) {
+		synchronize(reader);
 	} else {
 		synchronize(second);
 	}
 	const bool heard = code_changes(reader) > changes_before;
+	const bool told_everywhere = second_kind == Second::another_process ||
+		told_of_the_whole_space(changes_after(reader, changes_before));
 	const bool late_heard =
 		!late_holder || code_changes(late) > late_before;
 	publisher_released.store(true, std::memory_order_release);
 	first_writer.join();
 	memory_testing::set_allocation_observer(nullptr);
 
-	require(heard, kernel_on_reader ?
-		"a kernel write through the reader's own view missed the reader "
+	require(heard, second_kind != Second::another_process ?
+		"a write through the reader's own view missed the reader "
 		"the first publisher had consumed" : late_holder ?
 		"a publication that took a late holder missed the reader the "
 		"first publisher had consumed" :
 		"a publication that found the word empty missed the reader the "
 		"first publisher had consumed");
+	require(told_everywhere, "a write through the reader's own view told the "
+		"reader the first publisher had consumed of the written range only");
 	require(late_heard,
 		"a publication that took a late holder missed that holder");
 	require(since(before).overlap_widenings == 1,
@@ -475,10 +533,12 @@ void two_publishers(bool late_holder, bool kernel_on_reader, unsigned long base)
 
 void test_a_publication_that_overlaps_an_unfinished_one_reaches_its_holders()
 {
-	two_publishers(false, false, 1061);
-	two_publishers(true, false, 1071);
-	two_publishers(false, true, 1081);
-	two_publishers(true, true, 1091);
+	two_publishers(false, Second::another_process, 1061);
+	two_publishers(true, Second::another_process, 1071);
+	two_publishers(false, Second::kernel_on_reader, 1081);
+	two_publishers(true, Second::kernel_on_reader, 1091);
+	two_publishers(false, Second::sync_on_reader, 1111);
+	two_publishers(true, Second::sync_on_reader, 1121);
 }
 
 /* A kernel write for `target`, which maps the frame read-write only or not at
@@ -521,6 +581,99 @@ void test_a_kernel_write_reaches_the_holders_whatever_the_target_maps()
 {
 	kernel_write(false, 1081);
 	kernel_write(true, 1091);
+}
+
+/* How a change reaches the generation: the reader's own code
+ * synchronization, the kernel's write naming the address, or the kernel's
+ * write naming the frame it holds. */
+enum class Route { code_sync, kernel_address, kernel_frame };
+
+/* A change made through another view of the frame in the generation that
+ * runs it. The reader maps the frame executable at one address and the
+ * writer's view at another: a view that cannot execute, an executable alias,
+ * or (for the kernel's write only, which its software page table may not
+ * hold yet) none. A reader that fetched the frame holds it, and its
+ * translation stands at the executable view's address, which a range of the
+ * written view does not name: it is told of the whole space. A generation that
+ * maps the frame and never fetched it holds nothing, and is told of the view
+ * it wrote or of nothing. A write that names no address-table entry but names
+ * the frame (the unmapped view) is told of the whole space when the generation
+ * holds the frame, and of nothing when it does not: the frame is known, and
+ * is not the generation's. */
+void write_through_own_view(Route route, bool executable_view,
+	bool unmapped_view, bool holds, unsigned long base)
+{
+	const bool kernel = route != Route::code_sync;
+	ScratchBacking backing{backing_name, page};
+	backing.put32(0, old_word);
+	const unsigned long reader = base;
+	map_code(reader, backing);
+	if (!unmapped_view)
+		map(reader, writer_address, backing, executable_view ?
+			PROT_READ | PROT_WRITE | PROT_EXEC : PROT_READ | PROT_WRITE,
+			executable_view ? 1 : 0);
+	require(darwin_uml_static_vm_activate(reader) == 0);
+	if (holds)
+		(void)fetch(reader);
+	const auto before = code_changes(reader);
+	const auto counters = holders::counters();
+
+	backing.put32(0, new_word);
+	if (route == Route::kernel_address)
+		require(darwin_uml_static_vm_invalidate_code_generation(reader,
+			writer_address, 4) == 0);
+	else if (route == Route::kernel_frame)
+		require(darwin_uml_static_vm_invalidate_code_frame(reader,
+			writer_address, 4, backing.descriptor(), 0) == 0);
+	else
+		synchronize(reader);
+	const auto changes = changes_after(reader, before);
+	const bool nothing_published = unmapped_view &&
+		route == Route::kernel_frame && !holds;
+	if (holds || (unmapped_view && route == Route::kernel_address)) {
+		/* A page the table does not map names no frame, and every
+		 * generation hears of it; so does a holder of the frame. */
+		require(told_of_the_whole_space(changes), holds ?
+			"a generation that holds the frame was not told of a change "
+			"through another of its own views at every address" :
+			"a write through a page nothing maps did not tell the whole "
+			"space");
+	} else if (nothing_published) {
+		require(changes.empty(),
+			"a named write told a generation that holds nothing of the frame "
+			"and maps it nowhere");
+	} else {
+		require(!told_of_the_whole_space(changes),
+			"a generation that holds nothing of the frame was told of the "
+			"whole space");
+		/* What its view of the frame says it wrote, a range of that view. */
+		require(!(kernel && !executable_view) || changes.empty(),
+			"a kernel write through a view that cannot execute told a "
+			"generation that holds nothing of a range");
+		require(!(!kernel || executable_view) || told_of_the_view(changes),
+			"the written view's range was not published");
+	}
+	require(since(counters).exchanges == 0,
+		"a frame held by the reader alone was taken");
+	destroy(reader);
+}
+
+void test_a_change_through_another_of_the_holders_own_views_tells_it_everywhere()
+{
+	unsigned long base = 1131;
+	for (const auto route : {Route::code_sync, Route::kernel_address,
+		     Route::kernel_frame})
+		for (const bool holds : {true, false}) {
+			write_through_own_view(route, false, false, holds, base);
+			base += 10;
+			write_through_own_view(route, true, false, holds, base);
+			base += 10;
+		}
+	for (const auto route : {Route::kernel_address, Route::kernel_frame})
+		for (const bool holds : {true, false}) {
+			write_through_own_view(route, false, true, holds, base);
+			base += 10;
+		}
 }
 
 /* The same write with the frame named (darwin_uml_vm_invalidate_code_frame):
@@ -776,6 +929,7 @@ int main()
 	test_a_backing_without_a_leaf_publishes_to_every_generation();
 	test_a_publication_that_overlaps_an_unfinished_one_reaches_its_holders();
 	test_a_kernel_write_reaches_the_holders_whatever_the_target_maps();
+	test_a_change_through_another_of_the_holders_own_views_tells_it_everywhere();
 	test_a_named_kernel_write_reaches_the_holders_of_its_frame();
 	test_a_kernel_write_after_the_target_remapped_reaches_the_holders();
 #if DARWIN_UML_X86_64_GUEST

@@ -4,16 +4,18 @@ import AndariumCore
 import Foundation
 
 /// A folder of Andarium's own in the temporary directory that holds the files
-/// of one pick, when the document picker made copies of them (`CopyDocumentPicker`,
-/// which only the builds that are not the App Store configuration use). The
+/// of one pick, when the document picker made copies of them (`CopyDocumentPicker`). The
 /// folder lives as long as anything holds a pick of it: the install or the
 /// import that uses the files, and what its retry needs, and it is removed
 /// when the last holder lets go. A process that ended first leaves it to the
-/// next launch's sweep. A pick of the open-in-place importers has none.
+/// next launch's sweep.
 nonisolated final class PickedFolder: @unchecked Sendable {
     /// The one folder of the temporary directory that holds every pick's.
-    static var directory: URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("PickedFiles", isDirectory: true)
+    static var directory: URL { directory(in: FileManager.default.temporaryDirectory) }
+
+    /// The folder in `temporary`: a test (the launch's sweep) gives a root of its own.
+    static func directory(in temporary: URL) -> URL {
+        temporary.appendingPathComponent("PickedFiles", isDirectory: true)
     }
 
     /// Removes the folders an ended process left, by the exact path of the one

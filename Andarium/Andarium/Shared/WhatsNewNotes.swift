@@ -83,7 +83,7 @@ struct WhatsNewNotesList: View {
     }
 }
 
-/// "Version 1.0 (12)" and the day it came out, when the notes give one, side
+/// "Version 1.1 (16)" and the day it came out, when the notes give one, side
 /// by side, or stacked when the text is too large for one line. Stacked, each
 /// may take as many lines as it needs, so no size cuts it short.
 struct WhatsNewReleaseHeading: View {

@@ -10,15 +10,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <future>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <vector>
 
 #include <fcntl.h>
@@ -821,6 +825,212 @@ void testBootloaderCommandIsConsumed(const Fixture &fixture, const fs::path &dir
 	fs::remove(disk);
 }
 
+/* Runs `body` on a thread of its own and fails, instead of hanging, when it
+ * has not returned within `limit`. */
+template <typename Body>
+void requireReturns(std::chrono::seconds limit, const char *what, Body body)
+{
+	auto finished = std::make_shared<std::promise<void>>();
+	auto done = finished->get_future();
+	std::thread([finished, &body] {
+		body();
+		finished->set_value();
+	}).detach();
+	require(done.wait_for(limit) == std::future_status::ready, what);
+}
+
+/* The release's own root image (the Magisk-patched copy of init_boot, beside
+ * the system disk) replaces the normal boot's ramdisk on every boot and
+ * restart when the guest is asked for root. Only its ramdisk is used, recovery
+ * is untouched, and anything malformed, absent or linked is refused. */
+void testRootBootImage(const Fixture &fixture, const fs::path &directory)
+{
+	const auto &layout = fixture.layout;
+	const auto data = newDataDisk(layout, directory);
+	const auto &initBoot = layout.systemPartition("init_boot");
+	const auto release = copyRelease(fixture, directory, "root-release");
+	const android::Storage storage{release, data};
+	const auto system = (release / android::releaseSystemDisk).string();
+	const auto image = release / android::releaseRootBootImage;
+
+	/* A release with no root image boots as before and refuses the option;
+	 * recovery is not asked for it. */
+	require(!storage.carriesRoot());
+	require(storage.selectBoot(android::BootMode::normal).ramdiskFile.empty());
+	requireThrows([&] {
+		(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+	});
+	requireThrows([&] { (void)storage.selectRestartBoot(android::RootMode::on); });
+	requireThrows([&] {
+		(void)storage.selectBoot(android::BootMode::normal,
+					 static_cast<android::RootMode>(7));
+	});
+
+	/* The release's init_boot as the root image, its ramdisk made a newc
+	 * archive by its first bytes. */
+	fs::create_directory(release / "root");
+	{
+		const auto whole = readRange(release / android::releaseSystemDisk,
+					     initBoot.offset, initBoot.imageBytes);
+		std::FILE *file = std::fopen(image.c_str(), "wb");
+		require(file != nullptr);
+		require(std::fwrite(whole.data(), 1, whole.size(), file) == whole.size());
+		require(std::fclose(file) == 0);
+	}
+	writeAt(image, pageSize, bytesOf("070701"));
+	require(storage.carriesRoot());
+
+	const auto taken = storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+	require(taken.mode == android::BootMode::normal);
+	require(taken.kind() == android::RamdiskKind::root);
+	require(taken.ramdiskFile == image);
+	require(taken.ramdisk.offset == pageSize);
+	require(taken.ramdisk.size == normalRamdiskSize);
+	require((storage.kernelArguments(taken) == std::vector<std::string>{
+		"ubd0r=" + system,
+		"ubd1=" + data.string(),
+		"initrd=" + image.string(),
+		"initrd_offset=" + std::to_string(pageSize),
+		"initrd_size=" + std::to_string(normalRamdiskSize),
+		"root=/dev/ram0",
+		"rootfstype=ramfs"}));
+	/* Automatic mode and a restart take it too; without the option the
+	 * system disk's own ramdisk is still the one. */
+	require(storage.selectBoot(android::BootMode::automatic, android::RootMode::on)
+			.ramdiskFile == image);
+	require(storage.selectRestartBoot(android::RootMode::on).boot.ramdiskFile == image);
+	const auto stock = storage.selectBoot(android::BootMode::normal);
+	require(stock.kind() == android::RamdiskKind::stock);
+	require(stock.ramdiskFile.empty());
+	require(stock.ramdisk.offset == initBoot.offset + pageSize);
+	require(storage.kernelArguments(stock)[2] == "initrd=" + system);
+	require(storage.selectRestartBoot().boot.ramdiskFile.empty());
+
+	/* Recovery never takes it, and does not read it. */
+	const auto recovery = storage.selectBoot(android::BootMode::recovery, android::RootMode::on);
+	require(recovery.kind() == android::RamdiskKind::recovery);
+	require(recovery.ramdiskFile.empty());
+	require(recovery.ramdisk.offset == layout.systemPartition("recovery").offset + pageSize);
+	requestCommand(layout, data, "boot-recovery");
+	require(storage.selectRestartBoot(android::RootMode::on).boot.ramdiskFile.empty());
+	/* An automatic restart into recovery boots recovery's ramdisk, not the
+	 * root image the run asked for: the boot is recovery's. */
+	require(storage.selectRestartBoot(android::RootMode::on).boot.kind() ==
+		android::RamdiskKind::recovery);
+	requestCommand(layout, data, "");
+
+	const auto refuse = [&] {
+		requireThrows([&] {
+			(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+		});
+		/* The stock boot never reads the root image. */
+		require(storage.selectBoot(android::BootMode::normal).ramdiskFile.empty());
+	};
+	/* An image that is not a regular file the release carries. */
+	const auto original = release / "root" / "original.img";
+	fs::rename(image, original);
+	refuse();
+	fs::create_symlink(original, image);
+	require(!storage.carriesRoot());
+	refuse();
+	fs::remove(image);
+	fs::create_directory(image);
+	require(!storage.carriesRoot());
+	refuse();
+	fs::remove(image);
+	/* A pipe with no writer is refused too, and opening it does not wait for
+	 * one: the check of the type runs on the descriptor, after the open. */
+	require(mkfifo(image.c_str(), 0600) == 0);
+	requireReturns(std::chrono::seconds(10),
+		"opening a pipe at the root image's name did not return", [&] {
+			require(!storage.carriesRoot());
+			refuse();
+		});
+	fs::remove(image);
+	fs::rename(original, image);
+	/* `root/` itself is a real directory, never a link to one, whatever the
+	 * image inside is; and a file in its place is no directory. */
+	const auto elsewhere = release / "elsewhere";
+	fs::rename(release / "root", elsewhere);
+	fs::create_directory_symlink(elsewhere, release / "root");
+	require(!storage.carriesRoot());
+	refuse();
+	fs::remove(release / "root");
+	{
+		std::FILE *file = std::fopen((release / "root").c_str(), "wb");
+		require(file != nullptr);
+		require(std::fclose(file) == 0);
+	}
+	require(!storage.carriesRoot());
+	refuse();
+	fs::remove(release / "root");
+	fs::rename(elsewhere, release / "root");
+	require(storage.carriesRoot());
+
+	/* The header: magic, kernel size, header size, version, reserved words
+	 * and the signature size, as the release's own partitions are checked. */
+	const auto mutate = [&](std::uint64_t offset, const char *replacement,
+				std::size_t length) {
+		fs::copy_file(image, original, fs::copy_options::overwrite_existing);
+		writeAt(image, offset, bytesOf(std::string(replacement, length)));
+		refuse();
+		fs::rename(original, image);
+	};
+	mutate(0, "ANDROID?", 8);
+	mutate(8, "\x01", 1);	 /* a kernel the host never starts */
+	mutate(20, "\x00", 1);	 /* header size */
+	mutate(40, "\x03", 1);	 /* header version 3 */
+	mutate(24, "\x01", 1);	 /* reserved */
+	mutate(1580, "\x01", 1); /* boot signature size */
+	/* A ramdisk that is empty or does not fit the file. */
+	mutate(12, "\x00\x00\x00\x00", 4);
+	mutate(12, "\xff\xff\xff\x7f", 4);
+	mutate(12, "\x01\x20\x00\x00", 4); /* one byte past the file */
+	/* A ramdisk in no format the kernel unpacks. */
+	mutate(pageSize, "junk", 4);
+	/* The magic is the ramdisk's own, not the file's padding after it: a
+	 * ramdisk of one byte followed by padding that completes gzip's. */
+	fs::copy_file(image, original, fs::copy_options::overwrite_existing);
+	writeAt(image, 12, bytesOf(std::string("\x01\x00\x00\x00", 4)));
+	writeAt(image, pageSize, bytesOf(std::string("\x1f\x8b", 2)));
+	refuse();
+	fs::rename(original, image);
+	/* Every format the kernel unpacks is taken. */
+	using namespace std::string_view_literals;
+	for (const auto magic : {"\x1f\x8b"sv, "BZh"sv, "\xfd" "7zXZ\x00"sv,
+				 "\x5d\x00\x00"sv, "\x89LZO"sv, "\x02\x21\x4c\030"sv,
+				 "\x28\xb5\x2f\xfd"sv, "070702"sv}) {
+		fs::copy_file(image, original, fs::copy_options::overwrite_existing);
+		writeAt(image, pageSize, bytesOf(magic));
+		(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+		fs::rename(original, image);
+	}
+	/* A file with no ramdisk page. */
+	fs::copy_file(image, original, fs::copy_options::overwrite_existing);
+	fs::resize_file(image, pageSize);
+	refuse();
+	fs::rename(original, image);
+	/* The size bound, on the valid image grown past it: its header, ramdisk
+	 * and format stay as they were, so only the bound can refuse it. 256 MiB
+	 * is the most taken. */
+	fs::copy_file(image, original, fs::copy_options::overwrite_existing);
+	fs::resize_file(image, 256U * mebibyte);
+	(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+	fs::resize_file(image, 256U * mebibyte + 1U);
+	refuse();
+	fs::rename(original, image);
+	(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+
+	/* A damaged data disk stops a rooted boot as it stops any other. */
+	flipByte(data, sectorSize + 20U);
+	requireThrows([&] {
+		(void)storage.selectBoot(android::BootMode::normal, android::RootMode::on);
+	});
+	flipByte(data, sectorSize + 20U);
+	fs::remove_all(release);
+	fs::remove(data);
+}
+
 /* Every restart selects the ramdisk in automatic mode, whatever the first
  * boot was given, so `reboot recovery` boots recovery and `reboot bootloader`
  * boots normally after its request is consumed. */
@@ -850,6 +1060,10 @@ void testRestartSelectsAutomaticMode(const Fixture &fixture, const fs::path &dir
 	require(restarted.boot.ramdisk.size == recoveryRamdiskSize);
 	require(!restarted.bootloaderConsumed);
 	require(miscCommand(layout, disk) == "boot-recovery");
+
+	/* The same request read by an automatic selection of its own. */
+	require(storage.selectBoot(android::BootMode::automatic).mode ==
+		android::BootMode::recovery);
 
 	/* Recovery's own reboot cleared the request: the next boot is normal. */
 	requestCommand(layout, disk, "");
@@ -1378,6 +1592,7 @@ int main(int argc, char *argv[])
 	testStorageBoot(fixture, fresh("boot"));
 	testBootloaderCommandIsConsumed(fixture, fresh("consume"));
 	testRestartSelectsAutomaticMode(fixture, fresh("restart"));
+	testRootBootImage(fixture, fresh("root-image"));
 	testStorageIsExact(fixture, fresh("exact"));
 	testLcdDensity(fresh("density"));
 	testHwTimeoutMultiplier(fresh("multiplier"));

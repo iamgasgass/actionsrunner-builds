@@ -12,7 +12,8 @@
 #   2. dependencies      the iOS device prefixes (Mesa/KosmicKrisp GPU, GLib/libslirp network, GPT fdisk, zstd):
 #                        taken from the prebuilt inputs when they verify against this commit's manifest, otherwise
 #                        built from source with dependencies/prepare.sh + build-*.sh and cached
-#   3. runtime           cmake --preset kernarium-ios-device-android(-app-store), linking the prebuilt kernel bundle
+#   3. runtime           cmake --preset kernarium-ios-device-android, linking the kernel bundle (and the AOT artifact,
+#                        when one is among the prebuilt inputs)
 #   4. frameworks        Kernarium/scripts/package-ios-frameworks.sh --runtimes android (steps 2-4 are skipped when
 #                        an already packaged .build/kernarium-xcframeworks is among the prebuilt inputs)
 #   5. system image      Andarium/scripts/stage-system-image.py, from the prebuilt LineageOS release
@@ -74,9 +75,9 @@ on:
         type: string
         default: ''
       configuration:
-        description: Release (sideload, JIT-capable runtime), AppStore or TestFlight (App Store runtime and bundle checks)
+        description: Release (the distributed build, with its JIT option) or Debug
         type: choice
-        options: [Release, AppStore, TestFlight]
+        options: [Release, Debug]
         default: Release
       release:
         description: Publish a GitHub release with the IPA
@@ -129,7 +130,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
         with:
-          # the AppStore and TestFlight configurations compare the embedded artifacts with this commit's history
+          # full history: the embedded-artifact checks of the project compare descriptors with this commit's history
           fetch-depth: 0
           persist-credentials: false
 
@@ -495,7 +496,6 @@ jobs:
         run: |
           set -eu
           preset=kernarium-ios-device-android
-          case "$CONFIGURATION" in AppStore | TestFlight) preset=kernarium-ios-device-android-app-store ;; esac
           cmake --preset "$preset" \
             -DUML_ANDROID17_KERNEL_ARTIFACT_DIR="$KERNEL_DIR" \
             -DPython3_EXECUTABLE="$PYTHON3"
@@ -505,12 +505,13 @@ jobs:
         if: steps.place.outputs.xcframeworks != 'true'
         run: |
           set -eu
-          if [ "$CONFIGURATION" = AppStore ] || [ "$CONFIGURATION" = TestFlight ]; then
-            Kernarium/scripts/package-ios-frameworks.sh --app-store --runtimes android
-          else
-            Kernarium/scripts/package-ios-frameworks.sh --runtimes android
-          fi
+          Kernarium/scripts/package-ios-frameworks.sh --runtimes android
           ls .build/kernarium-xcframeworks
+          if [ -d .build/kernarium-xcframeworks/UmlArm64Aot.xcframework ]; then
+            echo "AOT: the runtime links UmlArm64Aot (ahead-of-time Android libraries)"
+          else
+            echo "AOT: none (no accepted AOT artifact installed below .build/android/aot)"
+          fi
 
       # ------------------------------------------------------------------ 5. system image
       - name: Stage the Android system image
@@ -521,8 +522,7 @@ jobs:
           . android/lineage-24/metadata/accepted-release.env
           acceptance=$(python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("acceptance", ""))' "$ANDROID_DIR/release-manifest.json")
           if [ "$acceptance" = unsigned-proof ]; then
-            # An unsigned proof image (built from unsigned target files): only a developer build stages it.
-            [ "$CONFIGURATION" = Release ] || { echo "::error::$(basename "$ANDROID_DIR") is an unsigned proof image, which the $CONFIGURATION configuration refuses; use Release or an accepted release"; exit 1; }
+            # An unsigned proof image (built from unsigned target files): a build stages it, an archive refuses it.
             echo "::warning::Staging the UNSIGNED PROOF image $(basename "$ANDROID_DIR"), not an accepted release"
             python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR" --unsigned-proof
           elif [ "$(basename "$ANDROID_DIR")" = "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
@@ -616,6 +616,7 @@ jobs:
           ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
           XCFRAMEWORKS: ${{ steps.place.outputs.xcframeworks }}
           BUILT_KERNEL: ${{ steps.inputs.outputs.build_kernel }}
+          AOT: ${{ steps.place.outputs.aot }}
           GPU: ${{ steps.deps.outputs.gpu }}
           NETWORK: ${{ steps.deps.outputs.network }}
           STORAGE: ${{ steps.deps.outputs.storage }}
@@ -633,6 +634,7 @@ jobs:
             echo "| Xcode | ${XCODE:-?} |"
             echo "| Kernel bundle | $(basename "${KERNEL_DIR:-—}")$([ "$BUILT_KERNEL" = true ] && echo ' (built from source)') |"
             echo "| Android release | $(basename "${ANDROID_DIR:-—}") |"
+            echo "| AOT artifact | $([ "$AOT" = true ] && echo 'prebuilt, installed below .build/android/aot' || echo 'none: runtime without UmlArm64Aot') |"
             if [ "$XCFRAMEWORKS" = true ]; then
               echo "| Frameworks | prebuilt .build/kernarium-xcframeworks |"
             else

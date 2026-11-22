@@ -188,6 +188,51 @@ struct NetworkRecordTests {
         #expect(String(decoding: entries[0].data, as: UTF8.self).contains("net-dns answered 5 policy-denied 3"))
     }
 
+    @Test func theReportsInWordsFollowTheLatestRunWhileTheNextHasWrittenNone() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Self.record(network: try Self.golden(), state: "state ended\nend powered-off\nstatus 0\npid 31\n")
+            .write(
+                to: directory.appendingPathComponent(BugReportAttachments.previousSessionRecord),
+                atomically: true, encoding: .utf8)
+        // The run that ended and was retired, the next not begun: no current record.
+        try Self.record(network: "network 1\nnet-notice denials 0 now none\n")
+            .write(
+                to: directory.appendingPathComponent(BugReportAttachments.earlierRunRecord),
+                atomically: true, encoding: .utf8)
+        let entries = BugReportAttachments.entries(from: directory, containers: [], includingEarlierRun: true)
+        #expect(entries.map(\.name) == [
+            "andarium/session-previous.txt", "andarium/session-earlier-run.txt", "andarium/network.txt",
+        ])
+        let words = String(decoding: entries[2].data, as: UTF8.self)
+        #expect(words.contains("== The previous session (process 31) =="))
+        #expect(words.contains("== The current session (process 77) =="))
+    }
+
+    @Test func afterALaunchTheReportsInWordsDescribeTheProcessBeforeAndNoRunOfThisOne() throws {
+        let directory = try scratch()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // Two processes back, kept at the launch before.
+        try Self.record(network: try Self.golden(), state: "state ended\nend powered-off\nstatus 0\npid 31\n")
+            .write(
+                to: directory.appendingPathComponent(BugReportAttachments.previousSessionRecord),
+                atomically: true, encoding: .utf8)
+        // The process before ended with a failed start whose pause was saved: its record was moved aside.
+        try Self.record(
+            network: "network 1\nnet-notice denials 0 now none\n",
+            state: "state ended\nend guest-panic\nstatus 0\npid 50\n")
+            .write(
+                to: directory.appendingPathComponent(BugReportAttachments.earlierRunRecord),
+                atomically: true, encoding: .utf8)
+        PreviousSession.settleEarlierRun(in: directory)
+        let entries = BugReportAttachments.entries(from: directory, containers: [], includingEarlierRun: true)
+        #expect(entries.map(\.name) == ["andarium/session-previous.txt", "andarium/network.txt"])
+        let words = String(decoding: entries[1].data, as: UTF8.self)
+        #expect(words.contains("== The previous session (process 50) =="))
+        #expect(!words.contains("process 31"))
+        #expect(words.contains("== The current session ==") && words.contains("There is no record."))
+    }
+
     @Test func aRuntimeBeforeLayout5HasNoNetworkToReport() throws {
         let directory = try scratch()
         defer { try? FileManager.default.removeItem(at: directory) }

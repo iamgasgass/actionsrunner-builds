@@ -197,89 +197,27 @@ class CaptureLanguageTests(unittest.TestCase):
         listing = io.StringIO()
         with contextlib.redirect_stdout(listing):
             self.assertEqual(self.script.main(["--list"]), 0)
-        for shot in ("snapshots", "snapshots-detail", "whatsnew-open"):
+        for shot in ("snapshots", "snapshots-detail", "whatsnew-open", "whatsnew-open-unsupported"):
             self.assertIn(f"{shot}\t", listing.getvalue())
 
 
-class FeedbackShotTests(unittest.TestCase):
-    """The shots of Send feedback need a Preview built with it; any other Preview skips them."""
+class ShotStateTests(unittest.TestCase):
+    """A shot is kept only while the Preview reports that it is on the shot's screen."""
 
     def setUp(self):
         self.script = load_script()
-        self.shots = [shot for shot in self.script.SHOTS if shot.feedback]
 
-    def test_the_feedback_shots_are_listed_and_named_apart(self):
-        self.assertGreaterEqual(len(self.shots), 10)
-        self.assertTrue(all(shot.id.startswith("feedback-") for shot in self.shots))
-        self.assertEqual({shot.group for shot in self.shots}, {"Feedback"})
+    def test_a_shot_ids_are_unique_and_none_is_of_a_removed_feature(self):
         ids = [shot.id for shot in self.script.SHOTS]
         self.assertEqual(len(ids), len(set(ids)))
+        self.assertFalse([shot.id for shot in self.script.SHOTS if shot.id.startswith("feedback-")])
 
-    def test_a_preview_without_the_feature_is_no_reason_to_wait_and_is_named(self):
-        shot = self.shots[0]
-        state = {"pid": 7, "screen": shot.screen, "state": "active"}
-        with mock.patch.object(self.script, "alive", return_value=True), \
-                mock.patch.object(self.script, "app_state", return_value=state):
-            self.assertIn("FEEDBACK_ADDRESS", self.script.not_in_front("UDID", 7, shot))
-            state["feedback"] = True
-            # The sheet is kept for a picture only once it is open and its draft is made.
-            self.assertIn("draft", self.script.not_in_front("UDID", 7, shot))
-            state["feedbackReady"] = True
-            self.assertIsNone(self.script.not_in_front("UDID", 7, shot))
-
-    def test_the_other_shots_ask_nothing_of_the_build(self):
-        shot = next(shot for shot in self.script.SHOTS if not shot.feedback and not shot.tipjar)
+    def test_a_shot_asks_nothing_of_the_build(self):
+        shot = self.script.SHOTS[0]
         state = {"pid": 7, "screen": shot.screen, "state": "active"}
         with mock.patch.object(self.script, "alive", return_value=True), \
                 mock.patch.object(self.script, "app_state", return_value=state):
             self.assertIsNone(self.script.not_in_front("UDID", 7, shot))
-
-
-class TipJarShotTests(unittest.TestCase):
-    """The shots of Buy me tokens need a Preview built with it; any other Preview skips them."""
-
-    def setUp(self):
-        self.script = load_script()
-        self.shots = [shot for shot in self.script.SHOTS if shot.tipjar]
-
-    def test_the_shots_are_listed_and_named_apart(self):
-        self.assertGreaterEqual(len(self.shots), 10)
-        self.assertTrue(all(shot.id.startswith("tipjar") for shot in self.shots))
-        self.assertEqual({shot.group for shot in self.shots}, {"Buy me tokens"})
-        self.assertFalse(any(shot.feedback for shot in self.shots))
-        ids = [shot.id for shot in self.script.SHOTS]
-        self.assertEqual(len(ids), len(set(ids)))
-
-    def test_a_preview_without_the_feature_is_no_reason_to_wait_and_is_named(self):
-        shot = self.shots[0]
-        state = {"pid": 7, "screen": shot.screen, "state": "active", "feedback": True}
-        with mock.patch.object(self.script, "alive", return_value=True), \
-                mock.patch.object(self.script, "app_state", return_value=state):
-            self.assertIn("TIP_", self.script.not_in_front("UDID", 7, shot))
-            state["tipjar"] = True
-            self.assertIsNone(self.script.not_in_front("UDID", 7, shot))
-
-    def test_a_feedback_shot_does_not_need_the_tip_jar(self):
-        shot = next(shot for shot in self.script.SHOTS if shot.feedback)
-        state = {"pid": 7, "screen": shot.screen, "state": "active", "feedback": True, "feedbackReady": True}
-        with mock.patch.object(self.script, "alive", return_value=True), \
-                mock.patch.object(self.script, "app_state", return_value=state):
-            self.assertIsNone(self.script.not_in_front("UDID", 7, shot))
-
-
-class FeedbackMenuShotTests(unittest.TestCase):
-    """Send feedback is reached from Home's toolbar menu, not from Info."""
-
-    def setUp(self):
-        self.script = load_script()
-
-    def test_no_shot_opens_feedback_over_info(self):
-        self.assertFalse([shot.id for shot in self.script.SHOTS if "info" in shot.screen and shot.feedback])
-
-    def test_the_menu_is_captured_open_on_home_and_on_welcome(self):
-        menus = {shot.id: shot.screen for shot in self.script.SHOTS if shot.id.startswith("feedback-menu")}
-        self.assertEqual(menus, {"feedback-menu-home": "home-menu", "feedback-menu-welcome": "welcome-menu"})
-        self.assertTrue(all(shot.feedback for shot in self.script.SHOTS if shot.id.startswith("feedback-menu")))
 
 
 if __name__ == "__main__":

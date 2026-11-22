@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#if !APP_STORE
-
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -16,8 +14,8 @@ struct PickedCopies {
 }
 
 extension View {
-    /// The system's document picker in copy mode, the one every build that is
-    /// not the App Store configuration presents (`CopyDocumentPicker`).
+    /// The system's document picker in copy mode, the one every build
+    /// presents (`CopyDocumentPicker`).
     /// `onCompletion` hears the files of a pick, or why they did not arrive;
     /// a picker the person cancelled is silent.
     func documentCopyPicker(
@@ -139,5 +137,3 @@ struct CopyDocumentPicker: UIViewControllerRepresentable {
         }
     }
 }
-
-#endif

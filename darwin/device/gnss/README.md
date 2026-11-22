@@ -24,8 +24,8 @@ The guest driver is `drivers/gnss/kernarium.c` in the shared kernel series
 
 `UML::GnssSyntheticSource` (`synthetic_source.{hpp,cpp}`) is a separate target
 with the launcher's `--location` test sources: fixed, approximate, and a timed
-route. Only the launcher and its unit test link it, so the App Store runtime
-cannot. `Endpoint` and `makeInProcessService` take any `FixSource`.
+route. Only the launcher and its unit test link it. `Endpoint` and
+`makeInProcessService` take any `FixSource`.
 
 ## Wire contract
 

@@ -98,6 +98,10 @@ public final class PauseController {
 
     public private(set) var phase = Phase.foreground
     public var isPausedForSpace: Bool { space.isPaused }
+    /// The guest can be asked something: the application is in the
+    /// foreground and no resume is still under way. Opening a connection to a
+    /// guest that is being resumed races a frozen kernel.
+    public var guestIsAwake: Bool { phase == .foreground && resumesInFlight == 0 && !guestPaused }
     private let effects: any PauseEffects
     private let marker: PauseMarker
     /// Stops while the guest is paused, so timers on the guest's running time

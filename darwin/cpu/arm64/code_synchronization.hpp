@@ -18,6 +18,13 @@ namespace uml::cpu::arm64 {
  * and the entry loop that regains control takes the note. */
 [[nodiscard]] bool take_unmapped_code_synchronization(
 	std::uint64_t &address) noexcept;
+/* Whether a note is waiting. An executor that runs more than one instruction
+ * between two returns to the entry loop tests it after each instruction it
+ * takes the engine's way, as the entry loop would at the end of a block: the
+ * instruction that made the note is the last that may run before the loop
+ * takes it, because the loop reports the fault at the instruction before the
+ * PC it finds. */
+[[nodiscard]] bool has_unmapped_code_synchronization() noexcept;
 /* Forgets a note nothing took (a caller that runs an executor outside the
  * entry loop), so a later run does not report an old instruction's fault. */
 void discard_unmapped_code_synchronization() noexcept;

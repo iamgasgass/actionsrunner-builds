@@ -165,6 +165,36 @@ target_compile_definitions(uml_static_mmu_code_change_tests PRIVATE
 uml_add_unit_test(NAME static-mmu-code-change
     COMMAND uml_static_mmu_code_change_tests LABELS tsan)
 
+# The executable-mapping count of a physical page's record and its epoch.
+add_executable(uml_static_mmu_executable_count_tests
+    static_mmu_executable_count_tests.cpp
+    $<TARGET_OBJECTS:uml_static_mmu_test_variant>)
+target_link_libraries(uml_static_mmu_executable_count_tests PRIVATE
+    UML::BridgeAbi
+    UML::MemorySharedBacking)
+target_include_directories(uml_static_mmu_executable_count_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/darwin/memory/mmu)
+target_compile_definitions(uml_static_mmu_executable_count_tests PRIVATE
+    UML_MEMORY_ALLOCATION_TESTING=1)
+uml_add_unit_test(NAME static-mmu-executable-count
+    COMMAND uml_static_mmu_executable_count_tests LABELS tsan)
+
+# What StaticGuestMemory reports as a code page's stamp.
+add_executable(uml_static_guest_memory_stamp_tests
+    static_guest_memory_stamp_tests.cpp
+    $<TARGET_OBJECTS:uml_static_guest_memory>
+    $<TARGET_OBJECTS:uml_static_mmu_test_variant>)
+target_link_libraries(uml_static_guest_memory_stamp_tests PRIVATE
+    UML::BridgeAbi
+    UML::MemorySharedBacking)
+target_include_directories(uml_static_guest_memory_stamp_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/darwin
+    ${PROJECT_SOURCE_DIR}/darwin/memory/mmu)
+target_compile_definitions(uml_static_guest_memory_stamp_tests PRIVATE
+    UML_MEMORY_ALLOCATION_TESTING=1)
+uml_add_unit_test(NAME static-guest-memory-stamp
+    COMMAND uml_static_guest_memory_stamp_tests LABELS tsan)
+
 # Which generations hold a translation of a frame of guest code, and what a
 # code synchronization or a kernel write tells them. The fetch observer holds a
 # reader between its copy of a frame and its return.

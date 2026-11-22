@@ -36,7 +36,8 @@ target_include_directories(uml_published_figures INTERFACE
 set(UML_VIDEO_DECODER_SOURCES
     apple/video_decoder.mm
     apple/hevc_stream.cpp
-    apple/h264_stream.cpp)
+    apple/h264_stream.cpp
+    apple/vp9_stream.cpp)
 add_library(uml_video_decoder STATIC ${UML_VIDEO_DECODER_SOURCES})
 add_library(UML::VideoDecoder ALIAS uml_video_decoder)
 uml_declare_architecture_target(uml_video_decoder platform)
@@ -154,17 +155,19 @@ add_library(uml_apple_camera STATIC
     apple/camera_authorization.mm
     apple/camera_capture.mm
     apple/key_path_observer.mm
-    apple/photo_metadata.cpp)
+    apple/photo_metadata.cpp
+    apple/turned_still.mm)
 add_library(UML::AppleCamera ALIAS uml_apple_camera)
 uml_declare_architecture_target(uml_apple_camera platform)
 target_include_directories(uml_apple_camera PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(uml_apple_camera PUBLIC UML::DngColor UML::Nv12Transform UML::PhotoDimensions UML::StillExposure
-    UML::VideoStabilization)
+    UML::VideoEncoder UML::VideoStabilization)
 target_link_libraries(uml_apple_camera PRIVATE
     UML::PlatformContract
     "-framework Accelerate"
     "-framework AVFoundation"
+    "-framework CoreGraphics"
     "-framework CoreMedia"
     "-framework CoreVideo"
     "-framework Foundation"
@@ -173,10 +176,8 @@ target_link_libraries(uml_apple_camera PRIVATE
     "-framework VideoToolbox")
 
 # The camera without hardware, for tests and for the launchers that run a guest
-# against a chart. An App Store runtime carries none.
-if(NOT UML_APP_STORE_RUNTIME)
-    add_subdirectory(synthetic_camera)
-endif()
+# against a chart.
+add_subdirectory(synthetic_camera)
 
 add_library(uml_host_gpu_memory STATIC apple/host_gpu_memory.mm)
 add_library(UML::HostGpuMemory ALIAS uml_host_gpu_memory)

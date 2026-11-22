@@ -114,19 +114,29 @@ extension AppModel {
         // The choices on disk are the ones the restore settles; a change
         // made a moment ago is not lost.
         persistNow()
+        // A request to open an Android app that waits for the restore is
+        // released only once this has adopted what the restore left.
+        androidApps.restoring = true
+        defer { androidAppsRestoreFinished() }
         let result = await snapshotDriver.restoreSnapshot(id, guest: guest)
         switch result {
         case .done(let restored):
             lifecycle.guest = restored
             refreshPlan()
-            #if !APP_STORE
             // The preview reads no files: it plays the plan the restore leaves.
             if self.driver == nil, let planAfterRestore { plan = planAfterRestore }
-            #endif
             return .done(())
         case .refused(let refusal):
-            // A restore that took effect and did not finish changed the files.
-            if refusal == .restoreUnfinished { refreshPlan() }
+            // A restore that took effect and did not finish changed the files:
+            // the data disk is the snapshot's already, whether or not its
+            // record could be written. The recovery that ends the restore at
+            // the next start settles the settings on disk, and this guest is
+            // saved over them before it, so it forgets the Magisk app now.
+            if refusal == .restoreUnfinished {
+                self.guest?.root.dataDiskReplaced()
+                persistNow()
+                refreshPlan()
+            }
             return .refused(refusal)
         case .failed(let error):
             refreshPlan()

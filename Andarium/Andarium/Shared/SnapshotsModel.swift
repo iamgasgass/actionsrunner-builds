@@ -61,10 +61,8 @@ final class SnapshotsModel {
     var route: [SnapshotPage] = []
     /// The page beside the list (iPad).
     var selection: SnapshotPage?
-    #if !APP_STORE
     /// The name field of the open snapshot takes the keyboard (the preview).
     var focusName = false
-    #endif
     /// The snapshot just taken, marked for a moment.
     private(set) var fresh: SnapshotID?
 

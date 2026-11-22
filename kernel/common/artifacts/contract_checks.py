@@ -43,9 +43,11 @@ class _DuplicateKey(ValueError):
     pass
 
 
-def load_json_object(path: Path, error: Callable[[str], BaseException] = ValueError) -> dict:
-    """Read a JSON object file, raising error(message) on anything else and on a
-    key repeated in any object (the repository's duplicate-key policy)."""
+def parse_json_object(
+    data: bytes, label: str, error: Callable[[str], BaseException] = ValueError
+) -> dict:
+    """A JSON object from bytes already read, raising error(message) on anything else
+    and on a key repeated in any object (the repository's duplicate-key policy)."""
 
     def pairs(items: list[tuple[str, object]]) -> dict:
         result: dict[str, object] = {}
@@ -56,14 +58,24 @@ def load_json_object(path: Path, error: Callable[[str], BaseException] = ValueEr
         return result
 
     try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=pairs)
+        value = json.loads(data.decode("utf-8"), object_pairs_hook=pairs)
     except _DuplicateKey as duplicate:
-        raise error(f"{path} repeats the key {duplicate}") from duplicate
-    except (OSError, ValueError) as failure:
-        raise error(f"cannot read {path}: {failure}") from failure
+        raise error(f"{label} repeats the key {duplicate}") from duplicate
+    except ValueError as failure:
+        raise error(f"cannot read {label}: {failure}") from failure
     if not isinstance(value, dict):
-        raise error(f"{path} is not a JSON object")
+        raise error(f"{label} is not a JSON object")
     return value
+
+
+def load_json_object(path: Path, error: Callable[[str], BaseException] = ValueError) -> dict:
+    """Read a JSON object file, raising error(message) on anything else and on a
+    key repeated in any object (the repository's duplicate-key policy)."""
+    try:
+        data = path.read_bytes()
+    except OSError as failure:
+        raise error(f"cannot read {path}: {failure}") from failure
+    return parse_json_object(data, str(path), error)
 
 
 def accepted_directory_name(

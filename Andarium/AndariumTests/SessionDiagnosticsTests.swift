@@ -83,6 +83,29 @@ struct SessionDiagnosticsTests {
 
     // MARK: Bug report
 
+    @Test func aBugReportCarriesTheEarlierRunOnlyWhenThisProcessRetiredIt() async throws {
+        let (model, driver) = model()
+        let directory = try diagnostics()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        model.adoptDiagnostics(in: directory, containers: [], endedOutOfForeground: false)
+        // After the launch: a file there is not one a launch left in this run's name.
+        try write(
+            record("state ended\nend powered-off\nstatus 0\npid 4242\n", memory: "memory at 1 footprint 1 peak 1"),
+            to: directory.appendingPathComponent("earlier-run.txt"))
+        try write(
+            record("state running\nend running\nstatus 0\npid 4343\n", memory: "memory at 2 footprint 1 peak 1"),
+            to: directory.appendingPathComponent("session.txt"))
+        for retired in [false, true] {
+            let file = try TestZip.staged(entries: ["bugreport-test.txt": Data("android\n".utf8)])
+            driver.bugReport = { _ in file }
+            driver.retiredAnEarlierRun = retired
+            let report = try await model.bugReportWork()({ _ in })
+            let names = try TestZip.entries(of: report).map(\.name)
+            #expect(names.contains("andarium/session-earlier-run.txt") == retired, "retired \(retired)")
+            #expect(names.contains("andarium/session-current.txt"))
+        }
+    }
+
     @Test func aBugReportCarriesTheRecordsAndReportsWithoutTheContainer() async throws {
         let (model, driver) = model()
         let directory = try diagnostics()

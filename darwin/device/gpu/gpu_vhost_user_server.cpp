@@ -762,7 +762,8 @@ std::unique_ptr<Display> makeGpuDisplay(
     std::uint32_t dotsPerInch,
     uml::input::vnc::PointerMode pointerMode,
     bool autoResizeGuest,
-    OffscreenDisplayOptions offscreen)
+    OffscreenDisplayOptions offscreen,
+    std::uint32_t refreshRate)
 {
     return makeDisplay(
         displayMode,
@@ -778,7 +779,8 @@ std::unique_ptr<Display> makeGpuDisplay(
             protocol::maximumDisplayDimension :
             protocol::maximumEdidDimension,
         autoResizeGuest,
-        offscreen);
+        offscreen,
+        refreshRate);
 }
 
 } // namespace uml::gpu

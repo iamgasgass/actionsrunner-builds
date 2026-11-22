@@ -97,6 +97,12 @@ struct DisplayStatistics {
     /* Guest frames that could not use direct presentation and took the CPU
      * readback path instead. */
     std::uint64_t cpuFallbackFrames {};
+    /* Guest updates the display accepted, each once, however it is shown: a
+     * direct Metal texture, a 2-D resource's CPU update or a readback. The
+     * counters above are not that count (guestFrames counts direct attempts
+     * the display refused, and neither of the others counts a 2-D update), so
+     * it is what the 120 Hz display link paces by. */
+    std::uint64_t offeredFrames {};
 };
 
 class Display {
@@ -108,6 +114,26 @@ public:
 
     [[nodiscard]] virtual std::uint32_t width() const noexcept = 0;
     [[nodiscard]] virtual std::uint32_t height() const noexcept = 0;
+    /* The refresh rate, in hertz, that the host grants the display's one mode
+     * for this run: 60, or 120 on a display that was asked for the 120 Hz
+     * mode, whose screen and size the host checked once, before the guest
+     * booted, and that paces its presents from a display link at the rate the
+     * guest renders at (present_pacer.hpp). Any other value is the 60 Hz mode.
+     * It is the highest rate the mode can have and does not change while the
+     * display lives. The mode the guest is shown at a moment has the rate its
+     * size's EDID timing states (statedRefreshRate in edid_timing.hpp): a size
+     * whose 120 Hz clock the EDID cannot state is a 60 Hz mode while that size
+     * lasts, and one whose 60 Hz clock it cannot state has the rate of the
+     * largest clock. */
+    [[nodiscard]] virtual std::uint32_t refreshRate() const noexcept
+    {
+        return 60;
+    }
+    /* The device tells the display the rate of the mode it just stated to the
+     * guest (the EDID of the size the display has now: 120, 60, or the rate of
+     * the largest clock for a size beyond it), so that a display that paces by
+     * the mode follows it across a resize. */
+    virtual void noteModeRefreshRate(std::uint32_t) noexcept {}
     /* Native AppKit/UIKit surfaces publish resize readiness from the UI
      * thread. The transport drains and applies it on its GPU owner thread. */
     [[nodiscard]] virtual int resizeEventDescriptor() const noexcept
@@ -345,6 +371,7 @@ private:
         uml::input::vnc::PointerMode::mouse,
     std::uint32_t maximumDimension = protocol::maximumDisplayDimension,
     bool autoResizeGuest = true,
-    OffscreenDisplayOptions offscreen = {});
+    OffscreenDisplayOptions offscreen = {},
+    std::uint32_t refreshRate = 60);
 
 } // namespace uml::gpu

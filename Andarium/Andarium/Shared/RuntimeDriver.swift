@@ -2,9 +2,6 @@
 
 import AndariumCore
 import Foundation
-#if FEEDBACK_MAIL
-import UIKit
-#endif
 
 /// What the Cancel button of a long task does. Two are equal when they are the
 /// same button, so a state that only changes its words stays equal to itself.
@@ -116,7 +113,7 @@ enum PermissionPrompt: Identifiable, Equatable {
 /// its run. The Simulator preview has no driver, and the model then plays the
 /// same steps against mock data.
 @MainActor
-protocol RuntimeDriver: AnyObject, OldAppsSource {
+protocol RuntimeDriver: AnyObject, OldAppsSource, AndroidAppsSource {
     func create(_ guest: Guest, progress: @escaping @Sendable (Double) -> Void) async throws -> Guest
     /// Deletes the guest and everything it stored, its choices included.
     func erase(progress: @escaping @Sendable (Double) -> Void) async throws
@@ -128,11 +125,6 @@ protocol RuntimeDriver: AnyObject, OldAppsSource {
     /// which outlasts a start that ended before it: the next start is long by
     /// its nature (`SlowStart`) though its disk exists.
     func firstBootPending() -> Bool
-    /// The values that tell this installation from another (its serial number,
-    /// its hardware address, the adb key and the time zone it was given), which
-    /// a text the guest printed has taken out wherever they stand
-    /// (`SendFeedbackStartLog.masked`); none for a driver with no guest.
-    func guestIdentifiers() -> GuestIdentifiers
     /// What the guest's data disk occupies now, measured from its file; the
     /// guest changes it while it runs.
     func measuredUsedBytes() -> UInt64
@@ -259,15 +251,6 @@ protocol RuntimeDriver: AnyObject, OldAppsSource {
     /// a guest that sleeps. The caller keeps the last figures then. It may
     /// wait up to half a second, and never on the main thread.
     func readGuestMemory() async -> GuestMemorySample?
-    #if FEEDBACK_MAIL
-    /// The guest's display as the host presents it now, at the guest's own
-    /// pixels and nothing of the application's screens over it; nil when no
-    /// guest runs or the display is not there.
-    func captureGuestDisplay() -> UIImage?
-    /// Seconds the guest has run in this session; nil while none runs.
-    func runningSeconds() -> Int?
-    #endif
-    #if !APP_STORE
     /// Whether a debugger that serves the JIT is attached to Andarium now.
     func jitDebuggerAttached() -> Bool
     /// Prepares the JIT's executable memory for `shape` when `wanted`, or
@@ -275,7 +258,33 @@ protocol RuntimeDriver: AnyObject, OldAppsSource {
     /// out. It takes the seconds the debugger takes and never blocks the main
     /// thread. Without a servicing debugger it asks the runtime nothing.
     func prepareJit(wanted: Bool, shape: JitShape) async -> JitAnswer
-    #endif
+    /// The root the carried release holds (`RootRelease`), nil when it holds
+    /// none: the boot screen's Magisk app step needs it.
+    var rootRelease: RootRelease? { get }
+    /// The release's own copy of the official Magisk app, which the step puts
+    /// in the guest; nil with no root.
+    var rootApkURL: URL? { get }
+    /// Puts the release's own copy of the Magisk app in the guest, reading it
+    /// from the file it opens without following a link (`RootRelease.openApk`).
+    /// Throws when that file is not the release's regular file or the install
+    /// fails. A driver with no root has none to put in.
+    func installRootApp() async throws
+    /// The runtime's record of the run the last `begin` asked for, as it stands:
+    /// which ramdisk the boot used (`SessionRecord.ramdisk`), how far it got
+    /// and how it ended. Nil until the runtime has begun that run's session:
+    /// the record of an earlier run is moved aside as the run is asked for
+    /// (`RunRecord`), so none is ever taken for it.
+    func currentSessionRecord() -> SessionRecord?
+    /// Moves the record of the run that ended aside for the bug report, once
+    /// what was decided from it is saved (`RunRecord`): a launch that comes
+    /// before the next run begins reads no record of a run that was settled.
+    func retireRunRecord()
+    /// Whether the earlier run's record kept beside the others is this
+    /// process's own: a retirement moved one aside (`RunRecord`).
+    var retiredAnEarlierRun: Bool { get }
+    /// The guest's shell, for the short questions about the Magisk app; nil
+    /// when there is none to ask.
+    var guestShell: (any GuestShell)? { get }
 }
 
 extension RuntimeDriver {
@@ -283,19 +292,23 @@ extension RuntimeDriver {
     func listOldApps(limit: Duration?) async -> OldAppListing { .unavailable }
     func setOldApp(_ package: String, on: Bool) async -> OldAppWrite { .failed }
     func isOldAppOpen(_ package: String) async -> Bool? { nil }
+    /// A driver with no image to ask has no apps to offer and cannot open one.
+    var androidAppsTool: (any AndroidAppsTool)? { nil }
+    func awaitAndroidReady(homeReached: Bool) async -> AndroidAppReadiness.Outcome { .timedOut }
     /// A driver with no guest to read adds nothing.
     func guestStallFiles() async -> [BugReportArchive.Entry] { [] }
     /// A driver with no session record has nothing to tell.
     func setNetworkNotice(_ denial: NetworkDenial?) {}
     /// A driver with no thermal session tells Android nothing either way.
     func setHeatLimit(_ on: Bool) {}
-    /// A driver with no guest has no values that tell an installation apart.
-    func guestIdentifiers() -> GuestIdentifiers { .none }
-    #if FEEDBACK_MAIL
-    /// A driver with no display has no picture, and no run to time.
-    func captureGuestDisplay() -> UIImage? { nil }
-    func runningSeconds() -> Int? { nil }
-    #endif
+    /// A driver with no release to read has no root to offer.
+    var rootRelease: RootRelease? { nil }
+    var rootApkURL: URL? { nil }
+    func installRootApp() async throws { throw CancellationError() }
+    var guestShell: (any GuestShell)? { nil }
+    func currentSessionRecord() -> SessionRecord? { nil }
+    func retireRunRecord() {}
+    var retiredAnEarlierRun: Bool { false }
 }
 
 /// What a screen needs from its launch arguments to open a state directly.

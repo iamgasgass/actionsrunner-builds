@@ -227,16 +227,21 @@ struct SystemControls: View {
     var body: some View {
         VStack(spacing: 0) {
             processor
-            Divider().padding(.leading, 58)
-            memory
-            if let vram = host.memory.graphicsMemoryMiB(
-                forMemory: guest.memoryMiB, vCPUs: guest.cores, cameraLive: cameraLive)
-            {
+            // Where the process has no room for any virtual machine's window,
+            // no memory is offered: the row and the estimate that follows it
+            // are left out (`MemoryPolicy.hasRoom`).
+            if host.memory.hasRoom(vCPUs: guest.cores) {
                 Divider().padding(.leading, 58)
-                GraphicsMemoryRow(
-                    estimateMiB: vram,
-                    warns: host.memory.risk(guest.memoryMiB, vCPUs: guest.cores, cameraLive: cameraLive) != .none
-                )
+                memory
+                if let vram = host.memory.graphicsMemoryMiB(
+                    forMemory: guest.memoryMiB, vCPUs: guest.cores, cameraLive: cameraLive)
+                {
+                    Divider().padding(.leading, 58)
+                    GraphicsMemoryRow(
+                        estimateMiB: vram,
+                        warns: host.memory.risk(guest.memoryMiB, vCPUs: guest.cores, cameraLive: cameraLive) != .none
+                    )
+                }
             }
         }
         .glassEffect(.regular, in: .rect(cornerRadius: 30))

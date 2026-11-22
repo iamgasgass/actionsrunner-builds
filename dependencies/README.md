@@ -100,8 +100,8 @@ build the new one beside it. Prefix verification checks the manifest rows, the
 patched sources' trees in `share/uml-dependencies/source-trees.tsv`, platform
 and deployment target, expected payloads, framework install names, and the
 absence of undeclared or legacy providers. Every macOS and iOS product prefix
-builds and verifies at a 27.0 deployment target; the kernel host tools are the
-exception. A prefix compares only the manifest rows its product consumes, so a
+builds and verifies at its platform's deployment target, 27.0 for macOS and
+26.0 for iOS; the kernel host tools are the exception. A prefix compares only the manifest rows its product consumes, so a
 change to another product's row does not invalidate it, while a change to one
 of its own rows requires a rebuild.
 
@@ -119,10 +119,10 @@ The builders configure each library whose code derives directories from its
 prefix (GLib, Mesa's OpenGL libraries, virglrenderer, FEXCore) for
 `NO_HOST_PREFIX` (see [`build-common.sh`](build-common.sh)) and install it with
 `DESTDIR`, so a prefix can be built beside another and renamed into place.
-`Andarium/scripts/check-app-store-bundle.py` refuses a home, volume or
-temporary path in the host code of the application and its frameworks. The
-platform contracts' `common_recipe` is the recipe identity a prefix was made
-with.
+`Andarium/scripts/check-release-archive.py` refuses a home, volume or
+temporary path in the host code of the application and its frameworks when
+Release is archived. The platform contracts' `common_recipe` is the recipe
+identity a prefix was made with.
 
 ## Apple GPU prefix
 

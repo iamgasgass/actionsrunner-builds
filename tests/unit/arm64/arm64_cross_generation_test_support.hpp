@@ -92,12 +92,15 @@ struct Map final {
 };
 
 /* Runs `cpu` in `generation` on `engine`, over `memory`, until the guest
- * leaves for a reason other than its budget. */
-inline ::uml::cpu::ExecutionResult run(::uml::cpu::CpuEngine &engine,
-	::uml::memory::StaticGuestMemory &memory, unsigned long generation,
-	arm64::CpuState &cpu)
+ * leaves for a reason other than its budget, and leaves the thread's active
+ * generation as it is. The kernel selects a generation for its own calls, and
+ * a vCPU thread that ran another process's task last still holds that one when
+ * it enters this guest: a row that must show the engine runs the guest in the
+ * generation it was given activates another one first. */
+inline ::uml::cpu::ExecutionResult run_with_active_generation_as_is(
+	::uml::cpu::CpuEngine &engine, ::uml::memory::StaticGuestMemory &memory,
+	unsigned long generation, arm64::CpuState &cpu)
 {
-	require(darwin_uml_static_vm_activate(generation) == 0);
 	::uml::cpu::ExecutionResult result{};
 	for (int attempt = 0; attempt < 64; ++attempt) {
 		memory.prepare(generation,
@@ -116,6 +119,16 @@ inline ::uml::cpu::ExecutionResult run(::uml::cpu::CpuEngine &engine,
 			break;
 	}
 	return result;
+}
+
+/* The same, with `generation` the thread's active generation: the kernel's
+ * state of a vCPU that last ran this guest. */
+inline ::uml::cpu::ExecutionResult run(::uml::cpu::CpuEngine &engine,
+	::uml::memory::StaticGuestMemory &memory, unsigned long generation,
+	arm64::CpuState &cpu)
+{
+	require(darwin_uml_static_vm_activate(generation) == 0);
+	return run_with_active_generation_as_is(engine, memory, generation, cpu);
 }
 
 /* The same over memory of its own for each call. */

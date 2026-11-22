@@ -89,11 +89,12 @@ add_custom_target(performance-probe-binaries
 # The scalar ceiling is a manual benchmark, not a correctness test. Its native
 # and ideal modes share the exact labeled AArch64 body; the ideal mode feeds
 # those words to the production gadget Builder and never enters the executor.
+get_property(_uml_perf_static_mmu GLOBAL PROPERTY UML_STATIC_MMU_TARGET)
 add_executable(uml-gadget-ceiling-bench EXCLUDE_FROM_ALL
     gadget_ceiling_bench.cpp
     gadget_ceiling_ideal.cpp
     gadget_ceiling_workload.S
-    $<TARGET_OBJECTS:uml_static_mmu>
+    $<TARGET_OBJECTS:${_uml_perf_static_mmu}>
     $<TARGET_OBJECTS:uml_arm64_gadgets>
     $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
     $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>

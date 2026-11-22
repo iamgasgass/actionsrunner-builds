@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 # This family manifest is included by the ARM64 unit-test directory.
+# The static MMU a composition links: the audited compilation where the AOT
+# runtime is the diagnostics one (darwin/memory/CMakeLists.txt).
+get_property(_uml_static_mmu GLOBAL PROPERTY UML_STATIC_MMU_TARGET)
     # Compose ordinary tests from the production engine targets. Focused JIT
     # diagnostic tests substitute the counter-enabled executor variant;
     # common conformance stays on the ordinary runtime path.
@@ -19,6 +22,13 @@
         $<TARGET_OBJECTS:uml_arm64_jit_test_support>
         $<TARGET_OBJECTS:uml_static_guest_memory>
         $<TARGET_OBJECTS:uml_runtime_context>)
+    if(TARGET uml_arm64_aot_framework)
+        # The executor enters the ahead-of-time code of an accepted release.
+        get_property(_uml_aot_runtime GLOBAL PROPERTY UML_AOT_RUNTIME_TARGET)
+        list(APPEND UML_STATIC_RUNTIME_TEST_BASE_OBJECTS
+            $<TARGET_OBJECTS:${_uml_aot_runtime}>)
+        link_libraries(uml_arm64_aot_framework)
+    endif()
     if(TARGET uml_x86_64_gadgets)
         list(APPEND UML_STATIC_RUNTIME_TEST_BASE_OBJECTS
             $<TARGET_OBJECTS:uml_x86_64_target>
@@ -43,7 +53,7 @@
         $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
         $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>
         $<TARGET_OBJECTS:uml_arm64_execution_helpers>
-        $<TARGET_OBJECTS:uml_static_mmu>
+        $<TARGET_OBJECTS:${_uml_static_mmu}>
         ${UML_STATIC_RUNTIME_TEST_OBJECTS})
     set(UML_ARM64_RUNTIME_DIAGNOSTIC_TEST_OBJECTS
         $<TARGET_OBJECTS:uml_runtime_guest_selector>
@@ -51,14 +61,14 @@
         $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
         $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>
         $<TARGET_OBJECTS:uml_arm64_execution_helpers>
-        $<TARGET_OBJECTS:uml_static_mmu>
+        $<TARGET_OBJECTS:${_uml_static_mmu}>
         ${UML_STATIC_RUNTIME_DIAGNOSTIC_TEST_OBJECTS})
     set(UML_ARM64_STATIC_TEST_OBJECTS
         $<TARGET_OBJECTS:uml_arm64_gadgets>
         $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
         $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>
         $<TARGET_OBJECTS:uml_arm64_execution_helpers>
-        $<TARGET_OBJECTS:uml_static_mmu>
+        $<TARGET_OBJECTS:${_uml_static_mmu}>
         ${UML_STATIC_RUNTIME_TEST_OBJECTS})
     # The tests that read the AArch32 library-exit counters, with the
     # semantic library variant that has them in place of the library.
@@ -468,7 +478,7 @@
     # address space. The static MMU and gadget objects precede the runtime's,
     # unlike UML_ARM64_STATIC_TEST_OBJECTS.
     set(UML_ARM64_GADGET_RUNTIME_TEST_OBJECTS
-        $<TARGET_OBJECTS:uml_static_mmu>
+        $<TARGET_OBJECTS:${_uml_static_mmu}>
         $<TARGET_OBJECTS:uml_arm64_gadgets>
         $<TARGET_OBJECTS:uml_arm64_aarch32_decoder>
         $<TARGET_OBJECTS:uml_arm64_aarch32_semantics>
@@ -478,6 +488,48 @@
         uml_add_arm64_unit_test(gadget_${GADGET_RUNTIME_TEST} WITHOUT_HARNESS
             OBJECTS ${UML_ARM64_GADGET_RUNTIME_TEST_OBJECTS})
     endforeach()
+    # Whether the component is on, decided once per process: on by default
+    # for the release its blob was made from, off by the environment, off for
+    # any other release, and a launch's own word beats the environment.
+    if(TARGET uml_arm64_aot_framework)
+        uml_add_arm64_unit_test(aot_selection WITHOUT_HARNESS
+            OBJECTS ${UML_ARM64_GADGET_RUNTIME_TEST_OBJECTS}
+                $<TARGET_OBJECTS:uml_arm64_gadget_engine>)
+        target_compile_definitions(uml_arm64_aot_selection_tests PRIVATE
+            UML_AOT_DIAGNOSTICS=$<BOOL:${UML_AOT_DIAGNOSTICS}>)
+    endif()
+    # The differential harness drives the executor with the AOT component on
+    # and off and reads the diagnostics build's counters. It runs every
+    # function sample of every rewritten library, so its time grows with the
+    # set (a loaded host takes several times an idle one's).
+    if(TARGET uml_arm64_aot_framework AND UML_AOT_DIAGNOSTICS)
+        # The engine adapter is in it for the rows that drive the production
+        # entry (an interrupt token flipped during a native loop).
+        uml_add_arm64_unit_test(aot_differential WITHOUT_HARNESS
+            TIMEOUT 1800
+            OBJECTS ${UML_ARM64_GADGET_RUNTIME_TEST_OBJECTS}
+                $<TARGET_OBJECTS:uml_arm64_gadget_engine>)
+        # The diagnostics runtime's reporter thread, and a process that ends
+        # through exit() while it runs.
+        uml_add_arm64_unit_test(aot_reporter WITHOUT_HARNESS
+            OBJECTS ${UML_ARM64_GADGET_RUNTIME_TEST_OBJECTS}
+                $<TARGET_OBJECTS:uml_arm64_gadget_engine>)
+        get_property(_uml_aot_libraries GLOBAL PROPERTY UML_AOT_LIBRARY_FILES)
+        get_property(_uml_aot_stack_bytes GLOBAL PROPERTY UML_AOT_KERNEL_STACK_BYTES)
+        get_property(_uml_aot_functions GLOBAL PROPERTY UML_AOT_FUNCTIONS)
+        get_property(_uml_aot_sites GLOBAL PROPERTY UML_AOT_SITES)
+        get_property(_uml_aot_steps GLOBAL PROPERTY UML_AOT_STEPS)
+        target_compile_definitions(uml_arm64_aot_differential_tests PRIVATE
+            UML_AOT_DIAGNOSTICS=1
+            UML_MEMORY_COUNT_AUDIT=1
+            AOT_TEST_KERNEL_STACK_BYTES=${_uml_aot_stack_bytes}
+            AOT_TEST_COUNT_RETIRED=$<BOOL:${UML_AOT_COUNT_RETIRED}>
+            AOT_TEST_SHARED_VERDICTS=$<BOOL:${UML_AOT_SHARED_VERDICTS}>
+            AOT_TEST_LIBRARIES="${_uml_aot_libraries}"
+            AOT_TEST_FUNCTIONS="${_uml_aot_functions}"
+            AOT_TEST_SITES="${_uml_aot_sites}"
+            AOT_TEST_STEPS="${_uml_aot_steps}")
+    endif()
     # The AArch32 gadget tests read the library-exit counters, which only the
     # semantic library's counting variant has.
     set(UML_ARM64_COUNTING_GADGET_RUNTIME_TEST_OBJECTS

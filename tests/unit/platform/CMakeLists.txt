@@ -43,6 +43,14 @@ uml_add_unit_test(NAME platform-h264-stream
     COMMAND uml_h264_stream_tests ${PROJECT_SOURCE_DIR}/tests/support/video
     LABELS video)
 
+# The decoder's VP9 packet and header readers, which need no hardware and are
+# what its bounds on a guest's packets stand on.
+add_executable(uml_vp9_stream_tests vp9_stream_tests.cpp)
+target_link_libraries(uml_vp9_stream_tests PRIVATE UML::VideoDecoder)
+uml_add_unit_test(NAME platform-vp9-stream
+    COMMAND uml_vp9_stream_tests ${PROJECT_SOURCE_DIR}/tests/support/video
+    LABELS video)
+
 # The video encoder backend's Annex B and parameter-set readers, which need no
 # hardware.
 add_executable(uml_video_encoder_bitstream_tests video_encoder_bitstream_tests.cpp)
@@ -68,6 +76,14 @@ target_link_libraries(uml_video_encoder_recovery_tests PRIVATE
     uml_video_encoder_test_variant UML::VideoDecoder)
 uml_add_unit_test(NAME platform-video-encoder-recovery
     COMMAND uml_video_encoder_recovery_tests ${PROJECT_SOURCE_DIR}/tests/support/video
+    LABELS video TIMEOUT 300)
+
+# The JPEG size bound, with the sample delivered in two Core Media blocks (the test variant splits it on demand).
+add_executable(uml_video_encoder_jpeg_bound_tests video_encoder_jpeg_bound_tests.cpp)
+target_link_libraries(uml_video_encoder_jpeg_bound_tests PRIVATE
+    uml_video_encoder_test_variant)
+uml_add_unit_test(NAME platform-video-encoder-jpeg-bound
+    COMMAND uml_video_encoder_jpeg_bound_tests
     LABELS video TIMEOUT 300)
 
 # Discovery against a scripted host, which needs no hardware: a refusal and a
@@ -135,6 +151,15 @@ target_include_directories(uml_host_environment_tests PRIVATE
 uml_add_unit_test(
     NAME platform-host-environment
     COMMAND uml_host_environment_tests)
+
+# The widest run of address space a process has free: what the settings of an
+# application signed without Extended Virtual Addressing offer a guest by.
+add_executable(uml_address_space_tests address_space_tests.cpp)
+target_include_directories(uml_address_space_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/darwin/platform)
+uml_add_unit_test(
+    NAME platform-address-space
+    COMMAND uml_address_space_tests)
 
 # The Apple thermal source's notices of a change of the thermal state or of Low
 # Power Mode, until the caller withdraws and after the provider ends.

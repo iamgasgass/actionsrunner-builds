@@ -33,6 +33,9 @@ constexpr std::string_view data_disk_option{"--android-data-disk="};
 constexpr std::string_view data_gib_option{"--android-data-gib="};
 constexpr std::string_view renamed_disk_option{"--android-disk="};
 constexpr std::string_view boot_mode_option{"--android-boot-mode="};
+/* A bare flag: the normal boot's ramdisk is the release's own Magisk-patched
+ * one, which only a release that carries root has. */
+constexpr std::string_view root_option{"--android-root"};
 constexpr std::string_view identity_option{"--android-identity="};
 constexpr std::string_view serial_option{"--android-serialno="};
 constexpr std::string_view net_mac_option{"--net-mac="};
@@ -60,6 +63,11 @@ constexpr std::string_view orientation_prefix{
  * the field passes it; a release's own command line may not carry it. */
 constexpr std::string_view compass_prefix{
 	"androidboot.kernarium.compass="};
+/* Tells the guest its display is a 120 Hz one (the iOS runtime's
+ * KernariumHostFeatures.hpp states it too). This launcher's display keeps its
+ * 60 Hz mode and passes none; a release's own command line may not carry it. */
+constexpr std::string_view high_refresh_prefix{
+	"androidboot.kernarium.high_refresh="};
 
 struct AndroidOptions {
 	std::filesystem::path release;
@@ -69,6 +77,8 @@ struct AndroidOptions {
 	std::uint32_t data_gib = 0;
 	uml::android::BootMode boot_mode = uml::android::BootMode::automatic;
 	bool boot_mode_set = false;
+	/* --android-root: boot the release's root ramdisk. */
+	uml::android::RootMode root = uml::android::RootMode::off;
 	/* The EDID density the GPU device advertises; 0 advertises none. */
 	std::uint32_t dots_per_inch = 0;
 	/* --android-identity=: the file that holds this installation's serial
@@ -200,6 +210,13 @@ AndroidOptions parse_options(int argc, char *const argv[])
 				argument.substr(data_gib_option.size()));
 			continue;
 		}
+		if (argument == root_option) {
+			if (options.root == uml::android::RootMode::on)
+				throw std::invalid_argument(
+					"--android-root may be specified only once");
+			options.root = uml::android::RootMode::on;
+			continue;
+		}
 		if (argument.starts_with(boot_mode_option)) {
 			if (options.boot_mode_set)
 				throw std::invalid_argument(
@@ -290,6 +307,9 @@ void print_usage()
 			"  --android-data-gib=N (capacity of a new data disk, or growth of an\n"
 			"      existing one; a larger disk is kept, never shrunk)\n"
 			"  --android-boot-mode=auto|normal|recovery\n"
+			"  --android-root (the normal boot's ramdisk is the release's own with\n"
+			"      Magisk patched in, which only a release that carries root has;\n"
+			"      recovery keeps its own)\n"
 			"  --android-identity=/absolute/identity.json (this installation's serial\n"
 			"      number and eth0 address, made when absent or when the data disk is\n"
 			"      new; without it, or --android-serialno and --net-mac, the guest\n"
@@ -302,6 +322,10 @@ void print_usage()
 			"  ncpus=N (also the guest's timeout multiplier: 3 from six vCPUs,\n"
 			"      5 below)\n"
 			"  --virtio-console-socket=/absolute/console.sock\n"
+			"  --aot=auto|on|off (ahead-of-time code for the image's libraries, "
+			"which a\n"
+			"      build that carries it runs unless DARWIN_UML_AOT=0 or "
+			"--aot=off)\n"
 			"The same values may be supplied through UML_ANDROID17_RELEASE, "
 			"UML_ANDROID17_DATA_DISK, "
 			"and UML_ANDROID17_BOOT_MODE.\n"
@@ -309,7 +333,8 @@ void print_usage()
 			"ubd, initrd, root and boot-device arguments are refused.\n"
 			"The boot mode picks the first boot's ramdisk. A guest that "
 			"restarts itself boots again in the same process, and each "
-			"restart picks the ramdisk in auto mode.\n",
+			"restart picks the ramdisk in auto mode; --android-root applies "
+			"to every normal boot.\n",
 		stderr);
 }
 
@@ -323,12 +348,22 @@ std::vector<std::string> boot_command_line(
 	auto forwarded = host_arguments;
 	for (auto &argument : storage.kernelArguments(boot))
 		forwarded.push_back(std::move(argument));
+	/* The release the guest boots, as its files state it: the ahead-of-time
+	 * component runs only with the release it was made from. A release that
+	 * states none gets no such code. */
+	if (const auto identity = storage.releaseIdentity())
+		if (auto argument = uml::emulator::aot_release_argument(
+			    identity->id, identity->manifestSha256,
+			    identity->systemSha256);
+		    !argument.empty())
+			forwarded.push_back(std::move(argument));
 	std::vector<std::string_view> launcher_prefixes{
 		adb_authorization_prefix,
 		hardware_sku_prefix,
 		uml::camera::layoutArgumentPrefix,
 		orientation_prefix,
 		compass_prefix,
+		high_refresh_prefix,
 		uml::android::lcdDensityPrefix,
 		uml::android::hwTimeoutMultiplierPrefix};
 	/* A run that has a serial number of its own drops the release's fixed
@@ -358,7 +393,8 @@ std::vector<std::string> boot_command_line(
 			"Android rootfs %s, %s boot, system disk %s, data disk %s\n",
 			storage.release().c_str(),
 			boot.mode == uml::android::BootMode::recovery
-				? "recovery" : "normal",
+				? "recovery"
+				: boot.ramdiskFile.empty() ? "normal" : "normal (root)",
 			storage.systemDisk().c_str(), storage.dataDisk().c_str());
 	return forwarded;
 }
@@ -433,6 +469,7 @@ int main(int argc, char *argv[], char *envp[])
 			.top_byte_ignore = true,
 			.input_mode = uml::app::DisplayInput::touchscreen,
 			.console_reports_boot_completion = true,
+			.states_aot_release = true,
 		};
 		if (!information_only) {
 			if (options.release.empty() || options.data_disk.empty())
@@ -468,7 +505,8 @@ int main(int argc, char *argv[], char *envp[])
 			const uml::android::Storage storage{release, data_disk};
 			if (storage.consumeBootloaderCommand())
 				say_bootloader_consumed();
-			const auto boot = storage.selectBoot(options.boot_mode);
+			const auto boot =
+				storage.selectBoot(options.boot_mode, options.root);
 			const auto host_arguments = options.forwarded;
 			options.forwarded =
 				boot_command_line(
@@ -479,8 +517,9 @@ int main(int argc, char *argv[], char *envp[])
 			 * bootloader message. */
 			configuration.restart_command_line =
 				[host_arguments, storage, serial,
-				 dots_per_inch = options.dots_per_inch] {
-					const auto next = storage.selectRestartBoot();
+				 dots_per_inch = options.dots_per_inch,
+				 root = options.root] {
+					const auto next = storage.selectRestartBoot(root);
 					if (next.bootloaderConsumed)
 						say_bootloader_consumed();
 					return boot_command_line(

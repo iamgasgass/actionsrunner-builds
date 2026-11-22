@@ -9,6 +9,11 @@ public enum PackageInstallCommand {
     /// Android's `INSTALL_REASON_USER`: an install the person started.
     public static let userInstallReason = 4
 
+    /// The most the package manager's answer to one install call may be. It is
+    /// held when it arrives while the host still sends the file, so the stream
+    /// is opened with it as its output limit.
+    public static let replyBudgetBytes = 64 * 1024
+
     /// What lifts Android's refusal of an app built for a version older than
     /// the one it installs.
     public static let bypassLowTargetSdkBlock = "--bypass-low-target-sdk-block"

@@ -153,9 +153,13 @@ extension AppModel {
                 }
                 reader.finishChange(after)
                 if on {
-                    // The way back is said with the news, once.
-                    reader.toldOn = true
-                    announce(ScreenReaderWords.announcement(on: true, edge: session.keysEdge))
+                    // The way back is said with the news, once. While the run's
+                    // start sentence is spoken it is not said over it: the
+                    // sentence's end reads again, and says it as at a start.
+                    if !reader.runStartAnnouncing {
+                        reader.toldOn = true
+                        announce(ScreenReaderWords.announcement(on: true, edge: session.keysEdge), highPriority: true)
+                    }
                 } else {
                     announce(ScreenReaderWords.announcement(on: false, edge: session.keysEdge))
                 }
@@ -201,17 +205,26 @@ extension AppModel {
             return
         }
         guard let state = reader.state else { return }
-        let canShow = spacePause == nil && busy == nil && sheet == nil && reader.settingsOpen == 0 && reader.card == nil
+        // The card waits for the run's start sentence: its focus would cut it.
+        let canShow = spacePause == nil && busy == nil && sheet == nil && reader.settingsOpen == 0
+            && reader.card == nil && !reader.runStartAnnouncing
         if !state.isInstalled {
             if reader.card == .ask { reader.card = nil }
             if canShow, !reader.toldMissing { present(.unavailable, in: reader) }
         } else if state.isOn {
             if reader.card == .ask { reader.card = nil }
-            // A start where Android's screen reader was on already: VoiceOver
-            // is told, once, with the way back (no card; nothing to ask).
-            if !reader.toldOn, reader.changing == nil {
+            // Android's screen reader is on and VoiceOver is not yet told, once
+            // (no card; nothing to ask), after the run's start sentence, not
+            // over it. Where it was on before the run began and the display is
+            // about to take VoiceOver's focus, nothing is said: the display's
+            // own words carry the state and the way back. The news stays where
+            // something covers the display, and after the person turns the
+            // screen reader on, in Settings or in Android.
+            if !reader.toldOn, reader.changing == nil, !reader.runStartAnnouncing {
                 reader.toldOn = true
-                announce(ScreenReaderWords.announcement(on: true, edge: session.keysEdge), queued: true)
+                if !(reader.wasOnAtStart && displayMayTakeFocus) {
+                    announce(ScreenReaderWords.announcement(on: true, edge: session.keysEdge), highPriority: true)
+                }
             }
         } else if canShow, !reader.declined, reader.changing == nil {
             present(.ask, in: reader)
@@ -222,8 +235,9 @@ extension AppModel {
         reader.card = card
         reader.cardFailure = nil
         if card == .unavailable { reader.toldMissing = true }
-        // VoiceOver lands on the card's title and reads on from it.
-        VoiceOver.screenChanged()
+        // VoiceOver lands on the card's title and reads on from it: the card
+        // takes the focus once it is on screen (`ScreenReaderCard`), where a
+        // screen change posted now would find the display still first.
     }
 
     /// Turn On on the card; the card goes when the screen reader is on, and
@@ -255,9 +269,60 @@ extension AppModel {
         if reader.state == nil { refreshScreenReaderSoon(in: session) }
     }
 
-    /// What VoiceOver is told of its own accord (`announcer` is a test's).
-    func announce(_ text: String, queued: Bool = false) {
-        announcer(text, queued)
+    /// What VoiceOver hears as a run begins, in this order: the sentence that
+    /// says what the run is and where the side keys are, announced at high
+    /// priority (VoiceOver's own speech of the element its cursor lands on a
+    /// moment after the screen change would cut a queued or default
+    /// announcement off after a second); then, where Android's screen reader
+    /// was off, the card that asks, or, where it was on and something covers
+    /// the display, the news that it is on (`evaluateScreenReaderCard`), at
+    /// high priority. Both wait for the sentence's end, or for
+    /// `runStartBound` where VoiceOver reports none. VoiceOver adds speech of
+    /// its own: the element it lands on after the screen change (the display,
+    /// with its label alone until Android has been read), held behind the
+    /// sentence, and its words again when the display becomes a direct-touch
+    /// element, which carry the state and the way back where the screen
+    /// reader was on at the start. The screen change's argument is no place
+    /// for the sentence: VoiceOver does not speak it.
+    func announceRunStart(_ phase: Phase) {
+        VoiceOver.screenChanged()
+        guard let words = RootView.spoken(phase), voiceOverRunning() else { return }
+        let current = session
+        let reader = current.reader
+        reader.runStartGeneration += 1
+        let generation = reader.runStartGeneration
+        reader.runStartAnnouncing = true
+        // Weak, so that an announcement whose end never comes (VoiceOver turned
+        // off meanwhile) does not keep an ended session alive.
+        let release: @MainActor () -> Void = { [weak self, weak current, weak reader] in
+            guard let self, let current, let reader, current === self.session, !reader.ended,
+                  reader.runStartAnnouncing, reader.runStartGeneration == generation else { return }
+            reader.runStartAnnouncing = false
+            evaluateScreenReaderCard()
+        }
+        runStartAnnouncer(words) { _ in release() }
+        let bound = runStartBound
+        Task { @MainActor in
+            try? await Task.sleep(for: bound)
+            release()
+        }
+    }
+
+    /// Whether VoiceOver's focus may go to the display's direct-touch element:
+    /// the run shows it with nothing over it, and the sentence of the run's
+    /// start has been spoken.
+    var displayMayTakeFocus: Bool {
+        guard case .running = phase else { return false }
+        let reader = session.reader
+        return !reader.runStartAnnouncing && reader.card == nil && reader.settingsOpen == 0
+            && busy == nil && sheet == nil && spacePause == nil && alert == nil
+    }
+
+    /// What VoiceOver is told of its own accord (`announcer` is a test's). At
+    /// high priority it is not cut off by VoiceOver's own speech of the element
+    /// its cursor lands on.
+    func announce(_ text: String, queued: Bool = false, highPriority: Bool = false) {
+        announcer(text, queued, highPriority)
     }
 
     /// Not Now on the card: no card again in this session.

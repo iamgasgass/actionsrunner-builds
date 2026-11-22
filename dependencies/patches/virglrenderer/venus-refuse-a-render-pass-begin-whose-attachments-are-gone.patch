@@ -85,10 +85,10 @@ index d47214b1b2873683764124e3d871e1ec88fbfe2b..a64a178845c9d83055ed419254909d91
                  args->pSubpassBeginInfo);
  }
 diff --git a/src/venus/vkr_image.c b/src/venus/vkr_image.c
-index 0ec9ccc144668c58f5fefc6a0c32e9f05e6ab491..a4bc30c7655fd9517802d337285984f52021cf7e 100644
+index 6564cc92cc50d61989c4a6fb751cdfb5cd6765b9..481b827bca648befba16543bb12570024391a0d7 100644
 --- a/src/venus/vkr_image.c
 +++ b/src/venus/vkr_image.c
-@@ -353,7 +353,21 @@ static void
+@@ -355,7 +355,21 @@ static void
  vkr_dispatch_vkCreateImageView(struct vn_dispatch_context *dispatch,
                                 struct vn_command_vkCreateImageView *args)
  {
@@ -112,10 +112,10 @@ index 0ec9ccc144668c58f5fefc6a0c32e9f05e6ab491..a4bc30c7655fd9517802d337285984f5
  
  static void
 diff --git a/src/venus/vkr_image.h b/src/venus/vkr_image.h
-index 886ed62a32fbe8082b425dd0bdc11df88cd91665..0a3e29882e47216eded14475897c6c667efc3bd8 100644
+index 3eae1ac7553d7996e68e76c0199cb88f6b044339..d3215468a16b78ffca4357d46daeda0710d296cc 100644
 --- a/src/venus/vkr_image.h
 +++ b/src/venus/vkr_image.h
-@@ -21,6 +21,10 @@ VKR_DEFINE_OBJECT_CAST(image, VK_OBJECT_TYPE_IMAGE, VkImage)
+@@ -22,6 +22,10 @@ VKR_DEFINE_OBJECT_CAST(image, VK_OBJECT_TYPE_IMAGE, VkImage)
  
  struct vkr_image_view {
     struct vkr_object base;

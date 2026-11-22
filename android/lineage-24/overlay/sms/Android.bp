@@ -7,7 +7,8 @@ package {
 // broadcast the way the radio stack makes one (Delivery). It runs as the system
 // user, which alone may send the protected SMS broadcasts, in a domain of its
 // own (sepolicy/system_ext/private/kernarium_sms.te), and takes messages only
-// from the host over vsock (HostChannel).
+// from the host over vsock, on a listening socket that the holder of the port
+// (listener/) passes to it while messages are in flight (HostService).
 android_app {
     name: "KernariumSms",
     manifest: "AndroidManifest.xml",

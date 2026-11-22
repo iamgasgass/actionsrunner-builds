@@ -2,6 +2,7 @@
 #pragma once
 
 #include "../shared_backing.hpp"
+#include "allocation_fault.hpp"
 #include "code_holders.hpp"
 #include "writer_location.hpp"
 #if DARWIN_UML_X86_64_GUEST
@@ -59,13 +60,92 @@ public:
 	 * takes one.
 	 */
 	[[nodiscard]] void *code_page_handle(std::uint64_t offset) noexcept;
-	[[nodiscard]] static bool load_code_page_stamp(const void *handle,
-		std::uint64_t &identity, std::uint64_t &version) noexcept;
+
+	/* What a record says about its page, read field by field (the fields are
+	 * separate atomics, so a reader that needs them to agree reads twice).
+	 * `identity` is never reused. `version` moves at every publication and at
+	 * every departure of a mapping, which keeps its meaning for the engines
+	 * that retire translations by it. `epoch` moves at a publication that
+	 * names the page's frame, when the last executable mapping of the page
+	 * departs, and for every page at once at a publication that names no
+	 * frame (note_unnamed_publication), and nowhere else; it is what a
+	 * verdict of the page's bytes is keyed by. `never_share` is
+	 * set for good once the record cannot count exactly, and forbids every
+	 * verdict. */
+	struct RecordStamp final {
+		std::uint64_t identity{};
+		std::uint64_t version{};
+		std::uint64_t epoch{};
+		bool never_share{};
+	};
+	[[nodiscard]] static bool load_code_page_stamp(
+		const void *handle, RecordStamp &stamp) noexcept;
+	/* A publication that names no frame, to every generation: a kernel
+	 * write whose target page its address space does not map, or whose
+	 * frame Linux cannot name. Moves the
+	 * epoch of every page at once, for good: the count stops at its limit,
+	 * where every stamp reports never-share. */
+	static void note_unnamed_publication() noexcept;
+	/* A publication: the page's bytes were written through a path no
+	 * translated store saw. Moves the version and the epoch, except that a
+	 * record marked never-share keeps its epoch (and the mark): running out
+	 * of epoch is itself a mark, and nothing may carry out of the word. */
 	static void invalidate_code_page(void *handle) noexcept;
-	/* Moves the stamp of the backing page at `offset` if a translator has
-	 * ever asked for it. A page nothing stamped holds no translation whose
+	/* A departure: a mapping of the page at `offset` went away or lost
+	 * execute. Moves the version of the page's record if it has one. A page
+	 * nothing maps executable and nothing stamped holds no translation whose
 	 * stamp could be stale, so it is not given a record here. */
 	void retire_code_page(std::uint64_t offset) noexcept;
+
+	/* The record of the page at `offset`, made if it is not there yet; a
+	 * std::bad_alloc if it cannot be. This is the step of a mapping change
+	 * that can fail: the record of every executable mapping exists before
+	 * the change counts itself in. */
+	[[nodiscard]] void *obtain_code_page(std::uint64_t offset);
+	/* The record if it exists. */
+	[[nodiscard]] void *find_code_page(std::uint64_t offset) noexcept;
+
+	/* An executable guest-code mapping of the record's page appears, or goes
+	 * away. Each is one atomic step of the record's `fresh` word, so mappings
+	 * of one frame in different address spaces need no lock between them:
+	 * the count of the last departure and the epoch step that kills every
+	 * verdict about the page are stored together. A departure that finds the
+	 * count at zero is a bug in the accounting; the count stays zero and the
+	 * epoch moves, so no verdict about the page survives it. A record whose
+	 * count would overflow is marked never-share for good and counts no
+	 * more. Both are noexcept and take a record that obtain_code_page made
+	 * (or find_code_page found). */
+	static void executable_mapping_added(void *handle) noexcept;
+	static void executable_mapping_removed(void *handle) noexcept;
+
+#if UML_MEMORY_ALLOCATION_TESTING || UML_MEMORY_COUNT_AUDIT
+	/* The record's count of executable mappings, and a visit of every record
+	 * of this backing by the number of its page: what an audit recounts
+	 * against. */
+	[[nodiscard]] static std::uint64_t executable_mappings(
+		const void *handle) noexcept;
+	template <typename Visit>
+	void for_each_code_page(Visit &&visit)
+	{
+		const std::lock_guard lock{code_pages_mutex_};
+		for (const auto &[page, record] : code_pages_)
+			if (record)
+				visit(page, record.get());
+	}
+#endif
+#if UML_MEMORY_ALLOCATION_TESTING
+	/* Puts a record in a state no test can reach by mapping: a count and an
+	 * epoch as given (the never-share bit cleared). */
+	static void preset_for_testing(void *handle, std::uint64_t count,
+		std::uint64_t epoch) noexcept;
+	/* The record's whole word, count, epoch and never-share bit, as it is
+	 * stored: to reach the edges of the epoch field, which 2^39 steps would
+	 * take to reach. */
+	[[nodiscard]] static std::uint64_t word_for_testing(
+		const void *handle) noexcept;
+	static void preset_word_for_testing(void *handle,
+		std::uint64_t word) noexcept;
+#endif
 
 	/* The holder word of the 4 KiB frame at `offset`: which generations
 	 * translated the frame since it was last published (code_holders.hpp).

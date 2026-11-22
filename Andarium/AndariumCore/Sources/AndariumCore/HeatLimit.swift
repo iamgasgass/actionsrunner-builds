@@ -45,7 +45,7 @@ public struct HeatLimitPreference {
 }
 
 /// What the heat facts of a session say about the option, in the fixed English
-/// the session record and the feedback information use.
+/// the session record uses.
 public enum HeatLimitWords {
     /// "on" while Android is told how hot the device is, "off" while it is not.
     public static func state(isOn: Bool) -> String { isOn ? "on" : "off" }

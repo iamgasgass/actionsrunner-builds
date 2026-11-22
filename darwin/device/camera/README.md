@@ -82,7 +82,9 @@ application's statements (the sensor orientation, the rotation that
     buffer for the size asked (`maximumJpegBytes`; a larger file fails the
     capture before it is copied, and the pre-copy check, the device and the
     count use one bound); a RAW capture and the working storage of the
-    platform camera's source (`Camera::stillWorkingBytesPerPixel`) are counted.
+    platform camera's source (`Camera::stillWorkingBytesPerPixel`) are counted,
+    and for a camera whose pictures the host presents half around its encoder's
+    buffers besides (`Camera::turnedStillWorkingBytesPerPixel`).
     RAW is counted wherever a lens the guest sees can make a RAW still in the
     run. A capture that does not fit waits, and none starts while an older one
     waits. A capture that costs more than the whole budget fails before it
@@ -109,8 +111,11 @@ application's statements (the sensor orientation, the rotation that
   system camera's own
   processing storage while it makes a picture is counted as working bytes for
   each pixel of a JPEG still (`systemCameraStillWorkingBytesPerPixel`), a figure
-  measured on one device with headroom, and the ceiling holds it. The platform
-  camera's peak is not otherwise measured.
+  measured on one device with headroom, and the ceiling holds it. The encoder's
+  buffers while the host turns a front still half around are counted as the
+  same kind of figure (`systemCameraTurnedStillWorkingBytesPerPixel`), added to
+  the capture of a turned camera only; the largest such capture is inside the
+  ceiling. The platform camera's peak is not otherwise measured.
 - **Frames.** Video buffers hold NV12, BT.709 full range, rows at the 16-byte
   pitch of `raw_pitch.hpp`. The device crops (centred, to the stream's aspect),
   rotates and scales with the platform camera's transformer
@@ -118,6 +123,12 @@ application's statements (the sensor orientation, the rotation that
   scaler, see [`darwin/platform`](../../platform/README.md)), writes a picture
   that needs none of it straight into the guest's rows, and drops frames to a
   stream's rate. A frame with no queued buffer is dropped and its number spent.
+  A camera whose pictures the host presents half around
+  (`CameraInfo::presentationTurn` 180, a built-in front camera) has that turn
+  added to ROTATE_AND_CROP's in the same write: a frame of the stream's own size
+  is copied with its rows reversed, and a scaled one takes the combined rotation
+  in the transformer. A still of such a camera is turned by the platform before
+  it reaches the device.
 - **Stabilization.** The guest's request for it (Android's record template
   makes it, so video mode asks and photo mode does not) is met with the host's
   low-latency mode where the active format supports it, else the standard one,
@@ -306,7 +317,7 @@ the Virtio devices it creates so that no other device's index moves; its
 argument handling in `darwin/app/macos/main.cpp` is the reference for the
 options and their values. It reaches the platform cameras through
 `UML::CameraSource` (`camera_source.hpp`): the host's camera, the synthetic
-camera (an App Store runtime has none) and a read of the camera permission.
+camera and a read of the camera permission.
 The `host` source needs the system's camera permission granted to the program
 (or the terminal it runs in) beforehand: nothing in the launcher or the device
 asks for it, and the launcher refuses to start, saying how to grant it, when it
@@ -344,7 +355,10 @@ is 90) and a boot states each camera's SENSOR_ORIENTATION from it
 (`camera_orientation.hpp`): a back camera's base orientation plus `turn`, a
 front camera's minus `turn`, an external camera's unchanged. The base is the
 platform camera's own `sensorOrientation`, and with `turn` 0, where the guest
-rotates itself, it stands. A turn after the boot reaches the guest only as a
+rotates itself, it stands. A built-in front camera's is 270 whatever its
+mounting: the host turns its pictures half around where the sensor is mounted
+at 90 (`CameraInfo::presentationTurn`), and the guest's metering and focus
+regions are mapped back through that turn (`CameraControls`). A turn after the boot reaches the guest only as a
 turn of the picture by the difference of the two orientations, which
 ROTATE_AND_CROP's automatic setting applies
 (`CameraDeviceOptions::automaticRotation`, per camera).
@@ -352,7 +366,9 @@ ROTATE_AND_CROP's automatic setting applies
 ## Tests
 
 `camera-controls`, `camera-description`, `camera-jpeg-gap` and
-`camera-calibration` check the pure parts, `camera-orientation` the sensor
+`camera-calibration` check the pure parts (`camera-controls` the regions mapped
+back through a half turn), `camera-apple-turned-still` a photo turned and
+encoded in the hardware JPEG encoder, `camera-orientation` the sensor
 orientation and picture turn of every interface orientation and facing,
 `camera-layout` the layout names, their fallbacks and the composition (against
 the image's table), and
@@ -365,6 +381,8 @@ streams and stills in flight, an event queue that retries and wakes the server,
 a ring disable that resets nothing, a still on one camera while another
 streams, a join over the hardware budget, a capture that fails to start
 round after round, and a video that the application's leaving the foreground
-ends, with the interruptions and the modes that it does not. `camera-held-requests` runs the vhost-user server over the
+ends, with the interruptions and the modes that it does not, and a camera presented
+half around (the synthetic camera's `phone-turned-front` profile) written turned.
+`camera-held-requests` runs the vhost-user server over the
 device and holds a stream's buffer across a disable and an enable. The Apple
 backend's capture is not run by any test.

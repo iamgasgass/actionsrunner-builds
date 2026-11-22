@@ -6,8 +6,7 @@ import Foundation
 /// A timed run of controllers for something that is not a person: connects,
 /// states, battery levels and disconnects, played against a `GamepadSession`.
 /// It is simulated input: the unit tests and the test-only probe tool use it,
-/// and the application does not link this target (the App Store bundle check
-/// refuses a build that does).
+/// and the application does not link this target.
 package struct GamepadScript: Sendable {
     package enum Step: Sendable {
         case connect(GamepadController, GamepadState)

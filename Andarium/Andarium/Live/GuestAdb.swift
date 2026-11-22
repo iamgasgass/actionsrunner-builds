@@ -102,6 +102,14 @@ nonisolated struct AdbGuestShell: GuestShell {
     }
 }
 
+/// The image's `kernarium_apps` tool prints binary pictures: its answers are
+/// read as the bytes the shell sent.
+extension AdbGuestShell: GuestBinaryShell {
+    func runBinary(_ command: String, limit: Duration) async throws -> ShellResult {
+        try await operations.shell(command, limit: limit)
+    }
+}
+
 /// What a bug report has left in the guest, shared between the operation's
 /// thread and the cleanup that follows a cancel.
 nonisolated final class BugReportTrail: @unchecked Sendable {
@@ -353,6 +361,28 @@ nonisolated struct AdbGuestOperations: Sendable {
         return outcome
     }
 
+    /// Installs one APK from the file `open` opens, on the thread of the
+    /// operation, so that the file that is checked is the file that is sent.
+    /// For the release's own Magisk app (`RootRelease.openApk`); cancellable
+    /// while it is sent, and nothing of it needs undoing in the guest.
+    func installReleaseApk(
+        name: String, open: @escaping @Sendable () throws -> FileChunkReader,
+        update: @escaping @Sendable (BusyUpdate) -> Void
+    ) async throws {
+        guard let identity else { throw AdbFailure(.keyRejected, activity: .installApp) }
+        let device = device
+        let hostFree = hostFree
+        do {
+            try await AdbOperationRunner.run(identity: identity, clock: clock, connector: connector) { session in
+                try ApkInstallOperation.sendPlain(
+                    session: session, reader: open(), name: name, device: device, bypassLowTargetSdkBlock: false,
+                    hostFree: hostFree, update: update)
+            }
+        } catch {
+            throw AdbOperationRunner.presented(error, activity: .installApp)
+        }
+    }
+
     /// Undoes what an install left in the guest, on connections of their own
     /// that a cancelled task cannot end: the session that was not committed,
     /// and the partial file of a data copy that did not finish. The ledger is
@@ -388,7 +418,7 @@ nonisolated struct AdbGuestOperations: Sendable {
             try session.run { connection in
                 session.watchdog.arm(idle: .seconds(15), overall: .seconds(30))
                 let stream = try connection.open(PackageInstallCommand.abandonSession(id))
-                _ = try stream.readToEnd(limit: 64 * 1024)
+                _ = try stream.readToEnd(limit: PackageInstallCommand.replyBudgetBytes)
             }
         }
     }

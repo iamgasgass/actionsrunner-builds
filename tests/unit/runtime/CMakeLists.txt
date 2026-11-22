@@ -184,6 +184,48 @@ foreach(_uml_restart_mode IN ITEMS restart power-off halt stopped failed
         COMMAND uml_runtime_sequential_run_tests ${_uml_restart_mode})
 endforeach()
 unset(_uml_restart_mode)
+# A start the process refuses, or that waits for the process, publishes no
+# setting the whole process keeps (the JIT cache budget, the memory limit).
+uml_add_unit_test(
+    NAME runtime-refused-start-no-cache-budget
+    COMMAND uml_runtime_sequential_run_tests refused-start-no-cache-budget)
+uml_add_unit_test(
+    NAME runtime-waiting-start-memory-limit
+    COMMAND uml_runtime_sequential_run_tests waiting-start-memory-limit)
+# Where the build has the ahead-of-time component: the release of a cleanly
+# powered-off guest ends its session, and the next one chooses the component
+# afresh, whatever the last one did.
+if(TARGET uml_arm64_aot_framework)
+    target_compile_definitions(uml_runtime_sequential_run_tests PRIVATE
+        UML_TEST_AOT=1
+        UML_TEST_KERNEL_RUNNER=$<BOOL:${UML_BUILD_KERNEL_RUNNER}>)
+    # Where the build has the production loader too, a kernel image it refuses
+    # leaves the AOT choice as it was.
+    if(UML_BUILD_KERNEL_RUNNER)
+        uml_add_unit_test(
+            NAME runtime-loader-refusal-keeps-aot-choice
+            COMMAND uml_runtime_sequential_run_tests
+                loader-refusal-keeps-aot-choice)
+    endif()
+    uml_add_unit_test(
+        NAME runtime-release-reselects-aot
+        COMMAND uml_runtime_sequential_run_tests release-reselects-aot)
+    # A start decides only once it owns the process, so one that arrives while
+    # the session before it is ending waits for the end, and neither undoes the
+    # other's choice; a restart is no session boundary.
+    foreach(_uml_aot_mode IN ITEMS release-race-off-then-on
+            release-race-on-then-off release-race-mismatched
+            restart-keeps-aot-on restart-keeps-aot-off
+            failed-start-keeps-aot-choice failed-restart-keeps-aot-choice)
+        uml_add_unit_test(
+            NAME runtime-${_uml_aot_mode}
+            COMMAND uml_runtime_sequential_run_tests ${_uml_aot_mode})
+    endforeach()
+    unset(_uml_aot_mode)
+else()
+    target_compile_definitions(uml_runtime_sequential_run_tests PRIVATE
+        UML_TEST_AOT=0 UML_TEST_KERNEL_RUNNER=0)
+endif()
 
 add_executable(uml_runtime_x86_tier_tests x86_tier_tests.cpp)
 target_include_directories(uml_runtime_x86_tier_tests PRIVATE

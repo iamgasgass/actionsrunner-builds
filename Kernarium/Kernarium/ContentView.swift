@@ -53,8 +53,12 @@ struct ContentView: View {
                     .accessibilityHidden(guestViewMode != .serialConsole)
 
                 if let refusal = launcher.memoryRefusal {
-                    MemoryRefusalNotice(reason: refusal)
-                        .padding()
+                    MemoryRefusalNotice(
+                        reason: refusal,
+                        sizesOffered: EmulatorConfiguration
+                            .guestMemoryCeilingMiB > 0
+                    )
+                    .padding()
                 } else if let shortage = launcher.startShortage {
                     StartShortageNotice(shortage: shortage) {
                         launcher.retryStart()
@@ -64,7 +68,8 @@ struct ContentView: View {
                     GuestEndedNotice(
                         end: GuestRunEnd(
                             result: result,
-                            requested: launcher.stopRequested
+                            requested: launcher.stopRequested,
+                            memoryMiB: launcher.runMemoryMiB
                         )
                     )
                         .padding()
@@ -401,8 +406,17 @@ struct GuestRunEnd: Equatable {
     /// leaves a process another run may start in, and the person who asked for
     /// the stop did not meet an error.
     var requested = false
+    /// The guest memory the run asked for, in MiB, where it is known.
+    var memoryMiB: Int?
 
     private var shutDown: Bool { result == 0 || requested }
+
+    /// Whether the settings offer a size below the run's, so that choosing a
+    /// smaller one can be done. A size not known is taken to be above them.
+    private var canLowerMemory: Bool {
+        guard let memoryMiB else { return true }
+        return memoryMiB > EmulatorConfiguration.guestMemoryRangeMiB.lowerBound
+    }
 
     /// The runtime stopped a guest that restarted itself again and again
     /// within seconds of booting. A guest that restarts once in a while is
@@ -411,13 +425,27 @@ struct GuestRunEnd: Equatable {
         result == Int32(KERNARIUM_RUNTIME_RESULT_RESTART_LOOP)
     }
 
+    /// The host would not map the guest's memory: nothing started, and a
+    /// smaller size does.
+    var hostRefusedMemory: Bool {
+        result == Int32(KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED) && !requested
+    }
+
     var title: String {
+        if hostRefusedMemory { return "The virtual machine can\u{2019}t start" }
         if restartedInALoop { return "Guest kept restarting" }
         return shutDown ? "Guest shut down" : "Guest stopped with an error"
     }
 
     var message: String {
         let relaunch = "Relaunch Kernarium to start it again."
+        if hostRefusedMemory {
+            let cause = "This device could not give the virtual machine the " +
+                "memory it asked for. "
+            return canLowerMemory
+                ? cause + "Choose a smaller size in Emulator settings. " + relaunch
+                : cause + relaunch
+        }
         if restartedInALoop {
             return "The guest restarted itself again and again within " +
                 "seconds of booting, so Kernarium stopped booting it. " +
@@ -429,6 +457,7 @@ struct GuestRunEnd: Equatable {
     }
 
     var systemName: String {
+        if hostRefusedMemory { return "memorychip" }
         if restartedInALoop { return "arrow.trianglehead.2.clockwise.rotate.90" }
         return shutDown ? "power" : "exclamationmark.triangle"
     }
@@ -457,17 +486,32 @@ private struct GuestEndedNotice: View {
 /// host's limit shrank, brings it.
 private struct MemoryRefusalNotice: View {
     let reason: String
+    /// Whether the settings offer a size to choose: false where the process
+    /// has no room for any virtual machine.
+    let sizesOffered: Bool
 
     var body: some View {
         GuestNoticeCard(
             systemName: "memorychip",
             title: "The virtual machine can\u{2019}t start",
-            message: reason + ". Choose another size in Emulator " +
-                "settings and relaunch Kernarium.",
+            message: MemoryRefusalText.message(
+                reason: reason, sizesOffered: sizesOffered),
             messageStyle: .primary
         )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("memoryRefusalNotice")
+    }
+}
+
+/// What the notice for a refused size says: the reason, and where the settings
+/// offer a size, to choose another and relaunch. Where none is offered the
+/// reason stands alone.
+enum MemoryRefusalText {
+    static func message(reason: String, sizesOffered: Bool) -> String {
+        sizesOffered
+            ? reason + ". Choose another size in Emulator settings and " +
+                "relaunch Kernarium."
+            : reason + "."
     }
 }
 
@@ -903,6 +947,8 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
     /// The application asked the run to stop, which is how a run the person
     /// ended ends.
     private(set) var stopRequested = false
+    /// The guest memory the run in hand asked for, in MiB.
+    private(set) var runMemoryMiB: Int?
     private var thermalObserver: NSObjectProtocol?
     /// The host's stop of the run in hand, from when it begins until its
     /// thread has returned (`RunStop`).
@@ -1049,6 +1095,7 @@ final class EmulatorLauncher: ObservableObject, SpaceRun {
         ) == 0 {
             gpuBudgetWarning = GPUBudgetWarning(plan: plan)
         }
+        runMemoryMiB = configuration.guestMemoryMiB
         let stop = runBegan()
         let size = GuestInputCoordinateSpace.boundedDisplaySize(
             geometry.pixelSize

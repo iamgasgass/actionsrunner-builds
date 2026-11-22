@@ -77,9 +77,6 @@ final class LiveRuntime: RuntimeDriver {
     private let cameraDirectory: URL?
     /// The guest's adb key, made before the start that boots with it.
     private var adbIdentity: AdbKeyStore.Identity?
-    /// The time zone the run's guest was booted with, which the person may
-    /// have left since (`guestIdentifiers`).
-    private var bootTimeZone: String?
     /// What this run puts in the names of its imports' partial files, new at
     /// every start and at every restart of the guest inside the run
     /// (`GuestRunMark`).
@@ -131,12 +128,23 @@ final class LiveRuntime: RuntimeDriver {
     /// The guest's end of the thermal connection where a UI test's probe
     /// stands in for it; nil is the real one, over vsock.
     private let thermalOpener: (any GuestStreamOpener)?
-    #if !APP_STORE
     /// A UI test's probe session runs the thermal session as a normal run
     /// does (`beginThermalProbe`).
     private var thermalProbe = false
-    #endif
     private lazy var thermalMonitor = ThermalMonitor { [weak self] state in self?.thermal.observe(state) }
+    /// Whether the run in progress has the 120 Hz display, as the runtime
+    /// granted it (it decides once at the start, whatever the start asked), and
+    /// so whether Low Power Mode, or a screen that shows less than 100 frames a
+    /// second, holds its render rate to 60 (`HighRefresh.holdsAtSixty`). False
+    /// until the runtime has said (`learnDisplayGrant`).
+    private var runHasHighRefresh = false
+    private var displayGrantKnown = false
+    private var lowPowerModeOn = false
+    private lazy var lowPowerMonitor = LowPowerMonitor { [weak self] on in
+        guard let self else { return }
+        lowPowerModeOn = on
+        updateSixtyHertzHold()
+    }
     /// The device's position for the guest's GNSS receiver, read from Core
     /// Location only while the person's Location switch, iOS, the foreground,
     /// a normal run and the guest's own receiver all say so
@@ -216,7 +224,7 @@ final class LiveRuntime: RuntimeDriver {
     /// The person's stop of the run in hand (`RunStop`), from the launch until
     /// the run's end is reported.
     private var runStop: RunStop?
-    #if DEBUG && !APP_STORE
+    #if DEBUG
     /// A test's stand-in for the preparation of the files, where it holds a
     /// start.
     var prepareFilesOverride: (@MainActor (Guest) async throws -> Void)?
@@ -244,6 +252,9 @@ final class LiveRuntime: RuntimeDriver {
     private var geometry: GuestDisplayGeometry?
     private var bootStartedAt = Date()
     private(set) var runStartedAt: Date?
+    /// The memory, in MiB, the run in progress was started with; what a
+    /// refusal of it by the host names.
+    private var runMemoryMiB = 0
     private var thermalObserver: NSObjectProtocol?
     /// The sink of the run's console; a test sets its own.
     var console: ConsoleSink?
@@ -383,12 +394,6 @@ final class LiveRuntime: RuntimeDriver {
         storage.measuredUsedBytes()
     }
 
-    func guestIdentifiers() -> GuestIdentifiers {
-        GuestIdentifiers.reading(
-            identityFile: InstanceFiles(directory: storage.locations.directory).identity,
-            adbKey: adbIdentity?.publicKeyLine, timeZones: [bootTimeZone, GuestTimeZone.current()].compactMap { $0 })
-    }
-
     /// The update's Restore: after the snapshot operation under way, as a
     /// start is. It changes the guest's files (it completes a snapshot
     /// restore that did not finish first), so what a screen has listed is stale.
@@ -416,6 +421,9 @@ final class LiveRuntime: RuntimeDriver {
     }
 
     func begin(guest: Guest, mode: StartMode, kind: BootKind) {
+        // The record of the run before moves aside, so that the one at its
+        // place from here on is this run's (`RunRecord`).
+        runRecord?.retire()
         // The previous display is removed on return to Home. Wait for the
         // new boot's view to lay out before starting another runtime.
         view = nil
@@ -514,13 +522,11 @@ final class LiveRuntime: RuntimeDriver {
         if launchWasStopped(generation) { return }
         preparing = false
         model?.preparingDisk = false
-        #if APP_STORE
-        let extras = StartExtras()
-        #else
-        var extras = StartExtras()
-        extras.jit = await prepareJit(for: run)
+        let jit = await prepareJit(for: run)
         if launchWasStopped(generation) { return }
-        #endif
+        // The row as it stands at this start: the runtime states the release for
+        // the translated libraries or leaves it out.
+        let extras = StartExtras(jit: jit, translatedLibraries: Self.translatedLibrariesStart(of: model, jitInUse: jit))
         guard let view, let geometry else {
             end(startFailure: "the display is not ready")
             return
@@ -532,7 +538,7 @@ final class LiveRuntime: RuntimeDriver {
     /// finishes first, and the update rules then apply to what it left (a
     /// restore that did not finish completes here).
     func prepareFiles(for guest: Guest, progress: @escaping @Sendable (Double) -> Void) async throws {
-        #if DEBUG && !APP_STORE
+        #if DEBUG
         if let prepareFilesOverride {
             try await prepareFilesOverride(guest)
             return
@@ -548,7 +554,6 @@ final class LiveRuntime: RuntimeDriver {
         }
     }
 
-    #if !APP_STORE
     /// Whether the guest boots on the JIT (`AppModel.startOnJit`).
     private func prepareJit(for run: PendingRun) async -> Bool {
         guard let model, model.jitAvailable else { return false }
@@ -563,7 +568,6 @@ final class LiveRuntime: RuntimeDriver {
     func prepareJit(wanted: Bool, shape: JitShape) async -> JitAnswer {
         await JitDebugger.prepare(wanted: wanted, shape: shape, flavor: Self.androidFlavor)
     }
-    #endif
 
     private func preparingDisk(_ fraction: Double) {
         guard preparing, let model else { return }
@@ -571,20 +575,36 @@ final class LiveRuntime: RuntimeDriver {
         model.diskProgress = fraction
     }
 
-    private func end(startFailure: String) {
+    private func end(startFailure: String, memoryRefusedMiB: Int? = nil) {
         print("Andarium: cannot start the guest: \(startFailure)")
         // The start is over: nothing owns the launch any more.
         preparing = false
         launching = false
-        model?.runEnded(RunEnd(result: -1, startFailure: startFailure), uptimeSeconds: nil)
+        model?.runEnded(
+            RunEnd(result: -1, startFailure: startFailure, memoryRefusedMiB: memoryRefusedMiB), uptimeSeconds: nil)
     }
 
-    /// What a start decides before the runtime runs, beyond the guest: in a
-    /// development build, whether the guest boots on the JIT engine.
+    /// What a start decides before the runtime runs, beyond the guest: on a
+    /// device, whether the guest boots on the JIT engine.
     private struct StartExtras: Sendable {
-        #if !APP_STORE
         var jit = false
-        #endif
+        /// What the start does about the translated libraries. It has no
+        /// default, so that a start cannot forget to ask the row.
+        var translatedLibraries: TranslatedLibrariesStart
+    }
+
+    /// What a start does about the translated libraries, from the row as it
+    /// stands; a start with no model (none runs) has no framework to use.
+    static func translatedLibrariesStart(of model: AppModel?, jitInUse: Bool) -> TranslatedLibrariesStart {
+        model?.translatedLibrariesStart(jitInUse: jitInUse)
+            ?? TranslatedLibrariesStart(buildCarries: false, optionOn: true, jitInUse: jitInUse)
+    }
+
+    /// What the boot request says of the translated libraries
+    /// (`android_aot_disabled`): 1 keeps the release out of the launch, where a
+    /// build with the framework has the switch off, and 0 states it.
+    nonisolated static func aotDisabled(for start: TranslatedLibrariesStart) -> UInt32 {
+        start.statesRelease ? 0 : 1
     }
 
     private func launch(
@@ -598,9 +618,11 @@ final class LiveRuntime: RuntimeDriver {
         // settings never offer one, so this is a safety net: say why rather
         // than end on the runtime's bare result.
         guard kernarium_runtime_loader_guest_memory_admitted(UInt32(clamping: run.guest.memoryMiB)) != 0 else {
-            end(startFailure: MemoryRefusal.reason(
-                memoryMiB: run.guest.memoryMiB,
-                ceilingMiB: Int(kernarium_runtime_loader_guest_memory_ceiling_mib())))
+            end(
+                startFailure: MemoryRefusal.reason(
+                    memoryMiB: run.guest.memoryMiB,
+                    ceilingMiB: Int(kernarium_runtime_loader_guest_memory_ceiling_mib())),
+                memoryRefusedMiB: run.guest.memoryMiB)
             return
         }
         // A denial of the network the notice is up for began before this run
@@ -640,6 +662,18 @@ final class LiveRuntime: RuntimeDriver {
         reachedBootCompleted = false
         normalRun = run.mode == .normal
         beginPartialSweep()
+        // The 120 Hz display is asked for at the start, for the size it boots
+        // at, and the runtime decides once whether the run has it: the run
+        // has what it granted, which is read as soon as the guest's console
+        // answers (`learnDisplayGrant`). It holds until the guest powers off;
+        // Low Power Mode, or a screen that shows less, then holds what the
+        // guest renders to what that screen shows.
+        let asksForHighRefresh = model?.asksForHighRefresh(
+            displaySize: (Int(width), Int(height))) == true
+        runHasHighRefresh = false
+        displayGrantKnown = false
+        model?.runStarted(withHighRefresh: false)
+        if normalRun { lowPowerMonitor.start() }
         updateThermal()
         if normalRun { thermalMonitor.start() }
         motionMount.begin(interface: interfaceMotionAxes)
@@ -652,19 +686,30 @@ final class LiveRuntime: RuntimeDriver {
         updateKeyboardMouse()
         let hostFeatures = Self.hostFeatures(
             hapticsAvailable: hapticsAvailable, followsDeviceOrientation: model?.followsDeviceOrientation == true,
-            compassAvailable: motion.compassAvailable)
+            compassAvailable: motion.compassAvailable, highRefresh: asksForHighRefresh)
         let cameraMode = cameraBootMode()
         let cameraPath = cameraDirectory.map { Self.prepareCalibrationDirectory($0) }?.path
         let bootMode: UInt32 = run.mode == .recovery ? 2 : 1
+        // Root: the release's Magisk ramdisk for every normal boot of this run;
+        // the model decided it before the start and wrote it with the guest.
+        let rootBoot = run.mode == .normal && run.guest.root.startRooted && rootRelease != nil
         let memoryMiB = UInt32(run.guest.memoryMiB)
+        runMemoryMiB = run.guest.memoryMiB
         let processorCount = UInt32(run.guest.cores)
         let dotsPerInch = geometry.dotsPerInch
         let adbKeyLine = adbIdentity?.publicKeyLine
         // The zone the host is in now, read at every start: the guest follows
         // it while its own automatic time zone is on.
         let timeZone = GuestTimeZone.current()
-        bootTimeZone = timeZone
         let sessionRecordPath = sessionRecord?.path
+        // What this start chose, beside the runtime's record of the session, for
+        // a bug report to say.
+        if let sessionRecord {
+            StartRecord(
+                translatedLibraries: extras.translatedLibraries.word, processID: Int(getpid()), at: Date())
+                .write(to: sessionRecord.deletingLastPathComponent().appendingPathComponent(BugReportAttachments.startRecord))
+        }
+        print("Andarium: AOT \(extras.translatedLibraries.word.rawValue)")
         // The run occupies its thread for the guest's whole life and the GPU
         // service reaches the main queue while it starts, so it must not be
         // the main thread. It owns a thread outright rather than a place on
@@ -682,7 +727,7 @@ final class LiveRuntime: RuntimeDriver {
                 width: width, height: height, dotsPerInch: dotsPerInch, memoryMiB: memoryMiB,
                 processorCount: processorCount, adbKeyLine: adbKeyLine, timeZone: timeZone,
                 sessionRecordPath: sessionRecordPath, hostFeatures: hostFeatures, cameraMode: cameraMode,
-                cameraPath: cameraPath, extras: extras
+                cameraPath: cameraPath, extras: extras, rootBoot: rootBoot
             )
             stop.end()
             Task { @MainActor in self.finished(result: result) }
@@ -695,7 +740,7 @@ final class LiveRuntime: RuntimeDriver {
         view: GuestMetalView, dataDiskPath: String, releasePath: String, dataGiB: UInt32, bootMode: UInt32,
         width: UInt32, height: UInt32, dotsPerInch: UInt32, memoryMiB: UInt32,
         processorCount: UInt32, adbKeyLine: String?, timeZone: String?, sessionRecordPath: String?,
-        hostFeatures: UInt32, cameraMode: UInt32, cameraPath: String?, extras: StartExtras
+        hostFeatures: UInt32, cameraMode: UInt32, cameraPath: String?, extras: StartExtras, rootBoot: Bool
     ) -> Int32 {
         dataDiskPath.withCString { dataDisk in
             releasePath.withCString { release in
@@ -734,10 +779,13 @@ final class LiveRuntime: RuntimeDriver {
                                 // colour data a Bayer still teaches is kept.
                                 request.android_camera_mode = cameraMode
                                 request.android_camera_calibration_path = calibration
-                                #if !APP_STORE
+                                // The translated libraries need the release stated to the
+                                // emulator; a person who turned them off keeps it out.
+                                request.android_aot_disabled = aotDisabled(for: extras.translatedLibraries)
                                 // The JIT engine, once its memory is prepared; gadgets otherwise.
                                 request.use_jit = extras.jit ? 1 : 0
-                                #endif
+                                // The release's Magisk-patched ramdisk, or its own.
+                                request.android_root = rootBoot ? 1 : 0
                                 return withUnsafePointer(to: &request) { kernarium_runtime_loader_run(view, $0) }
                             }
                         }
@@ -756,14 +804,17 @@ final class LiveRuntime: RuntimeDriver {
 
     /// What the boot request tells the guest the host has
     /// (`android_host_features`): a vibrator, on a device with haptics, a
-    /// device orientation to follow, where the guest follows it, and a
-    /// magnetic field, on a device that can give one.
+    /// device orientation to follow, where the guest follows it, a magnetic
+    /// field, on a device that can give one, and a 120 Hz display, where the
+    /// person asked for it and the screen can show it.
     nonisolated static func hostFeatures(
-        hapticsAvailable: Bool, followsDeviceOrientation: Bool = false, compassAvailable: Bool = false
+        hapticsAvailable: Bool, followsDeviceOrientation: Bool = false, compassAvailable: Bool = false,
+        highRefresh: Bool = false
     ) -> UInt32 {
         (hapticsAvailable ? UInt32(KERNARIUM_RUNTIME_ANDROID_HOST_HAPTICS) : 0)
             | (followsDeviceOrientation ? UInt32(KERNARIUM_RUNTIME_ANDROID_HOST_ORIENTATION) : 0)
             | (compassAvailable ? UInt32(KERNARIUM_RUNTIME_ANDROID_HOST_COMPASS) : 0)
+            | (highRefresh ? UInt32(KERNARIUM_RUNTIME_ANDROID_HOST_HIGH_REFRESH) : 0)
     }
 
     /// The camera mode the boot request states. iOS may have changed the
@@ -887,6 +938,36 @@ final class LiveRuntime: RuntimeDriver {
         await operations.guestProcFiles()
     }
 
+    /// The root the carried release holds, read at launch; nil for a release
+    /// with none. The run asks the runtime for the release's own Magisk ramdisk
+    /// only while `Guest.root.startRooted` says so.
+    var rootRelease: RootRelease?
+
+    var rootApkURL: URL? { rootRelease?.apkURL(in: storage.releaseDirectory) }
+
+    var guestShell: (any GuestShell)? { AdbGuestShell(operations: operations) }
+
+    /// The records of this process's runs, where the runtime writes them.
+    private lazy var runRecord: RunRecord? = {
+        guard let sessionRecord, sessionRecord.lastPathComponent == BugReportAttachments.sessionRecord else { return nil }
+        return RunRecord(in: sessionRecord.deletingLastPathComponent())
+    }()
+
+    func currentSessionRecord() -> SessionRecord? { runRecord?.read() }
+
+    func retireRunRecord() { runRecord?.retire() }
+
+    var retiredAnEarlierRun: Bool { runRecord?.retiredAnEarlierRun ?? false }
+
+    func installRootApp() async throws {
+        guard let release = rootRelease else { throw CancellationError() }
+        let folder = storage.releaseDirectory
+        try await operations.installReleaseApk(
+            name: (release.apkPath as NSString).lastPathComponent,
+            open: { try release.openApk(in: folder, capacity: ApkInstallOperation.chunkBytes) },
+            update: { _ in })
+    }
+
     func installApk(
         at url: URL, bypassLowTargetSdkBlock: Bool, update: @escaping @Sendable (BusyUpdate) -> Void
     ) async throws -> ApkInstallOutcome {
@@ -917,6 +998,31 @@ final class LiveRuntime: RuntimeDriver {
 
     func isOldAppOpen(_ package: String) async -> Bool? {
         await oldApps.isOpen(package: package)
+    }
+
+    // MARK: Add to Home Screen
+
+    /// The image's `kernarium_apps` tool, over the application's own adb channel.
+    var androidAppsTool: (any AndroidAppsTool)? {
+        AndroidAppsCommands(shell: AdbGuestShell(operations: operations))
+    }
+
+    /// Android is ready for an app when its boot is complete, its storage is up,
+    /// a home activity resolves and its first-run setup is not on the screen.
+    /// The guest is asked only while it is awake (a guest being resumed is not
+    /// asked), and the wait counts the guest's running time, so the time the
+    /// application spends in the background does not run it out.
+    func awaitAndroidReady(homeReached: Bool) async -> AndroidAppReadiness.Outcome {
+        let shell = AdbGuestShell(operations: operations)
+        let clock = clock
+        return await AndroidAppReadiness.wait(
+            check: { [weak self] in
+                guard let self, pause.guestIsAwake else { return .notYet }
+                return await AndroidAppReadiness.check(
+                    shell: shell, storageReady: { await self.storageReady() }, homeReached: homeReached)
+            },
+            now: { clock.now },
+            sleep: { try? await Task.sleep(for: $0) })
     }
 
     func sendSms(_ request: GuestSmsRequest) async -> GuestSmsChannel.Outcome {
@@ -988,6 +1094,9 @@ final class LiveRuntime: RuntimeDriver {
 
     private func reached(_ milestones: [BootMilestone], bootCompleted: Bool, recoveryStarted: Bool) {
         guard let model else { return }
+        // The guest's display exists, so the runtime has decided what it
+        // granted the run: before the screen the run is shown on is.
+        learnDisplayGrant()
         // The guest console answers, so the emulator exists and takes requests
         // for the keyboard and the mouse.
         if !inputRunReady {
@@ -1015,8 +1124,7 @@ final class LiveRuntime: RuntimeDriver {
 
     func guestRestarted(_ event: GuestRestartEvent) {
         print("Andarium: \(event)")
-        guard case let .began(restartCount) = event, let model else { return }
-        model.guestRestartsCounted(restartCount)
+        guard case .began = event, let model else { return }
         // The boot that follows is another one: it ends an update only by
         // reaching sys.boot_completed itself, and its console is read afresh.
         reachedBootCompleted = false
@@ -1060,6 +1168,10 @@ final class LiveRuntime: RuntimeDriver {
         updateSpaceWatch()
         updateThermal()
         thermalMonitor.stop()
+        // A run that has ended holds nothing: the hold goes with the grant.
+        runHasHighRefresh = false
+        displayGrantKnown = false
+        lowPowerMonitor.stop()
         stopThermalObservation()
         kernarium_runtime_loader_set_restart_handler(nil)
         kernarium_runtime_loader_set_console_output_handler(nil)
@@ -1070,9 +1182,7 @@ final class LiveRuntime: RuntimeDriver {
         geometry = nil
         launching = false
         UIApplication.shared.isIdleTimerDisabled = false
-        #if !APP_STORE
         print(ConsoleReport.runtimeReturned(result))
-        #endif
         // A start that reached sys.boot_completed and ended with Android's own
         // power-off is a completed one (`lastCompleted`); the pending update it
         // may have started ended when the start booted.
@@ -1084,10 +1194,23 @@ final class LiveRuntime: RuntimeDriver {
         // The run wrote to the data disk, so the device has less free space
         // than before it.
         model?.host.freeStorageBytes = freeSpace()
-        let loop = result == Int32(KERNARIUM_RUNTIME_RESULT_RESTART_LOOP)
         let stopped = userStopped
         userStopped = false
-        model?.runEnded(RunEnd(result: result, restartedInALoop: loop, stoppedByUser: stopped), uptimeSeconds: uptime)
+        model?.runEnded(
+            Self.runEnd(result: result, memoryMiB: runMemoryMiB, stoppedByUser: stopped), uptimeSeconds: uptime)
+    }
+
+    /// How a run that returned `result` ended, as the screens tell it.
+    /// `memoryMiB` is the size the run asked for. The runtime says the host
+    /// would not give the guest's memory with a result of its own: the run
+    /// never started its kernel, and a smaller size is what starts. A bare
+    /// out-of-memory status of the library (-2) is not that.
+    static func runEnd(result: Int32, memoryMiB: Int, stoppedByUser: Bool) -> RunEnd {
+        RunEnd(
+            result: result,
+            restartedInALoop: result == Int32(KERNARIUM_RUNTIME_RESULT_RESTART_LOOP),
+            stoppedByUser: stoppedByUser,
+            memoryRefusedMiB: result == Int32(KERNARIUM_RUNTIME_RESULT_MEMORY_REFUSED) ? memoryMiB : nil)
     }
 
     // MARK: Keys
@@ -1131,6 +1254,9 @@ final class LiveRuntime: RuntimeDriver {
     /// per turn, and the mount restarts the sensors only when it moves.
     func sceneGeometryDidChange() {
         guard normalRun else { return }
+        // The scene may have moved to another screen, which shows a different
+        // number of frames a second than the last one did.
+        updateSixtyHertzHold()
         updateGuestRotation()
     }
 
@@ -1245,7 +1371,6 @@ final class LiveRuntime: RuntimeDriver {
         keyboardMouse.setPointerAsTouch(on)
     }
 
-    #if !APP_STORE
     /// A UI test's launch (`InputProbeLaunch`) has no guest: the session is
     /// treated as one whose run has started, so the guest's keyboard and mouse
     /// can be exercised. Nothing else of a run (rotation, sensors, haptics)
@@ -1266,7 +1391,6 @@ final class LiveRuntime: RuntimeDriver {
         updateThermal()
         thermalMonitor.start()
     }
-    #endif
 
     func pointerLockDidChange(_ locked: Bool) {
         keyboardMouse.pointerLockChanged(locked)
@@ -1418,19 +1542,50 @@ final class LiveRuntime: RuntimeDriver {
     // Two readers of the thermal state. The guest's thermal HAL is told how
     // hot the device is in every build (`ThermalSession`). The state and the
     // uptime also go to the console for the iPad harness
-    // (`Shared/ConsoleReport.swift`); an App Store build prints neither line
-    // and reads no system uptime.
+    // (`Shared/ConsoleReport.swift`).
+
+    /// Reads what the runtime granted the run's display, once: the 120 Hz
+    /// display (the screen of the display's own view, the host and the size
+    /// were checked at the start, once, for everything that depends on it) or
+    /// the 60 Hz one. The run has that, whatever the start asked, and so does
+    /// the hold.
+    private func learnDisplayGrant() {
+        guard runActive, !displayGrantKnown, let rate = Self.displayRefreshReading() else { return }
+        displayGrantKnown = true
+        runHasHighRefresh = rate >= 120
+        model?.runStarted(withHighRefresh: runHasHighRefresh)
+        updateSixtyHertzHold()
+    }
+
+    /// Android is held to 60 Hz while the run has the 120 Hz display and what
+    /// the screen shows is 60 at the most: iOS in Low Power Mode, or a screen
+    /// the window moved to that shows less than 100 frames a second.
+    private func updateSixtyHertzHold() {
+        thermal.setSixtyHertzHold(
+            HighRefresh.holdsAtSixty(
+                displayIs120: runHasHighRefresh, lowPowerMode: lowPowerModeOn,
+                screenMaximumFramesPerSecond: model?.screenMaximumFramesPerSecond ?? 60))
+    }
+
+    /// The rate the runtime granted the run's display, nil while there is no
+    /// display (before the guest's kernel starts).
+    private nonisolated static func displayRefreshReading() -> UInt32? {
+        var reading = kernarium_runtime_statistics()
+        reading.struct_size = UInt32(MemoryLayout<kernarium_runtime_statistics>.size)
+        guard kernarium_runtime_loader_read_statistics(&reading) == 0, reading.display_refresh_hz != 0 else {
+            return nil
+        }
+        return reading.display_refresh_hz
+    }
 
     /// The guest's thermal HAL is told while a normal run goes on; Recovery
     /// has none.
     private func updateThermal() {
         thermal.setLimit(model?.heatLimitOn ?? true)
-        #if !APP_STORE
         if thermalProbe {
             thermal.update(running: true, booted: true)
             return
         }
-        #endif
         thermal.update(running: normalRun, booted: reachedBootCompleted)
     }
 
@@ -1443,42 +1598,32 @@ final class LiveRuntime: RuntimeDriver {
     /// Android starts to lower its frame rate: the first time in the run that
     /// the device is hot enough and the HAL has heard of it.
     private func thermalCapStarted() {
-        #if !APP_STORE
         guard runActive, normalRun || thermalProbe else { return }
-        #else
-        guard runActive, normalRun else { return }
-        #endif
         model?.thermalCapStarted()
     }
 
-    #if !APP_STORE
     private func reportThermalState(_ phase: ConsoleReport.ThermalPhase) {
         print(ConsoleReport.thermal(
             phase: phase, state: ProcessInfo.processInfo.thermalState,
             uptime: ProcessInfo.processInfo.systemUptime, heatLimitOn: model?.heatLimitOn ?? true
         ))
     }
-    #endif
 
     private func startThermalObservation() {
-        #if !APP_STORE
         reportThermalState(.start)
         thermalObserver = NotificationCenter.default.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.reportThermalState(.change) }
         }
-        #endif
     }
 
     private func stopThermalObservation() {
-        #if !APP_STORE
         reportThermalState(.finish)
         if let thermalObserver {
             NotificationCenter.default.removeObserver(thermalObserver)
             self.thermalObserver = nil
         }
-        #endif
     }
 
     // MARK: Free space
@@ -1631,9 +1776,7 @@ final class LiveRuntime: RuntimeDriver {
     private func observeLifecycle() {
         let edges: [(Notification.Name, @MainActor (LiveRuntime) -> Void)] = [
             (UIApplication.willResignActiveNotification, {
-                #if !APP_STORE
                 print(ConsoleReport.application(active: false))
-                #endif
                 $0.active = false
                 $0.model?.applicationActive = false
                 $0.motion.stop()
@@ -1665,12 +1808,13 @@ final class LiveRuntime: RuntimeDriver {
     /// The person may have changed the permissions or the storage while
     /// Andarium was away.
     private func didBecomeActive() {
-        #if !APP_STORE
         print(ConsoleReport.application(active: true))
-        #endif
         active = true
         updateGuestRotation()
-        if normalRun { thermalMonitor.refresh() }
+        if normalRun {
+            thermalMonitor.refresh()
+            lowPowerMonitor.refresh()
+        }
         guard let model else { return }
         model.applicationActive = true
         let free = freeSpace()

@@ -290,4 +290,43 @@ struct PreferenceKeeperTests {
             #expect(JitPreference(defaults: defaults).isOn)
         }
     }
+
+    @Test func theTranslatedLibrariesChoiceIsWrittenWhenMadeAndASecondSessionReadsIt() async throws {
+        try await withDefaults { defaults in
+            let model = model()
+            #expect(model.translatedLibrariesOn && model.translatedLibrariesToKeep == true)
+            let keeper = PreferenceKeeper(model: model, defaults: defaults)
+            keeper.start()
+
+            model.setTranslatedLibraries(false)
+            try await written(by: keeper)
+            #expect(!TranslatedLibrariesPreference(defaults: defaults).isOn)
+            // A new session starts as the person left it.
+            let next = TranslatedLibrariesPreference(defaults: defaults).launch(automated: false)
+            #expect(!next.isOn && next.keepsChanges)
+            model.setTranslatedLibraries(true)
+            try await written(by: keeper)
+            #expect(TranslatedLibrariesPreference(defaults: defaults).isOn)
+        }
+    }
+
+    @Test func aLaunchThatDecidedTheTranslatedLibrariesLeavesTheStoredChoice() async {
+        await withDefaults { defaults in
+            TranslatedLibrariesPreference(defaults: defaults).keep(false)
+            let model = model()
+            model.translatedLibrariesOn = true
+            model.translatedLibrariesDecidedByLaunch = true
+            #expect(model.translatedLibrariesToKeep == nil)
+            let keeper = PreferenceKeeper(model: model, defaults: defaults)
+            keeper.start()
+
+            model.setTranslatedLibraries(false)
+            model.setTranslatedLibraries(true)
+            model.session.showStats = true
+            await keeper.pending?.value
+            keeper.keep()
+            #expect(
+                !TranslatedLibrariesPreference(defaults: defaults).isOn, "a harness launch replaced the person's choice")
+        }
+    }
 }
