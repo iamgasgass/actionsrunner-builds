@@ -159,8 +159,12 @@ final class GuestRuntime: ObservableObject {
             throw GuestError.invalidBundle
         }
 
-        if (try? MachO.needsPatch(exec)) == true {
-            do { try MachO.patch(fileAt: exec) } catch { throw GuestError.patch(error.localizedDescription) }
+        // Patch sempre (è idempotente): corregge anche app importate con versioni precedenti di CarPlayss.
+        // Se il file cambia la firma non è più valida: dlopen fallisce e l'app viene rifirmata qui sotto.
+        do {
+            try MachO.patch(fileAt: exec)
+        } catch {
+            if (try? MachO.needsPatch(exec)) == true { throw GuestError.patch(error.localizedDescription) }
         }
 
         // Da qui il codice che chiede Bundle.main riceve il bundle dell'app ospite (come LiveContainer).

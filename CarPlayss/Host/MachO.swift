@@ -164,33 +164,54 @@ enum MachO {
 
     // MARK: Patch
 
-    static func patch(fileAt url: URL) throws {
+    /// Applica la patch (idempotente). Restituisce true se il file è stato modificato.
+    @discardableResult
+    static func patch(fileAt url: URL) throws -> Bool {
         var b: [UInt8]
         do { b = try [UInt8](Data(contentsOf: url)) } catch { throw MachOError.io(error.localizedDescription) }
+        let original = b
         for slice in try arm64Slices(b) {
             try patchSlice(&b, slice: slice, executableName: url.lastPathComponent)
         }
+        guard b != original else { return false }
         do { try Data(b).write(to: url, options: .atomic) } catch { throw MachOError.io(error.localizedDescription) }
+        return true
     }
 
-    private static func replaceExecutablePath(_ b: inout [UInt8], at stringOffset: Int, maxLength: Int) {
-        let original = cString(b, stringOffset, max: maxLength)
-        guard original.hasPrefix("@executable_path") else { return }
-        let replaced = "@loader_path" + original.dropFirst("@executable_path".count)
-        let bytes = Array(replaced.utf8)
-        guard bytes.count < maxLength else { return }
-        for i in 0..<maxLength { b[stringOffset + i] = i < bytes.count ? bytes[i] : 0 }
+    private static func writeString(_ b: inout [UInt8], _ value: String, at offset: Int, maxLength: Int) -> Bool {
+        let bytes = Array(value.utf8)
+        guard bytes.count < maxLength else { return false }
+        for i in 0..<maxLength { b[offset + i] = i < bytes.count ? bytes[i] : 0 }
+        return true
     }
 
     private static func patchSlice(_ b: inout [UInt8], slice: Int, executableName: String) throws {
         let cmds = commands(b, slice: slice)
 
-        // @executable_path -> @loader_path (rpath e librerie collegate)
+        // @executable_path -> @loader_path (rpath e librerie collegate).
+        // dyld rifiuta LC_RPATH duplicati: se il nuovo percorso esiste già, si usa "@loader_path/./…" (stessa cartella).
         let dylibCommands: Set<UInt32> = [lcLoadDylib, lcLoadWeakDylib, lcReexportDylib, lcLazyLoadDylib, lcLoadUpwardDylib, lcRpath]
+        var seenRpaths = Set<String>()
         for c in cmds where dylibCommands.contains(c.cmd) {
             let strOff = Int(u32(b, c.offset + 8))
             guard strOff < c.size else { continue }
-            replaceExecutablePath(&b, at: c.offset + strOff, maxLength: c.size - strOff)
+            let at = c.offset + strOff
+            let maxLength = c.size - strOff
+            var value = cString(b, at, max: maxLength)
+            if value.hasPrefix("@executable_path") {
+                value = "@loader_path" + value.dropFirst("@executable_path".count)
+            }
+            if c.cmd == lcRpath {
+                var candidate = value
+                while seenRpaths.contains(candidate), candidate.hasPrefix("@loader_path") {
+                    candidate = "@loader_path/." + candidate.dropFirst("@loader_path".count)
+                }
+                value = candidate
+                seenRpaths.insert(value)
+            }
+            if value != cString(b, at, max: maxLength) {
+                _ = writeString(&b, value, at: at, maxLength: maxLength)
+            }
         }
 
         let filetype = u32(b, slice + 12)

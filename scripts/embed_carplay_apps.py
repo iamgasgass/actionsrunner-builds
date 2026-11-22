@@ -96,13 +96,20 @@ def signature_text(b):
 
 def patch_slice(b, s, exe_name):
     cmds = commands(b, s)
+    seen_rpaths = set()
     for cmd, off, size in cmds:
         if cmd in DYLIB_COMMANDS:
             str_off = u32(b, off + 8)
             start = off + str_off
             raw = bytes(b[start:off + size]).split(b"\0", 1)[0]
-            if raw.startswith(b"@executable_path"):
-                new = b"@loader_path" + raw[len(b"@executable_path"):]
+            new = raw
+            if new.startswith(b"@executable_path"):
+                new = b"@loader_path" + new[len(b"@executable_path"):]
+            if cmd == 0x8000001C:  # LC_RPATH: dyld rifiuta i duplicati
+                while new in seen_rpaths and new.startswith(b"@loader_path"):
+                    new = b"@loader_path/." + new[len(b"@loader_path"):]
+                seen_rpaths.add(new)
+            if new != raw and len(new) < size - str_off:
                 b[start:off + size] = new + b"\0" * (size - str_off - len(new))
 
     if u32(b, s + 12) != MH_EXECUTE:
