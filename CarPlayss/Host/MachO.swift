@@ -192,6 +192,20 @@ enum MachO {
         return u32(b, 0) == mhMagic64 || [fatMagic, fatMagic64].contains(u32be(b, 0))
     }
 
+    /// Tutti i file Mach-O del bundle (percorsi relativi), esclusi i link simbolici.
+    static func machOFiles(in appURL: URL) -> [URL] {
+        guard let walker = FileManager.default.enumerator(at: appURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+            return []
+        }
+        var result: [URL] = []
+        for case let url as URL in walker {
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values?.isRegularFile == true, values?.isSymbolicLink != true, isMachO(url) else { continue }
+            result.append(url)
+        }
+        return result
+    }
+
     /// Patch di tutto il bundle: eseguibile principale + ogni dylib/framework/tweak iniettato.
     /// "@executable_path" diventa "@loader_path" più i "/.." necessari per risalire alla radice dell'app.
     @discardableResult

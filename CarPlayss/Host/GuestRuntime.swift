@@ -8,6 +8,7 @@ enum GuestError: LocalizedError {
     case patch(String)
     case load(String)
     case signing(String)
+    case needsSigning
     case noCarPlayEntry
 
     var errorDescription: String? {
@@ -18,6 +19,8 @@ enum GuestError: LocalizedError {
             return "Impossibile preparare l'eseguibile: \(m)"
         case .load(let m):
             return "Caricamento non riuscito.\n\n\(m)"
+        case .needsSigning:
+            return "Il codice dell'app deve essere firmato."
         case .signing(let m):
             return "Il codice dell'app non è firmato e non è stato possibile firmarlo.\n\n\(m)\n\nSu iOS 26 LiveContainer non permette di caricare codice non firmato nemmeno con JIT: serve la modalità JIT-less (certificato importato in LiveContainer). In alternativa metti l'IPA nella cartella EmbeddedApps del repository e ricompila."
         case .noCarPlayEntry:
@@ -134,6 +137,13 @@ final class GuestRuntime: ObservableObject {
             sessions[app.id] = session
             CrashGuard.finished(app: app)
             loading.remove(app.id)
+        } catch GuestError.needsSigning {
+            guard allowSigning else {
+                errors[app.id] = GuestError.signing("La firma non è stata applicata a tutti i file.").localizedDescription
+                loading.remove(app.id)
+                return
+            }
+            sign(app, reason: "")
         } catch GuestError.load(let message) where message.contains("code signature") || message.contains("signature") {
             CrashGuard.failed(app: app)
             guard allowSigning else {
@@ -141,20 +151,25 @@ final class GuestRuntime: ObservableObject {
                 loading.remove(app.id)
                 return
             }
-            // Firma con il certificato di LiveContainer e riprova una volta.
-            CPSLiveContainer.signApp(atPath: app.bundleURL.path) { [weak self] ok, error in
-                guard let self = self else { return }
-                if ok {
-                    self.attempt(app, allowSigning: false)
-                } else {
-                    self.errors[app.id] = GuestError.signing(error ?? message).localizedDescription
-                    self.loading.remove(app.id)
-                }
-            }
+            sign(app, reason: message)
         } catch {
             errors[app.id] = error.localizedDescription
             loading.remove(app.id)
             CrashGuard.failed(app: app)
+        }
+    }
+
+    /// Firma con il certificato di LiveContainer, salva l'impronta e riprova una volta.
+    private func sign(_ app: GuestApp, reason: String) {
+        CPSLiveContainer.signApp(atPath: app.bundleURL.path) { [weak self] ok, error in
+            guard let self = self else { return }
+            if ok {
+                SignStamp.write(app.bundleURL)
+                self.attempt(app, allowSigning: false)
+            } else {
+                self.errors[app.id] = GuestError.signing(error ?? reason).localizedDescription
+                self.loading.remove(app.id)
+            }
         }
     }
 
@@ -175,6 +190,13 @@ final class GuestRuntime: ObservableObject {
             try MachO.patchBundle(at: app.bundleURL, executableName: exec.lastPathComponent)
         } catch {
             if (try? MachO.needsPatch(exec)) == true { throw GuestError.patch(error.localizedDescription) }
+        }
+
+        // App importate: la firma deve coprire i file così come sono ora. Una pagina modificata dopo la firma
+        // fa chiudere il processo con SIGKILL (non intercettabile), quindi si rifirma PRIMA del caricamento.
+        if app.source == .imported, CPSLiveContainer.isHostedInLiveContainer, !SignStamp.isValid(app.bundleURL) {
+            CrashGuard.failed(app: app)
+            throw GuestError.needsSigning
         }
 
         // Da qui il codice che chiede Bundle.main riceve il bundle dell'app ospite (come LiveContainer).

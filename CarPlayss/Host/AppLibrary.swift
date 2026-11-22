@@ -271,6 +271,7 @@ final class AppLibrary: ObservableObject {
             guard let self = self else { return }
             self.isImporting = false
             if ok {
+                SignStamp.write(installed.url)
                 self.message = "\(installed.name) installata e firmata."
             } else {
                 self.message = "\(installed.name) installata, ma la firma non è riuscita: \(error ?? "errore sconosciuto")"
