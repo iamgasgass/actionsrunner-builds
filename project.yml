@@ -57,12 +57,24 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
-          # CarPlay (app di navigazione). La scena del telefono resta quella di SwiftUI.
+          # CarPlay (app di navigazione): schermo principale, widget della Dashboard e quadro strumenti.
+          # La scena del telefono resta quella di SwiftUI.
           UISceneConfigurations:
             CPTemplateApplicationSceneSessionRoleApplication:
               - UISceneClassName: CPTemplateApplicationScene
                 UISceneConfigurationName: CarPlay
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlaySceneDelegate
+            CPTemplateApplicationDashboardSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationDashboardScene
+                UISceneConfigurationName: CarPlay-Dashboard
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlayDashboardSceneDelegate
+            CPTemplateApplicationInstrumentClusterSceneSessionRoleApplication:
+              - UISceneClassName: CPTemplateApplicationInstrumentClusterScene
+                UISceneConfigurationName: CarPlay-Cluster
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).CarPlayInstrumentClusterSceneDelegate
+        # mappa nella Dashboard di CarPlay e nel quadro strumenti dell'auto
+        CPSupportsDashboardNavigationScene: true
+        CPSupportsInstrumentClusterNavigationScene: true
         NSLocationWhenInUseUsageDescription: "GassMaps usa la tua posizione per mostrarti sulla mappa, calcolare i percorsi e trovare i luoghi vicini."
         NSLocationAlwaysAndWhenInUseUsageDescription: "GassMaps usa la tua posizione per la navigazione."
         NSMicrophoneUsageDescription: "GassMaps usa il microfono per la ricerca vocale."

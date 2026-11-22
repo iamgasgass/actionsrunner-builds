@@ -30,6 +30,10 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     private var filter = KalmanLocationFilter()
     private var previous: CLLocation?
     private var navigating = false
+    /// CarPlay collegato: la posizione continua ad arrivare anche col telefono bloccato
+    private var carPlayActive = false
+    /// sorgenti di posizione delle mappe di CarPlay (schermo principale, widget del cruscotto, quadro strumenti)
+    private let extraFeeds = NSHashTable<MapLocationFeed>.weakObjects()
 
     override init() {
         super.init()
@@ -61,14 +65,40 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         manager.requestTemporaryFullAccuracyAuthorization(withPurposeKey: "Navigation")
     }
 
+    /// Nuova sorgente di posizione filtrata per una mappa di CarPlay (ogni mappa ne vuole una sua)
+    func makeMapFeed() -> MapLocationFeed {
+        let f = MapLocationFeed()
+        f.owner = self
+        f.authorizationStatus = manager.authorizationStatus
+        f.accuracyAuthorization = manager.accuracyAuthorization
+        if let l = location { f.forward(locations: [l]) }
+        extraFeeds.add(f)
+        return f
+    }
+
+    private var allFeeds: [MapLocationFeed] { [mapFeed] + extraFeeds.allObjects }
+
+    /// CarPlay collegato/scollegato: con l'auto la posizione serve anche a telefono bloccato e app in background
+    func setCarPlay(_ on: Bool) {
+        carPlayActive = on
+        applyBackgroundMode()
+        if on { start() }
+    }
+
+    private func applyBackgroundMode() {
+        let background = navigating || carPlayActive
+        manager.activityType = (navigating || carPlayActive) ? .automotiveNavigation : .otherNavigation
+        manager.allowsBackgroundLocationUpdates = background
+        manager.showsBackgroundLocationIndicator = background
+        manager.pausesLocationUpdatesAutomatically = false
+    }
+
     /// Durante la navigazione: aggiornamenti anche con lo schermo spento e profilo "guida"
     func setNavigating(_ on: Bool) {
         navigating = on
         manager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
         manager.distanceFilter = kCLDistanceFilterNone
-        manager.activityType = on ? .automotiveNavigation : .otherNavigation
-        manager.allowsBackgroundLocationUpdates = on
-        manager.showsBackgroundLocationIndicator = on
+        applyBackgroundMode()
         manager.pausesLocationUpdatesAutomatically = false
         requestFullAccuracyIfNeeded()
         manager.startUpdatingLocation()
@@ -77,7 +107,9 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         DispatchQueue.main.async {
             self.authorization = manager.authorizationStatus
-            self.mapFeed.authorizationChanged(manager.authorizationStatus, accuracy: manager.accuracyAuthorization)
+            for feed in self.allFeeds {
+                feed.authorizationChanged(manager.authorizationStatus, accuracy: manager.accuracyAuthorization)
+            }
         }
         if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
             requestFullAccuracyIfNeeded()
@@ -87,7 +119,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateHeading newHeading: CLHeading) {
-        mapFeed.forward(heading: newHeading)
+        for feed in allFeeds { feed.forward(heading: newHeading) }
         let a = newHeading.headingAccuracy
         let bucket: Double = a < 0 ? -1 : (a <= 15 ? 10 : (a <= 35 ? 30 : 60))
         let old = compassAccuracy
@@ -115,7 +147,7 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
             self.accuracy = loc.horizontalAccuracy
             self.onUpdate?(loc)
         }
-        mapFeed.forward(locations: [loc])
+        for feed in allFeeds { feed.forward(locations: [loc]) }
         if lastGeocoded == nil || loc.distance(from: lastGeocoded!) > 250 {
             lastGeocoded = loc
             geocoder.reverseGeocodeLocation(loc, preferredLocale: Locale(identifier: "it_IT")) { [weak self] placemarks, _ in
