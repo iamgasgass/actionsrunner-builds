@@ -245,7 +245,7 @@ final class AppLibrary: ObservableObject {
 
         let info = NSDictionary(contentsOf: appURL.appendingPathComponent("Info.plist")) as? [String: Any] ?? [:]
         guard let exec = info["CFBundleExecutable"] as? String else { throw LibraryError.failed("Info.plist senza CFBundleExecutable.") }
-        do { try MachO.patch(fileAt: appURL.appendingPathComponent(exec)) } catch {
+        do { try MachO.patchBundle(at: appURL, executableName: exec) } catch {
             throw LibraryError.failed("Patch dell'eseguibile non riuscita: \(error.localizedDescription)")
         }
 

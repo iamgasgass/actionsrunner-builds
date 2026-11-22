@@ -164,18 +164,52 @@ enum MachO {
 
     // MARK: Patch
 
-    /// Applica la patch (idempotente). Restituisce true se il file è stato modificato.
+    /// Applica la patch all'eseguibile principale (idempotente). Restituisce true se il file è stato modificato.
     @discardableResult
     static func patch(fileAt url: URL) throws -> Bool {
+        try patch(fileAt: url, isMain: true, depth: 0)
+    }
+
+    @discardableResult
+    static func patch(fileAt url: URL, isMain: Bool, depth: Int) throws -> Bool {
         var b: [UInt8]
         do { b = try [UInt8](Data(contentsOf: url)) } catch { throw MachOError.io(error.localizedDescription) }
         let original = b
         for slice in try arm64Slices(b) {
-            try patchSlice(&b, slice: slice, executableName: url.lastPathComponent)
+            try patchSlice(&b, slice: slice, executableName: url.lastPathComponent, isMain: isMain, depth: depth)
         }
         guard b != original else { return false }
         do { try Data(b).write(to: url, options: .atomic) } catch { throw MachOError.io(error.localizedDescription) }
         return true
+    }
+
+    /// true se il file inizia con un magic Mach-O (thin 64 bit o fat).
+    static func isMachO(_ url: URL) -> Bool {
+        guard let h = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? h.close() }
+        guard let d = try? h.read(upToCount: 4), d.count == 4 else { return false }
+        let b = [UInt8](d)
+        return u32(b, 0) == mhMagic64 || [fatMagic, fatMagic64].contains(u32be(b, 0))
+    }
+
+    /// Patch di tutto il bundle: eseguibile principale + ogni dylib/framework/tweak iniettato.
+    /// "@executable_path" diventa "@loader_path" più i "/.." necessari per risalire alla radice dell'app.
+    @discardableResult
+    static func patchBundle(at appURL: URL, executableName: String) throws -> Bool {
+        var changed = try patch(fileAt: appURL.appendingPathComponent(executableName))
+        let root = appURL.standardizedFileURL.path
+        guard let walker = FileManager.default.enumerator(at: appURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
+            return changed
+        }
+        for case let url as URL in walker {
+            let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values?.isRegularFile == true, values?.isSymbolicLink != true else { continue }
+            let path = url.standardizedFileURL.path
+            guard path != root + "/" + executableName, isMachO(url) else { continue }
+            let relativeDir = String(path.dropFirst(root.count)).split(separator: "/").dropLast()
+            if (try? patch(fileAt: url, isMain: false, depth: relativeDir.count)) == true { changed = true }
+        }
+        return changed
     }
 
     private static func writeString(_ b: inout [UInt8], _ value: String, at offset: Int, maxLength: Int) -> Bool {
@@ -185,7 +219,8 @@ enum MachO {
         return true
     }
 
-    private static func patchSlice(_ b: inout [UInt8], slice: Int, executableName: String) throws {
+    private static func patchSlice(_ b: inout [UInt8], slice: Int, executableName: String, isMain: Bool, depth: Int) throws {
+        let loaderRoot = "@loader_path" + String(repeating: "/..", count: depth)
         let cmds = commands(b, slice: slice)
 
         // @executable_path -> @loader_path (rpath e librerie collegate).
@@ -199,7 +234,7 @@ enum MachO {
             let maxLength = c.size - strOff
             var value = cString(b, at, max: maxLength)
             if value.hasPrefix("@executable_path") {
-                value = "@loader_path" + value.dropFirst("@executable_path".count)
+                value = loaderRoot + value.dropFirst("@executable_path".count)
             }
             if c.cmd == lcRpath {
                 var candidate = value
@@ -215,7 +250,7 @@ enum MachO {
         }
 
         let filetype = u32(b, slice + 12)
-        guard filetype == mhExecute else { return }
+        guard isMain, filetype == mhExecute else { return }
 
         // MH_EXECUTE -> MH_DYLIB
         set32(&b, slice + 12, mhDylib)

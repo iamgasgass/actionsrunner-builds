@@ -864,6 +864,17 @@ static void CPSInstallCarPlayForwarding(void) {
     return nil;
 }
 
++ (BOOL)setExecutablePath:(NSString *)path {
+    void (*overwrite)(const char *) = (void (*)(const char *))dlsym(RTLD_DEFAULT, "overwriteExecPath");
+    if (!overwrite) return NO;
+    // dyld conserva il puntatore: la stringa deve restare valida per sempre
+    const char *copy = strdup(path.fileSystemRepresentation);
+    @try { overwrite(copy); } @catch (id e) { return NO; }
+    const char **(*processPath)(void) = (const char **(*)(void))dlsym(RTLD_DEFAULT, "_CFGetProcessPath");
+    if (processPath) { const char **p = processPath(); if (p) *p = copy; }
+    return YES;
+}
+
 + (void)signAppAtPath:(NSString *)path completion:(void (^)(BOOL, NSString *))completion {
     NSString *reason = [self signingUnavailableReason];
     if (reason) {

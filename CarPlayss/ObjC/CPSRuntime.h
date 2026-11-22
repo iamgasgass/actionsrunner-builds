@@ -104,6 +104,9 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 @property (class, nonatomic, readonly) BOOL isHostedInLiveContainer;
 /// nil se la firma è possibile, altrimenti il motivo.
 @property (class, nonatomic, readonly, nullable) NSString *signingUnavailableReason;
+/// Fa puntare @executable_path all'eseguibile dell'app ospite (overwriteExecPath di LiveContainer).
+/// Restituisce NO se non è disponibile (CarPlayss fuori da LiveContainer).
++ (BOOL)setExecutablePath:(NSString *)path NS_SWIFT_NAME(setExecutablePath(_:));
 + (void)signAppAtPath:(NSString *)path
            completion:(void (^)(BOOL success, NSString *_Nullable error))completion NS_SWIFT_NAME(signApp(atPath:completion:));
 @end

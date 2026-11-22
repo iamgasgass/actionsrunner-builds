@@ -94,7 +94,8 @@ def signature_text(b):
     return text
 
 
-def patch_slice(b, s, exe_name):
+def patch_slice(b, s, exe_name, is_main=True, depth=0):
+    loader_root = b"@loader_path" + b"/.." * depth
     cmds = commands(b, s)
     seen_rpaths = set()
     for cmd, off, size in cmds:
@@ -104,7 +105,7 @@ def patch_slice(b, s, exe_name):
             raw = bytes(b[start:off + size]).split(b"\0", 1)[0]
             new = raw
             if new.startswith(b"@executable_path"):
-                new = b"@loader_path" + new[len(b"@executable_path"):]
+                new = loader_root + new[len(b"@executable_path"):]
             if cmd == 0x8000001C:  # LC_RPATH: dyld rifiuta i duplicati
                 while new in seen_rpaths and new.startswith(b"@loader_path"):
                     new = b"@loader_path/." + new[len(b"@loader_path"):]
@@ -112,7 +113,7 @@ def patch_slice(b, s, exe_name):
             if new != raw and len(new) < size - str_off:
                 b[start:off + size] = new + b"\0" * (size - str_off - len(new))
 
-    if u32(b, s + 12) != MH_EXECUTE:
+    if not is_main or u32(b, s + 12) != MH_EXECUTE:
         return
     set32(b, s + 12, MH_DYLIB)
     flags = (u32(b, s + 24) | MH_NO_REEXPORTED_DYLIBS) & ~MH_PIE
@@ -197,6 +198,25 @@ def main():
                 for s in arm64_slices(data):
                     patch_slice(data, s, exe_name)
                 open(exe, "wb").write(data)
+                # tutte le altre dylib/framework/tweak del bundle: @executable_path -> @loader_path/..
+                for dirpath, _, files in os.walk(app_dir):
+                    for fname in files:
+                        path = os.path.join(dirpath, fname)
+                        if path == exe or os.path.islink(path):
+                            continue
+                        with open(path, "rb") as fh:
+                            head = fh.read(4)
+                        if len(head) < 4 or (struct.unpack("<I", head)[0] != MH_MAGIC_64
+                                             and struct.unpack(">I", head)[0] not in (FAT_MAGIC, FAT_MAGIC_64)):
+                            continue
+                        depth = len(os.path.relpath(dirpath, app_dir).split(os.sep)) if dirpath != app_dir else 0
+                        try:
+                            other = bytearray(open(path, "rb").read())
+                            for sl in arm64_slices(other):
+                                patch_slice(other, sl, fname, is_main=False, depth=depth)
+                            open(path, "wb").write(other)
+                        except ValueError:
+                            pass
                 bundle_id = info.get("CFBundleIdentifier", os.path.splitext(ipa)[0])
                 dest = os.path.join(out_dir, bundle_id + ".app")
                 shutil.rmtree(dest, ignore_errors=True)

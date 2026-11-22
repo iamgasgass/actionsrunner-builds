@@ -162,7 +162,7 @@ final class GuestRuntime: ObservableObject {
         // Patch sempre (è idempotente): corregge anche app importate con versioni precedenti di CarPlayss.
         // Se il file cambia la firma non è più valida: dlopen fallisce e l'app viene rifirmata qui sotto.
         do {
-            try MachO.patch(fileAt: exec)
+            try MachO.patchBundle(at: app.bundleURL, executableName: exec.lastPathComponent)
         } catch {
             if (try? MachO.needsPatch(exec)) == true { throw GuestError.patch(error.localizedDescription) }
         }
@@ -170,6 +170,10 @@ final class GuestRuntime: ObservableObject {
         // Da qui il codice che chiede Bundle.main riceve il bundle dell'app ospite (come LiveContainer).
         CPSHooks.markGuestEpoch()
         CPSHooks.guestBundle = bundle
+
+        // Come LiveContainer: @executable_path dell'app ospite deve puntare al suo eseguibile, non a CarPlayss
+        // (tweak e dylib iniettati come libsubstrate.dylib vengono cercati lì).
+        CPSLiveContainer.setExecutablePath(exec.path)
 
         guard dlopen(exec.path, RTLD_LAZY | RTLD_GLOBAL) != nil else {
             let message = dlerror().map { String(cString: $0) } ?? "errore sconosciuto"
