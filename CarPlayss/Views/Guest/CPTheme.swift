@@ -1,6 +1,9 @@
 import CarPlay
 import SwiftUI
 
+/// Normalizza proprietà CarPlay che in alcune versioni dell'SDK sono opzionali e in altre no.
+@inline(__always) func cpsOpt<T>(_ value: T?) -> T? { value }
+
 /// Metriche e colori dei template di sistema CarPlay (tema scuro).
 enum CP {
     static let background = Color.black
@@ -123,7 +126,7 @@ struct CPBarButtonView: View {
         Button {
             session.tap(handlerOf: button, label: "Pulsante")
         } label: {
-            if let image = button.image {
+            if let image = cpsOpt(button.image) {
                 Image(uiImage: image)
                     .renderingMode(.template)
                     .resizable()

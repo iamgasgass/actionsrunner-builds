@@ -211,12 +211,12 @@ struct CPTabBarView: View {
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        if let img = t.tabImage {
+                        if let img = cpsOpt(t.tabImage) {
                             Image(uiImage: img).renderingMode(.template).resizable().scaledToFit().frame(width: 18, height: 18)
-                        } else if t.tabTitle == nil {
+                        } else if cpsOpt(t.tabTitle) == nil {
                             Image(systemName: t.tabSystemItem.cpsSymbol).font(.system(size: 15))
                         }
-                        Text(t.tabTitle ?? t.tabSystemItem.cpsTitle)
+                        Text(cpsOpt(t.tabTitle) ?? t.tabSystemItem.cpsTitle)
                             .font(.system(size: 14, weight: .semibold))
                             .lineLimit(1)
                         if t.showsTabBadge {
@@ -247,10 +247,10 @@ struct CPListView: View {
         let isEmpty = sections.allSatisfy { $0.items.isEmpty }
         if isEmpty {
             VStack(spacing: 6) {
-                Text(list.emptyViewTitleVariants.first ?? "")
+                Text(cpsOpt(list.emptyViewTitleVariants)?.first ?? "")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white)
-                Text(list.emptyViewSubtitleVariants.first ?? "")
+                Text(cpsOpt(list.emptyViewSubtitleVariants)?.first ?? "")
                     .font(.system(size: 15))
                     .foregroundColor(CP.secondaryText)
             }
@@ -261,7 +261,7 @@ struct CPListView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
-                        if let header = section.header, !header.isEmpty {
+                        if let header = cpsOpt(section.header), !header.isEmpty {
                             Text(header)
                                 .font(CP.headerFont)
                                 .foregroundColor(CP.secondaryText)
@@ -316,12 +316,12 @@ struct CPListRow: View {
             if playingLeading { CPPlayingIndicator() }
             if let image = listItem?.image {
                 CPImage(image: image, size: CP.rowImage)
-            } else if let lead = message?.leadingConfiguration, let img = lead.leadingImage {
+            } else if let lead = message?.leadingConfiguration, let img = cpsOpt(lead.leadingImage) {
                 CPImage(image: img, size: CP.rowImage, radius: CP.rowImage / 2)
             }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(item.text ?? message?.conversationIdentifier ?? "")
+                    Text(cpsOpt(item.text) ?? cpsOpt(message?.conversationIdentifier) ?? "")
                         .font(CP.rowFont)
                         .foregroundColor(.white)
                         .lineLimit(1)
@@ -331,7 +331,7 @@ struct CPListRow: View {
                             .foregroundColor(CP.secondaryText)
                     }
                 }
-                if let detail = listItem?.detailText ?? message?.detailText, !detail.isEmpty {
+                if let detail = cpsOpt(listItem?.detailText) ?? cpsOpt(message?.detailText), !detail.isEmpty {
                     Text(detail)
                         .font(CP.detailFont)
                         .foregroundColor(CP.secondaryText)
@@ -348,7 +348,7 @@ struct CPListRow: View {
                 }
             }
             Spacer(minLength: 8)
-            if let trailing = message?.trailingText {
+            if let trailing = cpsOpt(message?.trailingText) {
                 Text(trailing).font(CP.detailFont).foregroundColor(CP.secondaryText)
             }
             if playingTrailing { CPPlayingIndicator() }
@@ -363,7 +363,7 @@ struct CPListRow: View {
     @ViewBuilder
     private func accessory(_ item: CPListItem?) -> some View {
         if let item = item {
-            if let img = item.accessoryImage {
+            if let img = cpsOpt(item.accessoryImage) {
                 CPImage(image: img, size: 20, radius: 0, template: true)
             } else {
                 switch item.accessoryType {
@@ -388,7 +388,7 @@ struct CPListRow: View {
                 session.select(row)
             } label: {
                 HStack {
-                    Text(row.text ?? "")
+                    Text(cpsOpt(row.text) ?? "")
                         .font(CP.rowFont)
                         .foregroundColor(.white)
                     Spacer()
@@ -437,11 +437,11 @@ struct CPGridView: View {
                         session.tap(handlerOf: button, label: "Griglia")
                     } label: {
                         VStack(spacing: 8) {
-                            Image(uiImage: button.image)
+                            Image(uiImage: cpsOpt(button.image) ?? UIImage())
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 56, height: 56)
-                            Text(button.titleVariants.first ?? "")
+                            Text(cpsOpt(button.titleVariants)?.first ?? "")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.white)
                                 .lineLimit(2)
@@ -474,7 +474,7 @@ struct CPInformationView: View {
                     ForEach(Array(info.items.enumerated()), id: \.offset) { _, item in
                         if info.layout == .twoColumn {
                             HStack(alignment: .top) {
-                                Text(item.title ?? "")
+                                Text(cpsOpt(item.title) ?? "")
                                     .font(.system(size: 15))
                                     .foregroundColor(CP.secondaryText)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -483,7 +483,7 @@ struct CPInformationView: View {
                             }
                         } else {
                             VStack(alignment: .leading, spacing: 3) {
-                                if let t = item.title, !t.isEmpty {
+                                if let t = cpsOpt(item.title), !t.isEmpty {
                                     Text(t).font(.system(size: 15)).foregroundColor(CP.secondaryText)
                                 }
                                 detail(item)
@@ -516,7 +516,7 @@ struct CPInformationView: View {
                 }
             }
         } else {
-            Text(item.detail ?? "")
+            Text(cpsOpt(item.detail) ?? "")
                 .font(.system(size: 17))
                 .foregroundColor(.white)
         }
@@ -549,7 +549,7 @@ struct CPContactView: View {
         let c = contact.contact
         VStack(spacing: 10) {
             Spacer(minLength: 0)
-            if let img = c.image {
+            if let img = cpsOpt(c.image) {
                 Image(uiImage: img)
                     .resizable()
                     .scaledToFill()
@@ -559,11 +559,11 @@ struct CPContactView: View {
                 Circle().fill(Color(white: 0.35)).frame(width: 96, height: 96)
                     .overlay(Image(systemName: "person.fill").font(.system(size: 44)).foregroundColor(.white))
             }
-            Text(c.name)
+            Text(cpsOpt(c.name) ?? "")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundColor(.white)
-            if let s = c.subtitle { Text(s).font(.system(size: 15)).foregroundColor(CP.secondaryText) }
-            if let i = c.informativeText { Text(i).font(.system(size: 14)).foregroundColor(CP.tertiaryText) }
+            if let s = cpsOpt(c.subtitle) { Text(s).font(.system(size: 15)).foregroundColor(CP.secondaryText) }
+            if let i = cpsOpt(c.informativeText) { Text(i).font(.system(size: 14)).foregroundColor(CP.tertiaryText) }
             HStack(spacing: 22) {
                 ForEach(Array((c.actions ?? []).enumerated()), id: \.offset) { _, action in
                     Button {
@@ -575,7 +575,7 @@ struct CPContactView: View {
                                 .frame(width: 58, height: 58)
                                 .overlay(
                                     Group {
-                                        if let img = action.image {
+                                        if let img = cpsOpt(action.image) {
                                             Image(uiImage: img).renderingMode(.template).resizable().scaledToFit().frame(width: 26, height: 26)
                                         } else {
                                             Image(systemName: symbol(for: action)).font(.system(size: 22))
@@ -583,7 +583,7 @@ struct CPContactView: View {
                                     }
                                     .foregroundColor(.white)
                                 )
-                            Text(action.title ?? "")
+                            Text(cpsOpt(action.title) ?? "")
                                 .font(.system(size: 13))
                                 .foregroundColor(.white)
                         }
@@ -685,9 +685,9 @@ struct CPPresentedView: View {
         ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
             if let alert = template as? CPAlertTemplate {
-                card(title: alert.titleVariants.first ?? "", message: nil, actions: alert.actions)
+                card(title: cpsOpt(alert.titleVariants)?.first ?? "", message: nil, actions: alert.actions)
             } else if let sheet = template as? CPActionSheetTemplate {
-                card(title: sheet.title ?? "", message: sheet.message, actions: sheet.actions)
+                card(title: cpsOpt(sheet.title) ?? "", message: cpsOpt(sheet.message), actions: sheet.actions)
             } else if let voice = template as? CPVoiceControlTemplate {
                 voiceView(voice)
             } else {
@@ -744,7 +744,7 @@ struct CPPresentedView: View {
     private func voiceView(_ voice: CPVoiceControlTemplate) -> some View {
         let state = voice.voiceControlStates.first { $0.identifier == voice.activeStateIdentifier } ?? voice.voiceControlStates.first
         return VStack(spacing: 16) {
-            if let img = state?.image {
+            if let img = cpsOpt(state?.image) {
                 Image(uiImage: img).resizable().scaledToFit().frame(width: 90, height: 90)
             } else {
                 Circle()

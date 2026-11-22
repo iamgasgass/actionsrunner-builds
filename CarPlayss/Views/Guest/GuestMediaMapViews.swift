@@ -175,7 +175,7 @@ struct CPNowPlayingView: View {
             session.tap(handlerOf: button, label: "Now Playing")
         } label: {
             Group {
-                if let image = (button as? CPNowPlayingImageButton)?.image {
+                if let image = cpsOpt((button as? CPNowPlayingImageButton)?.image) {
                     Image(uiImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 20, height: 20)
                 } else if button is CPNowPlayingPlaybackRateButton {
                     Text("1×").font(.system(size: 15, weight: .bold))
@@ -309,7 +309,7 @@ struct CPMapTemplateView: View {
                                 session.tap(handlerOf: button, label: "Pulsante mappa")
                             } label: {
                                 Group {
-                                    if let image = button.image {
+                                    if let image = cpsOpt(button.image) {
                                         Image(uiImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 22, height: 22)
                                     } else {
                                         Image(systemName: "circle")
@@ -367,7 +367,7 @@ struct CPMapTemplateView: View {
     private func maneuverRow(_ m: CPManeuver, primary: Bool) -> some View {
         let distance = (CPSHooks.estimates(for: m) ?? m.initialTravelEstimates)?.distanceRemaining
         return HStack(alignment: .top, spacing: 10) {
-            if let image = m.symbolImage {
+            if let image = cpsOpt(m.symbolImage) {
                 Image(uiImage: image).renderingMode(.template).resizable().scaledToFit()
                     .frame(width: primary ? 44 : 22, height: primary ? 44 : 22)
                     .foregroundColor(.white)
@@ -378,7 +378,7 @@ struct CPMapTemplateView: View {
                         .font(.system(size: primary ? 24 : 15, weight: .bold))
                         .foregroundColor(.white)
                 }
-                Text(m.instructionVariants.first ?? "")
+                Text(cpsOpt(m.instructionVariants)?.first ?? "")
                     .font(.system(size: primary ? 17 : 14, weight: primary ? .semibold : .regular))
                     .foregroundColor(.white)
                     .lineLimit(primary ? 3 : 1)
@@ -415,7 +415,7 @@ struct CPMapTemplateView: View {
         let config = CPSHooks.tripTextConfiguration(for: map)
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(trip.destination.name ?? "Destinazione")
+                Text(cpsOpt(trip.destination.name) ?? "Destinazione")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
@@ -457,7 +457,7 @@ struct CPMapTemplateView: View {
                     CPSObjC.send(d, NSSelectorFromString("mapTemplate:startedTrip:usingRouteChoice:"), map, trip, routes[routeIndex])
                 }
             } label: {
-                Text(config?.startButtonTitle ?? "Vai")
+                Text(cpsOpt(config?.startButtonTitle) ?? "Vai")
                     .font(.system(size: 17, weight: .semibold))
                     .frame(maxWidth: .infinity, minHeight: 40)
             }
@@ -506,11 +506,11 @@ struct CPMapTemplateView: View {
             Spacer()
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    if let img = alert.image {
+                    if let img = cpsOpt(alert.image) {
                         Image(uiImage: img).resizable().scaledToFit().frame(width: 40, height: 40)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(alert.titleVariants.first ?? "")
+                        Text(cpsOpt(alert.titleVariants)?.first ?? "")
                             .font(.system(size: 17, weight: .semibold))
                         if let s = subtitles?.first {
                             Text(s).font(.system(size: 14)).foregroundColor(CP.secondaryText)
@@ -520,7 +520,7 @@ struct CPMapTemplateView: View {
                 }
                 HStack(spacing: 8) {
                     alertButton(alert.primaryAction, prominent: true)
-                    if let secondary = alert.secondaryAction {
+                    if let secondary = cpsOpt(alert.secondaryAction) {
                         alertButton(secondary, prominent: false)
                     }
                 }
@@ -581,7 +581,7 @@ struct CPPointOfInterestView: View {
                 MapAnnotation(coordinate: pin.coordinate) {
                     Button { select(pin.id) } label: {
                         Group {
-                            if let img = points[pin.id].pinImage {
+                            if let img = cpsOpt(points[pin.id].pinImage) {
                                 Image(uiImage: img).resizable().scaledToFit().frame(width: 30, height: 30)
                             } else {
                                 Image(systemName: "mappin.circle.fill")
@@ -607,18 +607,18 @@ struct CPPointOfInterestView: View {
                     Label("Elenco", systemImage: "chevron.left")
                 }
                 .buttonStyle(CPCapsuleButtonStyle())
-                Text(p.detailTitle ?? p.title)
+                Text(cpsOpt(p.detailTitle) ?? p.title)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white)
-                if let s = p.detailSubtitle ?? p.subtitle {
+                if let s = cpsOpt(p.detailSubtitle) ?? cpsOpt(p.subtitle) {
                     Text(s).font(.system(size: 15)).foregroundColor(CP.secondaryText)
                 }
-                if let s = p.detailSummary ?? p.summary {
+                if let s = cpsOpt(p.detailSummary) ?? cpsOpt(p.summary) {
                     Text(s).font(.system(size: 14)).foregroundColor(CP.tertiaryText)
                 }
                 Spacer(minLength: 0)
-                if let b = p.primaryButton { CPTextButtonView(session: session, button: b) }
-                if let b = p.secondaryButton { CPTextButtonView(session: session, button: b) }
+                if let b = cpsOpt(p.primaryButton) { CPTextButtonView(session: session, button: b) }
+                if let b = cpsOpt(p.secondaryButton) { CPTextButtonView(session: session, button: b) }
             }
             .padding(12)
         } else {
@@ -628,10 +628,10 @@ struct CPPointOfInterestView: View {
                         Button { select(i) } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(p.title).font(CP.rowFont).foregroundColor(.white).lineLimit(1)
-                                if let s = p.subtitle {
+                                if let s = cpsOpt(p.subtitle) {
                                     Text(s).font(CP.detailFont).foregroundColor(CP.secondaryText).lineLimit(1)
                                 }
-                                if let s = p.summary {
+                                if let s = cpsOpt(p.summary) {
                                     Text(s).font(CP.detailFont).foregroundColor(CP.tertiaryText).lineLimit(1)
                                 }
                             }
