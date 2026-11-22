@@ -1,0 +1,16 @@
+# Xcode / XcodeGen
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+Support/Info.plist
+
+# Output
+Payload/
+output/
+*.ipa
+xcodebuild.log
+
+# macOS
+.DS_Store

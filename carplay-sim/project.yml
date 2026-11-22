@@ -1,0 +1,68 @@
+name: CarPlaySim
+
+options:
+  bundleIdPrefix: com.carplaysim
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  developmentLanguage: it
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    # Build unsigned: l'IPA viene firmata da LiveContainer / SideStore / AltStore
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_BITCODE: "NO"
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+
+targets:
+  CarPlaySim:
+    type: application
+    platform: iOS
+    sources:
+      - path: CarPlaySim
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.carplaysim.app
+        PRODUCT_NAME: CarPlaySim
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: "NO"
+        SUPPORTS_MACCATALYST: "NO"
+    info:
+      path: Support/Info.plist
+      properties:
+        CFBundleDisplayName: CarPlay Sim
+        CFBundleName: CarPlaySim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: it
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UIUserInterfaceStyle: Dark
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - audio
+        NSLocationWhenInUseUsageDescription: La posizione viene usata per mostrarti sulla mappa e calcolare i percorsi.
+        NSMicrophoneUsageDescription: Il microfono serve all'assistente vocale per ascoltare i comandi.
+        NSSpeechRecognitionUsageDescription: Il riconoscimento vocale trasforma i tuoi comandi in testo.
+        NSAppleMusicUsageDescription: L'accesso alla libreria musicale permette di riprodurre i tuoi brani.
