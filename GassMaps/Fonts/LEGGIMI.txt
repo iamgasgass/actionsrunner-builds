@@ -1,0 +1,5 @@
+Metti qui il font di GTA San Andreas ("Pricedown"), ad es. "pricedown bl.ttf".
+Si scarica gratis da Typodermic: https://typodermicfonts.com/pricedown/
+L'app lo trova e lo registra da sola (nessuna modifica a Info.plist necessaria):
+viene usato per la scritta GassMaps nella splash, per i nomi dei temi e per le etichette del globo dei temi GTA.
+Senza il file viene usato un font sostitutivo simile.
