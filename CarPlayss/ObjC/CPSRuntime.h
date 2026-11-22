@@ -99,6 +99,8 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 @property (class, nonatomic, readonly) NSBundle *hostBundle;
 /// Da qui in poi i comandi remoti registrati appartengono alle app ospiti.
 + (void)markGuestEpoch;
+/// UIApplication.shared.delegate restituisce `delegate` quando la chiamata arriva da codice dentro `bundlePath`.
++ (void)registerGuestAppDelegate:(id)delegate bundlePath:(NSString *)bundlePath NS_SWIFT_NAME(registerGuestAppDelegate(_:bundlePath:));
 
 + (BOOL)invokeRemoteCommand:(MPRemoteCommand *)command NS_SWIFT_NAME(invoke(_:));
 + (BOOL)invokeChangePlaybackPosition:(NSTimeInterval)position NS_SWIFT_NAME(invokeChangePlaybackPosition(_:));

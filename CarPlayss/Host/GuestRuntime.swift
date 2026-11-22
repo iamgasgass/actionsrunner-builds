@@ -72,6 +72,7 @@ final class GuestSession: ObservableObject, Identifiable {
 
     private var timer: Timer?
     private var observer: NSObjectProtocol?
+    private var extraObservers: [NSObjectProtocol] = []
 
     var id: String { app.id }
 
@@ -82,6 +83,17 @@ final class GuestSession: ObservableObject, Identifiable {
         scene = CPSTemplateApplicationScene.make(controller: controller, window: window)
         controller.cps_onChange = { [weak self] in self?.refresh() }
         controller.cps_onLog = { [weak self] msg in self?.note("App → \(msg)") }
+        // Eventi di React Native (caricamento del JavaScript), utili a capire perché un'app RN non imposta template
+        for name in ["RCTJavaScriptWillStartLoadingNotification", "RCTJavaScriptDidLoadNotification",
+                     "RCTJavaScriptDidFailToLoadNotification", "RCTContentDidAppearNotification",
+                     "RCTInstanceDidLoadBundle", "RCTJavaScriptWillStartExecutingNotification"] {
+            let token = NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] note in
+                var text = "React Native: \(name)"
+                if let error = note.userInfo?["error"] as? NSError { text += " — \(error.localizedDescription)" }
+                self?.note(text)
+            }
+            extraObservers.append(token)
+        }
         observer = NotificationCenter.default.addObserver(forName: .cpsStateDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.refresh()
         }
@@ -317,6 +329,7 @@ final class GuestRuntime: ObservableObject {
                 session.guest("AppDelegate") {
                     if let delegate = CPSObjC.instantiate(cls) as? NSObject {
                         session.appDelegate = delegate
+                        CPSHooks.registerGuestAppDelegate(delegate, bundlePath: app.bundleURL.path)
                         _ = CPSObjC.sendLaunch(delegate, NSSelectorFromString("application:willFinishLaunchingWithOptions:"), application: UIApplication.shared)
                         _ = CPSObjC.sendLaunch(delegate, NSSelectorFromString("application:didFinishLaunchingWithOptions:"), application: UIApplication.shared)
                         session.note("CarPlayss → AppDelegate \(NSStringFromClass(cls)) didFinishLaunching")

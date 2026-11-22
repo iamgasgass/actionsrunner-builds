@@ -716,7 +716,43 @@ static void CPSInstallCarPlayForwarding(void) {
     free((void *)names);
 }
 
+#pragma mark UIApplication.delegate per le app ospiti
+
+static NSMutableDictionary<NSString *, id> *gGuestAppDelegates; // percorso bundle normalizzato -> AppDelegate
+static IMP o_appDelegate;
+
+static NSString *CPSNormalizedImagePath(const char *path) {
+    NSString *p = @(path);
+    if ([p hasPrefix:@"/private/"]) p = [p substringFromIndex:8];
+    return p;
+}
+
+// Il codice ospite che fa `UIApplication.shared.delegate as? AppDelegate` riceve il proprio AppDelegate;
+// UIKit, SwiftUI e CarPlayss continuano a ricevere quello di CarPlayss.
+static id h_appDelegate(id self, SEL _cmd) {
+    void *caller = __builtin_return_address(0);
+    if (gGuestAppDelegates.count && caller) {
+        Dl_info info;
+        if (dladdr(caller, &info) && info.dli_fname) {
+            NSString *image = CPSNormalizedImagePath(info.dli_fname);
+            @synchronized (gGuestAppDelegates) {
+                for (NSString *bundle in gGuestAppDelegates) {
+                    if ([image hasPrefix:bundle]) return gGuestAppDelegates[bundle];
+                }
+            }
+        }
+    }
+    return ((id (*)(id, SEL))o_appDelegate)(self, _cmd);
+}
+
 @implementation CPSHooks
+
++ (void)registerGuestAppDelegate:(id)delegate bundlePath:(NSString *)bundlePath {
+    if (!delegate || !bundlePath) return;
+    NSString *key = CPSNormalizedImagePath(bundlePath.stringByResolvingSymlinksInPath.fileSystemRepresentation);
+    if (![key hasSuffix:@"/"]) key = [key stringByAppendingString:@"/"];
+    @synchronized (gGuestAppDelegates) { gGuestAppDelegates[key] = delegate; }
+}
 
 + (void)install {
     static dispatch_once_t once;
@@ -727,6 +763,9 @@ static void CPSInstallCarPlayForwarding(void) {
         gSessionOwner = [NSMapTable weakToWeakObjectsMapTable];
         gManeuverEstimates = [NSMapTable weakToStrongObjectsMapTable];
         gNowPlayingObservers = [NSHashTable weakObjectsHashTable];
+
+        gGuestAppDelegates = [NSMutableDictionary dictionary];
+        CPSSwizzle([UIApplication class], @selector(delegate), (IMP)h_appDelegate, &o_appDelegate);
 
         Method mb = class_getClassMethod([NSBundle class], @selector(mainBundle));
         if (mb) gOrigMainBundle = method_setImplementation(mb, (IMP)h_mainBundle);
