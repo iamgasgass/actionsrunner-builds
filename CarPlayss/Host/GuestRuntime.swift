@@ -229,11 +229,14 @@ final class GuestRuntime: ObservableObject {
         var allowed = hostWindows
         for s in sessions.values {
             allowed.insert(ObjectIdentifier(s.window))
-            if let p = s.phoneWindow, p.windowLevel.rawValue >= 0 { p.windowLevel = UIWindow.Level(rawValue: -1) }
+
             if let d = s.dashboardWindow { allowed.insert(ObjectIdentifier(d)) }
         }
-        let hostWindow = allWindows().first { hostWindows.contains(ObjectIdentifier($0)) && !$0.isHidden }
-        let behind = UIWindow.Level(rawValue: (hostWindow?.windowLevel.rawValue ?? 0) - 1)
+        // Finestra principale di CarPlayss (livello normale); quelle di sistema (tastiera ecc.) hanno livelli alti.
+        let hostWindow = allWindows().first {
+            hostWindows.contains(ObjectIdentifier($0)) && !$0.isHidden && $0.windowLevel == .normal
+        }
+        let behind = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
         for window in allWindows() where !allowed.contains(ObjectIdentifier(window)) {
             let name = NSStringFromClass(type(of: window))
             let isSystem = name.hasPrefix("UI") || name.hasPrefix("_UI")
@@ -438,6 +441,27 @@ final class GuestRuntime: ObservableObject {
                 }
                 session.note("CarPlayss → delegato scena telefono \(NSStringFromClass(cls)) creato")
             }
+            // React Native, Flutter e molte app UIKit creano la loro interfaccia (e avviano il motore JS/Dart che
+            // poi imposta i template CarPlay) in scene(_:willConnectTo:options:): si chiama con la scena reale.
+            let willConnect = NSSelectorFromString("scene:willConnectToSession:options:")
+            if let delegate = session.phoneSceneDelegate, delegate.responds(to: willConnect),
+               !CrashGuard.skip(.phoneScene, session.app.id) {
+                CrashGuard.begin(.phoneScene, app: session.app)
+                session.note("CarPlayss → scena telefono scene:willConnectToSession:options:")
+                session.guest("Scena telefono") {
+                    CPSObjC.send(delegate, willConnect, hostScene, hostScene.session, nil)
+                    CPSObjC.send(delegate, NSSelectorFromString("sceneWillEnterForeground:"), hostScene)
+                    CPSObjC.send(delegate, NSSelectorFromString("sceneDidBecomeActive:"), hostScene)
+                }
+                if let window = CPSObjC.get(delegate, NSSelectorFromString("window")) as? UIWindow {
+                    session.phoneWindow = window
+                }
+            }
+        }
+        // L'interfaccia telefono resta attiva ma dietro lo schermo dell'auto, e CarPlayss resta la finestra principale.
+        session.phoneWindow?.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
+        if let host = hostScene.windows.first(where: { hostWindows.contains(ObjectIdentifier($0)) && $0.windowLevel == .normal }) {
+            host.makeKey()
         }
 
         if NSClassFromString("SwiftUI.AppDelegate") != nil || classLinksSwiftUI(bundle) { kind.append("SwiftUI") }

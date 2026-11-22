@@ -13,6 +13,7 @@ enum CrashGuard {
         case carplay = "collegamento della scena CarPlay"
         case dashboard = "collegamento della Dashboard CarPlay"
         case fallback = "avvio alternativo (scene:willConnectToSession:options:)"
+        case phoneScene = "avvio della scena telefono (React Native / Flutter / UIKit)"
         case running = "esecuzione (subito dopo l'avvio)"
     }
 
@@ -44,6 +45,7 @@ enum CrashGuard {
             case .appDelegate?: setSkip(.appDelegate, appID, true)
             case .dashboard?: setSkip(.dashboard, appID, true)
             case .fallback?: setSkip(.fallback, appID, true)
+            case .phoneScene?: setSkip(.phoneScene, appID, true)
             default: break
             }
             records[appID] = Record(appID: appID, appName: pending["name"] ?? appID, phase: phaseRaw,
@@ -85,6 +87,7 @@ enum CrashGuard {
         case appDelegate
         case dashboard
         case fallback
+        case phoneScene
     }
 
     static func skip(_ what: Skip, _ appID: String) -> Bool {
@@ -99,6 +102,7 @@ enum CrashGuard {
         setSkip(.appDelegate, appID, false)
         setSkip(.dashboard, appID, false)
         setSkip(.fallback, appID, false)
+        setSkip(.phoneScene, appID, false)
     }
 
     private static var hostVersion: String {
