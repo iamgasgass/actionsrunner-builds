@@ -582,6 +582,52 @@ static void h_npRemoveObserver(id self, SEL _cmd, id observer) {
     @try { ((void (*)(id, SEL, id))o_npRemoveObserver)(self, _cmd, observer); } @catch (id e) {}
 }
 
+#pragma mark Selettori mancanti in CarPlay.framework
+
+// Alcune combinazioni SDK/iOS di CarPlay.framework chiamano metodi che non esistono
+// (es. -[CPNavigationWaypoint setNameVariants:] dal setter di CPTrip.destinationNameVariants).
+// Per le classi di CarPlay i setter/getter sconosciuti vengono assorbiti invece di far crashare l'app.
+
+static IMP gNSObjectMethodSignature;
+
+static NSMethodSignature *h_cpMethodSignature(id self, SEL _cmd, SEL selector) {
+    NSMethodSignature *sig = ((NSMethodSignature *(*)(id, SEL, SEL))gNSObjectMethodSignature)(self, _cmd, selector);
+    if (sig) return sig;
+    NSString *name = NSStringFromSelector(selector);
+    NSUInteger colons = [[name componentsSeparatedByString:@":"] count] - 1;
+    if ([name hasPrefix:@"set"] && colons == 1) return [NSMethodSignature signatureWithObjCTypes:"v@:@"];
+    if (colons == 0) return [NSMethodSignature signatureWithObjCTypes:"@@:"];
+    return nil;
+}
+
+static void h_cpForwardInvocation(id self, SEL _cmd, NSInvocation *invocation) {
+    NSLog(@"[CarPlayss] ignorato -[%@ %@] (non esiste in questa versione di CarPlay)",
+          NSStringFromClass(object_getClass(self)), NSStringFromSelector(invocation.selector));
+    if (invocation.methodSignature.methodReturnLength > 0 && invocation.methodSignature.methodReturnType[0] == '@') {
+        id nothing = nil;
+        [invocation setReturnValue:&nothing];
+    }
+}
+
+static void CPSInstallCarPlayForwarding(void) {
+    gNSObjectMethodSignature = class_getMethodImplementation([NSObject class], @selector(methodSignatureForSelector:));
+    const char *carplayImage = NULL;
+    for (uint32_t i = 0; i < _dyld_image_count(); i++) {
+        const char *n = _dyld_get_image_name(i);
+        if (n && strstr(n, "/CarPlay.framework/CarPlay")) { carplayImage = n; break; }
+    }
+    if (!carplayImage) return;
+    unsigned int count = 0;
+    const char **names = objc_copyClassNamesForImage(carplayImage, &count);
+    for (unsigned int i = 0; i < count; i++) {
+        Class cls = objc_getClass(names[i]);
+        if (!cls || class_getSuperclass(cls) != [NSObject class]) continue;
+        class_addMethod(cls, @selector(methodSignatureForSelector:), (IMP)h_cpMethodSignature, "@@::");
+        class_addMethod(cls, @selector(forwardInvocation:), (IMP)h_cpForwardInvocation, "v@:@");
+    }
+    free((void *)names);
+}
+
 @implementation CPSHooks
 
 + (void)install {
@@ -619,6 +665,8 @@ static void h_npRemoveObserver(id self, SEL _cmd, id observer) {
         CPSSwizzle(ns, NSSelectorFromString(@"updateTravelEstimates:forManeuver:"), (IMP)h_sessionManeuverEstimates, &o_sessionManeuverEstimates);
         CPSSwizzle(ns, NSSelectorFromString(@"finishTrip"), (IMP)h_sessionFinish, &o_sessionFinish);
         CPSSwizzle(ns, NSSelectorFromString(@"cancelTrip"), (IMP)h_sessionCancel, &o_sessionCancel);
+
+        CPSInstallCarPlayForwarding();
 
         Class np = NSClassFromString(@"CPNowPlayingTemplate");
         CPSSwizzle(np, NSSelectorFromString(@"addObserver:"), (IMP)h_npAddObserver, &o_npAddObserver);
