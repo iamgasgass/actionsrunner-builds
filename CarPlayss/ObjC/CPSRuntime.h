@@ -126,4 +126,13 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
            completion:(void (^)(BOOL success, NSString *_Nullable error))completion NS_SWIFT_NAME(signApp(atPath:completion:));
 @end
 
+#pragma mark - Registro crash
+
+/// Scrive su file eccezioni Objective-C e segnali fatali (con lo stack), per mostrarli al riavvio.
+@interface CPSCrashReporter : NSObject
++ (void)installWithPath:(NSString *)path NS_SWIFT_NAME(install(path:));
+/// Testo aggiunto al rapporto (es. app e fase di caricamento in corso).
++ (void)setContext:(NSString *)context NS_SWIFT_NAME(setContext(_:));
+@end
+
 NS_ASSUME_NONNULL_END

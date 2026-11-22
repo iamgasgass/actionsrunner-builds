@@ -3,6 +3,10 @@
 #import <objc/message.h>
 #import <mach-o/dyld.h>
 #import <dlfcn.h>
+#import <execinfo.h>
+#import <signal.h>
+#import <fcntl.h>
+#import <unistd.h>
 
 NSNotificationName const CPSStateDidChangeNotification = @"CPSStateDidChangeNotification";
 
@@ -961,6 +965,83 @@ static void CPSInstallCarPlayForwarding(void) {
     } @catch (NSException *e) {
         dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, e.reason ?: e.name); });
     }
+}
+
+@end
+
+#pragma mark - CPSCrashReporter
+
+static char gCrashPath[1024];
+static char gCrashContext[2048];
+static NSUncaughtExceptionHandler *gPreviousExceptionHandler;
+static struct sigaction gPreviousSignal[32];
+
+static void CPSWriteAll(int fd, const char *text) {
+    if (!text) return;
+    size_t len = strlen(text);
+    while (len > 0) {
+        ssize_t w = write(fd, text, len);
+        if (w <= 0) return;
+        text += w;
+        len -= (size_t)w;
+    }
+}
+
+static void CPSExceptionHandler(NSException *exception) {
+    @try {
+        NSMutableString *report = [NSMutableString string];
+        [report appendFormat:@"%s\nEccezione: %@\nMotivo: %@\n\n", gCrashContext, exception.name, exception.reason];
+        for (NSString *line in exception.callStackSymbols) [report appendFormat:@"%@\n", line];
+        [report writeToFile:@(gCrashPath) atomically:NO encoding:NSUTF8StringEncoding error:nil];
+    } @catch (id e) {}
+    if (gPreviousExceptionHandler) gPreviousExceptionHandler(exception);
+}
+
+static void CPSSignalHandler(int sig, siginfo_t *info, void *uap) {
+    int fd = open(gCrashPath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) {
+        CPSWriteAll(fd, gCrashContext);
+        CPSWriteAll(fd, "\nSegnale: ");
+        const char *name = sig == SIGSEGV ? "SIGSEGV (accesso a memoria non valida)" :
+                           sig == SIGBUS ? "SIGBUS" :
+                           sig == SIGABRT ? "SIGABRT (abort / fatalError / eccezione)" :
+                           sig == SIGILL ? "SIGILL" :
+                           sig == SIGTRAP ? "SIGTRAP (errore Swift: nil forzato, indice fuori range, fatalError…)" :
+                           sig == SIGFPE ? "SIGFPE" : "altro";
+        CPSWriteAll(fd, name);
+        CPSWriteAll(fd, "\n\n");
+        void *frames[64];
+        int n = backtrace(frames, 64);
+        backtrace_symbols_fd(frames, n, fd);
+        close(fd);
+    }
+    // ripristina il gestore precedente (LiveContainer / sistema) e rilancia il segnale
+    if (sig > 0 && sig < 32) sigaction(sig, &gPreviousSignal[sig], NULL);
+    raise(sig);
+}
+
+@implementation CPSCrashReporter
+
++ (void)installWithPath:(NSString *)path {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        strlcpy(gCrashPath, path.fileSystemRepresentation, sizeof(gCrashPath));
+        gPreviousExceptionHandler = NSGetUncaughtExceptionHandler();
+        NSSetUncaughtExceptionHandler(&CPSExceptionHandler);
+        int signals[] = { SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGTRAP, SIGFPE };
+        for (size_t i = 0; i < sizeof(signals) / sizeof(signals[0]); i++) {
+            struct sigaction sa;
+            memset(&sa, 0, sizeof(sa));
+            sa.sa_sigaction = CPSSignalHandler;
+            sa.sa_flags = SA_SIGINFO;
+            sigemptyset(&sa.sa_mask);
+            sigaction(signals[i], &sa, &gPreviousSignal[signals[i]]);
+        }
+    });
+}
+
++ (void)setContext:(NSString *)context {
+    strlcpy(gCrashContext, context.UTF8String ?: "", sizeof(gCrashContext));
 }
 
 @end

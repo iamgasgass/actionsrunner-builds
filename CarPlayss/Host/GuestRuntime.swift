@@ -132,8 +132,10 @@ final class GuestRuntime: ObservableObject {
         do {
             let session = try load(app)
             sessions[app.id] = session
+            CrashGuard.finished(app: app)
             loading.remove(app.id)
         } catch GuestError.load(let message) where message.contains("code signature") || message.contains("signature") {
+            CrashGuard.failed(app: app)
             guard allowSigning else {
                 errors[app.id] = GuestError.signing(message).localizedDescription
                 loading.remove(app.id)
@@ -152,6 +154,7 @@ final class GuestRuntime: ObservableObject {
         } catch {
             errors[app.id] = error.localizedDescription
             loading.remove(app.id)
+            CrashGuard.failed(app: app)
         }
     }
 
@@ -167,6 +170,7 @@ final class GuestRuntime: ObservableObject {
 
         // Patch sempre (è idempotente): corregge anche app importate con versioni precedenti di CarPlayss.
         // Se il file cambia la firma non è più valida: dlopen fallisce e l'app viene rifirmata qui sotto.
+        CrashGuard.begin(.patch, app: app)
         do {
             try MachO.patchBundle(at: app.bundleURL, executableName: exec.lastPathComponent)
         } catch {
@@ -181,6 +185,7 @@ final class GuestRuntime: ObservableObject {
         // (tweak e dylib iniettati come libsubstrate.dylib vengono cercati lì).
         CPSLiveContainer.setExecutablePath(exec.path)
 
+        CrashGuard.begin(.dlopen, app: app)
         guard dlopen(exec.path, RTLD_LAZY | RTLD_GLOBAL) != nil else {
             let message = dlerror().map { String(cString: $0) } ?? "errore sconosciuto"
             throw GuestError.load(message)
@@ -192,7 +197,8 @@ final class GuestRuntime: ObservableObject {
         // AppDelegate dell'app: molte app CarPlay preparano player, database e SDK qui.
         let appDelegateProto = NSProtocolFromString("UIApplicationDelegate")
         let sceneProto = NSProtocolFromString("UISceneDelegate")
-        if runAppDelegate, let proto = appDelegateProto {
+        if runAppDelegate, !CrashGuard.skip(.appDelegate, app.id), let proto = appDelegateProto {
+            CrashGuard.begin(.appDelegate, app: app)
             let candidates = classNames.compactMap { NSClassFromString($0) }.filter { cls in
                 CPSObjC.isClass(cls, conformingTo: proto) && !(sceneProto.map { CPSObjC.isClass(cls, conformingTo: $0) } ?? false)
             }
@@ -209,6 +215,7 @@ final class GuestRuntime: ObservableObject {
         }
 
         // Delegato della scena CarPlay
+        CrashGuard.begin(.carplay, app: app)
         var delegateClass: AnyClass?
         if let name = app.report.sceneDelegateClass {
             delegateClass = NSClassFromString(name)
@@ -247,7 +254,10 @@ final class GuestRuntime: ObservableObject {
             throw GuestError.noCarPlayEntry
         }
 
-        connectDashboard(session, bundle: bundle, classNames: classNames)
+        if !CrashGuard.skip(.dashboard, app.id) {
+            CrashGuard.begin(.dashboard, app: app)
+            connectDashboard(session, bundle: bundle, classNames: classNames)
+        }
         return session
     }
 

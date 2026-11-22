@@ -6,6 +6,12 @@ struct GuestAppView: View {
     let appID: String
     @EnvironmentObject var library: AppLibrary
     @EnvironmentObject var runtime: GuestRuntime
+    @State private var crashRecord: CrashGuard.Record?
+
+    init(appID: String) {
+        self.appID = appID
+        _crashRecord = State(initialValue: CrashGuard.records[appID])
+    }
 
     var body: some View {
         ZStack {
@@ -15,6 +21,12 @@ struct GuestAppView: View {
                     GuestSessionView(session: session)
                 } else if let error = runtime.errors[appID] {
                     GuestErrorView(app: app, message: error) { runtime.retry(app) }
+                } else if let crash = crashRecord {
+                    GuestCrashView(app: app, record: crash) { resetSafeMode in
+                        if resetSafeMode { CrashGuard.resetSafeMode(app.id) }
+                        CrashGuard.clearRecord(app.id)
+                        crashRecord = nil
+                    }
                 } else {
                     GuestLaunchView(app: app)
                         .onAppear { runtime.launch(app) }
@@ -35,6 +47,59 @@ struct GuestLaunchView: View {
         VStack(spacing: 14) {
             GuestIconView(app: app, size: 76)
             ProgressView().tint(.white)
+        }
+    }
+}
+
+/// L'ultima apertura dell'app ha fatto chiudere CarPlayss: rapporto e nuovo tentativo.
+struct GuestCrashView: View {
+    let app: GuestApp
+    let record: CrashGuard.Record
+    let retry: (_ resetSafeMode: Bool) -> Void
+    @State private var copied = false
+
+    var body: some View {
+        let safeAppDelegate = CrashGuard.skip(.appDelegate, app.id)
+        let safeDashboard = CrashGuard.skip(.dashboard, app.id)
+        ScrollView {
+            VStack(spacing: 12) {
+                GuestIconView(app: app, size: 56)
+                Text("\(app.name) si è chiusa all'ultima apertura")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                Text("Fase: \(record.phase)")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.orange)
+                    .multilineTextAlignment(.center)
+                if safeAppDelegate || safeDashboard {
+                    Text("Modalità sicura attiva: " + [safeAppDelegate ? "AppDelegate saltato" : nil,
+                                                       safeDashboard ? "Dashboard disattivata" : nil].compactMap { $0 }.joined(separator: ", "))
+                        .font(.system(size: 13))
+                        .foregroundColor(CP.secondaryText)
+                }
+                HStack(spacing: 10) {
+                    Button("Riprova") { retry(false) }
+                        .buttonStyle(CPCapsuleButtonStyle(prominent: true))
+                    if safeAppDelegate || safeDashboard {
+                        Button("Riprova senza modalità sicura") { retry(true) }
+                            .buttonStyle(CPCapsuleButtonStyle())
+                    }
+                    Button(copied ? "Copiato" : "Copia rapporto") {
+                        UIPasteboard.general.string = "Fase: \(record.phase)\n\n\(record.report)"
+                        copied = true
+                    }
+                    .buttonStyle(CPCapsuleButtonStyle())
+                }
+                Text(record.report)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(CP.secondaryText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.1)))
+            }
+            .padding(20)
         }
     }
 }

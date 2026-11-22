@@ -6,6 +6,7 @@ final class CarPlayssAppDelegate: NSObject, UIApplicationDelegate {
                      willFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // Gli hook vanno installati prima che qualsiasi app CarPlay venga caricata.
         CPSHooks.install()
+        CrashGuard.start()
         return true
     }
 
