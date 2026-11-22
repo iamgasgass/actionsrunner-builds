@@ -12,8 +12,8 @@
 #   2. dependencies      the iOS device prefixes (Mesa/KosmicKrisp GPU, GLib/libslirp network, GPT fdisk, zstd):
 #                        taken from the prebuilt inputs when they verify against this commit's manifest, otherwise
 #                        built from source with dependencies/prepare.sh + build-*.sh and cached
-#   3. runtime           cmake --preset kernarium-ios-device-android, linking the kernel bundle (and the AOT artifact,
-#                        when one is among the prebuilt inputs)
+#   3. runtime           cmake --preset kernarium-ios-device-android, linking the kernel bundle and the AOT artifact,
+#                        which is always generated here from the release (tools/aot/release_artifact.py) and cached
 #   4. frameworks        Kernarium/scripts/package-ios-frameworks.sh --runtimes android (steps 2-4 are skipped when
 #                        an already packaged .build/kernarium-xcframeworks is among the prebuilt inputs)
 #   5. system image      Andarium/scripts/stage-system-image.py, from the prebuilt LineageOS release
@@ -199,7 +199,7 @@ jobs:
       - name: Install build tools
         run: |
           set -eu
-          brew install cmake ninja meson pkgconf autoconf automake gettext libtool gperf groff zstd xz sevenzip
+          brew install cmake ninja meson pkgconf autoconf automake gettext libtool gperf groff zstd xz lz4 sevenzip python@3.13
           cmake --version | head -n 1
           # Meson, Mako, PyYAML and packaging for Mesa, where the dependency scripts look first
           python3 -m venv .build/gpu-tools-venv
@@ -210,6 +210,22 @@ jobs:
           git config --global user.email '41898283+github-actions[bot]@users.noreply.github.com'
           echo "PYTHON3=$(command -v python3)" >> "$GITHUB_ENV"
           echo "JOBS=$(sysctl -n hw.ncpu)" >> "$GITHUB_ENV"
+          # The Android release's Magisk root files hold xz members with the ARM64 BCJ filter, which only liblzma 5.4
+          # and later decode ("Invalid or unsupported options" otherwise). The staging and the AOT generator read them
+          # with the first Python whose lzma decodes such a stream.
+          probe="$RUNNER_TEMP/arm64-bcj.xz"
+          head -c 262144 /dev/urandom | xz -z -c --arm64 --lzma2 > "$probe"
+          xz_python=
+          for py in "$(command -v python3)" "$(brew --prefix python@3.13)/bin/python3.13"; do
+            [ -x "$py" ] || continue
+            if "$py" -I -c 'import lzma, sys; lzma.decompress(open(sys.argv[1], "rb").read())' "$probe" 2>/dev/null; then
+              xz_python=$py; break
+            fi
+            echo "$py: its lzma cannot decode the ARM64 BCJ filter"
+          done
+          [ -n "$xz_python" ] || { echo "::error::No Python here decodes xz streams with the ARM64 BCJ filter"; exit 1; }
+          echo "Python for the Android image tools: $xz_python ($("$xz_python" --version))"
+          echo "XZ_PYTHON=$xz_python" >> "$GITHUB_ENV"
 
       # ------------------------------------------------------------------ 1. prebuilt inputs
       - name: Restore the dependency cache
@@ -490,6 +506,88 @@ jobs:
           rm -rf .build/dependency-build .build/dependency-cache external/sources
           df -h "$GITHUB_WORKSPACE"
 
+      # ------------------------------------------------------------------ 2b. the AOT artifact, always generated
+      # tools/aot/release_artifact.py build rewrites the release's ARM64 libraries ahead of time (blob.bin, the
+      # UmlArm64Aot framework the Android runtime links). It needs an fsck.erofs that decodes Zstandard; Homebrew's
+      # erofs-utils is built without libzstd, so the same release is built here from source with it. The runtime is then
+      # configured with UML_AOT_MODE=ON and this artifact, so a build without the AOT component fails instead.
+      - name: Restore the AOT cache
+        id: aot-cache
+        if: steps.place.outputs.xcframeworks != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build/android/aot-ci
+            .build/tools/erofs-utils
+          key: andarium-aot-${{ env.CACHE_VERSION }}-${{ runner.arch }}-${{ hashFiles('tools/aot/**', 'android/lineage-24/metadata/accepted-release.env', 'android/lineage-24/metadata/accepted-aot.env', 'android/lineage-24/tools/**') }}
+
+      - name: Build fsck.erofs with Zstandard
+        if: steps.place.outputs.xcframeworks != 'true' && steps.aot-cache.outputs.cache-hit != 'true'
+        run: |
+          set -eu
+          tool=.build/tools/erofs-utils/bin/fsck.erofs
+          if [ ! -x "$tool" ]; then
+            url=$(brew info --json=v2 erofs-utils | jq -r '.formulae[0].urls.stable.url')
+            echo "erofs-utils source: $url"
+            src="$RUNNER_TEMP/erofs-utils"
+            mkdir -p "$src"
+            curl --fail --location --silent --show-error --retry 5 -o "$RUNNER_TEMP/erofs-utils.tar.gz" "$url"
+            tar -xzf "$RUNNER_TEMP/erofs-utils.tar.gz" -C "$src" --strip-components 1
+            (
+              cd "$src"
+              [ -x configure ] || ./autogen.sh
+              PKG_CONFIG_PATH="$(brew --prefix zstd)/lib/pkgconfig:$(brew --prefix lz4)/lib/pkgconfig:$(brew --prefix xz)/lib/pkgconfig" \
+                ./configure --prefix="$GITHUB_WORKSPACE/.build/tools/erofs-utils" --disable-fuse --without-selinux \
+                  --enable-lz4 --enable-lzma --with-libzstd > "$RUNNER_TEMP/erofs-configure.log" 2>&1 ||
+                { tail -n 60 config.log; exit 1; }
+              grep -i 'zstd' "$RUNNER_TEMP/erofs-configure.log" || true
+              make -j"$JOBS" > "$RUNNER_TEMP/erofs-make.log" 2>&1 || { tail -n 80 "$RUNNER_TEMP/erofs-make.log"; exit 1; }
+              make install >/dev/null
+            )
+          fi
+          "$tool" --help 2>&1 | grep -i zstd >/dev/null || { "$tool" --help; echo "::error::fsck.erofs was built without Zstandard"; exit 1; }
+          "$tool" -V 2>&1 | head -n 1 || true
+
+      - name: Generate the AOT artifact
+        if: steps.place.outputs.xcframeworks != 'true' && steps.aot-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 120
+        env:
+          ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
+        run: |
+          set -eu
+          out=".build/android/aot-ci/$(basename "$ANDROID_DIR")"
+          rm -rf .build/android/aot-ci
+          mkdir -p .build/android/aot-ci
+          "$XZ_PYTHON" -B tools/aot/release_artifact.py build --release "$ANDROID_DIR" \
+            --fsck-erofs "$GITHUB_WORKSPACE/.build/tools/erofs-utils/bin/fsck.erofs" \
+            --out "$GITHUB_WORKSPACE/$out" --jobs "$JOBS"
+          ls -la "$out"
+
+      - name: Save the AOT cache
+        if: steps.place.outputs.xcframeworks != 'true' && steps.aot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .build/android/aot-ci
+            .build/tools/erofs-utils
+          key: ${{ steps.aot-cache.outputs.cache-primary-key }}
+
+      - name: Use the AOT artifact
+        if: steps.place.outputs.xcframeworks != 'true'
+        env:
+          ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
+        run: |
+          set -eu
+          dir="$GITHUB_WORKSPACE/.build/android/aot-ci/$(basename "$ANDROID_DIR")"
+          [ -f "$dir/artifact.json" ] || { echo "::error::No AOT artifact at $dir"; exit 1; }
+          if "$XZ_PYTHON" -B tools/aot/release_artifact.py verify --artifact "$dir" \
+               --accepted android/lineage-24/metadata/accepted-aot.env; then
+            echo "AOT artifact: identical to the one android/lineage-24/metadata/accepted-aot.env accepts"
+          else
+            echo "::notice::The generated AOT artifact differs from the accepted one (accepted-aot.env); it is linked by path"
+          fi
+          echo "AOT_DIR=$dir" >> "$GITHUB_ENV"
+
       # ------------------------------------------------------------------ 3-4. runtime and frameworks
       - name: Build the Android runtime
         if: steps.place.outputs.xcframeworks != 'true'
@@ -498,7 +596,8 @@ jobs:
           preset=kernarium-ios-device-android
           cmake --preset "$preset" \
             -DUML_ANDROID17_KERNEL_ARTIFACT_DIR="$KERNEL_DIR" \
-            -DPython3_EXECUTABLE="$PYTHON3"
+            -DUML_AOT_MODE=ON -DUML_AOT_ARTIFACT="$AOT_DIR" \
+            -DPython3_EXECUTABLE="$XZ_PYTHON"
           cmake --build --preset "$preset" --parallel "$JOBS"
 
       - name: Package the frameworks
@@ -507,11 +606,9 @@ jobs:
           set -eu
           Kernarium/scripts/package-ios-frameworks.sh --runtimes android
           ls .build/kernarium-xcframeworks
-          if [ -d .build/kernarium-xcframeworks/UmlArm64Aot.xcframework ]; then
-            echo "AOT: the runtime links UmlArm64Aot (ahead-of-time Android libraries)"
-          else
-            echo "AOT: none (no accepted AOT artifact installed below .build/android/aot)"
-          fi
+          [ -d .build/kernarium-xcframeworks/UmlArm64Aot.xcframework ] ||
+            { echo "::error::UmlArm64Aot.xcframework was not packaged: the runtime does not link the AOT component"; exit 1; }
+          echo "AOT: the runtime links UmlArm64Aot (ahead-of-time Android libraries)"
 
       # ------------------------------------------------------------------ 5. system image
       - name: Stage the Android system image
@@ -524,11 +621,11 @@ jobs:
           if [ "$acceptance" = unsigned-proof ]; then
             # An unsigned proof image (built from unsigned target files): a build stages it, an archive refuses it.
             echo "::warning::Staging the UNSIGNED PROOF image $(basename "$ANDROID_DIR"), not an accepted release"
-            python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR" --unsigned-proof
+            "$XZ_PYTHON" Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR" --unsigned-proof
           elif [ "$(basename "$ANDROID_DIR")" = "$LINEAGE24_ACCEPTED_DIRECTORY_NAME" ]; then
-            python3 Andarium/scripts/stage-system-image.py          # checked against the accepted release too
+            "$XZ_PYTHON" Andarium/scripts/stage-system-image.py          # checked against the accepted release too
           else
-            python3 Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR"
+            "$XZ_PYTHON" Andarium/scripts/stage-system-image.py --release "$ANDROID_DIR"
           fi
           rm -rf .build/android/releases     # staged as a copy; free the space before Xcode copies it again
           du -sh .build/andarium-system
@@ -616,7 +713,7 @@ jobs:
           ANDROID_DIR: ${{ steps.place.outputs.android_dir }}
           XCFRAMEWORKS: ${{ steps.place.outputs.xcframeworks }}
           BUILT_KERNEL: ${{ steps.inputs.outputs.build_kernel }}
-          AOT: ${{ steps.place.outputs.aot }}
+          AOT_CACHED: ${{ steps.aot-cache.outputs.cache-hit }}
           GPU: ${{ steps.deps.outputs.gpu }}
           NETWORK: ${{ steps.deps.outputs.network }}
           STORAGE: ${{ steps.deps.outputs.storage }}
@@ -634,7 +731,7 @@ jobs:
             echo "| Xcode | ${XCODE:-?} |"
             echo "| Kernel bundle | $(basename "${KERNEL_DIR:-—}")$([ "$BUILT_KERNEL" = true ] && echo ' (built from source)') |"
             echo "| Android release | $(basename "${ANDROID_DIR:-—}") |"
-            echo "| AOT artifact | $([ "$AOT" = true ] && echo 'prebuilt, installed below .build/android/aot' || echo 'none: runtime without UmlArm64Aot') |"
+            echo "| AOT | UmlArm64Aot, generated on the runner from the release$([ "$AOT_CACHED" = true ] && echo ' (cached)') |"
             if [ "$XCFRAMEWORKS" = true ]; then
               echo "| Frameworks | prebuilt .build/kernarium-xcframeworks |"
             else

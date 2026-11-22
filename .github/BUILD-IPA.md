@@ -14,7 +14,7 @@ Artifact prebuilt:
 | Artifact | Nome atteso (da questo commit: vedi i file `accepted-*.env`) | Contenuto |
 |---|---|---|
 | Kernel Android (facoltativo: se manca viene compilato dal sorgente, ~1 h la prima volta, poi in cache) | `android-6.18-arm64-4k-20261119-6.18.60-ca1` | `kernel-artifact.json`, `kernel/vmlinux`, ... |
-| Artifact AOT (facoltativo: librerie Android precompilate ARM64, più veloci; se manca il runtime ne fa a meno) | `lineage24-mainline6.18-4k-20261121-los24-r29` | `artifact.json`, `blob.bin`, ... |
+| Artifact AOT (**sempre generato sul runner** dalla release Android con `tools/aot/release_artifact.py` e un `fsck.erofs` compilato con zstd, poi in cache; il runtime è configurato con `UML_AOT_MODE=ON`) | `lineage24-mainline6.18-4k-20261121-los24-r29` | `artifact.json`, `blob.bin`, ... |
 | Release LineageOS 24 (**obbligatoria**) | `lineage24-mainline6.18-4k-20261121-los24-r29` | `release-manifest.json`, `guest/system.img` (anche `.zst/.xz/.gz`), ... |
 
 Facoltativi (se mancano vengono compilati dal sorgente e messi in cache, la prima volta 1-3 h):
