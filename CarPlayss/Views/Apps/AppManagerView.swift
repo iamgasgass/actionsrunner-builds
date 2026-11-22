@@ -80,8 +80,8 @@ struct AppManagerView: View {
                             .foregroundStyle(.secondary)
                         Text("""
                         • L'app viene caricata dentro CarPlayss e collegata a una scena CarPlay simulata: i suoi template (liste, griglie, Now Playing, mappe, ecc.) vengono disegnati come su un'unità CarPlay.
-                        • IPA importate: il codice non è firmato, quindi servono LiveContainer con JIT attivo (o un dispositivo senza verifica della firma).
-                        • Senza JIT: metti le IPA nella cartella EmbeddedApps del repository e ricompila; LiveContainer firma tutto all'installazione.
+                        • Le IPA importate vengono firmate automaticamente con il certificato di LiveContainer (modalità JIT-less: LiveContainer → Impostazioni → JIT-Less → Import Certificate). Su iOS 26 il JIT da solo non basta.
+                        • In alternativa metti le IPA nella cartella EmbeddedApps del repository e ricompila: LiveContainer le firma quando installi CarPlayss.
                         • Le IPA dell'App Store sono criptate e non possono essere usate.
                         """)
                         .font(.system(size: 13))

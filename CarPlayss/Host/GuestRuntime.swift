@@ -7,6 +7,7 @@ enum GuestError: LocalizedError {
     case invalidBundle
     case patch(String)
     case load(String)
+    case signing(String)
     case noCarPlayEntry
 
     var errorDescription: String? {
@@ -16,7 +17,9 @@ enum GuestError: LocalizedError {
         case .patch(let m):
             return "Impossibile preparare l'eseguibile: \(m)"
         case .load(let m):
-            return "Caricamento non riuscito.\n\n\(m)\n\nSe l'app è stata importata da IPA, il suo codice non è firmato: avvia CarPlayss in LiveContainer con JIT attivo, oppure incorpora l'IPA nella build (cartella EmbeddedApps) così LiveContainer la firma all'installazione."
+            return "Caricamento non riuscito.\n\n\(m)"
+        case .signing(let m):
+            return "Il codice dell'app non è firmato e non è stato possibile firmarlo.\n\n\(m)\n\nSu iOS 26 LiveContainer non permette di caricare codice non firmato nemmeno con JIT: serve la modalità JIT-less (certificato importato in LiveContainer). In alternativa metti l'IPA nella cartella EmbeddedApps del repository e ricompila."
         case .noCarPlayEntry:
             return "L'app non ha un delegato di scena CarPlay (CPTemplateApplicationSceneDelegate)."
         }
@@ -115,13 +118,34 @@ final class GuestRuntime: ObservableObject {
         loading.insert(app.id)
         errors[app.id] = nil
         DispatchQueue.main.async {
-            do {
-                let session = try self.load(app)
-                self.sessions[app.id] = session
-            } catch {
-                self.errors[app.id] = error.localizedDescription
+            self.attempt(app, allowSigning: true)
+        }
+    }
+
+    private func attempt(_ app: GuestApp, allowSigning: Bool) {
+        do {
+            let session = try load(app)
+            sessions[app.id] = session
+            loading.remove(app.id)
+        } catch GuestError.load(let message) where message.contains("code signature") || message.contains("signature") {
+            guard allowSigning else {
+                errors[app.id] = GuestError.signing(message).localizedDescription
+                loading.remove(app.id)
+                return
             }
-            self.loading.remove(app.id)
+            // Firma con il certificato di LiveContainer e riprova una volta.
+            CPSLiveContainer.signApp(atPath: app.bundleURL.path) { [weak self] ok, error in
+                guard let self = self else { return }
+                if ok {
+                    self.attempt(app, allowSigning: false)
+                } else {
+                    self.errors[app.id] = GuestError.signing(error ?? message).localizedDescription
+                    self.loading.remove(app.id)
+                }
+            }
+        } catch {
+            errors[app.id] = error.localizedDescription
+            loading.remove(app.id)
         }
     }
 

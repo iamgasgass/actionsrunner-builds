@@ -197,7 +197,7 @@ final class AppLibrary: ObservableObject {
         message = "Installazione in corso…"
         let destinationRoot = importedDirectory
         DispatchQueue.global(qos: .userInitiated).async {
-            let result: Result<String, Error>
+            let result: Result<(name: String, url: URL), Error>
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             do {
@@ -206,19 +206,19 @@ final class AppLibrary: ObservableObject {
                 result = .failure(error)
             }
             DispatchQueue.main.async {
-                self.isImporting = false
                 switch result {
-                case .success(let name):
-                    self.message = "\(name) installata."
+                case .success(let installed):
+                    self.signIfPossible(installed)
                 case .failure(let error):
+                    self.isImporting = false
                     self.message = error.localizedDescription
+                    self.reload()
                 }
-                self.reload()
             }
         }
     }
 
-    private static func install(ipa: URL, into root: URL) throws -> String {
+    private static func install(ipa: URL, into root: URL) throws -> (name: String, url: URL) {
         let fm = FileManager.default
         let work = fm.temporaryDirectory.appendingPathComponent("ipa-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -254,7 +254,29 @@ final class AppLibrary: ObservableObject {
         try? fm.removeItem(at: destination)
         do { try fm.moveItem(at: appURL, to: destination) } catch { throw LibraryError.failed(error.localizedDescription) }
 
-        return (info["CFBundleDisplayName"] as? String) ?? (info["CFBundleName"] as? String) ?? bundleID
+        let name = (info["CFBundleDisplayName"] as? String) ?? (info["CFBundleName"] as? String) ?? bundleID
+        return (name, destination)
+    }
+
+    /// Firma l'app con il certificato di LiveContainer (modalità JIT-less), così iOS accetta il suo codice.
+    private func signIfPossible(_ installed: (name: String, url: URL)) {
+        guard CPSLiveContainer.isHostedInLiveContainer else {
+            isImporting = false
+            message = "\(installed.name) installata (non firmata: CarPlayss non è in LiveContainer)."
+            reload()
+            return
+        }
+        message = "Firma di \(installed.name) con il certificato di LiveContainer…"
+        CPSLiveContainer.signApp(atPath: installed.url.path) { [weak self] ok, error in
+            guard let self = self else { return }
+            self.isImporting = false
+            if ok {
+                self.message = "\(installed.name) installata e firmata."
+            } else {
+                self.message = "\(installed.name) installata, ma la firma non è riuscita: \(error ?? "errore sconosciuto")"
+            }
+            self.reload()
+        }
     }
 
     func delete(_ app: GuestApp) {

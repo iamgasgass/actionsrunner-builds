@@ -96,4 +96,16 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 + (NSArray *)nowPlayingObservers;
 @end
 
+#pragma mark - Firma tramite LiveContainer
+
+/// Quando CarPlayss gira dentro LiveContainer (modalità JIT-less) usa ZSign.dylib e il certificato
+/// di LiveContainer per firmare le app importate, esattamente come LiveContainer firma le sue app.
+@interface CPSLiveContainer : NSObject
+@property (class, nonatomic, readonly) BOOL isHostedInLiveContainer;
+/// nil se la firma è possibile, altrimenti il motivo.
+@property (class, nonatomic, readonly, nullable) NSString *signingUnavailableReason;
++ (void)signAppAtPath:(NSString *)path
+           completion:(void (^)(BOOL success, NSString *_Nullable error))completion NS_SWIFT_NAME(signApp(atPath:completion:));
+@end
+
 NS_ASSUME_NONNULL_END

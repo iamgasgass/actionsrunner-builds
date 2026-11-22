@@ -2,6 +2,7 @@
 #import <objc/runtime.h>
 #import <objc/message.h>
 #import <mach-o/dyld.h>
+#import <dlfcn.h>
 
 NSNotificationName const CPSStateDidChangeNotification = @"CPSStateDidChangeNotification";
 
@@ -695,5 +696,122 @@ static void h_npRemoveObserver(id self, SEL _cmd, id observer) {
 + (CPTravelEstimates *)tripEstimatesForTemplate:(CPMapTemplate *)t { return [gMapState objectForKey:t][@"estimates"]; }
 + (CPTravelEstimates *)estimatesForManeuver:(CPManeuver *)maneuver { return [gManeuverEstimates objectForKey:maneuver]; }
 + (NSArray *)nowPlayingObservers { return gNowPlayingObservers.allObjects; }
+
+@end
+
+#pragma mark - CPSLiveContainer
+
+@implementation CPSLiveContainer
+
++ (BOOL)isHostedInLiveContainer {
+    return NSClassFromString(@"LCSharedUtils") != nil;
+}
+
+/// Bundle di LiveContainer.app (NSBundle.mainBundle è stato sostituito con quello di CarPlayss).
++ (NSBundle *)lcMainBundle {
+    SEL sel = NSSelectorFromString(@"lcMainBundle");
+    if ([NSUserDefaults respondsToSelector:sel]) {
+        NSBundle *b = ((id (*)(id, SEL))objc_msgSend)([NSUserDefaults class], sel);
+        if (b) return b;
+    }
+    const char *exec = _dyld_get_image_name(0);
+    if (!exec) return nil;
+    NSString *path = [@(exec) stringByDeletingLastPathComponent];
+    if ([path hasSuffix:@".appex"]) path = [[path stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+    return [NSBundle bundleWithPath:path];
+}
+
++ (NSString *)lcBundlePath {
+    NSString *path = [self lcMainBundle].bundlePath;
+    // LiveProcess (multitasking) gira dall'estensione: risali a LiveContainer.app
+    if ([path hasSuffix:@".appex"]) path = [[path stringByDeletingLastPathComponent] stringByDeletingLastPathComponent];
+    return path;
+}
+
++ (NSUserDefaults *)lcSharedDefaults {
+    SEL sel = NSSelectorFromString(@"lcSharedDefaults");
+    if ([NSUserDefaults respondsToSelector:sel]) {
+        NSUserDefaults *d = ((id (*)(id, SEL))objc_msgSend)([NSUserDefaults class], sel);
+        if (d) return d;
+    }
+    Class utils = NSClassFromString(@"LCSharedUtils");
+    SEL groupSel = NSSelectorFromString(@"appGroupID");
+    if (utils && [utils respondsToSelector:groupSel]) {
+        NSString *group = ((id (*)(id, SEL))objc_msgSend)(utils, groupSel);
+        if (group.length) return [[NSUserDefaults alloc] initWithSuiteName:group];
+    }
+    return nil;
+}
+
++ (NSData *)certificateData {
+    id value = [[self lcSharedDefaults] objectForKey:@"LCCertificateData"];
+    return [value isKindOfClass:[NSData class]] ? value : nil;
+}
+
++ (NSString *)certificatePassword {
+    Class utils = NSClassFromString(@"LCSharedUtils");
+    SEL sel = NSSelectorFromString(@"certificatePassword");
+    if (utils && [utils respondsToSelector:sel]) {
+        NSString *p = ((id (*)(id, SEL))objc_msgSend)(utils, sel);
+        if (p) return p;
+    }
+    id value = [[self lcSharedDefaults] objectForKey:@"LCCertificatePassword"];
+    return [value isKindOfClass:[NSString class]] ? value : nil;
+}
+
++ (BOOL)loadZSign:(NSString **)error {
+    if (NSClassFromString(@"ZSigner")) return YES;
+    NSString *lc = [self lcBundlePath];
+    NSArray *candidates = @[
+        [lc stringByAppendingPathComponent:@"Frameworks/ZSign.dylib"],
+        [lc stringByAppendingPathComponent:@"Frameworks/ZSign.framework/ZSign"]
+    ];
+    NSString *lastError = nil;
+    for (NSString *path in candidates) {
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path]) continue;
+        void *handle = dlopen(path.fileSystemRepresentation, RTLD_GLOBAL | RTLD_LAZY);
+        if (handle && NSClassFromString(@"ZSigner")) return YES;
+        const char *e = dlerror();
+        lastError = e ? @(e) : @"errore sconosciuto";
+    }
+    if (error) *error = lastError ?: [NSString stringWithFormat:@"ZSign.dylib non trovato in %@", lc];
+    return NO;
+}
+
++ (NSString *)signingUnavailableReason {
+    if (![self isHostedInLiveContainer]) return @"CarPlayss non sta girando dentro LiveContainer.";
+    if (![self certificateData] || ![self certificatePassword]) {
+        return @"LiveContainer non ha un certificato JIT-less. In LiveContainer apri Impostazioni → JIT-Less e tocca \"Import Certificate from SideStore\" (o \"Import Certificate\").";
+    }
+    NSString *err = nil;
+    if (![self loadZSign:&err]) return [NSString stringWithFormat:@"Impossibile caricare ZSign di LiveContainer: %@", err];
+    return nil;
+}
+
++ (void)signAppAtPath:(NSString *)path completion:(void (^)(BOOL, NSString *))completion {
+    NSString *reason = [self signingUnavailableReason];
+    if (reason) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, reason); });
+        return;
+    }
+    Class signer = NSClassFromString(@"ZSigner");
+    SEL sel = NSSelectorFromString(@"signWithAppPath:bundleId:cert:pass:completionHandler:");
+    if (![signer respondsToSelector:sel]) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, @"Versione di ZSign non supportata."); });
+        return;
+    }
+    NSString *bundleId = [self lcMainBundle].bundleIdentifier ?: @"com.kdt.livecontainer";
+    void (^handler)(BOOL, NSError *) = ^(BOOL success, NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completion(success, success ? nil : (error.localizedDescription ?: @"Firma non riuscita."));
+        });
+    };
+    @try {
+        ((id (*)(id, SEL, id, id, id, id, id))objc_msgSend)(signer, sel, path, bundleId,
+                                                           [self certificateData], [self certificatePassword], handler);
+    } @catch (NSException *e) {
+        dispatch_async(dispatch_get_main_queue(), ^{ completion(NO, e.reason ?: e.name); });
+    }
+}
 
 @end

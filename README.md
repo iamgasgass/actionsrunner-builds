@@ -50,11 +50,14 @@ Le IPA criptate dell'App Store vengono rifiutate: servono IPA decriptate.
 | `CPInformationTemplate`, `CPContactTemplate`, `CPSearchTemplate` | completi |
 | `CPAlertTemplate`, `CPActionSheetTemplate`, `CPVoiceControlTemplate` | presentati in sovrimpressione |
 
-### Firma del codice: due modi
+### Firma del codice
 
-- **Import a runtime** (Installa IPA): il codice dell'app non è firmato per il tuo dispositivo, quindi funziona
-  solo se la verifica della firma è aggirata, cioè **LiveContainer con JIT attivo**.
-- **Incorporate nella build** (senza JIT): metti le `.ipa` nella cartella `EmbeddedApps/` del repository e fai push.
+- **Import dall'app** (Installa IPA): dopo l'estrazione CarPlayss firma l'app con **ZSign e il certificato di
+  LiveContainer**, come LiveContainer fa con le sue app. Serve la **modalità JIT-less** di LiveContainer
+  (Impostazioni → JIT-Less → "Import Certificate from SideStore" / "Import Certificate").
+  Su iOS 26 LiveContainer non consente più di caricare codice non firmato con il solo JIT.
+  Se un'app importata prima non è firmata, viene firmata automaticamente al primo avvio.
+- **Incorporate nella build**: metti le `.ipa` nella cartella `EmbeddedApps/` del repository e fai push.
   La CI le controlla, le prepara e le inserisce in `CarPlayss.app/CarPlayApps/`; LiveContainer firma tutto
   quando installa CarPlayss.
 
@@ -77,7 +80,7 @@ incorpora le IPA di `EmbeddedApps/` e crea `CarPlayss.ipa`.
 ## Installazione in LiveContainer
 
 1. LiveContainer → **+** → `CarPlayss.ipa`.
-2. Per importare IPA dall'app, avvia CarPlayss con **JIT** attivo.
+2. Per importare IPA dall'app configura la modalità **JIT-less** di LiveContainer (certificato importato).
 3. Concedi posizione, microfono/riconoscimento vocale e libreria musicale se servono.
 
 ## Compilare in locale (macOS)
