@@ -1,76 +1,106 @@
-# CarPlay Sim
+# CarPlayss
 
-Simulatore dell'interfaccia di un'unità di bordo in stile CarPlay, scritto in SwiftUI,
-pensato per girare dentro **LiveContainer** (o installato con SideStore/AltStore/TrollStore).
+Simulatore CarPlay per iOS, pensato per **LiveContainer**: riproduce l'interfaccia di un'unità
+CarPlay sullo schermo del telefono/iPad e **installa ed esegue app CarPlay reali da file IPA**,
+mostrandone i template come farebbe l'auto.
+
+- Bundle ID: `com.iamgasgass.carplayss`
+- iOS 16.0 o successivo, solo orizzontale
 
 > Progetto non ufficiale, non affiliato né approvato da Apple. "CarPlay" è un marchio di Apple Inc.
-> L'app **non** usa il framework CarPlay (che richiede entitlement Apple e un'auto vera):
-> ricrea l'esperienza a schermo intero sul tuo iPhone/iPad.
+> Le icone e gli sfondi sono originali: non vengono usate risorse grafiche di Apple.
 
-## Funzioni
+## Interfaccia
 
-| App | Cosa fa |
+- **Barra di stato laterale** con ora, rete, 3 app recenti e tasto Home
+  (tocco: Home ↔ Dashboard, pressione prolungata: assistente vocale). Con "Guida a destra" passa a destra.
+- **Home** a pagine con indicatore di pagina, app integrate + app installate.
+- **Dashboard** con mappa, In riproduzione, meteo e prossimo evento.
+- App integrate: Mappe (ricerca, percorsi, guida simulata), In riproduzione, Musica, Radio, Telefono,
+  Messaggi, Calendario, Meteo, Impostazioni.
+- Risoluzioni dell'unità simulate: 800×480, 1280×720, 1440×540, 1920×720 o adatta allo schermo.
+
+## App CarPlay installabili
+
+Impostazioni → **App CarPlay** → **Installa IPA** (oppure "Apri con CarPlayss" da File).
+
+Vengono accettate **solo** app compatibili con CarPlay:
+- scena `CPTemplateApplicationSceneSessionRoleApplication` nell'Info.plist, oppure
+- entitlement `com.apple.developer.carplay-*` (audio, comunicazione, navigazione, parcheggi, ricarica, carburante, ordini rapidi, attività di guida, sicurezza…).
+
+Le IPA criptate dell'App Store vengono rifiutate: servono IPA decriptate.
+
+### Come vengono eseguite
+
+1. L'eseguibile viene trasformato in libreria dinamica (come fa LiveContainer) e caricato con `dlopen`.
+2. `Bundle.main` restituisce il bundle dell'app, così risorse e Info.plist sono i suoi.
+3. Viene eseguito l'AppDelegate dell'app (disattivabile), poi il suo `CPTemplateApplicationSceneDelegate`
+   riceve una `CPTemplateApplicationScene` e un `CPInterfaceController` simulati
+   (anche la variante `toWindow:` con `CPWindow` per le app di navigazione, e la vecchia `CPApplicationDelegate`).
+4. I template impostati dall'app vengono disegnati in stile CarPlay e i tocchi richiamano i suoi handler:
+
+| Template | Supporto |
 |---|---|
-| **Dashboard** | Mappa live, widget "In riproduzione", meteo e prossimo evento |
-| **Mappe** | Ricerca luoghi (MapKit), percorsi alternativi, navigazione con GPS reale **o guida simulata** lungo il percorso (velocità ×1…×20) con indicazioni svolta per svolta |
-| **In riproduzione** | Copertina, avanzamento, controlli, volume di sistema |
-| **Musica** | Libreria Musica di iOS (playlist, album, casuale) + brani demo |
-| **Radio** | Radio in streaming reale (SomaFM, Radio Paradise) con titolo del brano in diretta |
-| **Telefono** | Preferiti, recenti, tastiera, schermata di chiamata (passa la chiamata a iOS con `tel://`) |
-| **Messaggi** | Conversazioni di esempio, lettura ad alta voce, risposte rapide |
-| **Calendario / Meteo** | Dati dimostrativi, "portami lì" dagli eventi |
-| **Assistente vocale** | Riconoscimento vocale in italiano + sintesi vocale. Se il microfono non funziona (frequente in LiveContainer) puoi scrivere il comando |
-| **Impostazioni** | Risoluzione schermo simulato (800×480, 1280×720, 1440×540, 1920×720 o adatta), cornice, guida a destra, tema, sfondi, velocità simulazione |
+| `CPListTemplate` | sezioni, immagini, dettagli, accessori, indicatore di riproduzione, avanzamento, righe immagine, messaggi, stato vuoto |
+| `CPGridTemplate` | pulsanti con immagine e titolo |
+| `CPTabBarTemplate` | schede in alto, badge, delegate |
+| `CPNowPlayingTemplate` | dati da `MPNowPlayingInfoCenter`, controlli via `MPRemoteCommandCenter` dell'app, pulsanti (shuffle, repeat, velocità, altro…), "A seguire", album/artista |
+| `CPMapTemplate` | mappa dell'app nella `CPWindow`, pulsanti mappa e barra, anteprima percorsi, avvio navigazione, manovre, stime di viaggio, panoramica, avvisi di navigazione |
+| `CPPointOfInterestTemplate` | mappa con pin, elenco, dettaglio, pulsanti |
+| `CPInformationTemplate`, `CPContactTemplate`, `CPSearchTemplate` | completi |
+| `CPAlertTemplate`, `CPActionSheetTemplate`, `CPVoiceControlTemplate` | presentati in sovrimpressione |
 
-Comandi vocali di esempio: *"portami al Colosseo"*, *"metti la radio"*, *"radio groove salad"*,
-*"prossimo brano"*, *"pausa"*, *"chiama Marco"*, *"leggi i messaggi"*, *"che tempo fa"*,
-*"quanto manca"*, *"termina navigazione"*, *"apri impostazioni"*.
+### Firma del codice: due modi
 
-Il tasto in basso nella barra laterale alterna **Home ↔ Dashboard**; le tre icone sopra sono le app recenti.
+- **Import a runtime** (Installa IPA): il codice dell'app non è firmato per il tuo dispositivo, quindi funziona
+  solo se la verifica della firma è aggirata, cioè **LiveContainer con JIT attivo**.
+- **Incorporate nella build** (senza JIT): metti le `.ipa` nella cartella `EmbeddedApps/` del repository e fai push.
+  La CI le controlla, le prepara e le inserisce in `CarPlayss.app/CarPlayApps/`; LiveContainer firma tutto
+  quando installa CarPlayss.
+
+### Limiti
+
+È un'emulazione dentro un'unica app, non il vero CarPlay: le app che dipendono da servizi di sistema riservati
+(Siri dell'auto, cluster strumenti, dati del veicolo) o che fanno controlli particolari sul processo possono non funzionare.
+Se un'app lancia un'eccezione durante una chiamata, CarPlayss la mostra in basso invece di chiudersi.
 
 ## Ottenere l'IPA unsigned (GitHub Actions)
 
-1. Crea un nuovo repository su GitHub e carica il contenuto di questo zip (incluse le cartelle nascoste `.github/`).
-2. Vai su **Actions** → abilita i workflow se richiesto.
-3. Il workflow **Build unsigned IPA** parte a ogni push (oppure avvialo a mano con **Run workflow**).
-4. A fine build scarica l'artifact **CarPlaySim-unsigned-ipa** (uno zip che contiene `CarPlaySim.ipa`).
-5. Facoltativo: crea un tag `v1.0.0` (`git tag v1.0.0 && git push --tags`) e l'IPA verrà allegata a una Release.
+1. Carica il repository su GitHub (inclusa la cartella `.github/`).
+2. Il workflow **Build unsigned IPA** parte a ogni push (o da **Actions → Run workflow**).
+3. Scarica l'artifact **CarPlayss-unsigned-ipa** → `CarPlayss.ipa`.
+4. Con un tag `v*` (es. `git tag v2.0.0 && git push --tags`) l'IPA viene allegata a una Release.
 
-Il workflow usa `macos-latest`, l'ultima Xcode stabile, genera il progetto con **XcodeGen** da `project.yml`
-e compila con `CODE_SIGNING_ALLOWED=NO`, poi impacchetta `Payload/CarPlaySim.app` in `CarPlaySim.ipa`.
+Il workflow genera il progetto con **XcodeGen** (`project.yml`), compila con `CODE_SIGNING_ALLOWED=NO`,
+incorpora le IPA di `EmbeddedApps/` e crea `CarPlayss.ipa`.
 
 ## Installazione in LiveContainer
 
-1. Apri LiveContainer → **+** → seleziona `CarPlaySim.ipa`.
-2. Avvia "CarPlay Sim" e ruota il telefono in orizzontale.
-3. Concedi posizione (Mappe), microfono e riconoscimento vocale (assistente) e libreria musicale se vuoi.
-
-Note su LiveContainer:
-- I permessi vengono chiesti a nome di LiveContainer; se un permesso era già stato negato, abilitalo
-  per LiveContainer nelle Impostazioni di iOS.
-- Il riconoscimento vocale e l'accesso alla libreria Musica potrebbero non funzionare in alcune
-  configurazioni: in quel caso usa il campo di testo dell'assistente e i brani Demo/Radio.
-- La musica continua in background solo se LiveContainer lo consente.
+1. LiveContainer → **+** → `CarPlayss.ipa`.
+2. Per importare IPA dall'app, avvia CarPlayss con **JIT** attivo.
+3. Concedi posizione, microfono/riconoscimento vocale e libreria musicale se servono.
 
 ## Compilare in locale (macOS)
 
 ```bash
 brew install xcodegen
 xcodegen generate
-open CarPlaySim.xcodeproj
+open CarPlayss.xcodeproj
 ```
 
 ## Struttura
 
 ```
-.github/workflows/build.yml   # CI: genera progetto, compila, crea IPA unsigned
-project.yml                   # definizione XcodeGen (target, Info.plist, impostazioni)
-CarPlaySim/
-  App/                        # entry point SwiftUI
-  Models/                     # stato, media, navigazione, assistente vocale, dati demo
-  Views/                      # schermo auto, dock, home, dashboard, overlay assistente
-  Views/Apps/                 # Mappe, Musica, Radio, Telefono, Messaggi, Calendario, Meteo, Impostazioni
-  Resources/Assets.xcassets   # icona e colore d'accento
+.github/workflows/build.yml     CI: progetto, build, incorporamento IPA, IPA unsigned
+project.yml                     XcodeGen (target, Info.plist, dipendenze: ZIPFoundation)
+scripts/embed_carplay_apps.py   incorpora EmbeddedApps/*.ipa nella build
+EmbeddedApps/                   metti qui le IPA CarPlay da incorporare
+CarPlayss/
+  App/            entry point e AppDelegate
+  ObjC/           CPSRuntime: CPInterfaceController/scena simulati, hook, chiamate sicure
+  Host/           patch Mach-O, libreria app, caricamento e sessioni CarPlay
+  Models/         stato, media, navigazione, assistente vocale
+  Views/          schermo auto, barra laterale, Home, Dashboard
+  Views/Guest/    rendering dei template CarPlay delle app installate
+  Views/Apps/     app integrate e gestione app installate
 ```
-
-Requisiti: iOS 16.0 o successivo.
