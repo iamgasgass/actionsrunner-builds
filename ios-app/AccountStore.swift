@@ -1,0 +1,297 @@
+import Foundation
+import Security
+import SideInstallerFFI
+
+/// One saved Apple ID. Only the email is kept in the struct: the password lives
+/// in the keychain filed under `id`, so it never reaches a plist or an
+/// unencrypted backup.
+struct SavedAccount: Identifiable, Codable, Equatable {
+    let id: UUID
+    var appleID: String
+
+    init(id: UUID = UUID(), appleID: String) {
+        self.id = id
+        self.appleID = appleID
+    }
+
+    /// The email as sent to Apple; a stray space breaks the SRP proof.
+    var normalized: String {
+        appleID.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Saved Apple IDs and which one is active for sign-ins. Added during setup and
+/// managed in Settings › Account.
+///
+/// A singleton so `Engine` can read the active credentials directly.
+final class AccountStore: ObservableObject {
+
+    static let shared = AccountStore()
+
+    /// Every saved Apple ID, oldest first.
+    @Published private(set) var accounts: [SavedAccount] = []
+
+    /// The account every sign-in uses. Nil only while `accounts` is empty.
+    @Published private(set) var activeID: UUID?
+
+    /// Incremented when the active credentials change (different account or new
+    /// password). Cached Apple sessions are dropped when it changes.
+    @Published private(set) var revision: Int = 0
+
+    /// Set when the keychain refused a write (the password won't survive a
+    /// relaunch). Nil normally.
+    @Published private(set) var keychainWarning: String?
+
+    /// The developer team each Apple ID signs with, once picked, by its email
+    /// in lower case (`teamKey`). An Apple ID on one team has none here.
+    @Published private(set) var teams: [String: DeveloperTeam] = [:]
+
+    private static let accountsKey = "savedAppleAccounts"
+    private static let activeKey = "activeAppleAccountID"
+    private static let teamsKey = "signingTeamByAppleID"
+    /// Keychain service every saved password is filed under.
+    private static let service = "com.frizzle.SideInstaller.appleID"
+    /// When a saved password can be read: while locked (after the first unlock
+    /// since restart), since signing can run unattended, and on this iPhone
+    /// only, so a backup can't carry it to another device.
+    private static let accessibility = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+
+    /// Passwords the keychain rejected, kept in memory for this launch only.
+    private var volatilePasswords: [UUID: String] = [:]
+
+    private init() {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: Self.accountsKey),
+           let decoded = try? JSONDecoder().decode([SavedAccount].self, from: data) {
+            accounts = decoded
+        }
+        if let raw = defaults.string(forKey: Self.activeKey), let id = UUID(uuidString: raw),
+           accounts.contains(where: { $0.id == id }) {
+            activeID = id
+        } else {
+            activeID = accounts.first?.id
+        }
+        if let data = defaults.data(forKey: Self.teamsKey),
+           let decoded = try? JSONDecoder().decode([String: DeveloperTeam].self, from: data) {
+            teams = decoded
+        }
+        Self.keepPasswordsOnThisDevice()
+    }
+
+    // MARK: - The active account
+
+    var active: SavedAccount? {
+        guard let activeID else { return nil }
+        return accounts.first { $0.id == activeID }
+    }
+
+    /// The active account's email, or "" when none is saved.
+    var activeAppleID: String { active?.normalized ?? "" }
+
+    /// The active account's password, or "" when none is saved.
+    var activePassword: String {
+        guard let active else { return "" }
+        return password(for: active)
+    }
+
+    /// True when there is no account to sign in with.
+    var isEmpty: Bool { accounts.isEmpty }
+
+    /// True when `account` is the one in use.
+    func isActive(_ account: SavedAccount) -> Bool { account.id == activeID }
+
+    /// True when `appleID` is one of the saved accounts, active or not.
+    func isSaved(_ appleID: String) -> Bool {
+        let email = appleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return accounts.contains { $0.normalized.caseInsensitiveCompare(email) == .orderedSame }
+    }
+
+    func password(for account: SavedAccount) -> String {
+        volatilePasswords[account.id] ?? Self.keychainRead(account.id) ?? ""
+    }
+
+    // MARK: - The team that signs
+
+    /// The team `appleID` signs with, when one was picked: asked the first time
+    /// a sign-in finds it on more than one team, and used by every sign-in of
+    /// it after that (install, refresh, Certificates, Entitlements).
+    func team(for appleID: String) -> DeveloperTeam? {
+        teams[Self.teamKey(appleID)]
+    }
+
+    /// Remembers `team` as the one `appleID` signs with. The sign-in that
+    /// asked uses it already, so nothing signed in is dropped.
+    func remember(_ team: DeveloperTeam, for appleID: String) {
+        teams[Self.teamKey(appleID)] = team
+        persistTeams()
+    }
+
+    /// Forgets the team `appleID` signs with, so its next sign-in asks again.
+    /// For the active account, the sign-ins kept for it are dropped too
+    /// (`revision`), since they're on the old team.
+    func forgetTeam(for appleID: String) {
+        guard teams.removeValue(forKey: Self.teamKey(appleID)) != nil else { return }
+        persistTeams()
+        if Self.teamKey(appleID) == Self.teamKey(activeAppleID) { revision += 1 }
+    }
+
+    /// Notes that a sign-in of `appleID` signs with team `teamID`, the ID its
+    /// summary names (`Engine.teamID(inSummary:)`). A remembered team that
+    /// isn't that one is dropped: the account is no longer on it, and has one
+    /// team left, so nothing was asked.
+    func signedIn(_ appleID: String, withTeam teamID: String?) {
+        let key = Self.teamKey(appleID)
+        guard let teamID, let remembered = teams[key], remembered.teamId != teamID else { return }
+        teams[key] = nil
+        persistTeams()
+    }
+
+    /// Apple IDs don't tell case apart.
+    private static func teamKey(_ appleID: String) -> String {
+        appleID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    // MARK: - Mutations
+
+    /// Adds or updates an Apple ID and makes it active. Updates `existing` if
+    /// given, otherwise any account with the same email (so a new password
+    /// doesn't create a duplicate).
+    @discardableResult
+    func save(appleID: String, password: String, replacing existing: SavedAccount? = nil) -> SavedAccount {
+        let email = appleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let target = existing
+            ?? accounts.first { $0.normalized.caseInsensitiveCompare(email) == .orderedSame }
+
+        let account: SavedAccount
+        if let target, let idx = accounts.firstIndex(where: { $0.id == target.id }) {
+            // A changed password or email invalidates the saved Apple session.
+            if password != self.password(for: target) || email != target.normalized {
+                Self.forgetAppleSession(for: target.normalized)
+            }
+            // Another Apple ID is on teams of its own.
+            if Self.teamKey(email) != Self.teamKey(target.normalized),
+               teams.removeValue(forKey: Self.teamKey(target.normalized)) != nil {
+                persistTeams()
+            }
+            accounts[idx].appleID = email
+            account = accounts[idx]
+        } else {
+            account = SavedAccount(appleID: email)
+            accounts.append(account)
+        }
+        store(password: password, for: account.id)
+        activeID = account.id
+        persist()
+        revision += 1
+        return account
+    }
+
+    /// Removes an Apple ID and its password. If it was active, the first
+    /// remaining account becomes active.
+    func remove(_ account: SavedAccount) {
+        accounts.removeAll { $0.id == account.id }
+        volatilePasswords[account.id] = nil
+        Self.keychainDelete(account.id)
+        Self.forgetAppleSession(for: account.normalized)
+        if teams.removeValue(forKey: Self.teamKey(account.normalized)) != nil {
+            persistTeams()
+        }
+        if activeID == account.id {
+            activeID = accounts.first?.id
+            revision += 1
+        }
+        persist()
+    }
+
+    /// Make `account` the one every sign-in uses.
+    func activate(_ account: SavedAccount) {
+        guard activeID != account.id, accounts.contains(where: { $0.id == account.id }) else { return }
+        activeID = account.id
+        persist()
+        revision += 1
+    }
+
+    /// Delete the developer session the Rust core saved for `appleID`, so its
+    /// next sign-in logs in to Apple again instead of reusing the token.
+    private static func forgetAppleSession(for appleID: String) {
+        _ = si_forget_apple_session(PrivateStore.isideload.path, appleID)
+    }
+
+    // MARK: - Persistence
+
+    private func persist() {
+        let defaults = UserDefaults.standard
+        if let data = try? JSONEncoder().encode(accounts) {
+            defaults.set(data, forKey: Self.accountsKey)
+        }
+        defaults.set(activeID?.uuidString, forKey: Self.activeKey)
+    }
+
+    private func persistTeams() {
+        if let data = try? JSONEncoder().encode(teams) {
+            UserDefaults.standard.set(data, forKey: Self.teamsKey)
+        }
+    }
+
+    /// Saves the password to the keychain, or to memory with a warning if the
+    /// keychain refuses.
+    private func store(password: String, for id: UUID) {
+        if let status = Self.keychainWrite(password, for: id) {
+            volatilePasswords[id] = password
+            keychainWarning = L("This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.", Int(status))
+        } else {
+            volatilePasswords[id] = nil
+            keychainWarning = nil
+        }
+    }
+
+    // MARK: - Keychain
+
+    private static func query(_ id: UUID) -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: service,
+         kSecAttrAccount as String: id.uuidString]
+    }
+
+    private static func keychainRead(_ id: UUID) -> String? {
+        var q = query(id)
+        q[kSecReturnData as String] = true
+        q[kSecMatchLimit as String] = kSecMatchLimitOne
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+              let data = out as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Returns nil on success, or the `OSStatus` that stopped the write.
+    private static func keychainWrite(_ password: String, for id: UUID) -> OSStatus? {
+        let data = Data(password.utf8)
+        let update = SecItemUpdate(query(id) as CFDictionary,
+                                   [kSecValueData as String: data,
+                                    kSecAttrAccessible as String: accessibility] as CFDictionary)
+        if update == errSecSuccess { return nil }
+        guard update == errSecItemNotFound else { return update }
+
+        var add = query(id)
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = accessibility
+        let status = SecItemAdd(add as CFDictionary, nil)
+        return status == errSecSuccess ? nil : status
+    }
+
+    /// Moves passwords saved by earlier versions, readable after first unlock
+    /// on any device a backup is restored to, to `accessibility`. Matches only
+    /// those, so it does nothing once they're moved; one the keychain can't
+    /// update yet (say, before the first unlock) is tried again next launch.
+    private static func keepPasswordsOnThisDevice() {
+        let saved: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service,
+                                    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock]
+        SecItemUpdate(saved as CFDictionary,
+                      [kSecAttrAccessible as String: accessibility] as CFDictionary)
+    }
+
+    private static func keychainDelete(_ id: UUID) {
+        SecItemDelete(query(id) as CFDictionary)
+    }
+}

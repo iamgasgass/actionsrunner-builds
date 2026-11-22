@@ -1,0 +1,160 @@
+import Foundation
+
+/// The language the interface is drawn in; `auto` follows the iPhone's.
+enum AppLanguage: String, CaseIterable, Identifiable {
+    case auto
+    case english
+    case spanish
+    case italian
+    case vietnamese
+    case french
+    case chinese
+    case japanese
+    case korean
+    case portuguese
+    case turkish
+
+    var id: String { rawValue }
+
+    /// Picker label, each language named in itself so it can be recognised.
+    var displayName: String {
+        switch self {
+        case .auto:       return L("Auto")
+        case .english:    return "English"
+        case .spanish:    return "Español"
+        case .italian:    return "Italiano"
+        case .vietnamese: return "Tiếng Việt"
+        case .french:     return "Français"
+        case .chinese:    return "简体中文"
+        case .japanese:   return "日本語"
+        case .korean:     return "한국어"
+        case .portuguese: return "Português"
+        case .turkish:    return "Türkçe"
+        }
+    }
+
+    /// `auto` resolved against the phone, falling back to English, the source
+    /// language; a pinned case returns itself.
+    var resolved: AppLanguage {
+        guard self == .auto else { return self }
+        let preferred = Locale.preferredLanguages.first ?? "en"
+        switch preferred.prefix(2) {
+        case "es": return .spanish
+        case "it": return .italian
+        case "vi": return .vietnamese
+        case "fr": return .french
+        // All Chinese variants use the Simplified Chinese translation.
+        case "zh": return .chinese
+        case "ja": return .japanese
+        case "ko": return .korean
+        // All Portuguese variants use the Brazilian Portuguese translation.
+        case "pt": return .portuguese
+        case "tr": return .turkish
+        default:   return .english
+        }
+    }
+
+    /// The copy for this language, or nil for the source language.
+    fileprivate var table: [String: String]? {
+        switch self {
+        case .spanish:        return spanishStrings
+        case .italian:        return italianStrings
+        case .vietnamese:     return vietnameseStrings
+        case .french:         return frenchStrings
+        case .chinese:        return chineseStrings
+        case .japanese:       return japaneseStrings
+        case .korean:         return koreanStrings
+        case .portuguese:     return portugueseStrings
+        case .turkish:        return turkishStrings
+        case .auto, .english: return nil
+        }
+    }
+}
+
+/// Owns and persists the language choice, republishing it so views holding a
+/// `@EnvironmentObject var loc: Localizer` redraw. A singleton because `L(_:)`
+/// is a free function called from background queues too.
+final class Localizer: ObservableObject {
+
+    static let shared = Localizer()
+
+    private static let defaultsKey = "appLanguage"
+
+    @Published var language: AppLanguage {
+        didSet {
+            guard language != oldValue else { return }
+            UserDefaults.standard.set(language.rawValue, forKey: Self.defaultsKey)
+            Localizer.effective = language.resolved
+        }
+    }
+
+    /// `language` with `.auto` resolved, as a static `L(_:)` can read from any
+    /// thread. Nil until the singleton has been built.
+    fileprivate static var effective: AppLanguage?
+
+    /// Language used by `L(_:)`. Falls back to `shared` (creating it) when `L`
+    /// is called before the singleton exists.
+    fileprivate static var effectiveLanguage: AppLanguage {
+        effective ?? shared.language.resolved
+    }
+
+    private init() {
+        let stored = UserDefaults.standard.string(forKey: Self.defaultsKey)
+            .flatMap(AppLanguage.init(rawValue:)) ?? .auto
+        language = stored                       // didSet doesn't run in init, so set `effective` below
+        Localizer.effective = stored.resolved
+    }
+}
+
+extension Localizer {
+    /// Locale for dates and numbers, so they match the copy around them.
+    static var locale: Locale {
+        switch shared.language {
+        case .auto:       return phoneLocale
+        case .english:    return Locale(identifier: "en_US")
+        case .spanish:    return Locale(identifier: "es_ES")
+        case .italian:    return Locale(identifier: "it_IT")
+        case .vietnamese: return Locale(identifier: "vi_VN")
+        case .french:     return Locale(identifier: "fr_FR")
+        case .chinese:    return Locale(identifier: "zh_Hans_CN")
+        case .japanese:   return Locale(identifier: "ja_JP")
+        case .korean:     return Locale(identifier: "ko_KR")
+        case .portuguese: return Locale(identifier: "pt_BR")
+        case .turkish:    return Locale(identifier: "tr_TR")
+        }
+    }
+
+    /// The phone's region in the language the copy resolved to. The app's own
+    /// current locale takes its language from the bundle, which is English
+    /// only, so an Italian phone got "en_IT": Italian copy next to English
+    /// unit and month names ("1 min, 30 secs").
+    private static var phoneLocale: Locale {
+        let language: String
+        switch AppLanguage.auto.resolved {
+        case .spanish:        language = "es"
+        case .italian:        language = "it"
+        case .vietnamese:     language = "vi"
+        case .french:         language = "fr"
+        case .chinese:        language = "zh_Hans"
+        case .japanese:       language = "ja"
+        case .korean:         language = "ko"
+        case .portuguese:     language = "pt"
+        case .turkish:        language = "tr"
+        case .auto, .english: return .autoupdatingCurrent
+        }
+        guard let region = Locale.autoupdatingCurrent.region?.identifier else {
+            return Locale(identifier: language)
+        }
+        return Locale(identifier: "\(language)_\(region)")
+    }
+}
+
+/// Translate one source string, falling back to the English key itself.
+func L(_ key: String) -> String {
+    Localizer.effectiveLanguage.table?[key] ?? key
+}
+
+/// `L` for copy with values in it, as a `String(format:)` pattern.
+func L(_ key: String, _ arguments: CVarArg...) -> String {
+    String(format: L(key), arguments: arguments)
+}

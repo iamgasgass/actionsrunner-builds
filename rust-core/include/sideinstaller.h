@@ -1,0 +1,397 @@
+// SideInstaller Rust core — C FFI surface.
+//
+// Defensive contract: no Rust panics cross this boundary. Fallible calls
+// return an int32 code (0 == OK) and may hand back heap strings that the
+// caller MUST release with si_string_free().
+#ifndef SIDEINSTALLER_H
+#define SIDEINSTALLER_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// ---------------------------------------------------------------------------
+// Logging spine (STEP 1)
+// ---------------------------------------------------------------------------
+
+// Receives every formatted log line (Rust/idevice tracing output). `msg` is
+// only valid for the duration of the call — copy it. May be invoked from
+// arbitrary Rust threads, so the Swift side must marshal to the main queue.
+typedef void (*SILogCallback)(void *ctx, const char *msg);
+
+// Install the global tracing subscriber. Returns 0 on success, 1 if logging
+// was already initialised. Call once at launch.
+int32_t si_log_init(SILogCallback cb, void *ctx);
+
+// Settings › Verbose logging: nonzero lets idevice's DEBUG lines (every plist,
+// XPC message and pairing step it exchanges) into the log; zero, the launch
+// default, holds them back at INFO. Callable before or after si_log_init.
+void si_log_set_verbose(int32_t verbose);
+
+// Liveness probe. Logs through tracing and returns a heap string describing
+// the linked core. Free with si_string_free().
+char *si_ping(void);
+
+// Free any char* returned by this library.
+void si_string_free(char *p);
+
+// ---------------------------------------------------------------------------
+// Pairing — RPPairing host (STEP 2)
+// ---------------------------------------------------------------------------
+
+// Fires once the host is bound and ready to advertise. The Swift side
+// publishes `service_id` + the TXT records over Bonjour (NetService). All
+// pointers are only valid for the duration of the call.
+typedef void (*SIPairReadyCb)(void *ctx,
+                              const char *service_id,
+                              uint16_t port,
+                              const char *const *txt_keys,
+                              const char *const *txt_vals,
+                              size_t txt_count);
+
+// Fires with the PIN the user must confirm in Developer Mode settings.
+typedef void (*SIPairPinCb)(const char *pin, void *ctx);
+
+// Result of a pairing run. All char* fields are heap-allocated; release the
+// whole struct with si_pairing_result_free().
+typedef struct {
+    char *error;
+    char *device_name;
+    char *device_model;
+    char *device_udid;
+    char *pairing_file_path;
+    char *host_alt_irk_hex;
+    // The address the device connected from: its IP on this network.
+    char *device_address;
+} SIPairResult;
+
+// Stops one si_pairing_run_host call from another thread.
+typedef struct SIPairCancel SIPairCancel;
+
+// Run the RPPairing host. BLOCKS until a device pairs, the run fails or it's
+// cancelled — run it off the main thread. `port` 0 lets the OS pick a port.
+// Returns 0 once paired; 1 if pairing failed; 2 if `out` is NULL or the host
+// panicked; 3 if it was cancelled through `cancel`. For 1–3, `out->error`
+// says why.
+// Waiting for a device to connect has no time limit (cancel ends it). Once
+// one has, it has 30 s to ask for a code, and from then on 5 minutes to finish
+// pairing (the user types the code into Settings); past either, it returns 1.
+// `cancel` comes from si_pairing_cancel_new, or is NULL for a run nothing can
+// stop.
+// `host_alt_irk_hex` is the `host_alt_irk_hex` a previous successful run
+// returned, or NULL/"" the first time. Passing it back keeps this host's
+// identity stable, so a device that has paired before recognises it instead of
+// being offered a brand-new pairing.
+// `host_identifier` is the identifier a new pairing file gets, or NULL/"" to
+// derive it from `name`, which gives every SideInstaller the same one. The
+// device keeps one record per identifier, so pairing it under an identifier
+// another host already used replaces that host's record. An existing file at
+// `out_path` keeps its own identifier either way.
+int32_t si_pairing_run_host(const char *bind_addr,
+                            uint16_t port,
+                            const char *name,
+                            const char *model,
+                            const char *out_path,
+                            const char *host_alt_irk_hex,
+                            const char *host_identifier,
+                            SIPairReadyCb ready_cb,
+                            SIPairPinCb pin_cb,
+                            void *ctx,
+                            const SIPairCancel *cancel,
+                            SIPairResult *out);
+
+// Free the heap strings inside a SIPairResult.
+void si_pairing_result_free(SIPairResult *r);
+
+// A handle that stops one si_pairing_run_host call. Free it with
+// si_pairing_cancel_free.
+SIPairCancel *si_pairing_cancel_new(void);
+
+// Stop the run `cancel` was passed to, whatever stage it's at — waiting for a
+// device, mid-handshake or waiting for the code — closing the device's
+// connection; si_pairing_run_host then returns 3. Returns at once. Callable
+// from any thread and more than once: before the run starts, it never
+// listens; after it ends, this does nothing. NULL is ignored.
+void si_pairing_cancel(const SIPairCancel *cancel);
+
+// Free a handle from si_pairing_cancel_new once no si_pairing_run_host call
+// that was given it is still running and nothing will cancel through it
+// again. NULL is ignored.
+void si_pairing_cancel_free(SIPairCancel *cancel);
+
+// ---------------------------------------------------------------------------
+// Pairing port — this iPhone's RPPairing listener when it isn't on 49152
+// ---------------------------------------------------------------------------
+
+// Knock on `device_ip`'s dynamic ports (49152–65535), except lockdownd's 62078
+// and the `tried_count` ports in `tried`, 32 at a time, in order, until one
+// answers the RPPairing handshake: the listener tunnel_create_rppairing_multihost
+// dials, which takes whatever port is free when it starts. BLOCKS for seconds
+// (a closed port refuses at once) — run it off the main thread. Stops early
+// after 64 connections in a row that neither refuse nor connect (the VPN went),
+// once more than 48 ports take the connection without answering (another VPN
+// or a proxy answers there), and after running out of descriptors 256 times.
+// Returns 0 with the port in `*out_port` when one answered, 1 when none did,
+// 2 when knocking had to stop, and -1 when `device_ip` isn't an IP address.
+// `*out_summary` (NULL to skip) says what happened, for the log; free it with
+// si_string_free(). `tried` may be NULL.
+int32_t si_find_pairing_port(const char *device_ip,
+                             const uint16_t *tried,
+                             size_t tried_count,
+                             uint16_t *out_port,
+                             char **out_summary);
+
+// Ask device_ip:port for the RPPairing handshake (attemptPairVerify), as
+// tunnel_create_rppairing_multihost does first, but with 8 s to connect and
+// 10 s to answer: the dial has no time limit, so a port that takes the
+// connection and never answers would hold it for ever. BLOCKS for up to 18 s —
+// run it off the main thread. Returns 0 when the port answered as the pairing
+// service, 1 when it refused the connection, 2 when something took the
+// connection and didn't answer as the service (nothing within 10 s, or
+// something else), 3 when nothing took or refused it within 8 s, 4 when the
+// connection failed some other way, and -1 when `device_ip` isn't an IP
+// address. `*out_summary` (NULL to skip) says what the port did, for the log
+// after "Port N"; free it with si_string_free().
+int32_t si_probe_pairing_port(const char *device_ip,
+                              uint16_t port,
+                              char **out_summary);
+
+// ---------------------------------------------------------------------------
+// Account — Apple ID sign-in + on-device signing (STEP 3)
+// ---------------------------------------------------------------------------
+
+// Opaque sign-session handle.
+typedef struct SignSession SignSession;
+
+// Invoked whenever Apple is waiting on the user during sign-in. `request_json`
+// says for what:
+//   {"method": "device" | "sms" | "voice" | "choose",
+//    "selectedNumberId": 3 | null, "lastError": "…" | null,
+//    "numbers": [{"id": 3, "number": "+39 ••• ••• ••89", "pushMode": "sms"}]}
+// "device"/"sms"/"voice" name where the pending code went (the number is
+// selectedNumberId); "choose" means the last method failed and nothing is
+// pending. Write a NUL-terminated JSON answer into `out_buf` (capacity
+// `buf_len`) and return 1:
+//   {"action": "code", "code": "123456"} | {"action": "sms", "id": 3} |
+//   {"action": "voice", "id": 3} | {"action": "devices"} | {"action": "resend"}
+// or return 0 to cancel the sign-in.
+typedef int32_t (*SITwoFactorCb)(void *ctx, const char *request_json,
+                                 char *out_buf, size_t buf_len);
+
+// Invoked when a sign-in has to ask which developer team signs: the account is
+// on more than one (the free team every Apple Account has, and a paid Apple
+// Developer Program membership or a company's team) and the `team_id` passed
+// in isn't one of them. Called on the same thread and with the same `ctx` as
+// the 2FA callback, after any 2FA. `teams_json` lists the teams in Apple's
+// order:
+//   [{"teamId": "ABCDE12345", "name": "…", "kind": "free" | "paid" | "unknown"}]
+// "name" is "" when Apple gave none. "kind" goes by listTeams' membership names
+// as AltSign reads them; "unknown" when they don't tell, or couldn't be read.
+// Write the picked team's ID, NUL-terminated, into `out_buf` (capacity
+// `buf_len`) and return 1, or return 0 to stop the sign-in, which then fails
+// with "No developer team picked.". An ID that isn't listed fails it too.
+typedef int32_t (*SITeamCb)(void *ctx, const char *teams_json,
+                            char *out_buf, size_t buf_len);
+
+// Open a developer session + build the signer. BLOCKS — call off the main
+// thread. With `remember_session` non-zero, the developer session an earlier
+// sign-in of this Apple ID saved in `storage_dir` is reused while Apple still
+// accepts it — no password, no 2FA, no GrandSlam sign-in — and a fresh
+// sign-in's session is saved. Pass 0 for an Apple ID that isn't this iPhone
+// owner's (Side by Side): nothing is read or kept. `team_id` is the team that
+// signs, as remembered for this Apple ID, or NULL/"" for none: when the account
+// isn't on it, its only team signs, or with more than one, `team_cb` is asked
+// which (a NULL `team_cb` takes Apple's first). Returns 0 on success
+// (*out_session + *out_summary set, the summary naming the team as
+// "team: <name> (<team ID>)"), non-zero on error (*out_error set). Free strings
+// with si_string_free, the session with si_sign_session_free.
+int32_t si_apple_signin(const char *apple_id,
+                        const char *password,
+                        const char *anisette_url,
+                        const char *machine_name,
+                        const char *storage_dir,
+                        int32_t remember_session,
+                        const char *team_id,
+                        SITwoFactorCb twofa_cb,
+                        SITeamCb team_cb,
+                        void *ctx,
+                        SignSession **out_session,
+                        char **out_summary,
+                        char **out_error);
+
+// Sign the IPA at ipa_path. BLOCKS. On success *out_signed_path is the signed
+// .app bundle path (in a temp dir). Registers App ID + provisioning profile and
+// retrieves/creates the dev certificate internally. `udid` (with the friendly
+// `device_name`) is registered with the developer team BEFORE the provisioning
+// profile is requested — without it a fresh/free team fails with developer
+// error 8220 ("Your team has no devices …"). A registration failure is reported
+// with a "device registration failed for UDID <udid>:" prefix. Pass NULL/empty
+// `udid` to skip registration. `pairing_file_path` is the pairing file used to
+// reach that device: when the IPA is AltStore, its RPPairing record is bundled
+// encrypted as ALTPairingFile.dat for Remote AltServer, as AltServer does. Pass
+// NULL/empty to bundle none. `memory_limit` says whether the Increased Memory
+// Limit capability is enabled on the app's App IDs before the profile is
+// requested, so the signed app carries that entitlement: 0 no; 1 yes, and
+// signing fails if Apple refuses (Madeira needs it); 2 yes, except for the app
+// stores that refresh themselves (SideStore, LiveContainer+SideStore, AltStore,
+// StikStore), and the app is signed without it if Apple refuses.
+// `app_group` is non-zero for every app but one that renews its own profile
+// (Madeira): zero leaves its App IDs without an app group, which an App ID it
+// registers again later wouldn't have either.
+int32_t si_sign_ipa(SignSession *session,
+                    const char *ipa_path,
+                    const char *udid,
+                    const char *device_name,
+                    const char *pairing_file_path,
+                    int32_t memory_limit,
+                    int32_t app_group,
+                    char **out_signed_path,
+                    char **out_error);
+
+// The sign-in an app needs to renew its own provisioning profile, for handing
+// to Madeira. BLOCKS, but asks Apple nothing. On success *out_json is a heap
+// JSON object: {team_id, adsid, token, token_expires: <unix seconds, 0 if Apple
+// stated none>, anisette_identifier: <base64>, anisette_adi_pb: <base64>}. The
+// token is the session's developer-portal token: it is a credential, and there
+// is no password in here. Returns 0 on success, non-zero on error (*out_error
+// set). Free strings with si_string_free.
+int32_t si_signing_account(SignSession *session,
+                           char **out_json,
+                           char **out_error);
+
+// Build the Account.sideconf payload SideStore imports on launch (Apple ID,
+// signing certificate as an encrypted p12, and the anisette identity). BLOCKS.
+// On success *out_json is that JSON, to be written into SideStore's Documents.
+// The Apple ID password is deliberately omitted. Never mints a certificate (so
+// it can never revoke one): fails if this Apple ID has no SideInstaller
+// certificate yet, or if anisette hasn't been provisioned. Returns 0 on
+// success, non-zero on error (*out_error set). Free strings with si_string_free.
+int32_t si_account_config(SignSession *session,
+                          char **out_json,
+                          char **out_error);
+
+// What signing an app would cost in App IDs, asked before si_sign_ipa so the
+// user can decide. `bundle_id` is the main app's bundle id as the IPA has it;
+// extensions are signed with the main app's profile and need no App ID. BLOCKS;
+// lists the team's App IDs and registers nothing. On success *out_json is a heap
+// JSON object: {new_ids: [the App ID si_sign_ipa would register, team suffix
+// included; empty if the team has it], available: <how many more Apple allows
+// now, or null>, max: <the limit, or null>, next_expiry: <unix seconds the
+// soonest App ID expires, or null>}.
+// Returns 0 on success, non-zero on error (*out_error set). Free strings with
+// si_string_free.
+int32_t si_appid_quota(SignSession *session,
+                       const char *bundle_id,
+                       char **out_json,
+                       char **out_error);
+
+// Free a sign session.
+void si_sign_session_free(SignSession *session);
+
+// Forget the developer session saved for `apple_id` in `storage_dir`, so its
+// next sign-in logs in to Apple again. Call when the account is removed or its
+// password changes. Returns 1 if one was saved, 0 otherwise.
+int32_t si_forget_apple_session(const char *storage_dir, const char *apple_id);
+
+// ---------------------------------------------------------------------------
+// Certificate management — list + revoke iOS development certificates
+// ---------------------------------------------------------------------------
+
+// Opaque certificate-session handle.
+typedef struct CertSession CertSession;
+
+// Log in + open developer session + select the team that signs, for
+// certificate management: `team_id` and `team_cb` pick it as they do for
+// si_apple_signin. BLOCKS — call off the main thread. Independent of the
+// install pipeline (no device/pairing/VPN needed). Returns 0 on success
+// (*out_session + *out_summary set), non-zero on error (*out_error set). Free
+// strings with si_string_free, the session with si_cert_session_free.
+int32_t si_cert_signin(const char *apple_id,
+                       const char *password,
+                       const char *anisette_url,
+                       const char *machine_name,
+                       const char *storage_dir,
+                       const char *team_id,
+                       SITwoFactorCb twofa_cb,
+                       SITeamCb team_cb,
+                       void *ctx,
+                       CertSession **out_session,
+                       char **out_summary,
+                       char **out_error);
+
+// List the team's iOS development certificates. BLOCKS. On success *out_json is
+// a heap JSON array of objects: {name, serial_number, machine_name, machine_id,
+// certificate_id, platform, status, expiration, signing}, where signing is true
+// for the one SideInstaller signs with. Free with si_string_free.
+int32_t si_cert_list(CertSession *session,
+                     char **out_json,
+                     char **out_error);
+
+// Revoke the development certificate with the given serial number. BLOCKS.
+// Returns 0 on success, non-zero on error (*out_error set).
+int32_t si_cert_revoke(CertSession *session,
+                       const char *serial_number,
+                       char **out_error);
+
+// Sign with the certificate in a PKCS#12 archive (SideStore's export, from
+// sidestore://certificate) from now on: its private key becomes the Apple ID's
+// signing key, once the portal lists a certificate for it on the session's team.
+// BLOCKS. Returns 0 on success (*out_json = {"certificate": <cert>,
+// "replaced_key": bool}), 3 when no certificate on the team has the archive's
+// key (nothing written), other non-zero on error (*out_error set).
+int32_t si_cert_import(CertSession *session,
+                       const uint8_t *p12,
+                       size_t p12_len,
+                       const char *password,
+                       char **out_json,
+                       char **out_error);
+
+// Write the certificate with the given serial number and its private key to
+// out_path as a PKCS#12 archive encrypted with password (triple-DES, SHA-1 MAC),
+// for another app or computer to sign with. Only the certificate SideInstaller
+// signs with has its key here. BLOCKS. Returns 0 on success, 3 when the
+// certificate isn't that one (nothing written), other non-zero on error
+// (*out_error set).
+int32_t si_cert_export(CertSession *session,
+                       const char *serial_number,
+                       const char *password,
+                       const char *out_path,
+                       char **out_error);
+
+// Free a certificate session.
+void si_cert_session_free(CertSession *session);
+
+// ---------------------------------------------------------------------------
+// Entitlements — enable developer-portal capabilities on an App ID
+// ---------------------------------------------------------------------------
+//
+// Reuses the certificate session: same Apple ID, same developer session, same
+// team, so signing in once covers both. Enabling a capability only changes what
+// Apple will put in the NEXT provisioning profile — the app must be signed and
+// installed again for it to take effect.
+
+// List the team's App IDs. BLOCKS. On success *out_json is a heap JSON array of
+// objects: {app_id_id, identifier, name}. Free with si_string_free.
+int32_t si_appid_list(CertSession *session,
+                      char **out_json,
+                      char **out_error);
+
+// Enable each capability id in the comma-separated `capabilities` list on the
+// App ID `app_id_id` (the opaque id from si_appid_list, not the bundle id).
+// BLOCKS. Each id is one request, so a refusal costs only itself; on success
+// *out_json is a heap JSON array of {capability, ok, error}, one per requested
+// id. Returns non-zero only when nothing could be attempted (*out_error set).
+int32_t si_appid_enable(CertSession *session,
+                        const char *app_id_id,
+                        const char *capabilities,
+                        char **out_json,
+                        char **out_error);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // SIDEINSTALLER_H

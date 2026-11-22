@@ -1,0 +1,490 @@
+//! SideInstaller's Rust core: a C FFI shim over `idevice` and `isideload`.
+//!
+//! No panic crosses the boundary, and every fallible call returns an error code
+//! plus a message the caller frees with `si_string_free`.
+
+// Link idevice's C FFI crate so its `#[no_mangle]` symbols are exported to
+// Swift. Aliased to `_` because only the exports are used.
+extern crate idevice_ffi as _;
+
+mod account;
+mod apple_session;
+mod certs;
+mod entitlements;
+mod error_text;
+mod ffi_util;
+mod logging;
+mod p12;
+mod pairing;
+mod pairing_port;
+mod team;
+
+use std::ffi::{c_char, c_void};
+
+use isideload::sideload::sideloader::MemoryLimit;
+
+use ffi_util::cstr;
+
+// Re-export FFI types so the generated header / Swift see them.
+pub use account::{SignSession, TeamCb, TwoFactorCb};
+pub use certs::CertSession;
+pub use pairing::{PairCancel, PairResult, PinCb, ReadyCb};
+
+/// Initialise the logging spine. `cb` receives every formatted log line
+/// (idevice's tracing output included). `ctx` is passed back untouched.
+///
+/// Returns 0 on success, 1 if logging was already initialised.
+#[no_mangle]
+pub extern "C" fn si_log_init(cb: logging::LogCallback, ctx: *mut c_void) -> i32 {
+    logging::init(cb, ctx)
+}
+
+/// Settings › Verbose logging: nonzero lets idevice's DEBUG lines (every
+/// plist, XPC message and pairing step it exchanges) into the log, zero holds
+/// them back, as at launch. Callable before or after `si_log_init`.
+#[no_mangle]
+pub extern "C" fn si_log_set_verbose(verbose: i32) {
+    logging::set_verbose(verbose != 0)
+}
+
+/// Liveness probe: logs through `tracing` and returns a string to free.
+#[no_mangle]
+pub extern "C" fn si_ping() -> *mut c_char {
+    tracing::info!("si_ping: Rust core alive (idevice {} linked)", idevice_version());
+    cstr(format!(
+        "pong from sideinstaller_ffi — idevice {} linked, tokio runtime available",
+        idevice_version()
+    ))
+}
+
+/// Best-effort idevice version string for diagnostics.
+fn idevice_version() -> &'static str {
+    // idevice exports no runtime version; the pin lives in Cargo.toml.
+    "@7bd551c"
+}
+
+/// Free a `*mut c_char` previously returned by this library.
+///
+/// # Safety
+/// `p` must be null or a pointer returned by one of this library's functions.
+#[no_mangle]
+pub unsafe extern "C" fn si_string_free(p: *mut c_char) {
+    ffi_util::string_free(p);
+}
+
+// ---------------------------------------------------------------------------
+// Pairing — the RPPairing host
+// ---------------------------------------------------------------------------
+
+/// Run the RPPairing host, blocking until a device pairs, so run it off the
+/// main thread. `ready_cb` carries the Bonjour details and `pin_cb` the PIN;
+/// `out` receives the device info and the pairing file's path. `cancel`, from
+/// `si_pairing_cancel_new`, stops it from another thread; NULL for none.
+///
+/// # Safety
+/// See `pairing::run_host`. `out` must point to a writable `PairResult`.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn si_pairing_run_host(
+    bind_addr: *const c_char,
+    port: u16,
+    name: *const c_char,
+    model: *const c_char,
+    out_path: *const c_char,
+    host_alt_irk_hex: *const c_char,
+    host_identifier: *const c_char,
+    ready_cb: ReadyCb,
+    pin_cb: PinCb,
+    ctx: *mut c_void,
+    cancel: *const PairCancel,
+    out: *mut PairResult,
+) -> i32 {
+    pairing::run_host(
+        bind_addr,
+        port,
+        name,
+        model,
+        out_path,
+        host_alt_irk_hex,
+        host_identifier,
+        ready_cb,
+        pin_cb,
+        ctx,
+        cancel,
+        out,
+    )
+}
+
+/// A handle that stops one `si_pairing_run_host` call. Free it with
+/// `si_pairing_cancel_free`.
+#[no_mangle]
+pub extern "C" fn si_pairing_cancel_new() -> *mut PairCancel {
+    Box::into_raw(Box::default())
+}
+
+/// Stop the run `cancel` was passed to, whatever stage it's at; it returns 3.
+/// Returns at once, from any thread, as often as needed: before the run starts
+/// it never listens, and after it ends this does nothing.
+///
+/// # Safety
+/// `cancel` must be null or a handle from `si_pairing_cancel_new` not yet freed.
+#[no_mangle]
+pub unsafe extern "C" fn si_pairing_cancel(cancel: *const PairCancel) {
+    if let Some(cancel) = cancel.as_ref() {
+        cancel.cancel();
+    }
+}
+
+/// Free a handle from `si_pairing_cancel_new`.
+///
+/// # Safety
+/// `cancel` must be null or a handle from `si_pairing_cancel_new` not yet
+/// freed, which no `si_pairing_run_host` call still running was given and no
+/// other thread can still cancel through.
+#[no_mangle]
+pub unsafe extern "C" fn si_pairing_cancel_free(cancel: *mut PairCancel) {
+    if !cancel.is_null() {
+        drop(Box::from_raw(cancel));
+    }
+}
+
+/// Free the heap strings inside a `PairResult`.
+///
+/// # Safety
+/// `r` must be null or a `PairResult` populated by `si_pairing_run_host`.
+#[no_mangle]
+pub unsafe extern "C" fn si_pairing_result_free(r: *mut PairResult) {
+    pairing::result_free(r)
+}
+
+// ---------------------------------------------------------------------------
+// Pairing port — this iPhone's RPPairing listener when it isn't on 49152
+// ---------------------------------------------------------------------------
+
+/// Knock on `device_ip`'s dynamic ports (49152–65535), except lockdownd's
+/// 62078 and the `tried_count` ports in `tried`, 32 at a time, in order, until
+/// one answers the RPPairing handshake (`attemptPairVerify`). For the
+/// listener `tunnel_create_rppairing_multihost` dials when it isn't where it
+/// was looked for (see `pairing_port`). Blocks for seconds, so run it off the
+/// main thread.
+///
+/// Returns 0 with the port in `*out_port` when one answered, 1 when none did,
+/// 2 when knocking had to stop (the route went, too many ports took the
+/// connection, or the app ran out of descriptors), and -1 for an address that
+/// isn't one. `*out_summary` says what happened, for the log; free it with
+/// `si_string_free`.
+///
+/// # Safety
+/// See `pairing_port::find_ffi`.
+#[no_mangle]
+pub unsafe extern "C" fn si_find_pairing_port(
+    device_ip: *const c_char,
+    tried: *const u16,
+    tried_count: usize,
+    out_port: *mut u16,
+    out_summary: *mut *mut c_char,
+) -> i32 {
+    pairing_port::find_ffi(device_ip, tried, tried_count, out_port, out_summary)
+}
+
+/// Ask `device_ip:port` for the RPPairing handshake (`attemptPairVerify`), as
+/// `tunnel_create_rppairing_multihost` does first, but with 8 s to connect and
+/// 10 s to answer. The dial has no time limit, so a port that takes the
+/// connection and never answers would hold it for ever. Blocks for up to 18 s,
+/// so run it off the main thread.
+///
+/// Returns 0 when the port answered as the pairing service, 1 when it refused
+/// the connection, 2 when something took the connection and didn't answer as
+/// the service (nothing within 10 s, or something else), 3 when nothing took or
+/// refused it within 8 s, 4 when the connection failed some other way, and -1
+/// for an address that isn't one. `*out_summary` says what the port did, for
+/// the log after "Port N"; free it with `si_string_free`.
+///
+/// # Safety
+/// See `pairing_port::probe_ffi`.
+#[no_mangle]
+pub unsafe extern "C" fn si_probe_pairing_port(
+    device_ip: *const c_char,
+    port: u16,
+    out_summary: *mut *mut c_char,
+) -> i32 {
+    pairing_port::probe_ffi(device_ip, port, out_summary)
+}
+
+
+// ---------------------------------------------------------------------------
+// Account — Apple ID sign-in and signing
+// ---------------------------------------------------------------------------
+
+/// Sign in, open a developer session and build a signer. Blocks; `twofa_cb` is
+/// called when a 2FA code is needed. If `remember_session` is non-zero, a saved
+/// developer session is reused while valid and new ones are saved (see
+/// `apple_session`). `team_id` names the team that signs; `team_cb` is asked
+/// which when the account isn't on it and is on more than one (see `team`).
+///
+/// # Safety
+/// See `account::apple_signin`.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn si_apple_signin(
+    apple_id: *const c_char,
+    password: *const c_char,
+    anisette_url: *const c_char,
+    machine_name: *const c_char,
+    storage_dir: *const c_char,
+    remember_session: i32,
+    team_id: *const c_char,
+    twofa_cb: TwoFactorCb,
+    team_cb: TeamCb,
+    ctx: *mut c_void,
+    out_session: *mut *mut SignSession,
+    out_summary: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    account::apple_signin(
+        apple_id, password, anisette_url, machine_name, storage_dir, remember_session, team_id,
+        twofa_cb, team_cb, ctx, out_session, out_summary, out_error,
+    )
+}
+
+/// Sign the IPA at `ipa_path`, returning the `.app` bundle's path. Blocks.
+/// `udid` is registered with the team first; pass NULL to skip that.
+/// `pairing_file_path` goes into AltStore's bundle; pass NULL for none.
+/// `memory_limit` says whether the app's App IDs get the Increased Memory Limit
+/// capability first, so the profile grants it (isideload's `MemoryLimit`): 0
+/// no; 1 yes, failing if Apple refuses (an app that needs it); 2 yes unless the
+/// app is an app store that refreshes itself, signing without it if Apple
+/// refuses. A zero `app_group` leaves them without an app group, for an app
+/// that renews its own profile.
+///
+/// # Safety
+/// See `account::sign_ipa`.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn si_sign_ipa(
+    session: *mut SignSession,
+    ipa_path: *const c_char,
+    udid: *const c_char,
+    device_name: *const c_char,
+    pairing_file_path: *const c_char,
+    memory_limit: i32,
+    app_group: i32,
+    out_signed_path: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    account::sign_ipa(
+        session,
+        ipa_path,
+        udid,
+        device_name,
+        pairing_file_path,
+        match memory_limit {
+            1 => MemoryLimit::Required,
+            2 => MemoryLimit::Preferred,
+            _ => MemoryLimit::Off,
+        },
+        app_group != 0,
+        out_signed_path,
+        out_error,
+    )
+}
+
+/// Set `*out_json` to the sign-in an app needs to renew its own provisioning
+/// profile: `{team_id, adsid, token, token_expires, anisette_identifier,
+/// anisette_adi_pb}`. Blocks, but asks Apple nothing.
+///
+/// # Safety
+/// See `account::signing_account`.
+#[no_mangle]
+pub unsafe extern "C" fn si_signing_account(
+    session: *mut SignSession,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    account::signing_account(session, out_json, out_error)
+}
+
+/// Build SideStore's `Account.sideconf` payload, setting `*out_json` to it.
+/// Blocks.
+///
+/// # Safety
+/// See `account::account_config`.
+#[no_mangle]
+pub unsafe extern "C" fn si_account_config(
+    session: *mut SignSession,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    account::account_config(session, out_json, out_error)
+}
+
+/// Set `*out_json` to what signing an app whose main bundle ID is `bundle_id`
+/// would cost in App IDs. Blocks; registers nothing.
+///
+/// # Safety
+/// See `account::appid_quota`.
+#[no_mangle]
+pub unsafe extern "C" fn si_appid_quota(
+    session: *mut SignSession,
+    bundle_id: *const c_char,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    account::appid_quota(session, bundle_id, out_json, out_error)
+}
+
+/// Free a sign session.
+///
+/// # Safety
+/// `session` must be null or a pointer from `si_apple_signin`.
+#[no_mangle]
+pub unsafe extern "C" fn si_sign_session_free(session: *mut SignSession) {
+    account::sign_session_free(session)
+}
+
+/// Forget the developer session saved for `apple_id`, so its next sign-in logs
+/// in to Apple again. Returns 1 if one was saved, 0 otherwise.
+///
+/// # Safety
+/// Both arguments must be null or valid C strings.
+#[no_mangle]
+pub unsafe extern "C" fn si_forget_apple_session(
+    storage_dir: *const c_char,
+    apple_id: *const c_char,
+) -> i32 {
+    match (ffi_util::req_str(storage_dir), ffi_util::req_str(apple_id)) {
+        (Some(dir), Some(id)) => apple_session::forget(std::path::Path::new(&dir), &id) as i32,
+        _ => 0,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Certificates — list, revoke, import and export
+// ---------------------------------------------------------------------------
+
+/// Open a developer session on the team that signs, for certificate
+/// management: `team_id`, or the one `team_cb` picks, as `si_apple_signin`
+/// does. Blocks, and needs no device.
+///
+/// # Safety
+/// See `certs::cert_signin`.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn si_cert_signin(
+    apple_id: *const c_char,
+    password: *const c_char,
+    anisette_url: *const c_char,
+    machine_name: *const c_char,
+    storage_dir: *const c_char,
+    team_id: *const c_char,
+    twofa_cb: TwoFactorCb,
+    team_cb: TeamCb,
+    ctx: *mut c_void,
+    out_session: *mut *mut CertSession,
+    out_summary: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    certs::cert_signin(
+        apple_id, password, anisette_url, machine_name, storage_dir, team_id, twofa_cb, team_cb,
+        ctx, out_session, out_summary, out_error,
+    )
+}
+
+/// List the team's certificates as JSON in `*out_json`. Blocks.
+///
+/// # Safety
+/// See `certs::cert_list`.
+#[no_mangle]
+pub unsafe extern "C" fn si_cert_list(
+    session: *mut CertSession,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    certs::cert_list(session, out_json, out_error)
+}
+
+/// Revoke the development certificate with `serial_number`. Blocks.
+///
+/// # Safety
+/// See `certs::cert_revoke`.
+#[no_mangle]
+pub unsafe extern "C" fn si_cert_revoke(
+    session: *mut CertSession,
+    serial_number: *const c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    certs::cert_revoke(session, serial_number, out_error)
+}
+
+/// Sign with the certificate in a PKCS#12 archive (SideStore's export) from
+/// now on, once the portal lists it on the session's team; JSON in
+/// `*out_json`. Returns 3 when no certificate on the team has its key. Blocks.
+///
+/// # Safety
+/// See `certs::cert_import`.
+#[no_mangle]
+pub unsafe extern "C" fn si_cert_import(
+    session: *mut CertSession,
+    p12: *const u8,
+    p12_len: usize,
+    password: *const c_char,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    certs::cert_import(session, p12, p12_len, password, out_json, out_error)
+}
+
+/// Write the certificate with `serial_number` and its private key to
+/// `out_path` as a PKCS#12 archive encrypted with `password`. Returns 3 when
+/// it isn't the certificate SideInstaller signs with. Blocks.
+///
+/// # Safety
+/// See `certs::cert_export`.
+#[no_mangle]
+pub unsafe extern "C" fn si_cert_export(
+    session: *mut CertSession,
+    serial_number: *const c_char,
+    password: *const c_char,
+    out_path: *const c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    certs::cert_export(session, serial_number, password, out_path, out_error)
+}
+
+/// Free a certificate session.
+///
+/// # Safety
+/// `session` must be null or a pointer from `si_cert_signin`.
+#[no_mangle]
+pub unsafe extern "C" fn si_cert_session_free(session: *mut CertSession) {
+    certs::cert_session_free(session)
+}
+
+/// List the team's App IDs as JSON in `*out_json`. Blocks.
+///
+/// # Safety
+/// See `entitlements::appid_list`.
+#[no_mangle]
+pub unsafe extern "C" fn si_appid_list(
+    session: *mut CertSession,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    entitlements::appid_list(session, out_json, out_error)
+}
+
+/// Enable the comma-separated `capabilities` on one App ID, reporting each
+/// outcome as JSON in `*out_json`. Blocks.
+///
+/// # Safety
+/// See `entitlements::appid_enable`.
+#[no_mangle]
+pub unsafe extern "C" fn si_appid_enable(
+    session: *mut CertSession,
+    app_id_id: *const c_char,
+    capabilities: *const c_char,
+    out_json: *mut *mut c_char,
+    out_error: *mut *mut c_char,
+) -> i32 {
+    entitlements::appid_enable(session, app_id_id, capabilities, out_json, out_error)
+}

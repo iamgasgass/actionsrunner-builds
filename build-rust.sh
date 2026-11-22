@@ -1,0 +1,58 @@
+#!/bin/bash
+# Builds the Rust FFI for device and simulator and repackages
+# SideInstallerFFI.xcframework. Run on any rust-core/ change, then regenerate
+# the project with `xcodegen generate`.
+#
+# SIMULATOR=0 builds the device slice only, which is all an IPA needs
+# (scripts/build-ipa.sh does that). DEVICE=0 builds the simulator slice only,
+# which is all a simulator build needs (scripts/check-ios.sh does that).
+set -euo pipefail
+
+SIMULATOR="${SIMULATOR:-1}"
+
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
+# Match the app's deployment floor, or cc-rs objects trip linker warnings.
+export IPHONEOS_DEPLOYMENT_TARGET="${IPHONEOS_DEPLOYMENT_TARGET:-17.4}"
+# Make ~/.cargo visible to non-login shells such as Xcode's.
+# shellcheck disable=SC1090
+# Only when cargo isn't on PATH already: GitHub's macOS runner has it there,
+# and sourcing that runner's env file ended the script without a word
+# (2026-10-23, v1.6.1's release run).
+if ! command -v cargo >/dev/null && [ -f "$HOME/.cargo/env" ]; then
+  set +u
+  source "$HOME/.cargo/env" || true
+  set -u
+fi
+
+# Rewrite $HOME to /build, since Rust bakes absolute source paths in as string
+# constants that survive stripping and reach the app's log console.
+export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=${HOME}=/build"
+export CFLAGS="${CFLAGS:-} -ffile-prefix-map=${HOME}=/build"
+export TARGET_CFLAGS="${TARGET_CFLAGS:-} -ffile-prefix-map=${HOME}=/build"
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT/rust-core"
+
+DEVICE="${DEVICE:-1}"
+if [ "$DEVICE" = 0 ] && [ "$SIMULATOR" = 0 ]; then
+  echo "error: DEVICE=0 and SIMULATOR=0 leave nothing to build" >&2
+  exit 1
+fi
+
+echo "==> Building Rust static libs (release)"
+slices=()
+if [ "$DEVICE" != 0 ]; then
+  cargo build --release --target aarch64-apple-ios
+  slices+=(-library rust-core/target/aarch64-apple-ios/release/libsideinstaller_ffi.a -headers rust-core/include)
+fi
+if [ "$SIMULATOR" != 0 ]; then
+  cargo build --release --target aarch64-apple-ios-sim
+  slices+=(-library rust-core/target/aarch64-apple-ios-sim/release/libsideinstaller_ffi.a -headers rust-core/include)
+fi
+
+cd "$ROOT"
+echo "==> Repackaging SideInstallerFFI.xcframework"
+rm -rf "$ROOT/SideInstallerFFI.xcframework"
+xcodebuild -create-xcframework "${slices[@]}" -output "$ROOT/SideInstallerFFI.xcframework"
+
+echo "==> Done. (Re)generate the project with: xcodegen generate"

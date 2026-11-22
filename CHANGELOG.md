@@ -1,0 +1,1030 @@
+# Changelog
+
+All notable changes to SideInstaller are documented here.
+
+## 2.1.1
+
+### Changed
+- **lillq is the first anisette server.** anisette.lillq.me, a pool of anisette servers that checks
+  every hour which clients Apple lets through and hands out one that passes, is now on the list in
+  Settings › Anisette Server, and a first sign-in starts there. With Auto on, it comes right after
+  the server that signed in last and the others that share its anisette identity, since those keep
+  the saved sign-in: lillq's identities work on no other server, and theirs not on lillq. A sign-in
+  that moves between lillq and another server makes that server an identity of its own instead of
+  stopping at the one it can't use.
+
+### Fixed
+- **Signing in to Apple works again.** Since 20 November Apple has answered sign-ins through every
+  Mac anisette server with HTTP 503, “Service Temporarily Unavailable” (#146–#161): it now turns
+  away any client that calls its system “macOS”, and SideInstaller signed in as a Mac on macOS 26.6.
+  It now signs in as a Mac on macOS 10.15.7, the newest that still calls its system “Mac OS X”,
+  which Apple lets through and which is new enough for the accounts Apple asks for macOS 10.13 or
+  later (#89). The anisette identities made since 1.6.1 work with it as they are.
+- **The device link finds the pairing port when it isn't 49152.** iOS gives this iPhone's remote
+  pairing listener whatever port is free when it starts, so it isn't always on 49152, and the
+  device link was refused there with Developer Mode and LocalDevVPN both on. When 49152 refuses
+  and the port the iPhone advertises doesn't answer either, or it advertises none, SideInstaller
+  now knocks on the iPhone's other ports, 32 at a time, and opens the link on the one that
+  answers as its pairing listener, the way siboot 0.19.1 finds it. A closed port refuses at once,
+  so that takes seconds, and the port found is tried first until SideInstaller is closed. Side by
+  Side doesn't knock: the iPhone it reaches isn't this one.
+- **The device link no longer waits for ever on a port something else holds.** When the pairing
+  listener starts late, another of the iPhone's services can get 49152 first. If it took the
+  connection and never answered, the device link waited for its answer for ever; if it answered
+  something else, the link failed as if the pairing file were wrong. SideInstaller now asks each
+  port for the pairing handshake before using it, with 8 s to connect and 10 s to answer, as
+  siboot does, and passes over one that doesn't answer as the pairing listener, as it does a
+  refused one, so the advertised port and the knock look for the listener elsewhere. If it's on
+  no port, SideInstaller says so, and what to check. An address that
+  neither takes nor refuses the connection is reported unreachable after 8 s, where the link
+  waited for iOS to give up on it. Side by Side is unchanged.
+
+## 2.1.0
+
+### Added
+- **Pick the developer team that signs.** An Apple Account on more than one developer team, a
+  paid Apple Developer Program membership or a company's team besides the free one every account
+  has, is asked once which team signs, each marked Free or Paid: a free team's apps last 7 days,
+  a paid team's a year. The question starts on the team that signed SideInstaller itself, so a
+  copy siboot installed with another team than Apple's first now refreshes itself in place. The
+  pick is remembered for the Apple ID and used for installs, refreshes, Certificates and
+  Entitlements. Settings › Account shows it under each Apple ID; swipe the Apple ID and tap Team
+  to pick again. Until now the first team Apple lists always signed.
+
+## 2.0.1
+
+### Changed
+- **Blue is back.** The greys 2.0.0 brought in are blues again, a shade picked for each job. Pages,
+  cards and popups sit on night blues, with a still wash of navy at the top of every page. The
+  main button is solid blue with white text, and a lighter blue marks progress, links, the
+  selection, switches and each card's label icon. The logo tiles and the app icon have their
+  colour back, their patterns a brighter blue than before 2.0.0 on a night-blue tile. The pairing
+  and install Live Activities and sideinstaller.net use the same blues.
+
+## 2.0.0
+
+### Added
+- **AltStore on the Install tab and in Side by Side.** AltStore Classic now sits in the list of
+  apps next to SideStore, LiveContainer + SideStore and Madeira, and Side by Side can put it on
+  someone else's iPhone too. It comes from AltStore's own source (apps.altstore.io), the one
+  AltServer installs it from, in the newest version the iPhone can run, and the download has to
+  match the SHA-256 the source lists. Advanced lists its other versions from 2.3 on, the first
+  with Remote AltServer. It's set up the way AltServer sets it up: the pairing file goes into
+  AltStore, so setting up its Remote AltServer (“Set up Remote AltServer” in its Settings), which
+  installs and refreshes apps without a computer, skips pairing. A pairing file without an
+  RPPairing record isn't passed on, since AltStore can't connect with one; it pairs during that
+  setup instead.
+
+### Changed
+- **Setup takes three pages.** The terms, the sideinstaller.net question and the Apple ID sign-in
+  are now three pages under a progress bar that fills a segment for each. Moving on, a page's
+  pieces slide out to the left one after another while the next page's come in from the right,
+  and every page keeps its buttons at its foot. Setup left halfway still picks up where it
+  stopped.
+- **The app picker shows each app's icon.** What to install on the Install tab is picked from a
+  dropdown that shows each app with its own icon, and the field shows the picked app's.
+- **A quieter look.** The swaying blue backdrop, the glowing gradient buttons and the tinted
+  cards are gone. Every page sits on a still, near-black background with plain cards, so the
+  logo tiles, an install's progress and the pairing code are what stand out. The main button is
+  off-white, the blue marks only progress, selections and links, and the tunnel's and the
+  device's state show as a small coloured dot. The pairing code takes one key per digit, on the
+  Lock Screen too, icons are line drawings in one colour, and nothing pulses, breathes or bounces
+  any more.
+
+### Fixed
+- **AltStore installed as a custom IPA gets its pairing file again.** AltStore 2.3.1 and later
+  no longer read the pairing file SideInstaller put inside the app when signing it: they read it
+  from their Documents, where AltServer now writes it after installing (altstoreio/AltStore
+  5811912). SideInstaller writes it there too, so setting up Remote AltServer skips pairing
+  again. An imported AltStore is also recognized and set up just like the download, without the
+  App ID check other custom IPAs get.
+
+## 1.7.0
+
+### Added
+- **SideInstaller is now in Turkish.** Pick Türkçe in Settings › Language, or leave it on Auto
+  with your iPhone set to Turkish. Thanks to [Mr3242-Scripter](https://github.com/Mr3242-Scripter)
+  for the translation (#111), who's now in About › Special thanks.
+- **A nudge to update to iOS 27 at setup.** On an iPhone or iPad below iOS 27 that can run it,
+  the welcome page now suggests updating first: on iOS 27 the iPhone pairs with itself, so
+  SideInstaller works without a computer and there's no pairing file to make.
+
+### Changed
+- **Side by Side goes step by step, and installs SideStore and LiveContainer too.** It was one
+  long form that could only put SideInstaller on someone else's iPhone. It now takes one page at
+  a time: what to install, whether you have their iPhone's IP address (optional: without it,
+  their iPhone pairs from its own Settings, on iOS 27), which Apple ID signs it, and getting their
+  iPhone ready, with a summary to check and edit before the install starts. Like iLoader, it
+  installs SideInstaller, SideStore or LiveContainer + SideStore, Stable or Nightly. Whichever it
+  installs gets the pairing file on their iPhone, so it opens ready to use: a SideStore build with
+  its settings, as on the Install tab, and SideInstaller as an imported pairing file, so it no
+  longer needs iOS 27 (from iOS 26.4 up to 27 it still needs one made on a computer). The pairing
+  code, the Trust prompt, what went wrong and the last steps on their iPhone show on the page
+  instead of in popups, and a wrong IP address fails in seconds instead of after a minute.
+- **Your Apple ID session and pairing stay on this iPhone.** SideInstaller's private files (the
+  developer token, the signing key, the anisette identity and the pairing files) were included in
+  iCloud and computer backups. They're now left out, and the saved Apple ID password is kept in
+  the Keychain for this iPhone only, so a backup can't carry it to another device; passwords saved
+  earlier move over the next time SideInstaller opens. After restoring from a backup, expect to
+  sign in to Apple and pair again.
+
+### Fixed
+- **Keys and passwords stay out of the activity log.** SideInstaller reads back each file it
+  hands SideStore, LiveContainer or Madeira, to check it arrived, and the device library logged
+  what it read byte by byte: the pairing file with its private keys, SideStore's
+  `Account.sideconf` (the signing certificate's private key, its password and the anisette
+  identity) and Madeira's sign-in. Copying the log and Report a problem took them along, so a
+  log posted to a GitHub issue could hold them. The log now says only how many bytes were read,
+  the device library's protocol messages are left out unless Settings › Activity Log › Verbose
+  logging is on, and any long run of numbers is taken out of the log, whatever wrote it. A key
+  printed as a plain list of numbers (`private_key: [225, 120, …]`) is now taken out whole too:
+  only its first number was, and the rest of the key stayed in the log.
+- **Side by Side no longer keeps the other person's signing key.** It signed their Apple ID in
+  with your iPhone's own sign-in files, so the private key for the certificate it made stayed on
+  your iPhone after the run. Their Apple ID now signs in from a temporary folder, deleted once
+  the app is set up on their iPhone, when you tap Clear their details or when the Apple ID
+  changes; one left by a run that was cut short goes the next time SideInstaller opens. An Apple
+  ID saved in Settings › Account still signs with your own key. Setting up the same person
+  again, Install another app included, now asks Apple for a new certificate, since the old key is
+  gone, and Apple may send their iPhone a code again.
+- **A pairing that stalls can be cancelled, and gives up by itself.** Once Settings had connected,
+  cancelling a pairing (on the Install tab, the Pairing page or in Side by Side) didn't stop it,
+  and nothing timed it out. If the iPhone then stopped responding, every later try said
+  “Pairing is already in progress” until SideInstaller was closed. Cancelling now ends a pairing
+  at any point. A pairing also gives up if the iPhone connects but doesn't ask for a code within
+  30 seconds, or if the code isn't entered within 5 minutes. An internal error while pairing now
+  shows a message instead of closing SideInstaller.
+- **Two sign-ins no longer share one 2FA code.** The install, Certificates, Entitlements and Side
+  by Side each sign in to Apple on their own, and could do it at the same time: opening
+  Certificates during an install, say. They shared one code prompt, so a code could reach the
+  other sign-in, and the first to finish closed the prompt the other was still waiting on, which
+  then waited forever. Sign-ins now take turns, and each code goes to the sign-in that asked for
+  it. The ones that wait reuse the sign-in that went first, so you usually enter one code. The
+  code prompt now shows which Apple ID it's for.
+- **The number pad comes back after a wrong 2FA code.** The code field emptied for the next try,
+  but the number pad stayed down until you tapped the field.
+- **Local Network turned off is noticed in seconds.** iOS reports a refused Local Network
+  permission as the check waiting, not failing, and SideInstaller only counted a failure. So
+  with Local Network off, pairing waited a full minute before saying so, and connecting with an
+  imported pairing file or in Side by Side waited 8 seconds before carrying on. It now knows
+  within about two seconds. iOS can also refuse while its Local Network alert is still on
+  screen, so SideInstaller waits for your answer before deciding.
+- **Pairing keeps going through a call or AirPods connecting.** While you enter the pairing code
+  in Settings, or while a location is simulated, SideInstaller stays running in the background by
+  playing silent audio. A call, Siri, an alarm or the audio output changing (AirPods connecting,
+  headphones unplugged) stopped that audio for good, so iOS could suspend SideInstaller
+  mid-pairing. The silent audio now starts again after each of these.
+- **The app stays smooth while the log fills.** Every line the device library logged was
+  cleaned of keys and personal details on the main thread, and every new line redrew the whole
+  app. During a busy install, or with Verbose logging on, scrolling and taps could stutter. Lines
+  are now cleaned in the background and only the activity log redraws: in a test burst of 2000
+  lines, the longest freeze dropped from about a quarter of a second to under 20 ms. The activity
+  log also keeps scrolling to the newest line once it holds its 2000 lines.
+
+## 1.6.5
+
+### Added
+- **Madeira gets Stable and Nightly once Madeira 0.2.0 is out.** Until
+  [willfaust/Madeira](https://github.com/willfaust/Madeira) publishes 0.2.0, Madeira installs the
+  newest build of its main branch from GitHub Actions, as before, with nothing to pick. From
+  0.2.0 on, SideInstaller offers Stable and Nightly as it does for SideStore and LiveContainer:
+  Stable installs the newest release, Nightly the newest build of main. Advanced then lists the
+  releases under Stable and recent builds by commit and date under Nightly. A build an earlier
+  version downloaded is kept as the nightly, so it isn't fetched again.
+
+### Fixed
+- **A LiveContainer + SideStore you import is set up like the download.** Where GitHub can't be
+  reached, as in mainland China, the download step can't fetch the build, and the VPN that would
+  reach GitHub can't run beside LocalDevVPN, since iOS runs one VPN at a time (#108). Importing
+  the .ipa as a Custom .ipa got past that step, but left LiveContainer's built-in SideStore
+  without its pairing file and certificate. SideInstaller now recognizes SideStore,
+  LiveContainer + SideStore and Madeira in an imported .ipa, says so under Import .ipa, and sets
+  each up just as it does its own download. When a download can't reach GitHub, a card explains
+  how to bring the .ipa this way.
+- **Apps with an ExtensionKit extension install.** Some apps keep an extension in an Extensions
+  folder rather than PlugIns, such as Mornye's Now Playing remote controls on iOS 27. SideInstaller
+  added your team ID to the app's bundle ID but left those extensions' IDs as they were, so iOS
+  refused the app with “Mismatched bundle IDs” (#110), and it didn't sign them either. They now
+  get the new ID, the app's provisioning profile and a signature of their own, like the
+  extensions in PlugIns.
+- **Apps with data after a binary's signature can be signed.** Signing stopped at “Sign the
+  app” with “cannot grow a code signature that is not at the end of the Mach-O slice” (#109).
+  TrollStore's signer, for one, leaves spare bytes after each signature it writes, so an IPA
+  taken from a TrollStore install could hit this, as could a tweak signed that way.
+  SideInstaller now leaves those bytes where they are and puts the new signature after them.
+- **Side by Side's progress bar moves during the install.** It filled as the download went, but
+  then sat still through “Install on their iPhone” until the app was on, while the step's
+  “% uploaded” line counted up. The bar now fills that step's share as the upload goes too.
+
+### Changed
+- **A certificate can be exported without a password.** The Certificates page's Export no longer
+  insists on one (#99): leave the password empty, and Feather and other signing apps import the
+  .p12 file without one. A Mac's Keychain imports only a file with a password, so choose one for
+  a Mac.
+
+## 1.6.4
+
+### Fixed
+- **“Use SideStore's certificate” works inside LiveContainer.** There, SideStore showed its Export
+  prompt but its certificate never came back, because iOS only opens LiveContainer's links, not
+  SideInstaller's (#95). Inside LiveContainer, SideInstaller now takes the certificate LiveContainer
+  holds instead: its built-in SideStore's, or the copy LiveContainer imported from SideStore. It is
+  checked against your Apple ID as before. If LiveContainer has none yet, SideInstaller says how to
+  import it there.
+- **“Get it from SideStore” works inside LiveContainer.** There, the pairing-file button opened
+  SideStore, but nothing came back, because iOS only opens LiveContainer's links, not
+  SideInstaller's (the same cause as #95). Inside LiveContainer, SideInstaller now reads the
+  pairing file LiveContainer's built-in SideStore keeps and asks before importing it, as before.
+  When there's none to read, or SideInstaller runs in LiveContainer's Multitask Mode, it says what
+  to do instead. The button no longer shows in a LiveContainer without a built-in SideStore,
+  which has no pairing file to give.
+
+## 1.6.3
+
+### Fixed
+- **The device link opens with a pairing file made on a computer.** Before iOS 26.4, “Open the
+  device link” could stop with “peer closed connection without sending TLS close_notify” (#105,
+  #107). iOS closes what an app starts through LocalDevVPN unless the app answers its heartbeat,
+  as SideStore and StikDebug do. SideInstaller now answers it for as long as the link is open.
+
+## 1.6.2
+
+### Added
+- **Apps get Increased Memory Limit.** As iLoader 2.4.1 does, SideInstaller now turns on this
+  capability for an app's App ID when it signs the app, so emulators and other apps that need more
+  memory get it without a trip to Tools › Entitlements. SideStore and LiveContainer + SideStore
+  are left as they were, because SideStore drops the capability when it renews their App IDs each
+  week. If Apple refuses it, the app is signed without it.
+- **Downloads pick up where they stopped.** When the download of SideStore, LiveContainer +
+  SideStore or Madeira stalls or the connection drops, SideInstaller carries on from what it already
+  has instead of starting over, and starts over only if the file was replaced on GitHub meanwhile.
+  A network that can't reach GitHub at all fails as quickly as before.
+- **Sound effects.** Buttons, switches and messages make a short sound: a soft press for the main
+  buttons, clicks for switches, and their own sounds for success, errors and anything that needs
+  you, such as a pairing code. Silent Mode mutes them, and Settings › Sounds turns them off.
+
+### Fixed
+- **Bug reports carry the whole log.** A GitHub link only holds a few thousand characters, so a
+  report's issue got the last lines of the log at most and asked for the report file to be
+  attached, which was easy to miss, and inside LiveContainer the file wasn't where the issue said
+  (#100). When the log doesn't fit in the link, SideInstaller now copies it and says so, and the
+  issue ends with “Paste below this line”. “Copy the full log” copies it again.
+- **Report a problem no longer ends on GitHub's “Whoops, something went wrong!” page.** When the
+  in-app browser wasn't signed in to GitHub, a long report made a sign-in link too long for
+  GitHub. Links are now kept short enough for it.
+- **The pairing port is looked for when 49152 refuses.** When this iPhone refuses the device link
+  on port 49152, SideInstaller asks which port it advertises for remote pairing and tries that one
+  before giving up (#56, #100).
+- **The “refused the connection” message knows whether Developer Mode is on.** It no longer asks to
+  turn on Developer Mode when it's already on, and says plainly when it's off.
+
+### Changed
+- **Madeira comes from its official repository again.** Madeira's own repository now has the
+  self-renewing signing, so Latest installs the newest build of
+  [willfaust/Madeira](https://github.com/willfaust/Madeira)'s main branch from its GitHub Actions
+  runs, instead of a release of the FrizzleM/Madeira fork. GitHub hands those builds only to
+  signed-in accounts, so SideInstaller downloads them through nightly.link and installs one only if
+  it's exactly the file GitHub recorded. The build includes the 32-bit Windows parts the fork's
+  release left out. Advanced lists recent builds by commit and date.
+- **Reports list Device IP, Developer Mode, and whether SideInstaller runs inside LiveContainer.**
+  A log pasted into “What happened?” no longer makes the issue's title: the error does.
+- **Key bytes take one line in the log**, not one line per byte. Private keys stay redacted.
+
+## 1.6.1
+
+### Added
+- **SideInstaller is now in Korean.** Pick 한국어 in Settings › Language, or leave it on Auto
+  with your iPhone set to Korean. Thanks to [kes158](https://github.com/kes158) for the
+  translation (#85), who's now in About › Special thanks.
+
+### Fixed
+- **Apple ID sign-in works again after error -80046.** Since 21 October, Apple takes the password
+  and the verification code, then refuses to finish signing in (“This action cannot be completed
+  at this time”, error -80046) when the anisette data comes from Apple's Android library, which
+  most community servers run. SideInstaller now signs in through the servers that run Apple's
+  macOS library, starting with “SideStore (New)”, and reports a current Mac through them, as
+  SideStore does, instead of the macOS 10.12 they name, which Apple also called too old for some
+  accounts (error -23782). Like SideStore's “Reset adi.pb”, the first sign-in through them makes a
+  new anisette identity, so Apple asks for your verification code once more. If you're signed in
+  already, your saved sign-in keeps working until it expires.
+- **SideStore signs in after SideInstaller installs it.** SideStore starts with its on-device
+  anisette and auto-rotation on, which now end in -80046 too. After installing SideStore, on its
+  own or inside LiveContainer, SideInstaller turns both off and picks “SideStore (New)”, the
+  settings SideStore's users got past -80046 with, and puts client info saved for a Windows PC or
+  an Android phone back to SideStore's default. If SideStore still can't sign in, use its
+  Settings › User Customizations › Reset adi.pb with “Keep header customizations” unticked, then
+  sign in again.
+- **A code Apple won't text no longer ends the sign-in.** Through the Mac servers, Apple has asked
+  for a code by text and then refused to send one. SideInstaller now sends the code to your Apple
+  devices instead, and if Apple won't confirm that either, still asks for the code in case one
+  arrived.
+- **A slow or failing anisette server no longer holds up sign-in.** A server that answers with an
+  error is asked twice more, and one that doesn't answer is left after 20 seconds instead of
+  waited on, so sign-in moves on to the next Mac server, which uses the same anisette identity and
+  doesn't ask for a new code.
+
+### Changed
+- **Auto no longer tries the Android anisette servers.** With Auto on, sign-in goes through the
+  Mac servers (“SideStore (New)”, “jkcoxson”, “iLoader (Mac ADI)”, StikStore's, and jkcoxson's and
+  StikStore's former Windows servers, which now run Apple's macOS library), then
+  “SideStore (Windows ADI)”. If you last signed in through an Android server, it's still tried
+  first for your saved sign-in, without your password being sent. With an Android server picked
+  in Settings, sign-in now stops and says to choose Auto or a Mac server.
+- **“iLoader (Mac ADI)” is on the anisette server list**, the server iLoader's sign-in library
+  uses since 22 October. “jkcoxson (Windows ADI)” and “StikStore (Windows ADI)” are now listed as
+  Mac servers, which they've become.
+
+## 1.6.0
+
+### Added
+- **SideInstaller is ready for the iPhone Duo.** It's built with the iOS 27.1 SDK, so it fills both
+  of the Duo's screens rather than running in a window beside the status bar, and resizes with it as
+  the Duo opens and closes. On the open Duo's wide screen, and on an iPad, each page keeps to a
+  column in the middle instead of stretching every card across the screen. On its side (the closed
+  Duo stood up like a tent, or any iPhone in landscape) each page's header takes a single row, so
+  what's under it stays in view.
+- **SideInstaller asks where it came from before your Apple ID goes in.** The first time you add an
+  Apple ID, at setup or later in Settings, it asks whether you downloaded it from sideinstaller.net.
+  It's open source, so anyone can publish a copy changed to steal the Apple ID typed into it; “No,
+  or I'm not sure” says not to sign in with that copy and links to sideinstaller.net, with a small
+  “I understand the risks” below for anyone who wants to go on anyway.
+- **The install keeps going when you leave SideInstaller.** On iOS 26 and later it runs as a
+  background task: switch apps or lock your iPhone and it carries on, with its step and percentage
+  in the Dynamic Island and on the Lock Screen, where you can also stop it. Below iOS 26, a Live
+  Activity shows the same for the half minute or so iOS gives SideInstaller in the background; when
+  that runs out it says the install is paused, and it carries on once SideInstaller is open again.
+  Neither starts while your iPhone pairs, since the pairing code has the Dynamic Island then.
+- **The Dynamic Island says when the install needs you, or stopped.** A 2FA code, the App IDs a
+  custom .ipa costs, a VPN or Wi-Fi to connect, or a Trust prompt to answer turns SideInstaller's
+  Live Activity orange, with what's needed and what to do; an error turns it red, with the reason,
+  and it stays up until you're back in the app. Either one opens the Dynamic Island, or drops down
+  as a banner on an iPhone without one. On iOS 26 and later, where iOS draws the install's progress
+  itself, its title says the same, and SideInstaller's own activity comes up beside it when you
+  leave the app while the install needs you: iOS lets an app start one only until it has left the
+  screen.
+- **SideInstaller can sign with SideStore's certificate instead of competing with it.** A free
+  Apple ID gets one development certificate, so when SideStore had made it, SideInstaller stopped
+  on “A certificate already exists” and the only way on was revoking it, which stopped every app
+  SideStore had signed. With SideStore on the iPhone, that popup now offers “Use SideStore's
+  certificate” first: SideStore asks whether to export its certificate
+  (`sidestore://certificate`), sends it back, and SideInstaller signs with it from then on and
+  retries the install, with nothing revoked. The Certificates page has the same button. The
+  certificate is used only once Apple lists it among the signed-in Apple ID's certificates, and the
+  key SideInstaller signed with before is kept. SideStore 0.6.4 and the nightlies send it
+  unencrypted, and the encrypted one an older SideStore kept works too.
+- **The Certificates page exports the certificate SideInstaller signs with.** The certificate it
+  signs with is marked “SideInstaller signs with this one” and has an Export button, which asks for
+  a password and saves the certificate with its private key as a .p12 file, to save in Files, send
+  by AirDrop or open in another signing app. The other certificates can't be exported: their
+  private keys stay on the device that asked Apple for them. The file is triple-DES encrypted with
+  a SHA-1 MAC, the format Keychain, OpenSSL and iOS signing apps all read.
+- **Settings can show Developer Mode, or turn it on.** A new Developer Mode section asks this iPhone
+  to show the Developer Mode switch under Settings › Privacy & Security, or to turn Developer Mode
+  on, which restarts the iPhone and asks to confirm once it's unlocked. It first checks whether
+  Developer Mode is already on, so it never restarts an iPhone for nothing. iOS turns it on from
+  here only when the iPhone has no passcode; with one, show the switch and turn it on in Settings.
+  Both need a link to the iPhone that already works, such as an imported pairing file on iOS 17.4
+  to 26, and below iOS 26.4, when the tunnel won't open, a pairing file made on a computer is tried
+  straight through lockdownd. On iOS 27 the link itself needs Developer Mode, so this can't bring
+  back a missing switch there (issue #29).
+- **`sideinstaller://` links.** `sideinstaller://install?url=<link to an .ipa>` downloads that IPA
+  as the custom .ipa and installs it, so a site or a post can offer a one-tap install.
+  `sideinstaller://pairingFile?data=<base64>` imports a pairing file, which is what SideStore sends
+  back when asked with `sidestore://pairing?urlname=sideinstaller`. On iOS 18 to 26 the Pairing
+  file card has a new “Get it from SideStore” button that asks it, so the pairing file SideStore
+  already has comes over in one tap. Neither link does anything until you confirm: the popup shows
+  the link's address and what it would replace, or the pairing file's UDID. A link that comes in
+  during an install asks once the install ends. Links used to be ignored.
+- **A custom .ipa shows its App ID cost before it's signed.** Signing registers an App ID for the
+  app unless the Apple ID has it already, and a free Apple ID can register only 10 a week. After
+  sign-in, the install now stops on a popup showing the new App ID it needs, how many the Apple
+  ID has left now, and how many will be left afterwards, then waits for Install or Cancel. When too
+  few are left, it says so, shows when the next one frees up, and offers only Cancel, since signing
+  would fail anyway.
+- **Report a problem.** Under About, in Settings next to the activity log, and on the popup when
+  an install stops. It asks what happened (an issue can't be sent empty), shows what goes along
+  (SideInstaller's version, iOS, the iPhone model, the app being installed, the step that failed
+  and its error), and opens a GitHub issue with all of that filled in. The redacted activity log
+  and crash logs go into a report file saved in Files › On My iPhone › SideInstaller › Reports,
+  which the issue says to attach; Share the report sends the same file elsewhere. SideInstaller's
+  own crashes come from MetricKit, which hands them over the next time it opens. Crash logs from
+  SideStore, LiveContainer and Madeira are read from this iPhone over LocalDevVPN, the newest
+  three each from the last 30 days, with the device's crash reporter key and vendor ID taken out.
+  Each crash log can be left out.
+- **The update banner offers three ways to update.** “Get the latest version” now opens a menu:
+  from sideinstaller.net, as before; signed with your Apple ID, where SideInstaller downloads the
+  latest release and installs it like a custom .ipa (App ID cost popup included); or, with
+  LiveContainer on the iPhone, in LiveContainer, which downloads the release and installs it
+  inside itself (`livecontainer://install`), asking first before it replaces a copy already there.
+  Signing adds your team ID to the bundle ID, so the Apple ID copy installs next to the website's
+  build rather than over it.
+- **Location spoofing has saved places and GPX routes**, ported from StikDebug. Save under the map
+  keeps the spot under the pin with a name, and tapping a saved place sets it straight away. Import
+  a .gpx file and the device moves along its track (or route, or waypoints) on the map, as recorded
+  when the file has timestamps, or walking, cycling or driving. A new point goes out every half
+  second, a progress bar shows how far it has got, Stop here holds the current point, and at the
+  end the device stays on the last one.
+- **Location spoofing plans routes over OpenStreetMap and drives them at each street's speed
+  limit.** Add stops with Add stop under the map (or Add as stop on a saved place), pick Drive,
+  Cycle or Walk, and Find route plans a route through them in order, from where the device is when
+  it's already simulating. FOSSGIS's public Valhalla server plans it from OpenStreetMap data and
+  gives each road's mapped speed limit. A drive goes along every road at its limit (130 km/h where
+  there's none, as on parts of the Autobahn); a road with no limit mapped takes the one mapped on
+  the rest of the same street or, failing that, a cautious usual limit for its kind of road, and
+  the route says how much of it has mapped limits. While it plays, a sign shows the current road's
+  limit as it's posted there, in km/h or mph. Walking and cycling go at Valhalla's pace for each
+  street. One route is on the map at a time, so planning one removes a GPX route and the other way
+  round.
+
+### Fixed
+- **Proxy VPNs that loop the device's address back to this iPhone now work instead of
+  LocalDevVPN.** ClashMi, Shadowrocket and similar apps can send the Device IP straight back to
+  the iPhone with a direct rule, but since they carry all of the iPhone's traffic, SideInstaller
+  didn't count them as the tunnel: Install waited for it forever, the Pairing and Location pages
+  stayed greyed out, and with “Start LocalDevVPN when needed” on it opened LocalDevVPN, which
+  turned the proxy VPN off (issues #30 and #83). With one of these VPNs on, SideInstaller now
+  checks whether the device answers at the Device IP, which takes half a second at most, and
+  carries on when it does. Nothing changes with LocalDevVPN.
+- **A Device IP copied from LocalDevVPN's main screen no longer fails with “Operation not
+  permitted”.** LocalDevVPN's main screen says “Connected to 10.7.1.1/32”, but that's this
+  iPhone's own end of the tunnel; the address to connect to is the 10.7.0.1 under its Settings ›
+  Device IP. iOS won't let an app connect to the iPhone's own addresses, so with 10.7.1.1 in
+  Device IP every connection failed at once: with a raw “Socket(Os { code: 1, kind:
+  PermissionDenied })” error for an imported pairing file, or with a wrong “The device rejected
+  this pairing file” for one this iPhone made. Install already caught this, but the Pairing,
+  Apps and Location pages, crash reports and Developer Mode went straight to the connection. All
+  of them now check first, and when the tunnel carries 10.7.0.1 SideInstaller switches back to it
+  and carries on; otherwise it says which address to use. A connection iOS refuses for any other
+  reason now says so in plain words instead of the raw error, and no longer makes an iOS 27
+  iPhone pair again.
+- **A lockdown pairing file on iOS 26.4 or later now says what to do instead of failing with
+  “Broken pipe”.** Since iOS 26.4, the iPhone hangs up on lockdown pairing files (jitterbugpair's,
+  “pymobiledevice3 lockdown pair”'s, or idevice_pair's “Lockdown”) as soon as they connect through
+  LocalDevVPN, so the link stopped with a raw “Socket(Os { code: 32, kind: BrokenPipe })” error,
+  and a new file of the same kind failed the same way. SideInstaller now says so and shows how to
+  make a remote pairing file with idevice_pair, which still connects; SideStore, StikDebug and
+  LiveContainer moved to these for the same reason. From iOS 26.4 the import guide asks for one,
+  and iLoader's exported pairing file, which holds both kinds, works too. A file with both now
+  tries its remote pairing record first there, and SideInstaller no longer asks lockdownd for a
+  pairing record of its own, or for Developer Mode, through LocalDevVPN, which can't work. On
+  iOS 27, Install still pairs the iPhone with itself when the file is lockdown-only, and the
+  other pages now say to.
+- **Pairing works when SideInstaller runs inside LiveContainer.** Before pairing, SideInstaller
+  checks Local Network access by looking for a Bonjour service of its own. Inside LiveContainer,
+  iOS only allows the service types listed by LiveContainer, and SideInstaller's wasn't one of
+  them, so the check always failed and pairing stopped at “Local Network denied” even with access
+  turned on for LiveContainer (issue #38). The check now uses StikPair's service type, which
+  LiveContainer lists.
+- **Inside LiveContainer, SideInstaller no longer says LocalDevVPN isn't installed.** iOS only
+  lets an app ask whether another app is installed for the apps its Info.plist names, and inside
+  LiveContainer that's LiveContainer's list, which has SideStore and LiveContainer but not
+  LocalDevVPN. So the answer was always no: Settings said LocalDevVPN wasn't installed, “Start
+  LocalDevVPN now” stayed greyed out, and Install asked for the tunnel instead of starting it
+  (issue #69). Where iOS won't answer, SideInstaller now just opens LocalDevVPN and goes by
+  whether that worked. It shows the same note in Settings, and the usual “Connect LocalDevVPN”
+  steps during an install, when nothing opens.
+- **Side by Side forgets the other iPhone once SideInstaller is on it.** Pairings with other
+  people's iPhones were kept for good, so the iPhone that helped could still reach a friend's long
+  after. They're now deleted after a successful install, and “Clear their details” deletes them
+  too, along with the address. While one is kept, a note under that button says so.
+- **Side by Side's IP field has a dot key.** It used a number pad whose separator is a comma in
+  many regions, so an address could only be pasted in (issue #54). It now uses the keyboard of the
+  Device IP field in Settings.
+- **Dates and units follow the app's language on Automatic.** With the language left on
+  Automatic, SideInstaller formatted them in English with the iPhone's region, so an iPhone in
+  Italian showed Italian text next to English month and unit names. They now use the language the
+  text is in, still with the iPhone's region.
+- **A failed Apple ID sign-in shows the error that explains it, not just the last one.** With Auto
+  on, sign-in tries the anisette servers one after another, and the error it ended with was the
+  last server's. That was almost always one of the Mac servers, which are tried last: one that was
+  down (issue #82), or Apple answering “A Mac with macOS version 10.13 or later is required”
+  (issue #89). It now shows Apple's answer about your account if there was one, and otherwise
+  Apple turning down the computer a server reports before a server that was down, with the name of
+  the server it came through. That macOS answer now also skips the other Mac servers, since they
+  all report the same Mac, and the message counts only the servers tried, saying how many were
+  skipped, instead of “all 20”.
+
+### Changed
+- **Madeira now comes from a GitHub release.** Latest installs Madeira from the releases of
+  [FrizzleM/Madeira](https://github.com/FrizzleM/Madeira), the build that renews its own signing,
+  instead of a fixed download link, and Advanced lists that fork's releases. Upstream releases
+  come back once upstream Madeira renews its own signing.
+- **The anisette server can be left on Auto, or kept to one.** Settings › Anisette Server has a new
+  Auto choice, the default, which works as sign-in did before: it starts with the server that last
+  signed in, then tries the others, the ones most likely to work first. It now also remembers a
+  server that failed by itself in the last 12 hours and tries it after the others of its kind.
+  Picking a server, or a custom URL, now means only that one is tried: if it fails, sign-in stops
+  with the error and suggests choosing Auto. Before, a picked server was only the first of all of
+  them.
+- **Side by Side doesn't need the other iPhone's IP address.** Leave the field empty and their
+  iPhone pairs from its Settings straight away. SideInstaller reaches it at the address it paired
+  from and fills that in, so a retry after a failed step uses the same pairing. A typed address
+  works as before, and if their iPhone pairs from a different one, that one is used.
+- **“StikStore (Mac ADI)” is on the anisette server list**, as in iLoader 2.3.10. It's a Mac
+  server like “jkcoxson” and “SideStore (New)”, shares their anisette identity, and is tried with
+  them, last. iLoader now starts on “SideStore (New)”, but its users still report the code being
+  asked for by text and then refused, so SideInstaller keeps starting on the Windows servers.
+- **App extensions no longer use up App IDs.** SideInstaller signs an app's extensions with the
+  app's own provisioning profile, yet it still registered an App ID for each of them that nothing
+  used, out of the 10 a free Apple ID gets a week. Now only the app gets one, as in iLoader 2.4.0:
+  SideStore with its widget costs 1 App ID instead of 2, and signing sends fewer requests to Apple.
+- **The update banner goes by the latest release.** SideInstaller now checks the version tag of the
+  newest release on GitHub instead of a separate version file, so the banner shows up as soon as a
+  release is out. Betas don't trigger it.
+
+## 1.5.3
+
+### Fixed
+- **Moving between the two kinds of anisette server no longer breaks sign-in.** Servers on Apple's
+  Android library and on its Windows library can't use each other's anisette identity, and
+  SideInstaller kept only one, so when a server went down and sign-in moved on, every server of the
+  other kind failed. SideInstaller now keeps one identity for each kind and remembers which one each
+  server takes, so it can move back and forth without making a new identity, which Apple would ask
+  for your verification code again. A server that changes kind is followed the same way.
+
+### Changed
+- **New sign-ins start on a Windows anisette server.** A first sign-in now goes through
+  “jkcoxson (Windows ADI)”, where SideInstaller's Windows PC matches the machine the anisette data
+  comes from. Through the Android servers it only passes as long as Apple lets it. If you have
+  signed in before, SideInstaller stays on the server you used, keeping your saved sign-in. When
+  that server fails, the Windows servers are tried next, and “StikStore (Windows ADI)” is added to
+  the list for that.
+- **The Mac anisette servers are tried last.** “jkcoxson” and “SideStore (New)” make their data
+  with Apple's macOS library, and SideInstaller signs in through them as the Mac they name and
+  keeps a separate anisette identity for them. Through them Apple has asked an account with trusted
+  devices for a code by text and then refused to send one, so they come after every other server
+  rather than first, where iLoader 2.3.9 puts them.
+- **Apple turning away one kind of device no longer ends sign-in.** Through the Mac servers
+  SideInstaller signs in as a Mac, and through the others as a Windows PC. When Apple refuses one
+  of them twice (HTTP 503), the servers left that sign in as it are skipped and the others are
+  tried, instead of sign-in stopping after the second refusal.
+- **The anisette server decides what device SideInstaller signs in as**, when it names a device of
+  its own, as the Windows servers do. Servers that still name the old Mac, which Apple refuses,
+  get the Windows PC. A server that moves to another of Apple's libraries then works without an
+  update.
+- **Sign-in reports the same device from start to finish.** The verification-code requests, which
+  SideInstaller sent as a Mac since 1.5.1, now go as the Windows PC like the rest, since Apple
+  accepts them from it. If Apple turns them away, they go as a Mac again.
+- **LocalDevVPN starts when it's needed, not when SideInstaller opens.** The setting is now
+  “Start LocalDevVPN when needed”, and your choice carries over. With it on, opening SideInstaller
+  no longer sends you to LocalDevVPN. Installing, scanning or writing on the Pairing page, loading
+  or refreshing on the Apps page, and setting a location start it when the tunnel is off, then carry
+  on once you're back. Opening the Apps or Location page uses the tunnel only if it's already up.
+
+## 1.5.2
+
+### Fixed
+- **Signing in works again.** Apple now turns away the Android device SideInstaller has signed in
+  as since 1.5.0, and sign-in stopped with “Apple's sign-in server refused the request (HTTP 503)”.
+  SideInstaller now signs in as a Windows PC, which Apple accepts through the same anisette servers.
+  The anisette identity SideInstaller already saved keeps working.
+- **The Windows anisette servers work.** “SideStore (Windows ADI)” and “jkcoxson (Windows ADI)” in
+  the server list make their data with Apple's Windows library. Sign-in through them failed while
+  the anisette identity was being set up, since SideInstaller didn't say it was a Windows PC, and
+  Apple asks each new identity on them to resync once before it signs in. SideInstaller now does
+  both.
+- **A mistyped Apple ID is reported at the first server.** Apple now answers an Apple ID it doesn't
+  know with a new error code, which SideInstaller tried on every anisette server in turn before
+  giving up. It now says the Apple ID or password is incorrect straight away, as it did before.
+
+## 1.5.1
+
+### Fixed
+- **A verification code by text or phone call works again.** Since 1.5.0 signs in as an Android
+  device, Apple turned away the requests that list your trusted phone numbers and send a code to
+  one, so the code prompt had no number to offer and the code could only come from a trusted device.
+  Asking for a new code on your devices failed the same way and ended the sign-in. Those requests
+  are made the way Apple accepts them again: your numbers are back in the prompt, with a text or a
+  call to each, and a new code can be sent to your devices.
+- **An Apple Account with an unverified email address is told so.** Apple won't let such an account
+  use developer services (error 2160), and SideInstaller took that for a stale sign-in: it signed in
+  again with the password on each anisette server in turn, about every 8 seconds, before giving up
+  with a raw error. It now stops at the first refusal, keeps the saved sign-in, and shows how to
+  verify the address at account.apple.com. Certificates, Entitlements and Side by Side stop the same
+  way.
+
+## 1.5.0
+
+### Changed
+- **The Install button grows into the progress card.** Starting an install reshapes the button into
+  the card that shows its steps, instead of turning it into a Cancel button under a separate card.
+  After an install that finished or failed the card stays and the button comes back under it, as
+  before.
+- **Stopping an install asks first.** The progress card has an X in its corner, and tapping it asks
+  “Cancel the install?” before anything stops. While the step in flight winds down the card reads
+  “Cancelling”, then it shrinks back into the Install button.
+- Advanced steps aside while an install runs, since a run can't take a change to the version or the
+  pairing file. It comes back under the Install button once the install finishes, fails or is
+  cancelled, as open or closed as you left it.
+- **Cards are clear glass.** Every card is now a clear pane the animated backdrop shows through,
+  drawn by a rim lit along its top edge, in place of the gray cards. It looks the same on every iOS
+  version.
+- The new text is translated into Chinese, French, Italian, Japanese, Portuguese, Spanish and
+  Vietnamese.
+
+### Fixed
+- **Signing in to your Apple ID works again.** Since 12 October 2026 Apple has turned away sign-ins
+  made through the public anisette servers (error -80045, “This action cannot be completed at this
+  time”). Apple now refuses a sign-in that doesn't come from the kind of device the anisette data
+  was made on: those servers make it with Apple's Android library, and SideInstaller said it was a
+  Mac. It now signs in as the Android device the data belongs to. After your password, Apple sends a
+  verification code to your trusted devices straight away, and SideInstaller asks for it.
+
+## 1.4.0
+
+### Added
+- **Madeira joins the Install picker.** [Madeira](https://github.com/willfaust/Madeira) runs Windows
+  PC games on an iPhone. SideInstaller signs it with the Increased Memory Limit entitlement it needs
+  (Madeira shows it as Memory+), and puts your iPhone's pairing inside it, so Madeira's built-in JIT
+  is set up without pairing again or importing a file: in its setup, “In-app with pairing file”
+  already shows as done. Madeira needs iOS 26 or later; on an older iOS the install stops before it
+  uses up an App ID. It reads only the pairing iOS 27 makes on the iPhone itself, or an imported
+  file with the same kind of record. A file with only a classic lockdown record isn't passed on.
+  Until upstream Madeira renews its own signing, Latest installs a fixed build that does; a version
+  picked under Advanced comes from Madeira's GitHub releases. Madeira has no nightly, so the
+  Stable/Nightly picker is hidden for it.
+- **Madeira renews its own signing.** SideInstaller hands Madeira the sign-in it needs for that: the
+  developer-service token this sign-in got and the anisette identity that goes with it, the same
+  things SideStore keeps to refresh. Your Apple ID password isn't included, and no 2FA code is
+  needed. Madeira moves it into its Keychain on first launch and from then on asks Apple for a new
+  profile and installs it itself, whenever it's open with LocalDevVPN connected, so it keeps working
+  with SideInstaller uninstalled. It needs SideInstaller again only when Apple stops accepting the
+  token (it has an expiry, and a password change ends it): installing Madeira again hands over a
+  new one. Only Madeira builds that say they take the sign-in get one; older ones are refreshed
+  under Tools › Sideloaded apps. Madeira is signed without an app group, since the App ID it
+  registers again each week comes without one.
+- Madeira joins the apps the Pairing tab can hand the pairing file to.
+- **The pairing code follows you into Settings.** While your iPhone pairs, SideInstaller now runs a
+  Live Activity. When Settings asks for the code, it appears in the Dynamic Island, or drops down as
+  a banner on an iPhone without one, and stays on the Lock Screen, so you no longer have to switch
+  back to SideInstaller to read it. Once the pairing goes through it says so, and a tap takes you
+  back to the app. A build signed with a certificate that can't sign app extensions sends the code
+  as a notification instead, and asks to allow notifications the first time you pair; builds with
+  the Live Activity never ask. Installed through SideStore, AltStore or Xcode with a free Apple ID,
+  SideInstaller now takes two App IDs instead of one, since the extension that draws the Live
+  Activity needs its own.
+- **Crypto donations.** About › Crypto shows a wallet for Bitcoin, Ethereum and Solana, one at a
+  time, each with its network, a QR code and a Copy button. Donations are optional and don't unlock
+  anything.
+
+### Changed
+- **Most of the app is already on your iPhone by the time signing finishes.** Signing only changes a
+  few of an app's files, so the rest is copied over from the download while signing runs, and only
+  the changed files are sent afterwards. Every file copied early is checked against the signed app
+  before installing.
+- If the install needs you to tap Trust for the pairing file, it now asks right after connecting, so
+  you can answer while everything else runs, instead of at the very end.
+- When SideStore or LiveContainer is already installed, the pairing file goes in while the app is
+  being signed rather than after the install. Together, reinstalling SideStore on an iPhone 16 now
+  takes about 8.5 seconds, down from about 11 in 1.3.1.
+- If Apple asks for a 2FA code while your iPhone is asking you to tap Trust, SideInstaller's code
+  prompt now waits until you've answered.
+- **LiveContainer + SideStore comes from LiveContainer's own repository again.** Since 1.3.0 it came
+  from a copy on LiveContainerMirror/LiveContainer, whatever file was there. GitHub has hidden
+  LiveContainer's organization since 4 October 2026, so while the repository is gone SideInstaller
+  still takes LiveContainer's last nightly (18 September 2026) from that copy, but only that exact
+  file: it's checked against the SHA-256 of the official build, and anything else under that link is
+  refused. Stable and Nightly both install that build for now. Once the repository is back,
+  SideInstaller goes back to it by itself, Stable included.
+- **SideInstaller installs on iOS 17.4 and later**, down from iOS 18. As on iOS 18 to 26, an iPhone
+  below iOS 27 needs a pairing file made on a computer.
+- Everything new is translated into Chinese, French, Italian, Japanese, Portuguese, Spanish and
+  Vietnamese.
+
+### Fixed
+- **A download whose connection drops is tried again.** The download runs while the VPN comes up,
+  which can cut a transfer already going, and the install then stopped with “couldn't reach GitHub:
+  The network connection was lost.” SideInstaller now tries twice more, a second and three seconds
+  later, before it gives up.
+- **A build whose GitHub repository is gone says so.** When there's no copy to fall back on, the
+  install no longer stops with a bare 404, which reads like a fault on your side. SideInstaller says
+  the repository is unavailable and that your iPhone and network are fine, and shows how to install
+  from an IPA you got elsewhere: name it as shown and copy it into Files › On My iPhone ›
+  SideInstaller.
+- An app that looks its background task up in its own Info.plist, taking the first entry of a kind,
+  now finds the one under the bundle ID it was signed with. SideInstaller listed those after the
+  originals, so such an app asked iOS for a task it wasn't allowed and lost its background work.
+  Madeira's Steam downloads rely on this to carry on in the background.
+- Stopping an install while it signs in to your Apple ID no longer leaves a 2FA prompt to pop up
+  later. The sign-in carried on behind the stopped install; a code request from it is now turned
+  down.
+- Files left in the iPhone's staging folder by an interrupted install are cleared before the next
+  upload, so they can no longer end up inside the app being installed.
+
+## 1.3.1
+
+### Added
+- **AltStore Classic installed as a custom IPA comes with your pairing.** AltStore 2.3 can install
+  and refresh apps without a computer through a Remote AltServer, but setting that up asks you to
+  pair with a PC first. SideInstaller now puts your iPhone's pairing inside AltStore when it signs
+  it, encrypted the way AltServer does it, so after you sign in to AltStore the setup skips that
+  step. This works with the pairing SideInstaller creates on the iPhone itself on iOS 27, and with
+  an imported pairing file that includes the same kind of record. A file with only a classic
+  lockdown record isn't passed on, since AltStore can't connect with it. The pairing stays on your
+  iPhone.
+
+### Fixed
+- **SideStore's home screen widget shows your apps.** The widget looks for SideStore's app group in
+  its own settings, and SideInstaller only wrote the group into the app's, so the widget opened an
+  empty list. It now gets the group too, as AltServer does and as iLoader 2.3.6 does. This affects
+  SideStore 0.7.0-alpha and older; nightlies find the group another way.
+- **AltStore Classic installed as a custom IPA knows which iPhone it's on.** AltStore reads the
+  iPhone's UDID from its own settings, where AltServer writes it during installation. SideInstaller
+  left in whatever UDID the IPA came with, so AltStore registered that device with your Apple ID and
+  signed apps for it instead. It now gets the UDID of the iPhone it's installed on.
+- An imported app that schedules background work under its own bundle ID, such as a long export
+  with iOS's continued processing tasks, can run it again after signing. Signing adds your team ID
+  to the bundle ID, and iOS only runs those tasks under the bundle ID the app now has. Each such
+  task is now allowed under the new bundle ID too, and still under the old one for apps that name it
+  directly. Reported to iLoader in issue #649.
+
+## 1.3.0
+
+### Changed
+- **Signing uses apple-codesign-quick**, the signer iLoader moved to in 2.3.0. It hashes an app's
+  files and signs its extensions and frameworks in parallel. In tests on a Mac it signed SideStore
+  about 6 times faster and LiveContainer + SideStore about 9 times faster, and SideInstaller itself
+  is about 5 MB smaller. An imported IPA that still carries leftovers of an old signature inside its
+  `_CodeSignature` folder is signed cleanly as well.
+- **Popups that appear together are merged into one card.** The pairing code and its Settings steps
+  are one popup, an error and the steps to fix it are one, and the “Installed” message, the trust
+  step and LiveContainer's certificate import are one “Success: last steps” popup.
+- When Apple briefly turns a sign-in away as too many requests (HTTP 429), SideInstaller now tries
+  again twice, a few seconds apart, before saying Apple is limiting sign-ins. iLoader found these
+  often clear up straight away.
+
+### Fixed
+- LiveContainer + SideStore downloads again while LiveContainer's GitHub repository is down: it
+  comes from a temporary mirror, which only has the nightly build, so Stable installs that too.
+- **An imported IPA whose name has symbols, spaces or non-Latin letters signs again.** Apple refuses
+  to register an App ID under such a name (error 35), so signing stopped before it started.
+  SideInstaller now registers it under the name's letters and digits only, as iLoader does.
+- When two people each pair the same iPhone with Side by Side, the second no longer undoes the
+  first. Every SideInstaller used to pair under one shared identifier, and an iPhone keeps a single
+  pairing per identifier; each install now pairs under its own. Pairings already remembered keep
+  working.
+- The Certificates tool can revoke “Apple Development” certificates, the ones Xcode makes, instead
+  of failing with error 7252.
+- AutoFill fills in the Apple ID and password together on the sign-in page, instead of one at a
+  time.
+
+### Added
+- Three more problems now get their own explanation and steps instead of a raw error: an Apple
+  Account Apple won't let sign apps because of its owner's age (error 1102), an Apple ID out of App
+  IDs for the week (error 9120), and an iPhone that already has the three apps a free Apple ID may
+  install. The age refusal also stops sign-in at once rather than trying every anisette server.
+- PanicAnalyzer joins the apps the Pairing tab can hand the pairing file to.
+
+## 1.2.2
+
+### Changed
+- The app behind a popup is now dimmed further as well as blurred, in light mode too, until the
+  popup closes.
+- On iOS 27, handing the pairing file to another app no longer tries to add a classic lockdown
+  pairing first. iOS 27 refuses that every time, so the attempt only cost time and left a warning
+  in the log. The file carries the pairing that StikDebug and SideStore nightlies from 20 September
+  2026 on read. Older SideStore builds, LiveContainer's built-in SideStore and Feather need a
+  classic pairing, which iOS 27 doesn't allow these apps to use on the iPhone itself.
+
+### Fixed
+- **SideStore Nightly no longer asks you to import the pairing file.** Nightlies from 20 September
+  2026 on stopped reading the pairing file where SideInstaller put it: they look for one file per
+  connection type under new names, turn down a file that holds both, and only load one after their
+  own import has saved two settings. SideInstaller now writes the pairing that way too, and sets
+  those settings the way SideStore's import does, so SideStore connects on first launch. Older
+  SideStore builds and LiveContainer + SideStore keep getting the file they read.
+
+## 1.2.1
+
+### Changed
+- **The log is safe to share.** It leaves out your Apple ID, your iPhone's name, serial numbers,
+  IMEI, SIM and subscriber numbers, network hardware addresses, Find My data and pairing keys, and
+  shortens the UDID to its first and last characters. Model, iOS version, errors and connection
+  details stay, and errors now say why a request couldn't be sent (DNS, connection or TLS).
+- Closing a popup that a running install is waiting on, such as the pairing code or the steps to
+  connect LocalDevVPN, now asks first, since it ends the install.
+
+### Fixed
+- **Sign-in says when SideInstaller can't reach Apple.** It used to try every anisette server and
+  blame them, although none was at fault. It now stops and says why: Cellular Data turned off for
+  SideInstaller, Wi-Fi not allowed for it, no internet connection, a disconnected VPN holding traffic
+  back, or something on the network blocking Apple.
+
+## 1.2.0
+
+### Added
+- **Advanced options on the Install tab.** Pick which version of SideStore or LiveContainer +
+  SideStore to install, and import a pairing file by hand on iOS 27 as well (#60).
+
+### Changed
+- Messages are shown as popups, so they're harder to miss.
+- Switching between pages is smoother.
+
+## 1.1.0
+
+### Changed
+- **Installing SideStore or LiveContainer + SideStore is faster.** The download now starts as soon
+  as the network is up and runs while your iPhone pairs, connects and signs in to your Apple ID,
+  instead of waiting for all of that to finish first.
+- Signing in to your Apple ID now happens while SideInstaller opens its link to your iPhone, rather
+  than after it.
+- An IPA downloaded on an earlier run is reused when GitHub still serves that exact file, so trying
+  again after a failed install, or installing the same build later, skips the download.
+- SideStore's certificate hand-off is prepared while the app installs, and finding the installed app
+  afterwards only asks your iPhone about the apps you installed, not every system app.
+- **Signing asks Apple for everything it needs at once.** Registering your iPhone, finding the
+  certificate, and setting up the App IDs and app group now go out together instead of one after
+  another, so signing SideStore takes under 3 seconds instead of over 6.
+- Signing in with a saved Apple ID session makes two fewer requests to Apple.
+- The signed app reaches your iPhone over several connections at once, which shaves a little more
+  off the install. Together, a SideStore install on an iPhone 16 went from about 18.5 seconds to
+  about 11.
+
+### Fixed
+- **Side by Side works with iPhones on iOS 27.** Their iPhone dropped the connection the moment
+  SideInstaller asked it to pair (error 54), before any Trust prompt could appear, so every run
+  stopped at the first step. iOS 27 only pairs over Wi-Fi from its own Settings, so Side by Side now
+  switches to that: it shows what to do on their iPhone — Settings › Privacy & Security › Developer
+  Mode, then “Pair with SideInstaller (Side by Side)” — and the code to type there, and carries on
+  once they have. The pairing is remembered for that address, so installing again doesn't ask for it.
+- Pairing someone else's iPhone this way leaves this iPhone's own pairing file alone, and uses a name
+  of its own, so it can't break the pairing their own SideInstaller sets up for itself.
+- Cancel stops Side by Side straight away while it waits for their iPhone to pair.
+- Tapping Stop while the IPA downloads now stops the install, instead of carrying on with an older
+  copy of the IPA left in Documents.
+
+## 1.0.0
+
+### Added
+- **A Tools tab.** It holds Side by Side, which installs SideInstaller on another iPhone or iPad
+  wirelessly; the Certificates and Pairing tools; a location spoofer; and an entitlement manager,
+  mainly for adding the Increased Memory Limit.
+- **iPhones on iOS 18 to 26 can use SideInstaller**, if they already have a pairing file, which
+  takes a computer to make. The Pairing tool needs iOS 27.
+- 2FA codes can come by SMS or phone call.
+- Import .ipa takes a URL as well as a file.
+- A dark and a glass app icon.
+- Portuguese, and Japanese (thanks to @so-5699).
+- SideInstaller starts LocalDevVPN at launch.
+
+### Changed
+- Apple ID sessions are saved and reused, so Apple rate-limits sign-ins less often.
+- The progress bar looks better.
+- SideInstaller needs approving in Privacy & Security less often.
+
+### Fixed
+- **No more "Import Account" box on first launch.** Recent SideStore builds — including the one
+  inside LiveContainer + SideStore nightly — stopped importing the certificate hand-off on their
+  own and started asking for a *file password* instead. They only accept a file encrypted by
+  SideStore's own Export Account, never delete the one they find, and only remember it once a
+  password has worked, so the box came back every single launch and could never be dismissed for
+  good. SideInstaller now checks the SideStore build it just signed and skips the hand-off entirely
+  when that build would ask, exactly as iLoader does. Builds that still import it quietly — SideStore
+  stable, and LiveContainer + SideStore stable — are unaffected and keep the certificate as before.
+  On the builds that ask, SideStore offers to resign itself on first sign-in instead, which is the
+  normal flow and takes one tap.
+- **LiveContainer + SideStore installs again on the Nightly setting.** LiveContainer's nightly
+  release stopped carrying the combined `LiveContainer+SideStore.ipa` — it now publishes the plain
+  LiveContainer build alone, which has no SideStore inside it — so picking Nightly for that app
+  simply failed to download. SideInstaller now looks through LiveContainer's other releases, takes
+  the newest one that still has the combined build, and says in the log which release it used.
+  Asking for Stable is never answered with a nightly. This also covers SideStore if its releases
+  ever move the same way.
+- Sign-in no longer fails with HTTP 503.
+- SideInstaller works with LocalDevVPN's latest update again.
+- Import .ipa lets you pick a file again.
+- An anisette server picked in Settings stays picked.
+
+## 0.9.0
+
+### Fixed
+- SideStore, LiveContainer + SideStore and Feather now accept the pairing file SideInstaller puts in
+  them, instead of asking you for one as though nothing had been placed.
+- SideInstaller now switches on the setting those apps need to reach your iPhone over your local
+  tunnel, which nothing was doing before.
+- The install may ask you to unlock your iPhone and tap Trust once; it remembers the result and
+  won't ask again for that device.
+- If that extra step doesn't work, your install still finishes exactly as it did before, and the log
+  says what went out.
+
+### Added
+- **SideStore is handed the certificate it was installed with.** SideStore only signs with a
+  certificate it holds the private key for, and the one SideInstaller installs it with lives here,
+  not there. On a free Apple ID — one certificate, no room for a second — SideStore's first sign-in
+  therefore revoked ours, issued its own, and put up *Resign SideStore*, asking to reinstall itself
+  before it would refresh. The install now seeds `Account.sideconf` into SideStore's container in
+  the same step that writes the pairing file, over the same tunnel: SideStore imports the
+  certificate on first launch, deletes the file, and carries on with the certificate it already has.
+  No revoke, no reinstall, nothing for you to do. Your Apple ID password is deliberately not
+  included — it isn't needed to keep the certificate, and the file is plain JSON until SideStore
+  reads it. Reinstalling over a SideStore you had already set up replaces its stored account, so
+  you'll enter your Apple ID password there once more. Building the file only ever reads the
+  certificate: it can't create one, so it can't revoke one either, and a failure is logged and
+  skipped rather than failing an install that is otherwise complete.
+- One button in the Pairing tab now writes the pairing file into every supported app it found, and
+  one app refusing it no longer stops the rest.
+- Export now shares the pairing file that every app can read, so importing it by hand works as well
+  as letting SideInstaller place it.
+
+## 0.8.0
+
+### Fixed
+- **Recent SideStore nightlies launch again.** They refuse to start unless every app extension inside
+  the bundle carries its own provisioning profile, and SideStore ships a widget. Signing wrote the
+  profile into the app but never into the widget, so the app died on the splash screen behind a
+  misleading Core Data error — *“Can't add the same store twice”* — that came back on every Retry. The
+  widget now gets the profile it is signed against, and the same fix covers any other IPA with
+  extensions. The signature was always correct; only the file was missing.
+- **A busy GitHub no longer stops the install, or sends you off to sideload by hand.** The SideStore
+  download went through api.github.com, whose 60-requests-an-hour limit is counted per public IP — so
+  behind carrier-grade NAT the quota can be spent by strangers before SideInstaller asks for anything.
+  GitHub said so plainly, but the reply's status was never looked at: its body went to the release
+  decoder and came out as “Key 'tag_name' not found”, under a hint about GitHub being unreachable that
+  cost people ten minutes of manual work to get around a wait that clears itself. The IPA now comes off
+  GitHub's ordinary download link, which isn't rate-limited at all; the API is asked only if an asset
+  has been renamed. When something does go wrong the reasons stay apart — out of reach, refused (with
+  how long the wait is, when it's a limit), or an answer that wasn't a release — and the *fetch it
+  elsewhere and copy it in* hint appears only where that's genuinely the way past it.
+- **A download that isn't an IPA is caught when it arrives.** The status of the download itself was
+  logged but never checked, so a block page or a transfer that stopped partway was filed in Documents
+  under the name that had been asked for, and only found out much later as an unexplained signing
+  failure. A download now gets the same check an imported file has had since 0.7.0.
+
+### Changed
+- Dependencies updated; see `v0.8-dependency-updates.txt`.
+
+## 0.7.0
+
+### Added
+- **Custom .ipa.** A third option in the Install picker, alongside SideStore and LiveContainer +
+  SideStore. Choosing it swaps the Stable/Nightly control for an **Import .ipa** button that opens the
+  Files picker — pick any IPA, from iCloud Drive, a USB drive, anywhere — and SideInstaller signs and
+  installs that instead of downloading. The button then shows the filename, so the card always says
+  which IPA will be installed. The pairing-file step still runs and seeds AltStore-family apps, but no
+  longer fails the install for an IPA that doesn't want one.
+- **Install from an IPA you supply yourself.** SideInstaller's Documents folder is now visible in
+  **Files › On My iPhone › SideInstaller**. Drop a `SideStore.ipa` (or `LiveContainer+SideStore.ipa`,
+  optionally `-nightly`) in there and the install uses that file instead of downloading anything — the
+  way through for anyone who can't reach GitHub. Imported files are listed under Settings › Downloaded
+  IPAs marked *imported*; deleting one goes back to downloading. A download that fails now also falls
+  back to a copy left by an earlier run rather than stopping the install.
+
+### Changed
+- **Any loopback VPN works, not just LocalDevVPN.** The tunnel check always tested the device subnet
+  rather than which app provided it, but the copy said otherwise. It now names LocalDevVPN and ClashMi
+  as examples and points out why the choice matters: iOS runs one VPN at a time, so a local-only tunnel
+  leaves nothing to download SideStore through where GitHub is blocked.
+- **Importing no longer freezes the app.** The copy runs in the background and the button says
+  *Importing…* while it does. It used to happen inline, which is fine off local storage and not at all
+  fine off the two sources the instructions recommend — iCloud Drive and a USB drive — where a
+  hundred-megabyte read takes long enough for iOS to kill the app for being unresponsive.
+- **A file picked from iCloud Drive imports.** The copy is now file-coordinated and asks for the
+  download first, so an item that hasn't been pulled down yet is waited for rather than failing.
+- **A failed import leaves the previous one alone.** The picked file is copied and checked in a staging
+  folder, and only replaces what's loaded once it's known good. Before, the old import was deleted
+  first, so a full disk — or simply picking the wrong file — destroyed it and left the button still
+  showing its name.
+- **A half-copied IPA is caught at import instead of at signing.** The check read the first two bytes,
+  which a truncated archive still passes; it now also looks for the zip's end-of-central-directory
+  record, which only a complete file has.
+
+### Fixed
+- **The Pairing tab no longer fails with “adapter closed” after sitting idle.** It reused the device
+  link on the strength of a check that only proves our handles aren't null — but iOS tears the tunnel
+  down underneath them, so scanning or writing minutes later hit a dead link. It now re-establishes
+  first, the same way the install step has since 0.6.5.
+- **A reconfigured tunnel is detected properly.** LocalDevVPN lets you change its tunnel IP, device IP
+  and subnet mask; SideInstaller assumed a /24 and would report “no loopback VPN” for a working tunnel
+  on any other mask. It now reads the interface's real netmask and asks the question that actually
+  matters — would traffic to this address go into that tunnel?
+- **A tunnel is no longer confused with a home network on the same range.** The check matched any
+  interface in the target's subnet, so a Wi-Fi LAN on `10.7.0.x` read as a connected tunnel. It now
+  has to be a tunnel interface *and* carry the address.
+- **Putting the wrong address in Device IP is caught immediately.** LocalDevVPN's main screen shows
+  `10.7.0.0` — its own end of the tunnel — while the address to connect to is the `10.7.0.1` under its
+  Settings › Device IP. Entering the first left a tunnel that read as up and a run that failed at
+  Connect after a sign-in and a download. SideInstaller now recognises an address this iPhone already
+  holds and says so before starting.
+- **Wi-Fi is only required for the step that needs it.** The tunnel is a loopback — it routes its own
+  subnet and excludes the default route — so it works fine on cellular, and so does everything else in
+  the run. Only pairing needs the local network, to be findable by Settings. With a pairing file
+  already saved, installing no longer demands Wi-Fi; nor do the Pairing tab's scan and write.
+- **The pairing file and your signing certificate are no longer sitting in a folder anyone can browse.**
+  Making the Documents folder visible in Files — the point of the import feature — exposed everything
+  in it, including the device pairing record and isideload's storage, which holds the developer
+  certificate. Both moved to Application Support, which file sharing doesn't reach; existing copies are
+  migrated on first launch, so nobody has to pair again. Documents is now only the IPA drop-zone.
+- **A custom IPA named `SideStore.ipa` no longer breaks SideStore updates.** Downloads were tracked by
+  filename alone, so an import sharing a name with a download shared its entry — and deleting the
+  import erased the download's claim. The app then read its own downloaded copy as user-supplied and
+  stopped ever refreshing it from GitHub. Tracking is now per-path.
+- **The tunnel/Wi-Fi poll no longer redraws the whole UI twice a second.** It republished its state
+  every 2 seconds whether or not anything had changed, which invalidated every view watching it for as
+  long as the app was open.
+- **Installing a large build no longer risks being killed for memory.** Each file of the signed bundle
+  was read into memory whole before being uploaded a megabyte at a time; it's now mapped.
+
+## 0.6.5
+
+### Fixed
+- **One-click install no longer fails at the final step after a slow sign-in or download.** The device tunnel opened during Connect was held and reused for the install, but it sat idle through Apple ID sign-in (2FA), the SideStore download, and signing — often 1–2 minutes. iOS tears down an idle tunnel, so the install would stop with `⛔️ … "adapter closed" (NetworkUnreachable)` when it tried to reach the AFC service. The installer now refreshes the device link (a quick re-pair-verify, no PIN) right before uploading, so install and the pairing-file write always run over a live tunnel. Runs with a fast sign-in/download were unaffected, which is why this only showed up intermittently.

@@ -1,0 +1,320 @@
+import SwiftUI
+import UIKit
+
+/// The Pairing page: generate the pairing file, export it, and write it into a
+/// supported app installed on this iPhone over the loopback tunnel. Pushed from
+/// Tools, whose `NavigationStack` this relies on.
+struct PairingView: View {
+    @Environment(Engine.self) private var engine
+    /// Observed so labels redraw when the language changes.
+    @EnvironmentObject private var loc: Localizer
+    @ObservedObject var manager: PairingManager
+
+    @State private var showSettings = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                header.cascadeItem(0)
+                pairingFileCard.cascadeItem(1)
+                installCard.cascadeItem(2)
+                // The pairing steps and code, errors and success show as
+                // `PairingPopup`, which `RootView` lays over the app.
+                targetList
+            }
+            .padding(20)
+            .pageColumn()
+            .animation(.smooth(duration: 0.35), value: manager.pairingFileExists)
+            .animation(.smooth(duration: 0.35), value: manager.targets)
+            .animation(.smooth(duration: 0.3), value: engine.deviceSummary)
+            .animation(.smooth(duration: 0.3), value: engine.vpnConnected)
+            .animation(.smooth(duration: 0.3), value: engine.wifiConnected)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(AppBackground())
+        .toolbar { settingsToolbarItem(isPresented: $showSettings) }
+        .sheet(isPresented: $showSettings) { SettingsView() }
+        .onAppear {
+            manager.refresh()
+            manager.autoScan()
+        }
+        // Auto-scan when the tunnel connects (the user usually returns to this
+        // page from the VPN app).
+        .onChange(of: engine.vpnConnected) { _, connected in
+            if connected { manager.autoScan() }
+        }
+    }
+
+    // MARK: Header
+
+    private var header: some View {
+        BrandHeader(icon: "lock.doc", image: "PairingLogo", title: L("Pairing")) {
+            statusPill
+                .transition(.opacity)
+                .id(statusID)
+        }
+    }
+
+    /// Stable identity so the pill cross-fades when its meaning changes.
+    private var statusID: String {
+        engine.deviceSummary ?? (manager.pairingFileExists ? "ready" : "none")
+    }
+
+    @ViewBuilder
+    private var statusPill: some View {
+        if let summary = engine.deviceSummary {
+            StatusDot(text: summary, color: Theme.positive)
+        } else if manager.pairingFileExists {
+            StatusDot(text: L("Pairing file ready"), color: Theme.positive)
+        } else {
+            StatusDot(text: L("No pairing file"), color: Theme.warning, idle: true)
+        }
+    }
+
+    // MARK: Pairing file (generate + export)
+
+    private var pairingFileCard: some View {
+        PanelCard {
+            VStack(alignment: .leading, spacing: 16) {
+                sectionTitle(L("Pairing file"), systemImage: "lock.doc")
+
+                // This page is only reachable on iOS 27+; the Tools row is hidden
+                // on older iOS.
+                Button { manager.generate() } label: {
+                    HStack(spacing: 8) {
+                        if manager.isGenerating {
+                            ProgressView()
+                            Text(L("Pairing…"))
+                        } else {
+                            Image(systemName: manager.pairingFileExists ? "arrow.clockwise" : "lock.iphone")
+                                .contentTransition(.symbolEffect(.replace))
+                            Text(manager.pairingFileExists ? L("Regenerate") : L("Generate pairing file"))
+                        }
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(manager.isBusy || engine.isRunning)
+
+                if let url = manager.exportURL {
+                    ShareLink(item: url) {
+                        Label(L("Export pairing file"), systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .controlSize(.regular)
+                    .disabled(manager.isBusy)
+                }
+            }
+        }
+    }
+
+    // MARK: Install into an app
+
+    private var installCard: some View {
+        PanelCard {
+            VStack(alignment: .leading, spacing: 16) {
+                sectionTitle(L("Install into an app"), systemImage: "tray.and.arrow.down")
+
+                // Scanning and writing only need the tunnel, not Wi-Fi. No note
+                // when scanning starts LocalDevVPN itself.
+                if !engine.tunnelAvailable {
+                    vpnNote
+                }
+
+                Button { manager.scan() } label: {
+                    HStack(spacing: 8) {
+                        if manager.isScanning {
+                            ProgressView()
+                            Text(L("Scanning"))
+                        } else {
+                            Image(systemName: manager.hasScanned ? "arrow.clockwise" : "magnifyingglass")
+                                .contentTransition(.symbolEffect(.replace))
+                            Text(manager.hasScanned ? L("Rescan apps") : L("Scan installed apps"))
+                        }
+                    }
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .disabled(manager.isBusy || !manager.pairingFileExists || !engine.tunnelAvailable || engine.isRunning)
+            }
+        }
+    }
+
+    private var vpnNote: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "shield.lefthalf.filled")
+                .foregroundStyle(Theme.negative)
+            Text(L("Connect LocalDevVPN to scan and install. The write runs over its tunnel."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous).fill(Theme.control))
+        .overlay(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+            .strokeBorder(Theme.hairline, lineWidth: 1))
+    }
+
+    // MARK: Scanned targets
+
+    @ViewBuilder
+    private var targetList: some View {
+        if manager.hasScanned && manager.targets.isEmpty && !manager.isScanning {
+            emptyTargets.transition(.cardAppear)
+        } else if !manager.targets.isEmpty {
+            VStack(spacing: 16) {
+                HStack {
+                    Text(manager.targets.count == 1
+                         ? L("%d supported app installed", manager.targets.count)
+                         : L("%d supported apps installed", manager.targets.count))
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .cascadeItem(3)
+                if manager.targets.count > 1 {
+                    placeInAllButton.cascadeItem(4)
+                }
+                ForEach(Array(manager.targets.enumerated()), id: \.element.id) { idx, target in
+                    targetRow(target).cascadeItem(5 + idx)
+                }
+            }
+        }
+    }
+
+    /// One tap for every scanned app, matching iLoader's "Place In All Apps".
+    private var placeInAllButton: some View {
+        Button { manager.installIntoAll() } label: {
+            HStack(spacing: 8) {
+                if manager.isInstallingAll {
+                    ProgressView().controlSize(.small)
+                    Text(L("Installing into all apps"))
+                } else {
+                    Image(systemName: "square.and.arrow.down.on.square")
+                    Text(L("Install pairing into all apps"))
+                }
+            }
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(SecondaryButtonStyle(), sound: .tap)
+        .controlSize(.regular)
+        .disabled(manager.isBusy || engine.isRunning)
+    }
+
+    private var emptyTargets: some View {
+        PanelCard {
+            VStack(spacing: 8) {
+                Image(systemName: "questionmark.app.dashed")
+                    .font(.largeTitle)
+                    .foregroundStyle(Theme.muted)
+                Text(L("No supported apps found"))
+                    .font(.headline)
+                Text(L("Install an app like SideStore, StikDebug, or Feather first, then rescan."))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func targetRow(_ target: InstalledPairingTarget) -> some View {
+        let installing = manager.installingTargetID == target.id
+        return PanelCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "app.dashed")
+                        .font(.title3)
+                        .foregroundStyle(Theme.muted)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(target.name)
+                            .font(.subheadline.weight(.medium))
+                        Text(target.bundleID)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                }
+
+                Button { manager.install(into: target) } label: {
+                    HStack(spacing: 8) {
+                        if installing {
+                            ProgressView().controlSize(.small)
+                            Text(L("Installing"))
+                        } else {
+                            Image(systemName: "arrow.down.doc")
+                            Text(L("Install pairing"))
+                        }
+                    }
+                    .font(.subheadline.weight(.medium))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(SecondaryButtonStyle(), sound: .tap)
+                .controlSize(.regular)
+                .disabled(manager.isBusy || engine.isRunning)
+            }
+        }
+    }
+
+    // MARK: Helpers
+
+    private func sectionTitle(_ title: String, systemImage: String) -> some View {
+        SectionTitle(title: title, systemImage: systemImage)
+    }
+}
+
+// MARK: - Popup
+
+/// One of the Pairing page's popups, which `RootView` stacks over the whole app:
+/// the steps for pairing in Settings and the code they ask for, or how the last
+/// action went. See `PairingManager.Popup`.
+struct PairingPopup: View {
+    @ObservedObject var manager: PairingManager
+    let popup: PairingManager.Popup
+
+    /// Observed so labels redraw when the language changes.
+    @EnvironmentObject private var loc: Localizer
+
+    var body: some View {
+        switch popup {
+        case .pairingCode(let pin):
+            PairingCodePopup(pin: pin, caption: L("Type this into the prompt in Settings."),
+                             onClose: close)
+        case .pairInSettings:
+            PopupCard(title: Self.pairInSettingsTitle,
+                      systemImage: "gearshape",
+                      tint: Theme.accent,
+                      onClose: close) {
+                NumberedSteps(steps: Guides.pairing.steps)
+            }
+        case .error(let message):
+            PopupCard(title: L("Something went wrong"),
+                      systemImage: "exclamationmark.triangle",
+                      tint: Theme.negative,
+                      onClose: close) {
+                ErrorMessage(message: message)
+            }
+        case .success(let message):
+            // Titled after the page: this covers a new file and a write alike.
+            PopupCard(title: L("Pairing"),
+                      systemImage: "checkmark.seal",
+                      tint: Theme.positive,
+                      onClose: close) {
+                Text(message)
+                    .font(.subheadline)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func close() { manager.closePopup(popup) }
+
+    /// The pairing steps' title, which also titles the group they share with
+    /// the code.
+    static var pairInSettingsTitle: String { L("Pair in Settings") }
+}

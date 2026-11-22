@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SideInstaller Terms of Service</title>
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+<link rel="apple-touch-icon" href="app-icon.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050b18">
+<style>
+  /* The site's palette (assets/site.css in FrizzleM/SideInstaller-Signed, from
+     the app's Theme.swift), kept in this file so the page stands on its own.
+     Still and plain, as suits a legal document. */
+  :root{
+    --page:#050b18; --card:#0d1524;
+    --control:rgba(185,211,249,.07); --hairline:rgba(185,211,249,.1);
+    --text:#f1f4f9; --text-2:#aeb8ca; --muted:#7f8da5;
+    --blue:#2669ed; --blue-hover:#3a78f2; --accent:#60a7fd;
+    --ease:cubic-bezier(.22,1,.36,1);
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Segoe UI",Roboto,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%; background:var(--page); scroll-padding-top:76px}
+  body{
+    margin:0; min-height:100vh; color:var(--text);
+    background:radial-gradient(ellipse 100% 640px at 50% 0, rgba(9,50,143,.4), rgba(9,50,143,0)) no-repeat, var(--page);
+    font:400 17px/1.47 var(--sans); -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+  .wrap{
+    max-width:808px; margin:0 auto;
+    padding:0 max(24px,env(safe-area-inset-right)) 0 max(24px,env(safe-area-inset-left));
+  }
+
+  /* ---- top bar ---- */
+  .nav{
+    position:sticky; top:0; z-index:10; height:52px;
+    background:rgba(5,11,24,.72); border-bottom:1px solid var(--hairline);
+    -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
+  }
+  .nav .wrap{height:100%; display:flex; align-items:center; justify-content:space-between; gap:24px}
+  .brand{display:flex; align-items:center; gap:10px; font-size:17px; font-weight:600; letter-spacing:-.01em; text-decoration:none}
+  .brand img{width:28px; height:28px; border-radius:7px; box-shadow:0 0 0 1px var(--hairline)}
+  .btn{
+    display:inline-flex; align-items:center; height:32px; padding:0 16px; border-radius:16px;
+    background:var(--blue); color:#fff; font-size:14px; font-weight:500; text-decoration:none;
+    transition:background-color .15s var(--ease), transform .15s var(--ease);
+  }
+  .btn:hover{background:var(--blue-hover)}
+  .btn:active{transform:scale(.98)}
+
+  /* ---- header ---- */
+  .head{padding:72px 0 8px}
+  h1{margin:0; font-size:clamp(40px,7vw,64px); line-height:1.04; font-weight:600; letter-spacing:-.03em}
+  .updated{margin:20px 0 0; font:400 13px/1.4 var(--mono); color:var(--muted)}
+  .intro{margin:24px 0 0; font-size:19px; line-height:1.42; color:var(--text-2)}
+  .intro b{color:var(--text); font-weight:500}
+
+  /* ---- table of contents ---- */
+  .toc{
+    margin:48px 0 8px; padding:24px;
+    background:var(--card); border:1px solid var(--hairline); border-radius:20px;
+  }
+  .toc h2{margin:0 0 12px; font-size:14px; line-height:1.43; font-weight:500; color:var(--text-2)}
+  .toc ol{margin:0; padding-left:24px; columns:2; column-gap:32px; font-size:15px}
+  .toc li{margin:0 0 8px; break-inside:avoid; color:var(--muted)}
+  .toc a{color:var(--text); text-decoration:none}
+  .toc a:hover{color:var(--accent)}
+
+  /* ---- sections ---- */
+  section{margin-top:48px}
+  h2.sec{
+    display:flex; align-items:baseline; gap:12px;
+    margin:0 0 12px; font-size:21px; line-height:1.2; font-weight:600; letter-spacing:-.01em;
+  }
+  h2.sec .num{flex:none; min-width:20px; font:400 14px/1 var(--mono); color:var(--muted)}
+  section p, section li{color:var(--text-2); font-size:16px; line-height:1.6}
+  section p{margin:0 0 12px}
+  section b{color:var(--text); font-weight:500}
+  section ul, section ol{margin:0 0 12px; padding-left:24px}
+  section li{margin:8px 0}
+  section a{color:var(--accent); text-decoration:none}
+  section a:hover{text-decoration:underline; text-underline-offset:3px}
+
+  /* Emphasis block for the standalone risk statement. */
+  section p.notice{
+    margin:16px 0 12px; padding:16px 20px; border-radius:12px;
+    background:var(--control); color:var(--text); font-weight:500;
+  }
+
+  /* Capitalised warranty/liability language: set slightly smaller and looser
+     so the long caps runs stay readable without altering the wording. */
+  .caps p, .caps li{font-size:14px; letter-spacing:.01em; line-height:1.7}
+
+  .footer{
+    margin-top:72px; padding:24px 0 max(48px,env(safe-area-inset-bottom));
+    border-top:1px solid var(--hairline); font-size:14px; color:var(--muted);
+    display:flex; flex-wrap:wrap; gap:8px 24px; justify-content:space-between;
+  }
+  .footer a{color:var(--text-2); text-decoration:none}
+  .footer a:hover{color:var(--text)}
+
+  @media (max-width:560px){
+    .toc ol{columns:1}
+    .head{padding-top:48px}
+  }
+  @media print{
+    body{background:#fff; color:#111}
+    .nav,.toc{display:none}
+    h2.sec .num{color:#444}
+    h1, h2.sec{color:#000}
+    section p, section li, .intro, .updated{color:#222}
+    section b, .intro b{color:#000}
+    section p.notice{border:1px solid #444; background:none; color:#000}
+    section a{color:#1d4ed8}
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="index.html"><img src="favicon-192.png" width="28" height="28" alt="">SideInstaller</a>
+    <!-- The install steps, wherever the site keeps them. -->
+    <a class="btn" href="index.html#setup">Install</a>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <header class="head">
+    <h1>Terms of Service</h1>
+    <p class="updated">Last updated: July 2026</p>
+    <p class="intro">By downloading, installing, or using SideInstaller (the "App"), or by using its source code, you agree to these Terms of Service ("Terms"). <b>If you do not agree, do not use the App.</b></p>
+  </header>
+
+  <nav class="toc" aria-label="Contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#nature">Nature of the App</a></li>
+      <li><a href="#risk">Assumption of Risk</a></li>
+      <li><a href="#responsibilities">Your Responsibilities</a></li>
+      <li><a href="#warranty">No Warranty</a></li>
+      <li><a href="#liability">Limitation of Liability</a></li>
+      <li><a href="#indemnification">Indemnification</a></li>
+      <li><a href="#privacy">Privacy</a></li>
+      <li><a href="#changes">Changes and Termination</a></li>
+      <li><a href="#severability">Severability</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ol>
+  </nav>
+
+  <section id="nature">
+    <h2 class="sec"><span class="num">1</span>Nature of the App</h2>
+    <p>SideInstaller is a free, community-driven tool that allows users to install and manage apps on their own iOS devices ("sideloading") using their own Apple ID and Apple's developer provisioning system. SideInstaller is an independent project. <b>It is not affiliated with, endorsed by, or sponsored by Apple Inc.</b> Apple, iOS, and Apple ID are trademarks of Apple Inc.</p>
+  </section>
+
+  <section id="risk">
+    <h2 class="sec"><span class="num">2</span>Assumption of Risk</h2>
+    <p>Sideloading relies on mechanisms that Apple does not officially support for this purpose and that Apple may change, restrict, or disable at any time. By using the App, you acknowledge and accept, among others, the following risks:</p>
+    <ul>
+      <li><b>Apple account actions.</b> Apple may flag, lock, restrict, or terminate Apple IDs used with sideloading tools, and may revoke certificates or provisioning profiles at any time, causing installed apps to stop working.</li>
+      <li><b>Device issues.</b> Installation failures, app crashes, data loss, pairing problems, or other malfunctions on your device.</li>
+      <li><b>Service changes.</b> iOS updates or Apple server-side changes may break the App's functionality partially or entirely, without notice.</li>
+      <li><b>Third-party apps.</b> Any app you choose to install through SideInstaller is your sole responsibility. SideInstaller does not review, host, or endorse third-party apps or their content.</li>
+    </ul>
+    <p class="notice">You use the App entirely at your own risk and on your own devices and accounts.</p>
+  </section>
+
+  <section id="responsibilities">
+    <h2 class="sec"><span class="num">3</span>Your Responsibilities</h2>
+    <p>You agree that you are solely responsible for:</p>
+    <ol>
+      <li>Complying with all laws and regulations applicable in your jurisdiction;</li>
+      <li>Complying with any agreements you have with Apple, including the Apple Media Services Terms and the Apple Developer Agreement, where applicable;</li>
+      <li>Ensuring you have the right to install any software you sideload, and that such software is lawfully obtained;</li>
+      <li>The security of your own Apple ID credentials and devices;</li>
+      <li>Any consequences arising from apps you install, distribute, or use via the App, including piracy, copyright infringement, or violations of third-party terms.</li>
+    </ol>
+    <p>The App must not be used for any unlawful purpose, including the installation or distribution of pirated software.</p>
+  </section>
+
+  <section id="warranty" class="caps">
+    <h2 class="sec"><span class="num">4</span>No Warranty</h2>
+    <p>THE APP AND ITS SOURCE CODE ARE PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ACCURACY, OR UNINTERRUPTED OPERATION. NO ORAL OR WRITTEN INFORMATION OR ADVICE GIVEN BY THE DEVELOPER OR COMMUNITY SHALL CREATE ANY WARRANTY.</p>
+  </section>
+
+  <section id="liability" class="caps">
+    <h2 class="sec"><span class="num">5</span>Limitation of Liability</h2>
+    <p>TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE DEVELOPER SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATING TO YOUR USE OF (OR INABILITY TO USE) THE APP, INCLUDING BUT NOT LIMITED TO:</p>
+    <ul>
+      <li>Suspension, restriction, or termination of your Apple ID or developer account;</li>
+      <li>Revocation of certificates or provisioning profiles;</li>
+      <li>Loss of data, apps, purchases, or device functionality;</li>
+      <li>Legal claims, fines, or proceedings brought against you by Apple or any third party;</li>
+      <li>Damages arising from third-party apps installed through the App;</li>
+    </ul>
+    <p>EVEN IF THE DEVELOPER HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. WHERE LIABILITY CANNOT BE FULLY EXCLUDED UNDER APPLICABLE LAW, IT IS LIMITED TO THE AMOUNT YOU PAID FOR THE APP, WHICH IS ZERO.</p>
+  </section>
+
+  <section id="indemnification">
+    <h2 class="sec"><span class="num">6</span>Indemnification</h2>
+    <p>You agree to indemnify and hold harmless the developer and contributors from any claims, damages, liabilities, costs, and expenses (including reasonable legal fees) arising from your use of the App, your violation of these Terms, or your violation of any law or third-party right, including any agreement between you and Apple.</p>
+  </section>
+
+  <section id="privacy">
+    <h2 class="sec"><span class="num">7</span>Privacy</h2>
+    <p>SideInstaller processes your Apple ID credentials on-device solely to communicate with Apple's servers for provisioning. Credentials are not transmitted to, stored by, or accessible to the developer. See the project documentation for details.</p>
+  </section>
+
+  <section id="changes">
+    <h2 class="sec"><span class="num">8</span>Changes and Termination</h2>
+    <p>These Terms may be updated at any time; continued use of the App after changes constitutes acceptance. The developer may discontinue the App or any of its features at any time without notice or liability.</p>
+  </section>
+
+  <section id="severability">
+    <h2 class="sec"><span class="num">9</span>Severability</h2>
+    <p>If any provision of these Terms is held unenforceable, the remaining provisions remain in full force and effect.</p>
+  </section>
+
+  <section id="contact">
+    <h2 class="sec"><span class="num">10</span>Contact</h2>
+    <p>Questions about these Terms may be directed via the official repository: <a href="https://github.com/FrizzleM" target="_blank" rel="noopener">github.com/FrizzleM</a></p>
+  </section>
+
+  <footer class="footer">
+    <span>SideInstaller Terms of Service</span>
+    <a href="index.html">Back to SideInstaller</a>
+  </footer>
+
+</div>
+</body>
+</html>

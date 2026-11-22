@@ -1,0 +1,2234 @@
+import Foundation
+import SideInstallerFFI
+import Darwin
+import zlib
+
+/// Wraps idevice's C FFI to talk to the device over the loopback tunnel
+/// (lockdown, installation_proxy, AFC, etc.), like StikDebug does. The tunnel
+/// adapter and RSD handshake are created once and reused. Every call blocks, so
+/// never call these on the main thread.
+final class DeviceConnection {
+
+    // idevice opaque handles import as OpaquePointer.
+    private var adapter: OpaquePointer?
+    private var handshake: OpaquePointer?
+    /// Answers lockdownd's heartbeat while a CoreDeviceProxy tunnel is open,
+    /// which iOS closes without it (`LockdownHeartbeat`). Nil on the RPPairing
+    /// route, which doesn't go through lockdownd.
+    private var heartbeat: LockdownHeartbeat?
+    /// The port this iPhone's remote-pairing listener was found on when it
+    /// wasn't `rsdPort`: the one it advertised, or the one that answered a
+    /// knock. The next connect dials it first, so the search runs once in a
+    /// run of the app, as siboot's later steps dial the port its first one
+    /// found. The listener only moves when it starts again, as it does when
+    /// the iPhone restarts, which ends the run anyway.
+    private var movedListenerPort: UInt16?
+
+    /// RemoteServiceDiscovery port reached over the VPN loopback.
+    static let rsdPort: UInt16 = 49152
+
+    /// lockdownd's fixed port (unlike the ephemeral tunnel port `createListener`
+    /// opens).
+    static let lockdownPort: UInt16 = 62078
+
+    var isConnected: Bool { adapter != nil && handshake != nil }
+
+    struct FFIError: Error, CustomStringConvertible {
+        let code: Int32
+        let subCode: Int32
+        let message: String
+        var description: String { "idevice FFI error code=\(code) sub=\(subCode): \(message)" }
+    }
+
+    /// A tunnel failure with user-facing advice, plus the raw FFI error for logs.
+    ///
+    /// The raw FFI message only shows the last attempt's errno, which looks the
+    /// same for very different causes (port-filtering VPN, no listener, stale
+    /// pairing file). The Rust side classifies the cause into `kind`.
+    struct TunnelError: Error, CustomStringConvertible, LocalizedError {
+        let kind: TunnelFailureKind
+        let advice: String
+        /// The unclassified FFI error, for the debug log — never presented.
+        let underlying: FFIError
+        /// True when this iPhone's lockdownd hung up on the lockdown route, as
+        /// it does from iOS 26.4 on (`Engine.lockdownWorksOverLoopback`): no
+        /// lockdown record opens a tunnel through the loopback there, only an
+        /// RPPairing one.
+        var lockdownRouteClosed = false
+        var description: String { advice }
+        var errorDescription: String? { advice }
+
+        /// Whether re-pairing might fix this failure. False for route/network
+        /// failures, where the pairing file isn't the problem.
+        var repairingCouldHelp: Bool {
+            // A new lockdown record would be hung up on just the same. Pairing
+            // this iPhone with itself makes an RPPairing record instead, which
+            // only iOS 27 can do.
+            if lockdownRouteClosed { return Engine.deviceCanSelfPair }
+            return kind != TunnelFailureHostsRefused
+                && kind != TunnelFailureTimeout
+                && kind != TunnelFailureRsdUnreachable
+        }
+    }
+
+    /// A failed `lockdownPairRecordDirect`, with how far it got: an address that
+    /// never answered is a different problem from a lockdownd that answered
+    /// and then wouldn't pair.
+    struct LockdownPairError: Error, CustomStringConvertible {
+        enum Stage {
+            /// Opening the TCP connection to lockdownd's port.
+            case connect
+            /// The `Pair` exchange on a connection that was open.
+            case pair
+        }
+
+        let stage: Stage
+        let underlying: FFIError
+        var description: String { underlying.description }
+
+        /// idevice's code for `UserDeniedPairing`, sent when “Don't Trust” is
+        /// tapped (`IdeviceError::code`).
+        private static let userDeniedPairingCode: Int32 = 31
+
+        /// True when they tapped “Don't Trust” on the device. The message is the
+        /// error's debug name, checked too in case idevice renumbers its codes.
+        var userDeclined: Bool {
+            stage == .pair && (underlying.code == Self.userDeniedPairingCode
+                               || underlying.message.contains("UserDeniedPairing"))
+        }
+    }
+
+    /// Consume an `IdeviceFfiError*` into an `FFIError` (null == success).
+    private func ffiError(_ err: UnsafeMutablePointer<IdeviceFfiError>?,
+                          _ fallback: String) -> FFIError? {
+        Self.takeFFIError(err, fallback)
+    }
+
+    /// `ffiError` for code that runs without a connection, like the heartbeat's
+    /// thread.
+    fileprivate static func takeFFIError(_ err: UnsafeMutablePointer<IdeviceFfiError>?,
+                                         _ fallback: String) -> FFIError? {
+        guard let err = err else { return nil }
+        let code = err.pointee.code
+        let sub = err.pointee.sub_code
+        let msg = err.pointee.message.flatMap { String(validatingUTF8: $0) } ?? fallback
+        idevice_error_free(err)
+        return FFIError(code: code, subCode: sub, message: msg.isEmpty ? fallback : msg)
+    }
+
+    /// Turn a returned IdeviceFfiError* into a thrown error (null == success).
+    private func check(_ err: UnsafeMutablePointer<IdeviceFfiError>?, _ fallback: String) throws {
+        if let error = ffiError(err, fallback) { throw error }
+    }
+
+    private func fail(_ message: String) -> FFIError {
+        FFIError(code: -1, subCode: 0, message: message)
+    }
+
+    /// User-facing advice for each tunnel failure kind, listing the hosts that
+    /// were tried. `port` is the remote-pairing port dialled last.
+    private func tunnelAdvice(kind: TunnelFailureKind,
+                              deviceIP: String,
+                              port: UInt16 = DeviceConnection.rsdPort,
+                              candidates: [String],
+                              raw: FFIError?) -> String {
+        let tried = ([deviceIP, "127.0.0.1"] + candidates).joined(separator: ", ")
+        switch kind {
+        case TunnelFailureHostsRefused:
+            return """
+                The device answered on the RSD port at \(deviceIP), then the tunnel port \
+                it opened was unreachable on that same address — dropped or refused, \
+                across \(tried). The device is there; what's in front of it is forwarding \
+                some ports and not others. The tunnel opens on a fresh high port every \
+                attempt, so a rule-based proxy that forwards the RSD port alone can never \
+                cover it. Use a loopback VPN that blanket-forwards every port on the RSD \
+                subnet. Re-pairing won't help — the pairing is fine.
+                """
+        case TunnelFailureTimeout:
+            return """
+                The tunnel port never answered and never refused on any address \
+                (\(tried)) — the connection is being swallowed rather than rejected. \
+                That's usually a VPN or firewall dropping traffic on the RSD subnet. \
+                Check the VPN is still up, then try again.
+                """
+        case TunnelFailureTlsHandshake:
+            return """
+                Something accepted the tunnel connection but failed the encrypted \
+                handshake on top of it. Either another process holds that port, or this \
+                pairing file's key no longer matches the device. Pair again, and if that \
+                doesn't take, restart the loopback VPN.
+                """
+        case TunnelFailurePairVerify:
+            return """
+                The device rejected this pairing file: it's for a different device, or \
+                the pairing was revoked (a reset, a restore, or Developer Mode being \
+                turned off). Pair with this iPhone again to get a fresh file.
+                """
+        case TunnelFailureRsdUnreachable:
+            // ECONNREFUSED means the tunnel works and the address is right, but
+            // nothing is listening on the pairing port (often Developer Mode
+            // is off), so don't blame the VPN. iOS says whether Developer
+            // Mode is on, where it lets the app read it.
+            if Self.wasRefused(raw) {
+                switch Engine.developerModeIsOn {
+                case false?:
+                    return L("Something at %@:%d refused the connection, so the tunnel is carrying traffic, but this iPhone isn't listening on its pairing port: Developer Mode is off. Turn it on under Settings › Privacy & Security › Developer Mode (the iPhone restarts), then try again.",
+                             deviceIP, Int(port))
+                case true?:
+                    return L("Something at %@:%d refused the connection, so the tunnel is carrying traffic, but this iPhone isn't listening on its pairing port, although Developer Mode is on. Pair this iPhone again under “Pairing file”, then try again. If it still fails, restart the iPhone.",
+                             deviceIP, Int(port))
+                case nil:
+                    return L("Something at %@:%d refused the connection, so the tunnel is carrying traffic — the device just isn't listening on its pairing port. That port only opens while Developer Mode is on, and iOS asks for it again after every restart: turn it on under Settings › Privacy & Security › Developer Mode, then try again. If it's already on, pair this iPhone again under “Pairing file”.",
+                             deviceIP, Int(port))
+                }
+            }
+            return """
+                Couldn't reach the device at \(deviceIP):\(port) at all. The \
+                loopback VPN is most likely off, or Device IP isn't the address it \
+                carries: in LocalDevVPN that's the one under Settings › Device IP \
+                (10.7.0.1 by default), not the “Connected to” address on its main screen.
+                """
+        default:
+            return """
+                The tunnel didn't come up, and the failure didn't match any known cause. \
+                The raw error is in the log.
+                """
+        }
+    }
+
+    /// True if the connection was refused rather than timed out. Both are
+    /// classified as `RsdUnreachable`, so this checks the raw message.
+    static func wasRefused(_ raw: FFIError?) -> Bool {
+        guard let message = raw?.message.lowercased() else { return false }
+        return message.contains("connection refused") || message.contains("os error 61")
+    }
+
+    /// True when iOS itself refused the connection (EPERM), before anything
+    /// left this iPhone. It does that for the iPhone's own addresses: loopback,
+    /// its Wi-Fi address, and a loopback VPN's own end of the tunnel.
+    static func wasBlockedLocally(_ error: Error) -> Bool {
+        let raw = (error as? FFIError) ?? (error as? TunnelError)?.underlying
+        guard let message = raw?.message.lowercased() else { return false }
+        return message.contains("operation not permitted") || message.contains("os error 1)")
+    }
+
+    /// `error` as a tunnel failure iOS refused itself, with advice instead of
+    /// the raw errno. Reported as unreachable, so nothing tries to pair again:
+    /// a new pairing file would be refused the same way.
+    private func blockedLocally(_ error: Error, deviceIP: String) -> TunnelError {
+        let raw = (error as? FFIError) ?? (error as? TunnelError)?.underlying
+            ?? fail(String(describing: error))
+        return TunnelError(
+            kind: TunnelFailureRsdUnreachable,
+            advice: L("iOS refused the connection to %@ on this iPhone, before anything was sent. It does that for this iPhone's own addresses, like the “Connected to” address on LocalDevVPN's main screen. Device IP, in Settings › Advanced, has to be the address under LocalDevVPN's Settings › Device IP: 10.7.0.1 by default. If it already is, turn LocalDevVPN off and on again, then try again.",
+                      deviceIP),
+            underlying: raw)
+    }
+
+    /// True when lockdownd took the connection and then hung up: reset it,
+    /// closed it, or left the next request to a dead socket. A reset on the
+    /// first request reads `Socket(Os { code: 32, kind: BrokenPipe, … })`: the
+    /// first request is the `GetValue` that `start_session` doesn't check, so
+    /// `StartSession` is the write that fails. A plain close reads
+    /// `Socket(Custom { kind: UnexpectedEof, error: "early eof" })`.
+    static func lockdownHungUp(_ error: Error) -> Bool {
+        let raw = (error as? FFIError) ?? (error as? TunnelError)?.underlying
+        guard let message = raw?.message.lowercased() else { return false }
+        return ["brokenpipe", "broken pipe", "connectionreset", "connection reset",
+                "connectionaborted", "unexpectedeof", "early eof"]
+            .contains { message.contains($0) }
+    }
+
+    /// `error`, this iPhone's lockdownd hanging up on the lockdown route from
+    /// iOS 26.4 on, as a tunnel failure with advice instead of the raw errno.
+    /// It says to use an RPPairing record: made on a computer below iOS 27,
+    /// or by pairing this iPhone with itself from 27 on.
+    private func lockdownClosed(_ error: Error) -> TunnelError {
+        let raw = (error as? FFIError) ?? fail(String(describing: error))
+        let advice = Engine.deviceCanSelfPair
+            ? L("This iPhone hung up on the connection as soon as it opened. From iOS 26.4 on it does that to lockdown pairing files, like this one, when they come through LocalDevVPN. Pair this iPhone with itself instead: tap “Regenerate” under Tools › Pairing, or tap Install, which pairs it first.")
+            : L("This iPhone hung up on the connection as soon as it opened. Since iOS 26.4 it does that to lockdown pairing files, like this one, when they come through LocalDevVPN, so a new one of the same kind won't help. A remote pairing file still works: on a computer, open idevice_pair, choose “Remote pairing”, click “Create”, then “Save to file…”, and import the file under “Pairing file”.")
+        return TunnelError(kind: TunnelFailureOther, advice: ErrorHelp.explained(advice),
+                           underlying: raw, lockdownRouteClosed: true)
+    }
+
+    // MARK: Connect / disconnect
+
+    /// Opens the loopback tunnel and RSD handshake using the routes the pairing
+    /// file supports. Both routes produce the same adapter + handshake:
+    ///
+    /// - **RPPairing** (`tunnel_create_rppairing`): connects to the device's
+    ///   remote-pairing listener with an Ed25519 record, from on-device pairing
+    ///   (iOS 27+) or made on a computer (idevice_pair's “Remote pairing”,
+    ///   iLoader) for iOS 17.4+.
+    /// - **CoreDeviceProxy** (`tunnel_create_usb`): opens a lockdown session with
+    ///   a classic pair record and starts CoreDeviceProxy, with lockdownd's
+    ///   heartbeat answered for as long as the tunnel is open
+    ///   (`LockdownHeartbeat`). Works on iOS 17 to 26.3; from 26.4 on,
+    ///   lockdownd hangs up on it through the loopback VPN
+    ///   (`Engine.lockdownWorksOverLoopback`).
+    ///
+    /// With both records, the route most likely to work on this iOS goes first.
+    /// With only an RPPairing record, a lockdown record is created as a last
+    /// resort and CoreDeviceProxy is tried — unless `allowLockdownMinting` is
+    /// false, as it must be for another iPhone's file (Side by Side): minting
+    /// stores this iPhone's own record and falls back to its own lockdownd on
+    /// 127.0.0.1. Never from iOS 26.4 on, where no lockdown record gets through
+    /// (`Engine.canMintLockdownRecord`).
+    func connect(deviceIP: String, pairingFilePath: String, hostname: String = "SideInstaller",
+                 allowLockdownMinting: Bool = true) throws {
+        let kind = PairingFileKind.of(path: pairingFilePath)
+        guard kind.isUsable else {
+            throw fail("\((pairingFilePath as NSString).lastPathComponent) isn't a pairing file: it carries neither a remote-pairing key pair nor a lockdown pair record.")
+        }
+        // Prefer RPPairing where lockdownd hangs up on the loopback (iOS 26.4
+        // and later, so every iOS that pairs itself), lockdown otherwise. With
+        // one record, use its route only.
+        let remoteFirst = !Engine.lockdownWorksOverLoopback
+        let routes: [Bool] = (kind.hasRemotePairing && kind.hasLockdown)
+            ? (remoteFirst ? [true, false] : [false, true])
+            : [kind.hasRemotePairing]
+
+        var firstFailure: Error?
+        // An RPPairing-only file can still fall back to creating a lockdown
+        // record (see below), except from iOS 26.4 on.
+        let canMintLockdownRecord = !kind.hasLockdown && allowLockdownMinting
+            && Engine.canMintLockdownRecord
+        // Only this iPhone's own lockdownd is known to hang up on the loopback,
+        // and only from iOS 26.4. Another iPhone's file (Side by Side, the one
+        // caller that can't mint) reaches an iOS this one knows nothing about.
+        let lockdownClosedHere = allowLockdownMinting && !Engine.lockdownWorksOverLoopback
+        for (index, useRemotePairing) in routes.enumerated() {
+            do {
+                if useRemotePairing {
+                    // Another iPhone's listener (Side by Side, the one caller
+                    // that can't mint) isn't this iPhone's, so it isn't probed
+                    // or looked for on other ports.
+                    try connectRemotePairing(deviceIP: deviceIP,
+                                             pairingFilePath: pairingFilePath,
+                                             hostname: hostname,
+                                             findsMovedPort: allowLockdownMinting)
+                } else {
+                    try connectCoreDeviceProxy(deviceIP: deviceIP,
+                                               pairingFilePath: pairingFilePath,
+                                               hostname: hostname)
+                }
+                return
+            } catch {
+                // Report what the preferred route said, not the fallback's noise.
+                if firstFailure == nil {
+                    firstFailure = !useRemotePairing && lockdownClosedHere && Self.lockdownHungUp(error)
+                        ? lockdownClosed(error) : error
+                }
+                let more = (index + 1 < routes.count || canMintLockdownRecord)
+                    ? " Trying the other route…" : ""
+                Engine.shared.log("\(useRemotePairing ? "Remote-pairing" : "Lockdown") tunnel didn't come up (\(error)).\(more)")
+            }
+        }
+
+        // RPPairing can fail on-device regardless of the pairing file: its
+        // tunnel listener only binds to the Wi-Fi interface, and the device
+        // closes a tunnel to itself right after the TLS handshake.
+        // CoreDeviceProxy needs no inbound listener, only a classic pair record,
+        // which lockdownd can create directly on its own port (before iOS 26.4).
+        if canMintLockdownRecord {
+            do {
+                try connectByMintingLockdownRecord(deviceIP: deviceIP, hostname: hostname)
+                return
+            } catch {
+                Engine.shared.log("Pairing with lockdown didn't open a tunnel either (\(error)).")
+            }
+        }
+        guard let firstFailure else { throw fail("no tunnel route available for this pairing file") }
+        if Self.wasBlockedLocally(firstFailure) {
+            throw blockedLocally(firstFailure, deviceIP: deviceIP)
+        }
+        throw firstFailure
+    }
+
+    /// The RPPairing route: straight to the device's remote-pairing listener.
+    ///
+    /// The listener is dialled on `rsdPort`, the port it nearly always has.
+    /// It takes whatever port is free when it starts, so when it isn't there
+    /// and `findsMovedPort` is set (the listener is this iPhone's own), it's
+    /// looked for: on the port this iPhone advertises over Bonjour
+    /// (`NetworkStatus.ownRemotePairingAdvert`), then, when there's none or
+    /// the listener isn't there either, by knocking on this iPhone's other
+    /// ports (`knockForListener`). The next connect dials the port it was
+    /// found on first (`movedListenerPort`).
+    ///
+    /// The listener isn't on a port that refuses, or that something else
+    /// holds. With `findsMovedPort`, each port is probed before it's dialled
+    /// (`probeListener`), and one that takes the connection without answering
+    /// as the listener isn't dialled: the dial has no time limit, and would
+    /// wait for ever on one that never answers, as the iPhone's other
+    /// listeners do.
+    private func connectRemotePairing(deviceIP: String, pairingFilePath: String,
+                                      hostname: String, findsMovedPort: Bool) throws {
+        var pf: OpaquePointer?
+        try pairingFilePath.withCString { p in
+            try check(rp_pairing_file_read(p, &pf), "failed to read pairing file at \(pairingFilePath)")
+        }
+        guard let pairingFile = pf else { throw fail("pairing file handle was null") }
+        defer { rp_pairing_file_free(pairingFile) }
+
+        // createListener returns a port but no host, so the Rust side tries the
+        // RSD address, loopback, then these local interface addresses, all
+        // within one shared timeout.
+        let candidates = NetworkStatus.tunnelHostCandidates()
+        /// Nil when the tunnel came up on `port`.
+        func reach(_ port: UInt16) throws -> Miss? {
+            if findsMovedPort {
+                let probe = Self.probeListener(deviceIP: deviceIP, port: port)
+                switch probe.result {
+                case .took:
+                    return .taken(probe.summary)
+                case .silent:
+                    Engine.shared.log("Port \(port) \(probe.summary).")
+                    return .silent(probe.summary)
+                case .answered, .refused, .failed:
+                    // A refusal or a failure reaches the dial at once too, and
+                    // it says why.
+                    break
+                }
+            }
+            guard let failure = try dialRemotePairing(pairingFile, deviceIP: deviceIP, port: port,
+                                                      hostname: hostname, candidates: candidates)
+            else { return nil }
+            return Self.refusedOutright(failure) ? .refused(failure) : .failed(failure)
+        }
+        var port = Self.rsdPort
+        if findsMovedPort, let moved = movedListenerPort {
+            Engine.shared.log("Dialling port \(moved), where this iPhone's remote pairing listener was found before …")
+            port = moved
+        }
+        guard var miss = try reach(port) else { return }
+        // The ports the listener isn't on, which knocking skips.
+        var passed: [UInt16] = []
+        if port != Self.rsdPort, let notThere = miss.notThere {
+            Engine.shared.log("Port \(port) \(notThere). Dialling \(Self.rsdPort) …")
+            movedListenerPort = nil
+            passed.append(port)
+            port = Self.rsdPort
+            guard let retried = try reach(port) else { return }
+            miss = retried
+        }
+        if findsMovedPort, let notThere = miss.notThere {
+            passed.append(port)
+            let advert = NetworkStatus.ownRemotePairingAdvert()
+            Engine.shared.log("Port \(port) \(notThere). This iPhone's remote pairing advertisement: \(advert.summary).")
+            if let moved = advert.port, !passed.contains(moved) {
+                Engine.shared.log("Dialling the advertised port \(moved) instead …")
+                port = moved
+                guard let retried = try reach(moved) else {
+                    Engine.shared.log("The tunnel opened on port \(moved).")
+                    movedListenerPort = moved
+                    return
+                }
+                miss = retried
+                if let notThere = miss.notThere {
+                    Engine.shared.log("Port \(moved) \(notThere).")
+                    passed.append(moved)
+                } else if case .failed = miss {
+                    // The listener answered there; what failed comes after it.
+                    movedListenerPort = moved
+                }
+            }
+            // No advert, or the listener isn't on its port either: if it's
+            // up, it's on another port.
+            if miss.notThere != nil {
+                Engine.shared.log("Knocking on this iPhone's other ports for its remote pairing listener …")
+                let knock = Self.knockForListener(deviceIP: deviceIP, skipping: passed)
+                Engine.shared.log("Knocking on this iPhone's other ports: \(knock.summary).")
+                if let found = knock.port {
+                    Engine.shared.log("Dialling port \(found) instead …")
+                    port = found
+                    guard let retried = try reach(found) else {
+                        Engine.shared.log("The tunnel opened on port \(found).")
+                        movedListenerPort = found
+                        return
+                    }
+                    miss = retried
+                    if let notThere = miss.notThere {
+                        Engine.shared.log("Port \(found) \(notThere).")
+                    } else if case .failed = miss {
+                        movedListenerPort = found
+                    }
+                }
+            }
+        }
+        throw tunnelError(miss, deviceIP: deviceIP, port: port, candidates: candidates)
+    }
+
+    /// Why a `dialRemotePairing` failed.
+    private struct DialFailure {
+        let raw: FFIError
+        let kind: TunnelFailureKind
+    }
+
+    /// True when `failure` got no further than a refused connection: nothing
+    /// listens on that port.
+    private static func refusedOutright(_ failure: DialFailure) -> Bool {
+        failure.kind == TunnelFailureRsdUnreachable && wasRefused(failure.raw)
+    }
+
+    /// Why the tunnel didn't open on a port.
+    private enum Miss {
+        /// Nothing listens on the port.
+        case refused(DialFailure)
+        /// Something other than the listener holds the port: it took the
+        /// connection and didn't answer as the listener. What it did, from
+        /// the probe.
+        case taken(String)
+        /// Nothing took or refused the connection in time, so nothing gets
+        /// through. What happened, from the probe.
+        case silent(String)
+        /// The dial failed some other way, at the listener or before it.
+        case failed(DialFailure)
+
+        /// What the port did, for the log after "Port N", when the listener
+        /// isn't on it and may be on another; nil otherwise.
+        var notThere: String? {
+            switch self {
+            case .refused: return "refused"
+            case .taken(let said): return said
+            case .silent, .failed: return nil
+            }
+        }
+    }
+
+    /// What `connectRemotePairing` throws when `miss` happened on the last
+    /// port it tried, `port`.
+    private func tunnelError(_ miss: Miss, deviceIP: String, port: UInt16,
+                             candidates: [String]) -> TunnelError {
+        switch miss {
+        case .refused(let failure), .failed(let failure):
+            return TunnelError(kind: failure.kind,
+                               advice: tunnelAdvice(kind: failure.kind,
+                                                    deviceIP: deviceIP,
+                                                    port: port,
+                                                    candidates: candidates,
+                                                    raw: failure.raw),
+                               underlying: failure.raw)
+        case .taken(let said):
+            // Unreachable, as a refusal is: what holds the port wouldn't
+            // answer a new pairing file either, so nothing pairs again.
+            return TunnelError(
+                kind: TunnelFailureRsdUnreachable,
+                advice: L("Something at %@:%d took the connection but didn't answer as this iPhone's pairing port, and no other port answered as one either. Check that LocalDevVPN is the VPN that's on and that Developer Mode is on (Settings › Privacy & Security › Developer Mode), then try again. If it still fails, restart the iPhone.",
+                          deviceIP, Int(port)),
+                underlying: fail("port \(port) \(said)"))
+        case .silent(let said):
+            let raw = fail("port \(port) \(said)")
+            return TunnelError(kind: TunnelFailureRsdUnreachable,
+                               advice: tunnelAdvice(kind: TunnelFailureRsdUnreachable,
+                                                    deviceIP: deviceIP,
+                                                    port: port,
+                                                    candidates: candidates,
+                                                    raw: raw),
+                               underlying: raw)
+        }
+    }
+
+    /// What asking one port for the RPPairing handshake found.
+    private struct ListenerProbe {
+        enum Result {
+            /// It answered as the listener.
+            case answered
+            /// It refused the connection.
+            case refused
+            /// Something took the connection and didn't answer as the
+            /// listener.
+            case took
+            /// Nothing took or refused the connection in time.
+            case silent
+            /// The connection failed some other way, or the probe didn't run.
+            case failed
+        }
+        let result: Result
+        /// What the port did, for the log after "Port N".
+        let summary: String
+    }
+
+    /// Asks `deviceIP:port` for the RPPairing handshake, as the tunnel's dial
+    /// does first, with 8 s to connect and 10 s to answer
+    /// (`si_probe_pairing_port`, siboot 0.19.1's probe). Milliseconds when
+    /// the listener is there.
+    private static func probeListener(deviceIP: String, port: UInt16) -> ListenerProbe {
+        var summary: UnsafeMutablePointer<CChar>?
+        let code = deviceIP.withCString { ip in
+            si_probe_pairing_port(ip, port, &summary)
+        }
+        defer { si_string_free(summary) }
+        let said = summary.map { String(cString: $0) } ?? "wasn't probed (result \(code))"
+        let result: ListenerProbe.Result
+        switch code {
+        case 0: result = .answered
+        case 1: result = .refused
+        case 2: result = .took
+        case 3: result = .silent
+        // 4, or -1 for an address that isn't one, which the dial says.
+        default: result = .failed
+        }
+        return ListenerProbe(result: result, summary: said)
+    }
+
+    /// What knocking on this iPhone's other ports found.
+    private struct ListenerKnock {
+        /// The port that answered as the remote-pairing listener, nil when
+        /// none did.
+        let port: UInt16?
+        /// What happened, for the log.
+        let summary: String
+    }
+
+    /// Knocks on `deviceIP`'s dynamic ports (49152–65535), other than
+    /// lockdownd's and `tried`, 32 at a time, until one answers the RPPairing
+    /// handshake (`si_find_pairing_port`, siboot 0.19.1's search). Through
+    /// LocalDevVPN a closed port refuses at once, so it blocks for seconds.
+    private static func knockForListener(deviceIP: String, skipping tried: [UInt16]) -> ListenerKnock {
+        var port: UInt16 = 0
+        var summary: UnsafeMutablePointer<CChar>?
+        let result = tried.withUnsafeBufferPointer { ports in
+            deviceIP.withCString { ip in
+                si_find_pairing_port(ip, ports.baseAddress, ports.count, &port, &summary)
+            }
+        }
+        defer { si_string_free(summary) }
+        let said = summary.map { String(cString: $0) } ?? "no answer (result \(result))"
+        return ListenerKnock(port: result == 0 && port != 0 ? port : nil, summary: said)
+    }
+
+    /// One tunnel attempt to the remote-pairing listener at `deviceIP:port`.
+    /// Nil when the tunnel came up, and the adapter and handshake are now this
+    /// connection's.
+    private func dialRemotePairing(_ pairingFile: OpaquePointer, deviceIP: String, port: UInt16,
+                                   hostname: String, candidates: [String]) throws -> DialFailure? {
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        guard deviceIP.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
+            throw fail("invalid device IP: \(deviceIP)")
+        }
+
+        let cHosts: [UnsafePointer<CChar>?] = candidates.map { UnsafePointer(strdup($0)) }
+        defer { for p in cHosts { free(UnsafeMutablePointer(mutating: p)) } }
+
+        var newAdapter: OpaquePointer?
+        var newHandshake: OpaquePointer?
+        var failureKind = TunnelFailureNone
+        let err = withUnsafePointer(to: &addr) { aptr in
+            aptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                hostname.withCString { host in
+                    cHosts.withUnsafeBufferPointer { extra in
+                        // A nil pin_callback pair-verifies with the existing file.
+                        tunnel_create_rppairing_multihost(
+                            sa, socklen_t(MemoryLayout<sockaddr_in>.stride),
+                            host, pairingFile, nil, nil,
+                            extra.baseAddress, UInt(extra.count), &failureKind,
+                            &newAdapter, &newHandshake)
+                    }
+                }
+            }
+        }
+        if let raw = ffiError(err, "tunnel_create_rppairing failed (is a loopback VPN connected, Wi-Fi on, device IP \(deviceIP)?)") {
+            // Log the raw error; the caller throws the classified one.
+            Engine.shared.log("tunnel dial failed — raw error: \(raw)")
+            return DialFailure(raw: raw, kind: failureKind)
+        }
+        guard newAdapter != nil, newHandshake != nil else {
+            throw fail("tunnel created without valid handles")
+        }
+        disconnect()
+        adapter = newAdapter
+        handshake = newHandshake
+        return nil
+    }
+
+    /// The CoreDeviceProxy route, using a classic lockdown pair record.
+    ///
+    /// Despite its name, `tunnel_create_usb` works with any provider; here a
+    /// `TcpProvider` reaches lockdownd over the loopback tunnel. No RPPairing
+    /// record is needed, so imported pairing files work.
+    ///
+    /// Through the loopback, lockdownd counts this app as a host on the
+    /// network, so the heartbeat starts first and stays up with the tunnel.
+    /// Without it, CoreDeviceProxy hangs up on the tunnel request
+    /// (`LockdownHeartbeat`).
+    private func connectCoreDeviceProxy(deviceIP: String, pairingFilePath: String,
+                                        hostname: String) throws {
+        let provider = try lockdownProvider(deviceIP: deviceIP,
+                                            pairingFilePath: pairingFilePath,
+                                            hostname: hostname)
+        defer { idevice_provider_free(provider) }
+
+        // iOS keeps one heartbeat per pairing, so the new one ends the old one,
+        // and the old tunnel with it. Stopped first, its thread doesn't report
+        // that as a failure.
+        heartbeat?.stop()
+        let newHeartbeat = startHeartbeat(provider, deviceIP: deviceIP)
+        var newAdapter: OpaquePointer?
+        var newHandshake: OpaquePointer?
+        do {
+            try check(tunnel_create_usb(provider, &newAdapter, &newHandshake),
+                      "CoreDeviceProxy tunnel failed (is a loopback VPN connected, device IP \(deviceIP), and is this pairing file this iPhone's?)")
+            guard newAdapter != nil, newHandshake != nil else {
+                throw fail("tunnel created without valid handles")
+            }
+        } catch {
+            newHeartbeat?.stop()
+            throw error
+        }
+        disconnect()
+        adapter = newAdapter
+        handshake = newHandshake
+        heartbeat = newHeartbeat
+    }
+
+    /// Connects to lockdownd's heartbeat through `provider` and answers it on a
+    /// thread of its own, returning once the first Marco is answered. iOS
+    /// sends that one as soon as the heartbeat connects.
+    ///
+    /// Nil, with the reason logged, when it doesn't start. The caller goes on
+    /// without it, as before there was a heartbeat, and reports what fails then.
+    private func startHeartbeat(_ provider: OpaquePointer, deviceIP: String) -> LockdownHeartbeat? {
+        var client: OpaquePointer?
+        if let error = ffiError(heartbeat_connect(provider, &client), "heartbeat_connect failed") {
+            Engine.shared.log("Lockdown heartbeat didn't start (\(error)). Trying without it …")
+            return nil
+        }
+        guard let client else { return nil }
+        let started = LockdownHeartbeat(client: client, deviceIP: deviceIP)
+        if !started.waitUntilAnswered(timeout: 5) {
+            Engine.shared.log("Lockdown heartbeat: no Marco from the iPhone within 5 s. Trying anyway …")
+        }
+        return started
+    }
+
+    /// A provider that reaches lockdownd at `deviceIP` with the classic pair
+    /// record in `pairingFilePath`. The caller frees it with
+    /// `idevice_provider_free`.
+    private func lockdownProvider(deviceIP: String, pairingFilePath: String,
+                                  hostname: String) throws -> OpaquePointer {
+        var pf: OpaquePointer?
+        try pairingFilePath.withCString { p in
+            try check(idevice_pairing_file_read(p, &pf),
+                      "failed to read the lockdown pair record at \(pairingFilePath)")
+        }
+        guard let pairingFile = pf else { throw fail("pairing file handle was null") }
+        // Freed only on the paths where the provider never takes ownership.
+        var pairingFileOwned = true
+        defer { if pairingFileOwned { idevice_pairing_file_free(pairingFile) } }
+
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        // The provider picks the port per service; only the address is read.
+        addr.sin_port = 0
+        guard deviceIP.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
+            throw fail("invalid device IP: \(deviceIP)")
+        }
+
+        var provider: OpaquePointer?
+        let providerError = withUnsafePointer(to: &addr) { aptr in
+            aptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                hostname.withCString { label in
+                    idevice_tcp_provider_new(sa, pairingFile, label, &provider)
+                }
+            }
+        }
+        // On success the provider owns the pairing file; on error we free it.
+        if providerError == nil { pairingFileOwned = false }
+        try check(providerError, "idevice_tcp_provider_new failed")
+        guard let provider else { throw fail("lockdown provider was null") }
+        return provider
+    }
+
+    /// CoreDeviceProxy route for an RPPairing-only file, using a lockdown pair
+    /// record created by this app.
+    ///
+    /// The record is stored and reused, because creating one shows a Trust
+    /// prompt and uses a pairing slot. A new one is created only when the stored
+    /// record no longer opens a tunnel (e.g. after a reset or restore).
+    private func connectByMintingLockdownRecord(deviceIP: String, hostname: String) throws {
+        let stored = PrivateStore.lockdownPairRecord
+        let storedSize = ((try? FileManager.default.attributesOfItem(atPath: stored.path)[.size]) as? Int) ?? 0
+        if storedSize > 0 {
+            do {
+                try connectCoreDeviceProxy(deviceIP: deviceIP,
+                                           pairingFilePath: stored.path,
+                                           hostname: hostname)
+                Engine.shared.log("Tunnel up over CoreDeviceProxy, with the lockdown pair record already stored here.")
+                return
+            } catch {
+                Engine.shared.log("The stored lockdown pair record didn't open a tunnel (\(error)). Pairing with lockdown again…")
+            }
+        }
+
+        Engine.shared.log("Asking lockdownd for a pair record — unlock this iPhone and tap Trust if it asks …")
+        // A Trust prompt may appear: a 2FA sheet waits for it.
+        Engine.shared.attention.begin()
+        defer { Engine.shared.attention.end() }
+        let record = try lockdownPairRecordDirect(hosts: [deviceIP, "127.0.0.1"],
+                                                  hostID: CompositePairingFile.hostID,
+                                                  systemBUID: CompositePairingFile.systemBUID,
+                                                  hostName: hostname)
+        try record.write(to: stored, options: .atomic)
+        Engine.shared.log("Lockdown pair record minted (\(record.count) bytes). Opening the tunnel over CoreDeviceProxy …")
+        try connectCoreDeviceProxy(deviceIP: deviceIP,
+                                   pairingFilePath: stored.path,
+                                   hostname: hostname)
+    }
+
+    /// Runs the lockdown `Pair` handshake directly on lockdownd's port, with no
+    /// tunnel (unlike `lockdownPairRecord`, which needs one).
+    ///
+    /// Blocks while the device shows the Trust prompt. Tries each host in order
+    /// (e.g. the VPN peer, then 127.0.0.1) and returns the first record created.
+    /// A failure to connect or to pair throws a `LockdownPairError`.
+    ///
+    /// `onConnected` runs once a host has answered, before the `Pair` request:
+    /// from then on the device may show the Trust prompt.
+    func lockdownPairRecordDirect(hosts: [String], hostID: String, systemBUID: String,
+                                  hostName: String,
+                                  onConnected: (() -> Void)? = nil) throws -> Data {
+        var lastError: Error?
+        for host in hosts {
+            do {
+                return try pairOverLockdown(host: host, hostID: hostID,
+                                            systemBUID: systemBUID, hostName: hostName,
+                                            onConnected: onConnected)
+            } catch {
+                lastError = error
+                Engine.shared.log("lockdownd at \(host):\(Self.lockdownPort) didn't pair (\(error)).")
+            }
+        }
+        throw lastError ?? fail("no address to reach lockdownd on")
+    }
+
+    private func pairOverLockdown(host: String, hostID: String, systemBUID: String,
+                                  hostName: String, onConnected: (() -> Void)?) throws -> Data {
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = Self.lockdownPort.bigEndian
+        guard host.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
+            throw fail("invalid lockdown address: \(host)")
+        }
+
+        var device: OpaquePointer?
+        let connectError = withUnsafePointer(to: &addr) { aptr in
+            aptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sa in
+                hostName.withCString { label in
+                    idevice_new_tcp_socket(sa, socklen_t(MemoryLayout<sockaddr_in>.stride),
+                                           label, &device)
+                }
+            }
+        }
+        if let error = ffiError(connectError, "couldn't reach lockdownd at \(host):\(Self.lockdownPort)") {
+            throw LockdownPairError(stage: .connect, underlying: error)
+        }
+        guard let device else { throw fail("lockdown socket handle was null") }
+        onConnected?()
+
+        // `lockdownd_new` takes ownership of the socket, so it's never freed here.
+        var client: OpaquePointer?
+        try check(lockdownd_new(device, &client), "lockdownd_new failed")
+        guard let client else { throw fail("lockdown client was null") }
+        defer { lockdownd_client_free(client) }
+
+        var pf: OpaquePointer?
+        let pairError = hostID.withCString { h in
+            systemBUID.withCString { b in
+                hostName.withCString { n in
+                    lockdownd_pair(client, h, b, n, &pf)
+                }
+            }
+        }
+        if let error = ffiError(pairError, "lockdownd_pair failed") {
+            throw LockdownPairError(stage: .pair, underlying: error)
+        }
+        guard let pf else { throw fail("lockdownd_pair returned no pair record") }
+        defer { idevice_pairing_file_free(pf) }
+
+        var bytes: UnsafeMutablePointer<UInt8>?
+        var length: UInt = 0
+        try check(idevice_pairing_file_serialize(pf, &bytes, &length),
+                  "idevice_pairing_file_serialize failed")
+        guard let bytes, length > 0 else { throw fail("serialized pair record was empty") }
+        let record = Data(bytes: bytes, count: Int(length))
+        idevice_data_free(bytes, length)
+        return record
+    }
+
+    func disconnect() {
+        // End location simulation first; its handles use the tunnel.
+        endLocationSimulation()
+        if let handshake { rsd_handshake_free(handshake); self.handshake = nil }
+        if let adapter { adapter_free(adapter); self.adapter = nil }
+        // Last, since iOS closes the tunnel once its heartbeat stops.
+        heartbeat?.stop()
+        heartbeat = nil
+    }
+
+    // MARK: RSD handshake summary
+
+    /// Basic info straight off the RSD handshake (no extra service connection).
+    func rsdSummary() throws -> String {
+        guard let handshake else { throw fail("not connected") }
+        var uuid: UnsafeMutablePointer<CChar>?
+        try check(rsd_get_uuid(handshake, &uuid), "rsd_get_uuid failed")
+        let uuidStr = uuid.flatMap { String(validatingUTF8: $0) } ?? "?"
+        if let uuid { idevice_string_free(uuid) }
+
+        var proto: UInt = 0
+        try check(rsd_get_protocol_version(handshake, &proto), "rsd_get_protocol_version failed")
+        return "RSD uuid=\(uuidStr) protocol=\(proto)"
+    }
+
+    // MARK: Device info (lockdown over RSD)
+
+    /// ProductVersion / ProductType / UDID etc. via lockdownd over the tunnel.
+    func deviceInfo() throws -> [(String, String)] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(lockdownd_connect_rsd(adapter, handshake, &client), "lockdownd_connect_rsd failed")
+        guard let client else { throw fail("lockdownd client was null") }
+        defer { lockdownd_client_free(client) }
+
+        var plistObj: plist_t?
+        try check(lockdownd_get_value(client, nil, nil, &plistObj), "lockdownd_get_value failed")
+        guard let plistObj else { return [] }
+        defer { plist_free(plistObj) }
+
+        let keys = [
+            "DeviceName", "ProductType", "ProductVersion", "BuildVersion",
+            "UniqueDeviceID", "HardwareModel", "CPUArchitecture", "ModelNumber",
+        ]
+        return keys.compactMap { key in
+            plistString(plistObj, key).map { (key, $0) }
+        }
+    }
+
+    // MARK: Classic lockdown pair record
+
+    /// A classic lockdown pair record, and how enabling wireless lockdown went.
+    struct LockdownPairRecord {
+        /// The record as XML plist bytes.
+        let data: Data
+        /// Nil if `EnableWifiDebugging` was set, otherwise the error. Apps using
+        /// the record need it enabled, but the record is still returned since
+        /// the setting may already be on.
+        let wirelessLockdownError: String?
+    }
+
+    /// Runs the lockdown `Pair` handshake over the RSD tunnel, then enables
+    /// wireless lockdown (as iLoader does).
+    ///
+    /// Produces the classic record (certificates, HostID, SystemBUID, escrow bag)
+    /// that minimuxer and Feather need. Blocks while the device shows the Trust
+    /// prompt.
+    func lockdownPairRecord(hostID: String,
+                            systemBUID: String,
+                            hostName: String = "SideInstaller") throws -> LockdownPairRecord {
+        guard let adapter, let handshake else { throw fail("not connected") }
+
+        var client: OpaquePointer?
+        try check(lockdownd_connect_rsd(adapter, handshake, &client),
+                  "lockdownd_connect_rsd failed")
+        guard let client else { throw fail("lockdownd client was null") }
+        defer { lockdownd_client_free(client) }
+
+        var pf: OpaquePointer?
+        let pairError = hostID.withCString { host in
+            systemBUID.withCString { buid in
+                hostName.withCString { name in
+                    lockdownd_pair(client, host, buid, name, &pf)
+                }
+            }
+        }
+        try check(pairError, "lockdownd_pair failed")
+        guard let pf else { throw fail("lockdownd_pair returned no pair record") }
+        defer { idevice_pairing_file_free(pf) }
+
+        var bytes: UnsafeMutablePointer<UInt8>?
+        var length: UInt = 0
+        try check(idevice_pairing_file_serialize(pf, &bytes, &length),
+                  "idevice_pairing_file_serialize failed")
+        guard let bytes, length > 0 else { throw fail("serialized pair record was empty") }
+        let record = Data(bytes: bytes, count: Int(length))
+        idevice_data_free(bytes, length)
+
+        var wirelessError: String?
+        do { try enableWirelessLockdown(pairRecord: pf) }
+        catch { wirelessError = String(describing: error) }
+
+        return LockdownPairRecord(data: record, wirelessLockdownError: wirelessError)
+    }
+
+    /// Sets `EnableWifiDebugging` so lockdownd accepts network connections, not
+    /// just USB.
+    ///
+    /// Tries without `StartSession` first: over RSD the connection is already
+    /// trusted, and a session would nest TLS inside TLS. Falls back to a session
+    /// if the plain request is refused.
+    private func enableWirelessLockdown(pairRecord: OpaquePointer) throws {
+        do {
+            try setWirelessLockdown(startingSessionWith: nil)
+        } catch let sessionless {
+            do {
+                try setWirelessLockdown(startingSessionWith: pairRecord)
+            } catch {
+                // Report both errors.
+                throw fail("without a session: \(sessionless); with one: \(error)")
+            }
+        }
+    }
+
+    /// One `SetValue` attempt on a new lockdown client (a client that ran `Pair`
+    /// or a failed request can't be reused).
+    private func setWirelessLockdown(startingSessionWith pairRecord: OpaquePointer?) throws {
+        guard let adapter, let handshake else { throw fail("not connected") }
+
+        var client: OpaquePointer?
+        try check(lockdownd_connect_rsd(adapter, handshake, &client),
+                  "lockdownd_connect_rsd (wireless lockdown) failed")
+        guard let client else { throw fail("lockdownd client was null") }
+        defer { lockdownd_client_free(client) }
+
+        if let pairRecord {
+            try check(lockdownd_start_session(client, pairRecord),
+                      "lockdownd_start_session failed")
+        }
+
+        guard let value: plist_t = plist_new_bool(1) else { throw fail("couldn't build a plist bool") }
+        defer { plist_free(value) }          // set_value clones it
+        let setError = "EnableWifiDebugging".withCString { key in
+            "com.apple.mobile.wireless_lockdown".withCString { domain in
+                lockdownd_set_value(client, key, value, domain)
+            }
+        }
+        try check(setError, "lockdownd_set_value(EnableWifiDebugging) failed")
+    }
+
+    // MARK: Installed apps (installation_proxy over RSD)
+
+    /// Installed apps as log lines. `applicationType` nil = all.
+    func listApps(applicationType: String? = nil) throws -> [String] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &client),
+                  "installation_proxy_connect_rsd failed")
+        guard let client else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(client) }
+
+        var result: UnsafeMutableRawPointer?
+        var count = 0
+        let err: UnsafeMutablePointer<IdeviceFfiError>?
+        if let applicationType {
+            err = applicationType.withCString {
+                installation_proxy_get_apps(client, $0, nil, 0, &result, &count)
+            }
+        } else {
+            err = installation_proxy_get_apps(client, nil, nil, 0, &result, &count)
+        }
+        try check(err, "installation_proxy_get_apps failed")
+        guard let result, count > 0 else { return [] }
+
+        let apps = result.assumingMemoryBound(to: plist_t?.self)
+        var out: [String] = []
+        out.reserveCapacity(count)
+        for i in 0..<count {
+            let appPlist = apps[i]
+            let bid = plistString(appPlist, "CFBundleIdentifier") ?? "?"
+            let name = plistString(appPlist, "CFBundleDisplayName")
+            let version = plistString(appPlist, "CFBundleShortVersionString")
+            var line = bid
+            if let name { line += "  \"\(name)\"" }
+            if let version { line += "  v\(version)" }
+            out.append(line)
+            if let appPlist { plist_free(appPlist) }
+        }
+        // The outer plist_t array has no exposed free: a tiny per-call leak.
+        return out
+    }
+
+    /// One installed app as installation_proxy reports it.
+    struct InstalledApp: Equatable {
+        let bundleID: String
+        let displayName: String?
+    }
+
+    /// Every installed app as data, where `listApps` returns log lines.
+    func installedApps() throws -> [InstalledApp] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &client),
+                  "installation_proxy_connect_rsd failed")
+        guard let client else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(client) }
+
+        var result: UnsafeMutableRawPointer?
+        var count = 0
+        try check(installation_proxy_get_apps(client, nil, nil, 0, &result, &count),
+                  "installation_proxy_get_apps failed")
+        guard let result, count > 0 else { return [] }
+
+        let apps = result.assumingMemoryBound(to: plist_t?.self)
+        var out: [InstalledApp] = []
+        out.reserveCapacity(count)
+        for i in 0..<count {
+            let appPlist = apps[i]
+            if let bid = plistString(appPlist, "CFBundleIdentifier") {
+                out.append(InstalledApp(bundleID: bid,
+                                        displayName: plistString(appPlist, "CFBundleDisplayName")))
+            }
+            if let appPlist { plist_free(appPlist) }
+        }
+        return out
+    }
+
+    /// Every installed app's full installation_proxy plist, including
+    /// `Entitlements` and `ProfileValidated`, which identify sideloaded apps.
+    ///
+    /// Each plist is converted to binary and decoded with
+    /// `PropertyListSerialization` rather than walked with the plist C API.
+    func installedAppPlists() throws -> [[String: Any]] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &client),
+                  "installation_proxy_connect_rsd failed")
+        guard let client else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(client) }
+
+        var result: UnsafeMutableRawPointer?
+        var count = 0
+        try check(installation_proxy_get_apps(client, nil, nil, 0, &result, &count),
+                  "installation_proxy_get_apps failed")
+        guard let result, count > 0 else { return [] }
+
+        let apps = result.assumingMemoryBound(to: plist_t?.self)
+        defer {
+            for i in 0..<count { plist_free(apps[i]) }
+            idevice_data_free(result.assumingMemoryBound(to: UInt8.self),
+                              UInt(count * MemoryLayout<plist_t?>.stride))
+        }
+
+        var out: [[String: Any]] = []
+        out.reserveCapacity(count)
+        for i in 0..<count {
+            var binary: UnsafeMutablePointer<CChar>?
+            var length: UInt32 = 0
+            guard plist_to_bin(apps[i], &binary, &length) == PLIST_ERR_SUCCESS,
+                  let binary, length > 0 else { continue }
+            let data = Data(bytes: binary, count: Int(length))
+            plist_mem_free(binary)
+            // One app that won't decode shouldn't cost the whole list.
+            guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+                  let dict = plist as? [String: Any] else { continue }
+            out.append(dict)
+        }
+        return out
+    }
+
+    /// Whether the app with exactly this bundle ID is installed, asking installd
+    /// about that one app only.
+    func isInstalled(bundleID: String) throws -> Bool {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &client),
+                  "installation_proxy_connect_rsd failed")
+        guard let client else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(client) }
+
+        var result: UnsafeMutableRawPointer?
+        var count = 0
+        let err = bundleID.withCString { id in
+            [UnsafePointer<CChar>?(id)].withUnsafeBufferPointer { ids in
+                "User".withCString { type in
+                    installation_proxy_get_apps(client, type, ids.baseAddress, 1, &result, &count)
+                }
+            }
+        }
+        try check(err, "installation_proxy_get_apps failed")
+        guard let result, count > 0 else { return false }
+
+        let apps = result.assumingMemoryBound(to: plist_t?.self)
+        defer {
+            for i in 0..<count { plist_free(apps[i]) }
+            idevice_data_free(result.assumingMemoryBound(to: UInt8.self),
+                              UInt(count * MemoryLayout<plist_t?>.stride))
+        }
+        return (0..<count).contains { plistString(apps[$0], "CFBundleIdentifier") == bundleID }
+    }
+
+    /// The host app's exact bundle id for the pairing write, matched on display
+    /// name first — isideload rewrites bundle ids — then on "<base>[.<teamID>]".
+    func resolveInstalledBundleID(displayName: String, bundleIDBase: String) throws -> String? {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &client),
+                  "installation_proxy_connect_rsd failed")
+        guard let client else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(client) }
+
+        var result: UnsafeMutableRawPointer?
+        var count = 0
+        // The host app is sideloaded, so it's a user app. Leaving system apps out
+        // keeps installd's reply a fraction of the size.
+        try check("User".withCString { installation_proxy_get_apps(client, $0, nil, 0, &result, &count) },
+                  "installation_proxy_get_apps failed")
+        guard let result, count > 0 else { return nil }
+
+        let apps = result.assumingMemoryBound(to: plist_t?.self)
+        var byName: String?
+        var exact: String?
+        var suffixed: String?
+        for i in 0..<count {
+            let appPlist = apps[i]
+            if let bid = plistString(appPlist, "CFBundleIdentifier") {
+                if byName == nil, plistString(appPlist, "CFBundleDisplayName") == displayName {
+                    byName = bid
+                }
+                if bid == bundleIDBase { exact = bid }
+                else if bid.hasPrefix(bundleIDBase + ".") { suffixed = bid }
+            }
+            if let appPlist { plist_free(appPlist) }
+        }
+        return byName ?? exact ?? suffixed
+    }
+
+    // MARK: Provisioning profiles (misagent over RSD)
+
+    /// Every provisioning profile installed on the device, as the raw CMS blobs
+    /// misagent hands back — the same bytes a `.mobileprovision` file holds.
+    /// Decoding them is the caller's job.
+    func provisioningProfiles() throws -> [Data] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(misagent_connect_rsd(adapter, handshake, &client),
+                  "misagent_connect_rsd failed")
+        guard let client else { throw fail("misagent client was null") }
+        defer { misagent_client_free(client) }
+
+        var profiles: UnsafeMutablePointer<UnsafeMutablePointer<UInt8>?>?
+        var lengths: UnsafeMutablePointer<Int>?
+        var count = 0
+        try check(misagent_copy_all(client, &profiles, &lengths, &count),
+                  "misagent_copy_all failed")
+        guard let profiles, let lengths else { return [] }
+        defer { misagent_free_profiles(profiles, lengths, count) }
+
+        var out: [Data] = []
+        out.reserveCapacity(count)
+        for i in 0..<count {
+            guard let bytes = profiles[i] else { continue }
+            out.append(Data(bytes: bytes, count: lengths[i]))
+        }
+        return out
+    }
+
+    // MARK: Install (AFC upload to /PublicStaging + installation_proxy)
+
+    /// Upload a signed `.app` bundle to /PublicStaging and install it over RSD.
+    ///
+    /// With `prestaged`, the files signing left unchanged are already there and
+    /// only the rest is sent. Should that install fail, the whole bundle is
+    /// uploaded and installed once more — unless installd refused the app for
+    /// the free account's app limit, which a second upload wouldn't change.
+    func installSignedApp(bundlePath: String, prestaged: PrestagedBundle? = nil) throws {
+        let remoteRoot = "/PublicStaging/\((bundlePath as NSString).lastPathComponent)"
+        guard let prestaged, prestaged.remoteRoot == remoteRoot else {
+            return try uploadAndInstall(bundlePath, to: remoteRoot, prestaged: nil)
+        }
+        do {
+            try uploadAndInstall(bundlePath, to: remoteRoot, prestaged: prestaged)
+        } catch where !Engine.isAppLimitError(String(describing: error)) {
+            Engine.shared.log("⚠️ Install with the files staged ahead of signing failed (\(error)). Uploading the whole app and installing again …")
+            try uploadAndInstall(bundlePath, to: remoteRoot, prestaged: nil)
+        }
+    }
+
+    private func uploadAndInstall(_ bundlePath: String, to remoteRoot: String,
+                                  prestaged: PrestagedBundle?) throws {
+        guard let adapter, let handshake else { throw fail("not connected") }
+
+        let uploadStart = Date()
+        let uploaded = try uploadBundle(bundlePath, to: remoteRoot, prestaged: prestaged)
+        let reusedNote = prestaged == nil ? "" : String(format: "; %d unchanged files were staged ahead", uploaded.reused)
+        Engine.shared.log(String(format: "Uploaded %d files (%.1f MB) in %.2f s%@.",
+                                 uploaded.files, Double(uploaded.bytes) / 1_048_576,
+                                 Date().timeIntervalSince(uploadStart), reusedNote))
+
+        var ip: OpaquePointer?
+        try check(installation_proxy_connect_rsd(adapter, handshake, &ip),
+                  "installation_proxy_connect_rsd failed")
+        guard let ip else { throw fail("installation_proxy client was null") }
+        defer { installation_proxy_client_free(ip) }
+
+        guard let options = developerInstallOptions() else {
+            throw fail("couldn't build install ClientOptions")
+        }
+        defer { plist_free(options) }
+
+        let installStart = Date()
+        try remoteRoot.withCString { p in
+            try check(installation_proxy_install_with_callback(ip, p, options, installProgressCb, nil),
+                      "installation_proxy install failed")
+        }
+        Engine.shared.log(String(format: "installd finished in %.2f s.", Date().timeIntervalSince(installStart)))
+    }
+
+    /// What an upload sent, for the log.
+    private struct UploadTotals {
+        var files = 0
+        var bytes = 0
+        /// Files left as they were staged ahead of signing.
+        var reused = 0
+    }
+
+    /// Files of an app already copied to /PublicStaging from its unsigned IPA,
+    /// while signing ran.
+    struct PrestagedBundle {
+        /// e.g. "/PublicStaging/SideStore.app"
+        let remoteRoot: String
+        /// Size and CRC-32 of each copied file, by path inside the bundle.
+        let files: [String: (size: Int, crc: UInt32)]
+        /// Directories created, by path inside the bundle.
+        let directories: Set<String>
+    }
+
+    /// installation_proxy options for a developer-signed bundle. Without
+    /// `PackageType: Developer`, installd never reads the embedded profile and
+    /// rejects the upload with 0xe8008015 at VerifyingApplication.
+    private func developerInstallOptions() -> plist_t? {
+        guard let options: plist_t = plist_new_dict() else { return nil }
+        // The dict takes ownership of the value node, so freeing it is enough.
+        plist_dict_set_item(options, "PackageType", plist_new_string("Developer"))
+        return options
+    }
+
+    /// AFC clients sharing an upload. On an iPhone 16, four took SideStore
+    /// (160 files, 47 MB) from about 2.0 s to 1.6 s: they overlap the per-file
+    /// round trips, and the tunnel itself tops out near 33 MB/s, so more add
+    /// little. A single zipped IPA uploads faster still, but installd spends
+    /// the difference unpacking it (measured in this file's history).
+    private static let uploadConnections = 4
+
+    /// One file or directory inside a bundle, relative to its root.
+    private struct BundleEntry {
+        let relativePath: String
+        let isDirectory: Bool
+        let size: Int
+    }
+
+    /// Every directory and file under `root`, parents before their contents.
+    private func bundleEntries(_ root: String) throws -> [BundleEntry] {
+        let fm = FileManager.default
+        guard let walker = fm.enumerator(atPath: root) else { throw fail("couldn't list \(root)") }
+        var entries: [BundleEntry] = []
+        for case let relative as String in walker {
+            let path = (root as NSString).appendingPathComponent(relative)
+            var isDir: ObjCBool = false
+            guard fm.fileExists(atPath: path, isDirectory: &isDir) else { continue }
+            let size = isDir.boolValue ? 0
+                : ((try? fm.attributesOfItem(atPath: (path as NSString).resolvingSymlinksInPath)[.size]) as? Int) ?? 0
+            entries.append(BundleEntry(relativePath: relative, isDirectory: isDir.boolValue, size: size))
+        }
+        return entries
+    }
+
+    /// Mirrors the bundle's directory tree into `remoteRoot`. With `prestaged`,
+    /// a staged file whose size and CRC-32 match the signed one is kept, a staged
+    /// file the signed bundle doesn't have is removed, and the rest is sent.
+    private func uploadBundle(_ bundlePath: String, to remoteRoot: String,
+                              prestaged: PrestagedBundle?) throws -> UploadTotals {
+        var directories = prestaged == nil ? [remoteRoot] : []
+        var items: [UploadItem] = []
+        var kept: [(relative: String, size: Int)] = []
+        var dropped = Set(prestaged.map { Array($0.files.keys) } ?? [])
+        func item(_ relative: String, size: Int) -> UploadItem {
+            let local = (bundlePath as NSString).appendingPathComponent(relative)
+            return UploadItem(remotePath: "\(remoteRoot)/\(relative)", size: size) {
+                // Mapped, not read: a tens-of-megabytes binary on the heap risks a jetsam.
+                try Data(contentsOf: URL(fileURLWithPath: local), options: .mappedIfSafe)
+            }
+        }
+        for entry in try bundleEntries(bundlePath) {
+            if entry.isDirectory {
+                if prestaged?.directories.contains(entry.relativePath) != true {
+                    directories.append("\(remoteRoot)/\(entry.relativePath)")
+                }
+                continue
+            }
+            dropped.remove(entry.relativePath)
+            let local = (bundlePath as NSString).appendingPathComponent(entry.relativePath)
+            if let staged = prestaged?.files[entry.relativePath], staged.size == entry.size,
+               try Self.checksum(ofFileAt: local) == staged.crc {
+                kept.append((entry.relativePath, entry.size))
+            } else {
+                items.append(item(entry.relativePath, size: entry.size))
+            }
+        }
+
+        // Staged files are checked on clients of their own, alongside the upload.
+        let checkers = kept.isEmpty ? 0 : Self.uploadConnections
+        return try withUploadClients(extra: checkers) { clients -> UploadTotals in
+            let uploaders = Array(clients.prefix(Self.uploadConnections))
+            if prestaged == nil {
+                // A staging folder left by an earlier run would be installed too.
+                _ = ffiError(remoteRoot.withCString { afc_remove_path_and_contents(uploaders[0], $0) }, "")
+            }
+            for relative in dropped {
+                _ = ffiError("\(remoteRoot)/\(relative)".withCString { afc_remove_path(uploaders[0], $0) }, "")
+            }
+
+            // installd accepts a bundle with a staged file missing — it was tried —
+            // so each one being kept is confirmed to still be there at its size.
+            var missing: [String] = []
+            let checking = DispatchGroup()
+            DispatchQueue.global(qos: .userInitiated).async(group: checking) {
+                missing = self.missingStagedFiles(kept, root: remoteRoot,
+                                                  clients: Array(clients.dropFirst(Self.uploadConnections)))
+            }
+            let uploaded = Result { try self.upload(items, directories: directories, clients: uploaders) }
+            checking.wait()
+            var totals = try uploaded.get()
+
+            if !missing.isEmpty {
+                Engine.shared.log("⚠️ \(missing.count) file(s) staged ahead of signing weren't on the device any more; sending them again.")
+                let sizes = Dictionary(kept.map { ($0.relative, $0.size) }, uniquingKeysWith: { first, _ in first })
+                let resent = try upload(missing.map { item($0, size: sizes[$0] ?? 0) }, directories: [], clients: uploaders)
+                totals.files += resent.files
+                totals.bytes += resent.bytes
+            }
+            totals.reused = kept.count - missing.count
+            return totals
+        }
+    }
+
+    /// The staged files not found at `root` with their expected size.
+    private func missingStagedFiles(_ files: [(relative: String, size: Int)], root: String,
+                                    clients: [OpaquePointer]) -> [String] {
+        guard !files.isEmpty, !clients.isEmpty else { return [] }
+        let lock = NSLock()
+        var missing: [String] = []
+        // Each lane blocks on the device, so they run as separate work items rather
+        // than through concurrentPerform, which the upload is already using.
+        let lanes = DispatchGroup()
+        for lane in clients.indices {
+            DispatchQueue.global(qos: .userInitiated).async(group: lanes) {
+                for (index, file) in files.enumerated() where index % clients.count == lane {
+                    var info = AfcFileInfo()
+                    let error = "\(root)/\(file.relative)".withCString { afc_get_file_info(clients[lane], $0, &info) }
+                    let present: Bool
+                    if self.ffiError(error, "") != nil {
+                        present = false
+                    } else {
+                        present = Int(info.size) == file.size
+                        afc_file_info_free(&info)
+                    }
+                    if !present {
+                        lock.lock()
+                        missing.append(file.relative)
+                        lock.unlock()
+                    }
+                }
+            }
+        }
+        lanes.wait()
+        return missing
+    }
+
+    /// Copies the files of the unsigned IPA at `ipaPath` that signing leaves as
+    /// they are into /PublicStaging, so it can run while signing does. Info.plists,
+    /// executables, code signatures and profiles are left out: signing rewrites
+    /// or adds those. The install checks every staged file against the signed
+    /// bundle, so a wrong guess here costs time, never a broken install.
+    func prestageUnsignedBundle(ipaPath: String) throws -> PrestagedBundle {
+        let url = URL(fileURLWithPath: ipaPath)
+        guard let archive = IPALibrary.archiveFiles(at: url) else {
+            throw fail("couldn't read \(url.lastPathComponent) as a zip archive")
+        }
+        let appNames = Set(archive.compactMap { file -> String? in
+            let parts = file.path.split(separator: "/", maxSplits: 2, omittingEmptySubsequences: false)
+            guard parts.count == 3, parts[0] == "Payload", parts[1].hasSuffix(".app") else { return nil }
+            return String(parts[1])
+        })
+        guard appNames.count == 1, let appName = appNames.first else {
+            throw fail("\(url.lastPathComponent) doesn't hold exactly one app")
+        }
+        let prefix = "Payload/\(appName)/"
+        let remoteRoot = "/PublicStaging/\(appName)"
+
+        var items: [UploadItem] = []
+        var files: [String: (size: Int, crc: UInt32)] = [:]
+        var directories = Set<String>()
+        for file in archive where file.path.hasPrefix(prefix) && file.size > 0 {
+            let relative = String(file.path.dropFirst(prefix.count))
+            let name = (relative as NSString).lastPathComponent
+            guard !file.isExecutable, name != "Info.plist", name != "embedded.mobileprovision",
+                  !name.hasSuffix(".dylib"), !relative.contains("_CodeSignature/"),
+                  file.size <= Self.prestageFileLimit else { continue }
+            var parent = (relative as NSString).deletingLastPathComponent
+            while !parent.isEmpty, directories.insert(parent).inserted {
+                parent = (parent as NSString).deletingLastPathComponent
+            }
+            files[relative] = (file.size, file.crc)
+            items.append(UploadItem(remotePath: "\(remoteRoot)/\(relative)", size: file.size) {
+                guard let data = IPALibrary.contents(of: file, in: url) else {
+                    throw self.fail("couldn't read \(relative) from \(url.lastPathComponent)")
+                }
+                return data
+            })
+        }
+
+        try withUploadClients { clients -> Void in
+            // Anything an earlier run left staged here would be installed too.
+            _ = ffiError(remoteRoot.withCString { afc_remove_path_and_contents(clients[0], $0) }, "")
+            // Sorted, a parent comes before everything inside it.
+            let remoteDirectories = [remoteRoot] + directories.sorted().map { "\(remoteRoot)/\($0)" }
+            _ = try upload(items, directories: remoteDirectories, clients: clients)
+        }
+        return PrestagedBundle(remoteRoot: remoteRoot, files: files, directories: directories)
+    }
+
+    /// The largest file staged ahead of signing. Each is inflated whole onto the
+    /// heap, one per upload connection, where a signed bundle's files are mapped,
+    /// so a bigger one waits for the upload after signing.
+    private static let prestageFileLimit = 32 << 20
+
+    /// A file to upload: where it goes, its size, and how to read it.
+    private struct UploadItem {
+        let remotePath: String
+        let size: Int
+        let read: () throws -> Data
+    }
+
+    /// Opens the upload's AFC clients, plus `extra` more, for `body` and frees
+    /// them afterwards. They open one at a time, since the FFI takes the adapter
+    /// exclusively while it connects a stream; once open, each is independent.
+    private func withUploadClients<T>(extra: Int = 0, _ body: ([OpaquePointer]) throws -> T) throws -> T {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var clients: [OpaquePointer] = []
+        defer { clients.forEach { afc_client_free($0) } }
+        for _ in 0..<(Self.uploadConnections + extra) {
+            var afc: OpaquePointer?
+            try check(afc_client_connect_rsd(adapter, handshake, &afc), "afc_client_connect_rsd failed")
+            guard let afc else { throw fail("AFC client was null") }
+            clients.append(afc)
+        }
+        return try body(clients)
+    }
+
+    /// Creates `directories` in order, then sends `items` spread over `clients`.
+    private func upload(_ items: [UploadItem], directories: [String],
+                        clients: [OpaquePointer]) throws -> UploadTotals {
+        // Every directory exists before any file lands in it.
+        for directory in directories {
+            _ = ffiError(directory.withCString { afc_make_directory(clients[0], $0) }, "")   // ok if it exists
+        }
+
+        // Biggest files first, each to the lane carrying the least so far.
+        var lanes = Array(repeating: [UploadItem](), count: clients.count)
+        var load = Array(repeating: 0, count: clients.count)
+        for item in items.sorted(by: { $0.size > $1.size }) {
+            let lane = load.indices.min { load[$0] < load[$1] } ?? 0
+            lanes[lane].append(item)
+            load[lane] += item.size
+        }
+
+        let lock = NSLock()
+        var totals = UploadTotals()
+        var firstError: Error?
+        DispatchQueue.concurrentPerform(iterations: clients.count) { lane in
+            for item in lanes[lane] {
+                lock.lock()
+                let stop = firstError != nil
+                lock.unlock()
+                if stop { return }
+                do {
+                    let bytes = try write(clients[lane], data: item.read(), to: item.remotePath)
+                    lock.lock()
+                    totals.files += 1
+                    totals.bytes += bytes
+                    lock.unlock()
+                } catch {
+                    lock.lock()
+                    if firstError == nil { firstError = error }
+                    lock.unlock()
+                    return
+                }
+            }
+        }
+        if let firstError { throw firstError }
+        return totals
+    }
+
+    /// CRC-32 of a local file, as a zip entry records it.
+    private static func checksum(ofFileAt path: String) throws -> UInt32 {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)
+        return data.withUnsafeBytes { raw in
+            var crc = zlib.crc32(0, nil, 0)
+            guard let base = raw.baseAddress?.assumingMemoryBound(to: Bytef.self) else {
+                return UInt32(truncatingIfNeeded: crc)
+            }
+            var offset = 0
+            while offset < raw.count {
+                let n = min(raw.count - offset, Int(Int32.max))
+                crc = zlib.crc32(crc, base + offset, uInt(n))
+                offset += n
+            }
+            return UInt32(truncatingIfNeeded: crc)
+        }
+    }
+
+    /// Writes `data` to `remotePath` over AFC, returning the byte count.
+    private func write(_ afc: OpaquePointer, data: Data, to remotePath: String) throws -> Int {
+        var file: OpaquePointer?
+        try check(remotePath.withCString { afc_file_open(afc, $0, AfcWrOnly, &file) },
+                  "afc_file_open \(remotePath) failed")
+        guard let file else { throw fail("AFC file handle was null") }
+        defer { afc_file_close(file) }
+
+        // Write in chunks so large files don't balloon memory in one FFI call.
+        let chunk = 1 << 20
+        try data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+            var offset = 0
+            while offset < data.count {
+                let n = min(chunk, data.count - offset)
+                try check(afc_file_write(file, base + offset, n), "afc_file_write failed")
+                offset += n
+            }
+        }
+        return data.count
+    }
+
+    // MARK: Write pairing file into another app's container (house_arrest)
+
+    /// Writes the file at `pairingFilePath` into `bundleID`'s Documents and
+    /// returns the verified byte count. See `writeFile`.
+    @discardableResult
+    func writePairingFile(intoBundleID bundleID: String,
+                          remoteRelativePath: String,
+                          pairingFilePath: String) throws -> Int {
+        let data = try Data(contentsOf: URL(fileURLWithPath: pairingFilePath))
+        guard !data.isEmpty else { throw fail("pairing file at \(pairingFilePath) is empty") }
+        return try writeFile(intoBundleID: bundleID,
+                             remoteRelativePath: remoteRelativePath,
+                             data: data)
+    }
+
+    /// Writes `data` into `bundleID`'s Documents at `remoteRelativePath`, reads
+    /// it back to verify, and returns the byte count.
+    @discardableResult
+    func writeFile(intoBundleID bundleID: String,
+                   remoteRelativePath: String,
+                   data: Data) throws -> Int {
+        // vend_documents roots AFC at the container, not Documents, and the
+        // container root itself is read-only, so the path carries "/Documents/".
+        let remotePath = "/Documents/\(remoteRelativePath)"
+        return try withAppContainer(bundleID, reachingLibrary: false) { afc in
+            try writeVerified(afc, remotePath: remotePath, data: data)
+        }
+    }
+
+    /// Edits the plist dictionary at `containerPath` (relative to the container
+    /// root) in `bundleID`'s container, starting from an empty one if the file
+    /// is missing, and writes it back as a binary plist. Returns the byte count.
+    ///
+    /// Throws, leaving the file alone, if it exists but can't be read or isn't
+    /// a dictionary, so the app's other settings are never overwritten.
+    @discardableResult
+    func updatePlist(inBundleID bundleID: String,
+                     containerPath: String,
+                     _ edit: (inout [String: Any]) -> Void) throws -> Int {
+        let remotePath = "/\(containerPath)"
+        // Anything outside Documents needs the whole container.
+        let reachingLibrary = !containerPath.hasPrefix("Documents/")
+        return try withAppContainer(bundleID, reachingLibrary: reachingLibrary) { afc in
+            var dict: [String: Any] = [:]
+            if let existing = try readIfPresent(afc, remotePath: remotePath), !existing.isEmpty {
+                let parsed = try PropertyListSerialization.propertyList(from: existing, options: [], format: nil)
+                guard let parsedDict = parsed as? [String: Any] else {
+                    throw fail("\(containerPath) in \(bundleID) isn't a plist dictionary")
+                }
+                dict = parsedDict
+            }
+            edit(&dict)
+            let data = try PropertyListSerialization.data(fromPropertyList: dict, format: .binary, options: 0)
+            // Replaced by a rename, as cfprefsd saves it: an in-place rewrite
+            // keeps the inode, and cfprefsd keeps serving the copy it cached.
+            let staging = remotePath + ".sideinstaller"
+            let written = try writeVerified(afc, remotePath: staging, data: data)
+            try check(staging.withCString { from in
+                          remotePath.withCString { afc_rename_path(afc, from, $0) }
+                      },
+                      "afc_rename_path(\(staging) → \(remotePath)) failed")
+            return written
+        }
+    }
+
+    /// Writes `data` at `containerPath` (relative to the container root) in
+    /// `bundleID`'s container, anywhere in it rather than only in Documents,
+    /// reads it back to verify, and returns the byte count.
+    @discardableResult
+    func writeFile(intoBundleID bundleID: String, containerPath: String, data: Data) throws -> Int {
+        // Anything outside Documents needs the whole container.
+        let reachingLibrary = !containerPath.hasPrefix("Documents/")
+        return try withAppContainer(bundleID, reachingLibrary: reachingLibrary) { afc in
+            try writeVerified(afc, remotePath: "/\(containerPath)", data: data)
+        }
+    }
+
+    /// Deletes the file at `containerPath` (relative to the container root) in
+    /// `bundleID`'s container. No file there is no error.
+    func removeFile(inBundleID bundleID: String, containerPath: String) throws {
+        let remotePath = "/\(containerPath)"
+        let reachingLibrary = !containerPath.hasPrefix("Documents/")
+        try withAppContainer(bundleID, reachingLibrary: reachingLibrary) { afc in
+            if let error = ffiError(remotePath.withCString { afc_remove_path(afc, $0) },
+                                    "afc_remove_path(\(remotePath)) failed") {
+                // AFC error 106, sub-code 8: ObjectNotFound.
+                guard error.code == 106 && error.subCode == 8 else { throw error }
+            }
+        }
+    }
+
+    /// Opens an AFC client on `bundleID`'s container over house_arrest and runs
+    /// `body` with it.
+    ///
+    /// `reachingLibrary` vends the whole container, which only works for apps
+    /// signed for development (every app SideInstaller signs is); otherwise only
+    /// Documents is vended, the one writable folder under that root.
+    ///
+    /// Vending consumes the HouseArrestClient on success and failure, so `ha` is
+    /// never freed; `afc_client_free` consumes the AfcClient once.
+    private func withAppContainer<T>(_ bundleID: String, reachingLibrary: Bool,
+                                     _ body: (OpaquePointer) throws -> T) throws -> T {
+        guard let adapter, let handshake else { throw fail("not connected") }
+
+        var ha: OpaquePointer?
+        try check(house_arrest_client_connect_rsd(adapter, handshake, &ha),
+                  "house_arrest_client_connect_rsd failed")
+        guard ha != nil else { throw fail("house_arrest client was null") }
+
+        // vend consumes `ha` — do not free it. The AfcClient owns the Idevice.
+        var afc: OpaquePointer?
+        if reachingLibrary {
+            let vendErr = bundleID.withCString { house_arrest_vend_container(ha, $0, &afc) }
+            try check(vendErr, "house_arrest_vend_container(\(bundleID)) failed")
+        } else {
+            let vendErr = bundleID.withCString { house_arrest_vend_documents(ha, $0, &afc) }
+            try check(vendErr, "house_arrest_vend_documents(\(bundleID)) failed")
+        }
+        guard let afc else { throw fail("vended AFC client was null") }
+        defer { afc_client_free(afc) }   // free the AfcClient (and its Idevice) once
+        return try body(afc)
+    }
+
+    /// The file at `remotePath`, or nil if there's none. Any other failure throws.
+    private func readIfPresent(_ afc: OpaquePointer, remotePath: String) throws -> Data? {
+        var info = AfcFileInfo()
+        if let error = ffiError(remotePath.withCString { afc_get_file_info(afc, $0, &info) },
+                                "afc_get_file_info(\(remotePath)) failed") {
+            // AFC error 106, sub-code 8: ObjectNotFound.
+            if error.code == 106 && error.subCode == 8 { return nil }
+            throw error
+        }
+        afc_file_info_free(&info)
+
+        var rfile: OpaquePointer?
+        try check(remotePath.withCString { afc_file_open(afc, $0, AfcRdOnly, &rfile) },
+                  "afc_file_open(\(remotePath), read) failed")
+        guard let rfile else { throw fail("AFC read handle was null") }
+        var rdata: UnsafeMutablePointer<UInt8>?
+        var rlen = 0
+        let readErr = afc_file_read_entire(rfile, &rdata, &rlen)
+        _ = afc_file_close(rfile)       // consume the read handle
+        defer { if let rdata { afc_file_read_data_free(rdata, rlen) } }
+        try check(readErr, "afc_file_read_entire(\(remotePath)) failed")
+        guard let rdata else { return Data() }
+        return Data(bytes: rdata, count: rlen)
+    }
+
+    /// Writes `data` to `remotePath`, creating parent folders, then reads it
+    /// back and checks the length. Returns the byte count.
+    ///
+    /// `afc_file_close` consumes its handle once, on every path.
+    private func writeVerified(_ afc: OpaquePointer, remotePath: String, data: Data) throws -> Int {
+        guard !data.isEmpty else { throw fail("refusing to write an empty file") }
+        makeRemoteDirectories(afc, forFileAt: remotePath)
+
+        // Open (create and truncate), write the whole buffer, then close.
+        var wfile: OpaquePointer?
+        try check(remotePath.withCString { afc_file_open(afc, $0, AfcWr, &wfile) },
+                  "afc_file_open(\(remotePath), write) failed")
+        guard let wfile else { throw fail("AFC write handle was null") }
+        do {
+            try data.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+                guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return }
+                try check(afc_file_write(wfile, base, data.count), "afc_file_write failed")
+            }
+        } catch {
+            _ = afc_file_close(wfile)   // consume the handle on the failure path
+            throw error
+        }
+        // Close commits the write AND consumes wfile — check its error.
+        try check(afc_file_close(wfile), "afc_file_close failed (write not committed)")
+
+        // Re-open for read and assert the byte length committed.
+        var rfile: OpaquePointer?
+        try check(remotePath.withCString { afc_file_open(afc, $0, AfcRdOnly, &rfile) },
+                  "afc_file_open(\(remotePath), read-back) failed")
+        guard let rfile else { throw fail("AFC read-back handle was null") }
+        var rdata: UnsafeMutablePointer<UInt8>?
+        var rlen = 0
+        let readErr = afc_file_read_entire(rfile, &rdata, &rlen)
+        _ = afc_file_close(rfile)       // consume the read handle
+        if let rdata { afc_file_read_data_free(rdata, rlen) }
+        try check(readErr, "afc_file_read_entire (read-back) failed")
+        guard rlen == data.count else {
+            throw fail("read-back size mismatch: wrote \(data.count) bytes but device has \(rlen)")
+        }
+        return rlen
+    }
+
+    /// Create every parent directory of `remoteFilePath` on the AFC volume, for
+    /// the nested LiveContainer guest path.
+    private func makeRemoteDirectories(_ afc: OpaquePointer, forFileAt remoteFilePath: String) {
+        let components = remoteFilePath.split(separator: "/").dropLast()  // drop the file name
+        var path = ""
+        for component in components {
+            path += "/\(component)"
+            _ = path.withCString { afc_make_directory(afc, $0) }
+        }
+    }
+
+    // MARK: Developer disk image (image_mounter over RSD)
+
+    /// How many developer images the device has mounted. Zero means the DVT
+    /// services — location simulation among them — aren't reachable yet.
+    func mountedDeveloperImageCount() throws -> Int {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(image_mounter_connect_rsd(adapter, handshake, &client),
+                  "image_mounter_connect_rsd failed")
+        guard let client else { throw fail("image mounter client was null") }
+        defer { image_mounter_free(client) }
+
+        var devices: UnsafeMutablePointer<plist_t?>?
+        var count = 0
+        try check(image_mounter_copy_devices(client, &devices, &count),
+                  "image_mounter_copy_devices failed")
+        if let devices {
+            for i in 0..<count { plist_free(devices[i]) }
+            idevice_data_free(UnsafeMutableRawPointer(devices).assumingMemoryBound(to: UInt8.self),
+                              UInt(count * MemoryLayout<plist_t?>.stride))
+        }
+        return count
+    }
+
+    /// Mounts the personalized developer disk image (same as StikDebug): reads
+    /// the UniqueChipID from lockdownd, then sends the image, trust cache,
+    /// manifest and chip ID to image_mounter over the RSD tunnel.
+    func mountPersonalizedDeveloperImage(imagePath: String,
+                                         trustcachePath: String,
+                                         manifestPath: String,
+                                         progress: ((Double) -> Void)? = nil) throws {
+        guard let adapter, let handshake else { throw fail("not connected") }
+
+        // Mapped, not read: the image is tens of megabytes.
+        let image = try Data(contentsOf: URL(fileURLWithPath: imagePath), options: .mappedIfSafe)
+        let trustcache = try Data(contentsOf: URL(fileURLWithPath: trustcachePath), options: .mappedIfSafe)
+        let manifest = try Data(contentsOf: URL(fileURLWithPath: manifestPath), options: .mappedIfSafe)
+        guard !image.isEmpty, !trustcache.isEmpty, !manifest.isEmpty else {
+            throw fail("developer disk image files are empty — download them again")
+        }
+
+        let chipID = try uniqueChipID()
+
+        var client: OpaquePointer?
+        try check(image_mounter_connect_rsd(adapter, handshake, &client),
+                  "image_mounter_connect_rsd failed")
+        guard let client else { throw fail("image mounter client was null") }
+        defer { image_mounter_free(client) }
+
+        // The callback fires on idevice's thread; the box is freed below.
+        let box = progress.map { Unmanaged.passRetained(ProgressBox($0)).toOpaque() }
+        defer { if let box { Unmanaged<ProgressBox>.fromOpaque(box).release() } }
+
+        let err = image.withUnsafeBytes { img in
+            trustcache.withUnsafeBytes { tc in
+                manifest.withUnsafeBytes { man in
+                    image_mounter_mount_personalized_with_callback_rsd(
+                        client, adapter, handshake,
+                        img.bindMemory(to: UInt8.self).baseAddress, image.count,
+                        tc.bindMemory(to: UInt8.self).baseAddress, trustcache.count,
+                        man.bindMemory(to: UInt8.self).baseAddress, manifest.count,
+                        nil, chipID,
+                        box == nil ? nil : mountProgressCb, box)
+                }
+            }
+        }
+        try check(err, "mounting the developer disk image failed")
+    }
+
+    /// The device's UniqueChipID, which personalizing the image is keyed on.
+    private func uniqueChipID() throws -> UInt64 {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(lockdownd_connect_rsd(adapter, handshake, &client), "lockdownd_connect_rsd failed")
+        guard let client else { throw fail("lockdownd client was null") }
+        defer { lockdownd_client_free(client) }
+
+        var value: plist_t?
+        try check("UniqueChipID".withCString { lockdownd_get_value(client, $0, nil, &value) },
+                  "lockdownd_get_value(UniqueChipID) failed")
+        guard let value else { throw fail("device reported no UniqueChipID") }
+        defer { plist_free(value) }
+
+        var chipID: UInt64 = 0
+        plist_get_uint_val(value, &chipID)
+        guard chipID != 0 else { throw fail("device reported an empty UniqueChipID") }
+        return chipID
+    }
+
+    // MARK: Developer Mode (AMFI)
+
+    /// What can be asked of AMFI about Developer Mode.
+    enum DeveloperModeRequest {
+        /// Shows Developer Mode under Settings › Privacy & Security.
+        case reveal
+        /// Turns Developer Mode on. iOS restarts right away, then asks to
+        /// confirm after unlock. Refused while the device has a passcode.
+        case enable
+    }
+
+    /// Whether Developer Mode is on, read from lockdownd's AMFI domain (as
+    /// pymobiledevice3 does). Nil when the device gives no answer.
+    func developerModeEnabled() throws -> Bool? {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(lockdownd_connect_rsd(adapter, handshake, &client), "lockdownd_connect_rsd failed")
+        guard let client else { throw fail("lockdownd client was null") }
+        defer { lockdownd_client_free(client) }
+
+        var value: plist_t?
+        try check("DeveloperModeStatus".withCString { key in
+            "com.apple.security.mac.amfi".withCString { domain in
+                lockdownd_get_value(client, key, domain, &value)
+            }
+        }, "lockdownd_get_value(DeveloperModeStatus) failed")
+        guard let value else { return nil }
+        defer { plist_free(value) }
+        guard plist_get_node_type(value) == PLIST_BOOLEAN else { return nil }
+        var enabled: UInt8 = 0
+        plist_get_bool_val(value, &enabled)
+        return enabled != 0
+    }
+
+    /// Sends `request` to AMFI's RSD shim over the open tunnel.
+    func requestDeveloperMode(_ request: DeveloperModeRequest) throws {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(amfi_connect_rsd(adapter, handshake, &client), "amfi_connect_rsd failed")
+        guard let client else { throw fail("AMFI client was null") }
+        defer { amfi_client_free(client) }
+        try send(request, to: client)
+    }
+
+    /// Sends `request` through lockdownd with the classic pair record, without
+    /// a tunnel. Xcode and pymobiledevice3 reach AMFI this way, so it may work
+    /// where the tunnel itself won't open without Developer Mode.
+    func requestDeveloperModeOverLockdown(_ request: DeveloperModeRequest, deviceIP: String,
+                                          pairingFilePath: String,
+                                          hostname: String = "SideInstaller") throws {
+        let provider = try lockdownProvider(deviceIP: deviceIP,
+                                            pairingFilePath: pairingFilePath,
+                                            hostname: hostname)
+        defer { idevice_provider_free(provider) }
+        // iOS closes AMFI without a heartbeat, like any other service. A new
+        // one would end this connection's own and close its tunnel, so that
+        // one is used while it's still answering this iPhone.
+        let ownAnswering = heartbeat.map { $0.isAnswering && $0.deviceIP == deviceIP } ?? false
+        let requestHeartbeat = ownAnswering ? nil : startHeartbeat(provider, deviceIP: deviceIP)
+        defer { requestHeartbeat?.stop() }
+        var client: OpaquePointer?
+        try check(amfi_connect(provider, &client), "amfi_connect failed")
+        guard let client else { throw fail("AMFI client was null") }
+        defer { amfi_client_free(client) }
+        try send(request, to: client)
+    }
+
+    private func send(_ request: DeveloperModeRequest, to client: OpaquePointer) throws {
+        switch request {
+        case .reveal:
+            try check(amfi_reveal_developer_mode_option_in_ui(client),
+                      "amfi_reveal_developer_mode_option_in_ui failed")
+        case .enable:
+            try check(amfi_enable_developer_mode(client), "amfi_enable_developer_mode failed")
+        }
+    }
+
+    // MARK: Crash reports
+
+    /// The crash reports iOS keeps for Analytics Data (its CrashReporter folder
+    /// and the Retired folder older ones move to), read through
+    /// crashreportcopymobile's RSD shim. `select` picks which of the listed
+    /// paths to pull. Nothing is removed from the device.
+    func crashReports(select: ([String]) -> [String]) throws -> [(path: String, data: Data)] {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        var client: OpaquePointer?
+        try check(crash_report_client_connect_rsd(adapter, handshake, &client),
+                  "crash_report_client_connect_rsd failed")
+        guard let client else { throw fail("crash report client was null") }
+        defer { crash_report_client_free(client) }
+
+        var paths = try crashReportNames(client, in: nil)
+        // A device with no Retired folder just has nothing retired yet.
+        if let retired = try? crashReportNames(client, in: "Retired") {
+            paths += retired.map { "Retired/\($0)" }
+        }
+        return try select(paths).map { path in
+            var bytes: UnsafeMutablePointer<UInt8>?
+            var length = 0
+            try check(path.withCString { crash_report_client_pull(client, $0, &bytes, &length) },
+                      "crash_report_client_pull(\(path)) failed")
+            defer { if let bytes { idevice_data_free(bytes, UInt(length)) } }
+            return (path, bytes.map { Data(bytes: $0, count: length) } ?? Data())
+        }
+    }
+
+    /// One folder's entries. The array and its strings are freed as idevice's
+    /// own C++ wrapper does: each string through idevice, the array with free.
+    private func crashReportNames(_ client: OpaquePointer, in directory: String?) throws -> [String] {
+        var entries: UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+        var count = 0
+        let error = directory.map { dir in
+            dir.withCString { crash_report_client_ls(client, $0, &entries, &count) }
+        } ?? crash_report_client_ls(client, nil, &entries, &count)
+        try check(error, "crash_report_client_ls(\(directory ?? "/")) failed")
+        guard let entries else { return [] }
+        defer { free(entries) }
+        var names: [String] = []
+        for i in 0..<count {
+            guard let entry = entries[i] else { continue }
+            names.append(String(cString: entry))
+            idevice_string_free(entry)
+        }
+        return names.filter { $0 != "." && $0 != ".." }
+    }
+
+    // MARK: Location simulation (DVT over RSD)
+
+    /// The DVT remote server, and the location client that borrows it. Kept
+    /// alive between calls: the device holds the simulated location only as long
+    /// as this session is open.
+    private var remoteServer: OpaquePointer?
+    private var locationSim: OpaquePointer?
+
+    var isSimulatingLocation: Bool { locationSim != nil }
+
+    /// Open the DVT location-simulation session, reusing the existing tunnel.
+    /// Needs a mounted developer disk image — without one the RemoteServer
+    /// handshake is what fails.
+    func beginLocationSimulation() throws {
+        guard let adapter, let handshake else { throw fail("not connected") }
+        guard locationSim == nil else { return }
+
+        var server: OpaquePointer?
+        try check(remote_server_connect_rsd(adapter, handshake, &server),
+                  "remote_server_connect_rsd failed (is the developer disk image mounted?)")
+        guard let server else { throw fail("remote server handle was null") }
+
+        var sim: OpaquePointer?
+        let err = location_simulation_new(server, &sim)
+        if err != nil || sim == nil {
+            remote_server_free(server)
+            try check(err, "location_simulation_new failed")
+            throw fail("location simulation handle was null")
+        }
+        // The client borrows the server rather than taking it, so the server has
+        // to outlive it and be freed after — see `endLocationSimulation`.
+        remoteServer = server
+        locationSim = sim
+    }
+
+    func setSimulatedLocation(latitude: Double, longitude: Double) throws {
+        guard let locationSim else { throw fail("no location simulation session") }
+        try check(location_simulation_set(locationSim, latitude, longitude),
+                  "location_simulation_set failed")
+    }
+
+    /// Hand the device back its real location. Leaves the session open.
+    func clearSimulatedLocation() throws {
+        guard let locationSim else { throw fail("no location simulation session") }
+        try check(location_simulation_clear(locationSim), "location_simulation_clear failed")
+    }
+
+    /// Close the session. Order matters: the client borrows the server.
+    func endLocationSimulation() {
+        if let locationSim { location_simulation_free(locationSim); self.locationSim = nil }
+        if let remoteServer { remote_server_free(remoteServer); self.remoteServer = nil }
+    }
+
+    // MARK: plist helpers
+
+    private func plistString(_ dict: plist_t?, _ key: String) -> String? {
+        guard let item = key.withCString({ plist_dict_get_item(dict, $0) }) else { return nil }
+        var out: UnsafeMutablePointer<CChar>?
+        plist_get_string_val(item, &out)
+        guard let out else { return nil }
+        defer { plist_mem_free(out) }
+        let s = String(validatingUTF8: out) ?? ""
+        return s.isEmpty ? nil : s
+    }
+}
+
+/// Carries a Swift closure through the C mount callback's `void *context`.
+private final class ProgressBox {
+    let report: (Double) -> Void
+    init(_ report: @escaping (Double) -> Void) { self.report = report }
+}
+
+/// image_mounter progress callback, driving the DDI mount bar.
+private let mountProgressCb: @convention(c) (Int, Int, UnsafeMutableRawPointer?) -> Void = { done, total, context in
+    guard let context, total > 0 else { return }
+    let report = Unmanaged<ProgressBox>.fromOpaque(context).takeUnretainedValue().report
+    let fraction = Double(done) / Double(total)
+    DispatchQueue.main.async { report(fraction) }
+}
+
+/// installation_proxy progress callback, driving the bar and the log.
+private let installProgressCb: @convention(c) (UInt64, UnsafeMutableRawPointer?) -> Void = { progress, _ in
+    DispatchQueue.main.async {
+        // installd repeats a percentage across phases; only act when it moves.
+        let fraction = Double(progress) / 100.0
+        guard Engine.shared.installProgress != fraction else { return }
+        Engine.shared.installProgress = fraction
+        Engine.shared.log("install progress: \(progress)%")
+    }
+}
+
+/// Answers lockdownd's heartbeat (`com.apple.mobile.heartbeat`) on a thread of
+/// its own, for the services one lockdown connection starts.
+///
+/// lockdownd sees an app coming through the loopback VPN as a host on the
+/// network, and wants such a host to answer its heartbeat: a Marco about every
+/// 10 s, each answered with a Polo. While none is answering, iOS closes what
+/// that host starts. CoreDeviceProxy finishes the TLS handshake, then hangs up
+/// on the tunnel request (`peer closed connection without sending TLS
+/// close_notify`, issues #105 and #107), and an open tunnel closes 6–9 s after
+/// its heartbeat stops. A computer on the same network answering one with the
+/// same pairing covers for it, which may be why the route worked for some
+/// without one. StikDebug, Feather and minimuxer answer it the same way.
+///
+/// iOS keeps one heartbeat per pairing: a new one closes the one before, and
+/// tunnels opened under that one close 6–9 s later, even with the new one
+/// answering. So a connection keeps one heartbeat for as long as its tunnel is
+/// open, and another app that starts its own with the same pairing file ends it.
+///
+/// Measured on 2026-10-31 on iOS 27.2 over Wi-Fi from a Mac, where lockdownd
+/// still takes network hosts. Not run through LocalDevVPN, which only goes
+/// through lockdownd before iOS 26.4.
+private final class LockdownHeartbeat {
+    /// The device IP the heartbeat reaches.
+    let deviceIP: String
+    /// Owned by the thread, which frees it on the way out.
+    private let client: OpaquePointer
+    private let condition = NSCondition()
+    private var answered = 0
+    private var ended = false
+    private var stopped = false
+
+    /// idevice's `IdeviceError::Heartbeat` code, which comes with sub-code 1
+    /// when the device is going to sleep and 2 when a Marco is late.
+    private static let heartbeatErrorCode: Int32 = 100
+    private static let sleepyTimeSubCode: Int32 = 1
+
+    /// Takes `client`, from `heartbeat_connect`, and starts answering it.
+    init(client: OpaquePointer, deviceIP: String) {
+        self.client = client
+        self.deviceIP = deviceIP
+        let thread = Thread { [self] in run() }
+        thread.name = "sideinstaller.heartbeat"
+        // A Polo that goes out too late closes the tunnel, mid-install too.
+        thread.qualityOfService = .userInitiated
+        thread.start()
+    }
+
+    /// True once a Marco has been answered, until the heartbeat stops or ends.
+    var isAnswering: Bool {
+        condition.lock(); defer { condition.unlock() }
+        return answered > 0 && !ended && !stopped
+    }
+
+    /// Waits up to `timeout` for the first Marco to be answered. False if it
+    /// wasn't, or the heartbeat ended first.
+    func waitUntilAnswered(timeout: TimeInterval) -> Bool {
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        condition.lock(); defer { condition.unlock() }
+        while answered == 0, !ended, !stopped {
+            if !condition.wait(until: deadline) { break }
+        }
+        return answered > 0
+    }
+
+    /// Stops answering. The thread notices at the next Marco, at most about
+    /// 10 s later, then closes the connection.
+    func stop() {
+        condition.lock()
+        stopped = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    private var isStopped: Bool {
+        condition.lock(); defer { condition.unlock() }
+        return stopped
+    }
+
+    private func run() {
+        defer {
+            heartbeat_client_free(client)
+            condition.lock()
+            ended = true
+            condition.broadcast()
+            condition.unlock()
+        }
+        // How long to wait for the next Marco: what iOS asked for, plus slack.
+        var wait: UInt64 = 15
+        while !isStopped {
+            var interval: UInt64 = 0
+            if let error = DeviceConnection.takeFFIError(heartbeat_get_marco(client, wait, &interval),
+                                                         "heartbeat_get_marco failed") {
+                if isStopped { return }
+                // A late Marco, or an iPhone going to sleep, doesn't end the
+                // heartbeat. The connection closing does.
+                if error.code == Self.heartbeatErrorCode {
+                    if error.subCode == Self.sleepyTimeSubCode {
+                        Engine.shared.log("Lockdown heartbeat: the iPhone is going to sleep.")
+                    }
+                    continue
+                }
+                Engine.shared.log("Lockdown heartbeat ended (\(error)). iOS closes the tunnel within seconds without it. Another app with this pairing file (SideStore, StikDebug, Feather) starting its own heartbeat ends this one.")
+                return
+            }
+            if isStopped { return }
+            if let error = DeviceConnection.takeFFIError(heartbeat_send_polo(client),
+                                                         "heartbeat_send_polo failed") {
+                Engine.shared.log("Lockdown heartbeat ended: the answer didn't go out (\(error)).")
+                return
+            }
+            wait = interval + 5
+            condition.lock()
+            answered += 1
+            let first = answered == 1
+            condition.broadcast()
+            condition.unlock()
+            if first {
+                Engine.shared.log("Lockdown heartbeat answered. iOS asks every \(interval) s.")
+            }
+        }
+    }
+}
