@@ -273,11 +273,11 @@ struct CPMapTemplateView: View {
                     }
                     .buttonStyle(CPCapsuleButtonStyle())
                 }
-                ForEach(Array(map.leadingNavigationBarButtons.enumerated()), id: \.offset) { _, b in
+                ForEach(Array((CPSObjC.get(map, NSSelectorFromString("leadingNavigationBarButtons")) as? [CPBarButton] ?? []).enumerated()), id: \.offset) { _, b in
                     CPBarButtonView(button: b, session: session)
                 }
                 Spacer()
-                ForEach(Array(map.trailingNavigationBarButtons.enumerated()), id: \.offset) { _, b in
+                ForEach(Array((CPSObjC.get(map, NSSelectorFromString("trailingNavigationBarButtons")) as? [CPBarButton] ?? []).enumerated()), id: \.offset) { _, b in
                     CPBarButtonView(button: b, session: session)
                 }
             }
@@ -303,7 +303,7 @@ struct CPMapTemplateView: View {
                 Spacer()
                 VStack(spacing: 10) {
                     Spacer()
-                    ForEach(Array(map.mapButtons.enumerated()), id: \.offset) { _, button in
+                    ForEach(Array((CPSObjC.get(map, NSSelectorFromString("mapButtons")) as? [CPMapButton] ?? []).enumerated()), id: \.offset) { _, button in
                         if !button.isHidden {
                             Button {
                                 session.tap(handlerOf: button, label: "Pulsante mappa")

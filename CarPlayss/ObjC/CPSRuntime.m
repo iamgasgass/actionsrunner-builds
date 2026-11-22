@@ -28,8 +28,14 @@ static void CPSPostChange(void) {
 }
 
 + (id)get:(id)target selector:(SEL)sel {
-    if (!target || ![target respondsToSelector:sel]) return nil;
-    return ((id (*)(id, SEL))objc_msgSend)(target, sel);
+    // Solo metodi realmente implementati: alcuni template CarPlay dichiarano protocolli
+    // (es. CPBarButtonProviding) senza implementarne tutti i metodi.
+    if (!target || !class_getInstanceMethod(object_getClass(target), sel)) return nil;
+    @try {
+        return ((id (*)(id, SEL))objc_msgSend)(target, sel);
+    } @catch (id e) {
+        return nil;
+    }
 }
 
 + (void)send:(id)target selector:(SEL)sel {

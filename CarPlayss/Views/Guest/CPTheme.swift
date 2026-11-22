@@ -60,12 +60,14 @@ struct CPNavigationBar<Center: View>: View {
     @ViewBuilder var center: () -> Center
 
     var body: some View {
-        let provider = template as? CPBarButtonProviding
+        let backButton = CPSObjC.get(template, NSSelectorFromString("backButton")) as? CPBarButton
+        let leading = CPSObjC.get(template, NSSelectorFromString("leadingNavigationBarButtons")) as? [CPBarButton] ?? []
+        let trailing = CPSObjC.get(template, NSSelectorFromString("trailingNavigationBarButtons")) as? [CPBarButton] ?? []
         ZStack {
             HStack(spacing: 8) {
-                if session.stack.count > 1 || provider?.backButton != nil {
+                if session.stack.count > 1 || backButton != nil {
                     Button {
-                        if let custom = provider?.backButton {
+                        if let custom = backButton {
                             session.tap(handlerOf: custom, label: "Indietro")
                         } else {
                             session.back()
@@ -74,18 +76,18 @@ struct CPNavigationBar<Center: View>: View {
                         HStack(spacing: 2) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 17, weight: .semibold))
-                            if let t = provider?.backButton?.title, !t.isEmpty {
+                            if let t = backButton?.title, !t.isEmpty {
                                 Text(t)
                             }
                         }
                     }
                     .buttonStyle(CPCapsuleButtonStyle())
                 }
-                ForEach(Array((provider?.leadingNavigationBarButtons ?? []).enumerated()), id: \.offset) { _, button in
+                ForEach(Array(leading.enumerated()), id: \.offset) { _, button in
                     CPBarButtonView(button: button, session: session)
                 }
                 Spacer(minLength: 0)
-                ForEach(Array((provider?.trailingNavigationBarButtons ?? []).enumerated()), id: \.offset) { _, button in
+                ForEach(Array(trailing.enumerated()), id: \.offset) { _, button in
                     CPBarButtonView(button: button, session: session)
                 }
             }
