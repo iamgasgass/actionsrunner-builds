@@ -73,7 +73,7 @@ final class AppState: ObservableObject {
     private var cumulative: [Double] = []
     private var lastProjectionIndex = 0
     private var announced: Set<String> = []
-    /// all'avvio il banner mostra "Procedi in direzione … su …" finché non hai percorso i primi metri (come Google Maps)
+    /// all'avvio il banner mostra "Procedi verso … su …" finché non hai percorso i primi metri (come Google Maps)
     private var departing = false
     private var offRouteCount = 0
     private var lastReroute = Date.distantPast
@@ -648,7 +648,7 @@ final class AppState: ObservableObject {
     }
 
     /// Prima indicazione vocale, all'avvio o dopo un ricalcolo, come Google Maps:
-    /// "Procedi in direzione nord su Via Roma verso Via Verdi, poi svolta a destra in Via Verdi".
+    /// "Procedi verso nord su Via Roma in direzione di Via Verdi, poi gira a destra su Via Verdi".
     /// Gli avvisi già "detti" vengono segnati, così non si accavallano subito dopo.
     private func announceStart(_ r: RouteInfo, departure: Bool) {
         guard !r.steps.isEmpty else { return }

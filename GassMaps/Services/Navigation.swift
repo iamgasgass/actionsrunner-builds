@@ -83,7 +83,7 @@ enum RouteMath {
 /// 1) la distanza di ogni manovra è misurata proiettando il punto della manovra sul tracciato
 ///    (la stessa misura usata per la posizione durante la guida, quindi avvisi al momento giusto);
 /// 2) la direzione reale della svolta è calcolata dalla geometria della strada (30 m prima e dopo l'incrocio):
-///    se il testo dice il contrario viene corretto, se non indica una direzione la aggiunge.
+///    l'angolo viene solo memorizzato: il testo di Apple Maps non viene MAI modificato.
 enum ManeuverRefiner {
     static func refine(_ steps: [RouteStep], on coords: [CLLocationCoordinate2D]) -> [RouteStep] {
         guard coords.count > 1 else { return steps }
@@ -121,8 +121,11 @@ enum ManeuverRefiner {
                     var a = bOut - bIn
                     while a > 180 { a -= 360 }
                     while a < -180 { a += 360 }
+                    // il testo resta ESATTAMENTE quello di Apple Maps: l'angolo misurato serve solo come
+                    // ripiego per la freccia quando il testo non dice da che parte girare.
+                    // (Prima la geometria "correggeva" destra/sinistra: alle rotonde e agli incroci storti
+                    // sbagliava, ad es. "Gira a destra" per entrare in rotonda diventava una freccia a sinistra.)
                     s.turnAngle = a
-                    s.instruction = corrected(s.instruction, angle: a)
                 }
             }
             out.append(s)
@@ -133,49 +136,9 @@ enum ManeuverRefiner {
     static func isRoundabout(_ s: String) -> Bool {
         ["rotonda", "rotatoria", "roundabout"].contains { s.contains($0) }
     }
-
-    /// istruzioni che non si correggono (uscite numerate, arrivo, traghetti, inversioni)
-    private static func isSpecial(_ s: String) -> Bool {
-        if isRoundabout(s) {
-            // "Alla rotonda, gira a sinistra/destra" si verifica; "prendi la 2ª uscita" no
-            return !(s.contains("sinistra") || s.contains("destra") || s.contains("left") || s.contains("right"))
-        }
-        return ["uscita", "exit", "svincolo", "arriv", "destinazione",
-                "destination", "traghetto", "ferry", "inversione", "u-turn"].contains { s.contains($0) }
-    }
-
-    static func corrected(_ text: String, angle a: Double) -> String {
-        let s = text.lowercased()
-        guard !isSpecial(s) else { return text }
-        let saysLeft = s.contains("sinistra") || s.contains("left")
-        let saysRight = s.contains("destra") || s.contains("right")
-        // il testo contraddice chiaramente la geometria → si corregge la direzione
-        // (alle rotonde basta una differenza più piccola: l'uscita è già misurata dopo il giro)
-        let limit = isRoundabout(s) ? 30.0 : 50.0
-        if saysLeft && !saysRight && a > limit {
-            return text.replacingOccurrences(of: "sinistra", with: "destra")
-                .replacingOccurrences(of: "Sinistra", with: "Destra")
-                .replacingOccurrences(of: "left", with: "right").replacingOccurrences(of: "Left", with: "Right")
-        }
-        if saysRight && !saysLeft && a < -limit {
-            return text.replacingOccurrences(of: "destra", with: "sinistra")
-                .replacingOccurrences(of: "Destra", with: "Sinistra")
-                .replacingOccurrences(of: "right", with: "left").replacingOccurrences(of: "Right", with: "Left")
-        }
-        // nessuna direzione nel testo ma la strada gira davvero → si aggiunge
-        if !saysLeft && !saysRight && abs(a) >= 35 && !isRoundabout(s) {
-            let side = a > 0 ? "destra" : "sinistra"
-            if s.hasPrefix("svolta ") {
-                return "Svolta a \(side) " + text.dropFirst("svolta ".count)
-            }
-            let prefix = abs(a) < 60 ? "Tieni la \(side)" : "Svolta a \(side)"
-            return "\(prefix) e \(text.prefix(1).lowercased() + text.dropFirst())"
-        }
-        return text
-    }
 }
 
-/// Primo passo del percorso come Google Maps: "Procedi in direzione nord su Via Roma verso Via Verdi".
+/// Primo passo del percorso come Apple Maps: "Procedi verso nord su Via Roma in direzione di Via Verdi".
 /// La direzione è misurata sui primi metri del tracciato (che parte dalla tua posizione),
 /// la via di partenza viene dalla posizione reale (geocodifica inversa), quella verso cui vai dalla prima manovra.
 enum Departure {
@@ -217,11 +180,18 @@ enum Departure {
         return name.isEmpty ? nil : name
     }
 
+    /// L'istruzione senza il nome della strada finale ("Gira a destra su Via Bosco II" → "Gira a destra")
+    static func maneuver(of instruction: String) -> String {
+        guard let st = street(in: instruction),
+              let r = instruction.range(of: st, options: .backwards) else { return instruction }
+        return String(instruction[..<r.lowerBound])
+    }
+
     static func text(bearing: Double?, street: String?, toward: String?) -> String {
         var s = "Procedi"
-        if let b = bearing { s += " in direzione \(cardinal(b))" }
+        if let b = bearing { s += " verso \(cardinal(b))" }
         if let st = street, !st.isEmpty { s += " su \(st)" }
-        if let t = toward, !t.isEmpty, t.lowercased() != street?.lowercased() { s += " verso \(t)" }
+        if let t = toward, !t.isEmpty, t.lowercased() != street?.lowercased() { s += " in direzione di \(t)" }
         return s == "Procedi" ? "Procedi lungo il percorso" : s
     }
 
@@ -271,34 +241,40 @@ enum Departure {
 
 /// Icona della manovra a partire dal testo dell'istruzione (italiano o inglese).
 enum ManeuverIcon {
-    /// Icona dal tracciato reale della svolta (più affidabile del testo), tranne rotonde, uscite e arrivo
+    /// Icona coerente con il testo di Apple Maps (la stessa istruzione che leggi e senti).
+    /// La geometria si usa solo se il testo non indica né una direzione né un tipo di manovra.
     static func symbol(for step: RouteStep) -> String {
-        // partenza: freccia dritta (il testo può contenere nomi di vie come "Via Destra")
+        // partenza: freccia dritta
         if step.isDeparture { return "arrow.up" }
-        let s = step.instruction.lowercased()
-        let special = ["uscita", "exit", "svincolo", "arriv",
-                       "destinazione", "destination", "traghetto", "ferry", "inversione", "u-turn"].contains { s.contains($0) }
-        guard !special || ManeuverRefiner.isRoundabout(s), let a = step.turnAngle else { return symbol(for: step.instruction) }
-        let m = abs(a)
-        if m < 20 { return "arrow.up" }
-        if m < 55 { return a > 0 ? "arrow.up.right" : "arrow.up.left" }
-        if m < 150 { return a > 0 ? "arrow.turn.up.right" : "arrow.turn.up.left" }
+        let fromText = symbol(for: step.instruction)
+        let m = Departure.maneuver(of: step.instruction).lowercased()
+        let straight = ["continua", "prosegui", "procedi", "continue", "head", "proceed"].contains { m.contains($0) }
+        guard fromText == "arrow.up", !straight, let a = step.turnAngle else { return fromText }
+        let d = abs(a)
+        if d < 20 { return "arrow.up" }
+        if d < 55 { return a > 0 ? "arrow.up.right" : "arrow.up.left" }
+        if d < 150 { return a > 0 ? "arrow.turn.up.right" : "arrow.turn.up.left" }
         return a > 0 ? "arrow.uturn.right" : "arrow.uturn.left"
     }
 
     static func symbol(for instruction: String) -> String {
-        let s = instruction.lowercased()
+        // si legge solo la manovra, non il nome della strada ("Gira a sinistra su Via Riva Destra")
+        let s = Departure.maneuver(of: instruction).lowercased()
         func has(_ words: String...) -> Bool { words.contains { s.contains($0) } }
         if has("arriv", "destinazione", "destination") { return "mappin.circle.fill" }
-        if has("inversione", "u-turn", "make a u") { return "arrow.uturn.left" }
+        if has("inversione", "u-turn", "make a u") {
+            return has("destra", "right") ? "arrow.uturn.right" : "arrow.uturn.left"
+        }
         if has("rotonda", "roundabout", "rotatoria") { return "arrow.triangle.turn.up.right.circle.fill" }
-        if has("uscita", "exit", "svincolo") {
+        if has("uscita", "exit", "svincolo", "esci", "rampa", "ramp") {
             return has("sinistra", "left") ? "arrow.up.left" : "arrow.up.right"
         }
-        if has("leggermente a destra", "slight right", "mantieni la destra", "keep right", "tieni la destra") {
+        if has("leggermente a destra", "slight right", "mantieni la destra", "keep right", "tieni la destra",
+               "rimani a destra", "resta a destra", "stay right", "a destra al bivio", "bear right") {
             return "arrow.up.right"
         }
-        if has("leggermente a sinistra", "slight left", "mantieni la sinistra", "keep left", "tieni la sinistra") {
+        if has("leggermente a sinistra", "slight left", "mantieni la sinistra", "keep left", "tieni la sinistra",
+               "rimani a sinistra", "resta a sinistra", "stay left", "a sinistra al bivio", "bear left") {
             return "arrow.up.left"
         }
         if has("a destra", "turn right", "right onto") { return "arrow.turn.up.right" }
