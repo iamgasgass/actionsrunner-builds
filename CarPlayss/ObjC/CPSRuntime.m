@@ -767,12 +767,34 @@ static void h_npRemoveObserver(id self, SEL _cmd, id observer) {
         [lc stringByAppendingPathComponent:@"Frameworks/ZSign.framework/ZSign"]
     ];
     NSString *lastError = nil;
+    // @rpath di ZSign punta a @executable_path/Frameworks, che dentro LiveContainer è la cartella di CarPlayss:
+    // precarichiamo le sue dipendenze (es. OpenSSL.framework) dal percorso assoluto di LiveContainer.app.
+    NSString *frameworks = [lc stringByAppendingPathComponent:@"Frameworks"];
+    for (NSString *dep in @[@"OpenSSL.framework/OpenSSL"]) {
+        NSString *depPath = [frameworks stringByAppendingPathComponent:dep];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:depPath]) dlopen(depPath.fileSystemRepresentation, RTLD_GLOBAL | RTLD_LAZY);
+    }
     for (NSString *path in candidates) {
         if (![[NSFileManager defaultManager] fileExistsAtPath:path]) continue;
-        void *handle = dlopen(path.fileSystemRepresentation, RTLD_GLOBAL | RTLD_LAZY);
-        if (handle && NSClassFromString(@"ZSigner")) return YES;
-        const char *e = dlerror();
-        lastError = e ? @(e) : @"errore sconosciuto";
+        for (int attempt = 0; attempt < 8; attempt++) {
+            void *handle = dlopen(path.fileSystemRepresentation, RTLD_GLOBAL | RTLD_LAZY);
+            if (handle && NSClassFromString(@"ZSigner")) return YES;
+            const char *e = dlerror();
+            lastError = e ? @(e) : @"errore sconosciuto";
+            // "Library not loaded: @rpath/X.framework/X" -> carica X da LiveContainer.app/Frameworks e riprova
+            NSRange r = [lastError rangeOfString:@"Library not loaded: @rpath/"];
+            if (r.location == NSNotFound) break;
+            NSString *rest = [lastError substringFromIndex:NSMaxRange(r)];
+            NSString *missing = [[rest componentsSeparatedByCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] firstObject];
+            if (!missing.length) break;
+            NSString *missingPath = [frameworks stringByAppendingPathComponent:missing];
+            if (![[NSFileManager defaultManager] fileExistsAtPath:missingPath]) break;
+            if (!dlopen(missingPath.fileSystemRepresentation, RTLD_GLOBAL | RTLD_LAZY)) {
+                const char *e2 = dlerror();
+                lastError = [NSString stringWithFormat:@"%@ (dipendenza %@: %s)", lastError, missing, e2 ?: "?"];
+                break;
+            }
+        }
     }
     if (error) *error = lastError ?: [NSString stringWithFormat:@"ZSign.dylib non trovato in %@", lc];
     return NO;
