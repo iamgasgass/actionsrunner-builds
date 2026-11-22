@@ -214,40 +214,95 @@ struct CPNowPlayingView: View {
 
 // MARK: - Finestra dell'auto (app di navigazione)
 
-/// Ospita la CPWindow dell'app: l'app disegna lì la sua mappa, come su una vera unità CarPlay.
+/// Mostra la CPWindow dell'app come finestra vera della scena, sopra l'area del template mappa,
+/// come fa CarPlay. (Annidarla come sottovista confonde i motori di Auto Layout delle due finestre.)
+/// I controlli del template vengono disegnati in uno strato trasparente dentro la CPWindow.
 struct CarWindowHost: UIViewRepresentable {
-    let window: UIWindow
+    @ObservedObject var session: GuestSession
+    let map: CPMapTemplate
 
-    final class Container: UIView {
-        weak var hosted: UIWindow?
+    /// Lascia passare i tocchi alla mappa dove lo strato dei controlli è vuoto.
+    final class PassthroughView: UIView {
+        weak var content: UIView?
+
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            let hit = super.hitTest(point, with: event)
+            return (hit === self || hit === content) ? nil : hit
+        }
+    }
+
+    final class Placeholder: UIView {
+        weak var guest: UIWindow?
+        var overlay: PassthroughView?
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            hosted?.frame = bounds
+            place()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            place()
+        }
+
+        func place() {
+            guard let guest = guest else { return }
+            guard let host = window, let scene = host.windowScene, !bounds.isEmpty else {
+                guest.isHidden = true
+                return
+            }
+            if guest.windowScene !== scene {
+                _ = CPSObjC.catching { guest.windowScene = scene }
+            }
+            guest.windowLevel = host.windowLevel + 1
+            let rect = convert(bounds, to: nil)
+            if guest.frame != rect { guest.frame = rect }
+            guest.isHidden = false
+            if let overlay = overlay {
+                if overlay.superview !== guest { guest.addSubview(overlay) }
+                overlay.frame = guest.bounds
+                guest.bringSubviewToFront(overlay)
+            }
+        }
+
+        func hideGuest() {
+            guest?.isHidden = true
+            overlay?.removeFromSuperview()
         }
     }
 
-    func makeUIView(context: Context) -> Container {
-        let view = Container()
+    final class Coordinator {
+        var hosting: UIHostingController<CPMapOverlay>?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> Placeholder {
+        let view = Placeholder()
         view.backgroundColor = .black
-        view.clipsToBounds = true
-        attach(to: view)
+        view.guest = session.window
+        let hosting = UIHostingController(rootView: CPMapOverlay(session: session, map: map))
+        hosting.view.backgroundColor = .clear
+        hosting.overrideUserInterfaceStyle = .dark
+        let overlay = PassthroughView()
+        overlay.backgroundColor = .clear
+        hosting.view.frame = overlay.bounds
+        hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        overlay.addSubview(hosting.view)
+        overlay.content = hosting.view
+        view.overlay = overlay
+        context.coordinator.hosting = hosting
         return view
     }
 
-    func updateUIView(_ view: Container, context: Context) {
-        attach(to: view)
+    func updateUIView(_ view: Placeholder, context: Context) {
+        context.coordinator.hosting?.rootView = CPMapOverlay(session: session, map: map)
+        view.guest = session.window
+        view.place()
     }
 
-    private func attach(to view: Container) {
-        if window.superview !== view {
-            window.removeFromSuperview()
-            view.addSubview(window)
-        }
-        view.hosted = window
-        window.isHidden = false
-        window.frame = view.bounds
-        view.setNeedsLayout()
+    static func dismantleUIView(_ view: Placeholder, coordinator: Coordinator) {
+        view.hideGuest()
     }
 }
 
@@ -258,12 +313,22 @@ struct CPMapTemplateView: View {
     let map: CPMapTemplate
 
     var body: some View {
+        CarWindowHost(session: session, map: map)
+    }
+}
+
+/// Controlli del template mappa (barra, pulsanti, pannelli), disegnati sopra la mappa dell'app.
+struct CPMapOverlay: View {
+    @ObservedObject var session: GuestSession
+    let map: CPMapTemplate
+
+    var body: some View {
         let navigation = CPSHooks.navigationSession(for: map)
         let trips = CPSHooks.tripPreviews(for: map)
         let panning = CPSHooks.isPanning(for: map)
 
         ZStack(alignment: .topLeading) {
-            CarWindowHost(window: session.window)
+            Color.clear
 
             // Barra superiore: pulsanti dell'app
             HStack(spacing: 8) {
@@ -333,6 +398,28 @@ struct CPMapTemplateView: View {
 
             if let alert = CPSHooks.navigationAlert(for: map) {
                 navigationAlert(alert)
+            }
+
+            // Alert / action sheet presentati sopra la mappa (la CPWindow copre la finestra principale)
+            if let presented = session.presented {
+                CPPresentedView(session: session, template: presented)
+            }
+
+            if let err = session.lastError {
+                VStack {
+                    Spacer()
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
+                        Text(err).font(.system(size: 12)).foregroundColor(.white).lineLimit(3)
+                        Button { session.lastError = nil } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(CP.secondaryText)
+                        }
+                    }
+                    .padding(10)
+                    .background(Color(white: 0.15), in: RoundedRectangle(cornerRadius: 10))
+                    .padding(10)
+                }
+                .frame(maxWidth: .infinity)
             }
         }
     }

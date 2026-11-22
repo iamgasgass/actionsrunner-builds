@@ -85,7 +85,7 @@ struct GuestSessionView: View {
                 }
             }
 
-            if let presented = session.presented {
+            if let presented = session.presented, !(session.top is CPMapTemplate) {
                 CPPresentedView(session: session, template: presented)
                     .transition(.opacity)
             }
