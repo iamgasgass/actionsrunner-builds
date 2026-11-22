@@ -482,7 +482,8 @@ struct CPMapOverlay: View {
     // Indicazioni svolta per svolta
     private func guidancePanel(_ navigation: CPNavigationSession) -> some View {
         let maneuvers = navigation.upcomingManeuvers
-        let bg = Color(map.guidanceBackgroundColor)
+        let cardColor = maneuvers.first.flatMap { CPSObjC.get($0, NSSelectorFromString("cardBackgroundColor")) as? UIColor }
+        let bg = Color(cardColor ?? map.guidanceBackgroundColor)
         return VStack(alignment: .leading, spacing: 0) {
             if let m = maneuvers.first {
                 maneuverRow(m, primary: true)
@@ -505,7 +506,7 @@ struct CPMapOverlay: View {
     }
 
     private func maneuverRow(_ m: CPManeuver, primary: Bool) -> some View {
-        let distance = (CPSHooks.estimates(for: m) ?? m.initialTravelEstimates)?.distanceRemaining
+        let estimates = CPSHooks.estimates(for: m) ?? m.initialTravelEstimates
         return HStack(alignment: .top, spacing: 10) {
             if let image = cpsOpt(m.symbolImage) {
                 Image(uiImage: image).renderingMode(.template).resizable().scaledToFit()
@@ -513,8 +514,8 @@ struct CPMapOverlay: View {
                     .foregroundColor(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                if let d = distance {
-                    Text(Self.format(d))
+                if let e = estimates {
+                    Text(Self.displayDistance(e))
                         .font(.system(size: primary ? 24 : 15, weight: .bold))
                         .foregroundColor(.white)
                 }
@@ -537,7 +538,7 @@ struct CPMapOverlay: View {
                 Text("tempo").font(.system(size: 12)).foregroundColor(CP.secondaryText)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(Self.format(e.distanceRemaining)).font(.system(size: 19, weight: .semibold))
+                Text(Self.displayDistance(e)).font(.system(size: 19, weight: .semibold))
                 Text("distanza").font(.system(size: 12)).foregroundColor(CP.secondaryText)
             }
         }
@@ -688,6 +689,15 @@ struct CPMapOverlay: View {
     /// Primo elemento di un array di varianti (opzionale o no nell'SDK).
     static func first(_ values: [String]?) -> String? {
         values?.first
+    }
+
+    /// Distanza da mostrare: distanceRemainingToDisplay (già arrotondata dall'app) se presente.
+    static func displayDistance(_ e: CPTravelEstimates) -> String {
+        if let shown = CPSObjC.get(e, NSSelectorFromString("distanceRemainingToDisplay")) as? NSMeasurement,
+           let unit = shown.unit as? UnitLength {
+            return format(Measurement(value: shown.doubleValue, unit: unit))
+        }
+        return format(e.distanceRemaining)
     }
 
     static func format(_ m: Measurement<UnitLength>) -> String {
