@@ -6,14 +6,32 @@ struct DashboardView: View {
     @EnvironmentObject var state: AppState
     @EnvironmentObject var media: MediaController
     @EnvironmentObject var nav: NavigationModel
+    @EnvironmentObject var runtime: GuestRuntime
+
+    /// App di navigazione con Dashboard: la più recente tra quelle in esecuzione.
+    private var dashboardSession: GuestSession? {
+        for item in state.recents {
+            if case .guest(let id) = item, let s = runtime.sessions[id], s.dashboardWindow != nil { return s }
+        }
+        return runtime.sessions.values.first { $0.dashboardWindow != nil }
+    }
 
     var body: some View {
         GeometryReader { geo in
             let spacing: CGFloat = 10
             let sideWidth = max(200, geo.size.width * 0.36)
             HStack(spacing: spacing) {
-                mapCard
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                Group {
+                    if let session = dashboardSession, let window = session.dashboardWindow {
+                        GuestWindowHost(window: window, overlay: GuestDashboardOverlay(session: session) {
+                            state.open(.guest(session.app.id))
+                        })
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    } else {
+                        mapCard
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 VStack(spacing: spacing) {
                     nowPlayingCard
                     nextEventCard
@@ -185,5 +203,55 @@ struct MiniMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         map.overrideUserInterfaceStyle = settings.appearance == .light ? .light : (settings.appearance == .dark ? .dark : .unspecified)
+    }
+}
+
+/// Scorciatoie della Dashboard di un'app (CPDashboardButton) sopra la sua mappa.
+/// Toccando la mappa si apre l'app, come su CarPlay.
+struct GuestDashboardOverlay: View {
+    @ObservedObject var session: GuestSession
+    let openApp: () -> Void
+
+    var body: some View {
+        let _ = session.tick
+        let buttons = session.dashboardController?.shortcutButtons ?? []
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.001)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: openApp)
+                .cpsHitRegion()
+            if !buttons.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(buttons.enumerated()), id: \.offset) { _, button in
+                        Button {
+                            session.tap(handlerOf: button, label: "Scorciatoia")
+                            openApp()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if let img = cpsOpt(button.image) {
+                                    Image(uiImage: img).resizable().scaledToFit().frame(width: 28, height: 28)
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(cpsOpt(button.titleVariants)?.first ?? "")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .lineLimit(1)
+                                    if let sub = cpsOpt(button.subtitleVariants)?.first {
+                                        Text(sub).font(.system(size: 12)).foregroundColor(CP.secondaryText).lineLimit(1)
+                                    }
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(CP.panel.opacity(0.95)))
+                        }
+                        .buttonStyle(.plain)
+                        .cpsHitRegion()
+                    }
+                }
+                .padding(10)
+            }
+        }
     }
 }

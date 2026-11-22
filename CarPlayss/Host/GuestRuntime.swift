@@ -36,6 +36,12 @@ final class GuestSession: ObservableObject, Identifiable {
     var appDelegate: NSObject?
     var usesWindow = false
 
+    // Dashboard CarPlay (app di navigazione con CPTemplateApplicationDashboardSceneDelegate)
+    var dashboardController: CPSDashboardController?
+    var dashboardScene: CPSDashboardScene?
+    var dashboardWindow: UIWindow?
+    var dashboardDelegate: NSObject?
+
     @Published var tick = 0
     @Published var selectedTab = 0
     @Published var lastError: String?
@@ -240,7 +246,61 @@ final class GuestRuntime: ObservableObject {
         } else {
             throw GuestError.noCarPlayEntry
         }
+
+        connectDashboard(session, bundle: bundle, classNames: classNames)
         return session
+    }
+
+    /// Collega la scena Dashboard di CarPlay, se l'app la dichiara.
+    private func connectDashboard(_ session: GuestSession, bundle: Bundle, classNames: [String]) {
+        var cls: AnyClass?
+        if let manifest = bundle.infoDictionary?["UIApplicationSceneManifest"] as? [String: Any],
+           let configs = manifest["UISceneConfigurations"] as? [String: Any],
+           let dash = (configs["CPTemplateApplicationDashboardSceneSessionRoleApplication"] as? [[String: Any]])?.first,
+           let name = dash["UISceneDelegateClassName"] as? String {
+            cls = NSClassFromString(name)
+        }
+        if cls == nil, let proto = NSProtocolFromString("CPTemplateApplicationDashboardSceneDelegate") {
+            cls = classNames.compactMap { NSClassFromString($0) }.first { CPSObjC.isClass($0, conformingTo: proto) }
+        }
+        guard let delegateClass = cls else { return }
+        let controller = CPSDashboardController.make()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 480, height: 400))
+        window.backgroundColor = .black
+        window.overrideUserInterfaceStyle = .dark
+        window.isHidden = false
+        let scene = CPSDashboardScene.make(controller: controller, window: window)
+        let error = CPSObjC.catching {
+            guard let delegate = CPSObjC.instantiate(delegateClass) as? NSObject else { return }
+            session.dashboardDelegate = delegate
+            scene.cps_delegate = delegate
+            CPSObjC.send(delegate, NSSelectorFromString("sceneWillEnterForeground:"), scene)
+            CPSObjC.send(delegate, NSSelectorFromString("templateApplicationDashboardScene:didConnectDashboardController:toWindow:"),
+                         scene, controller, window)
+            CPSObjC.send(delegate, NSSelectorFromString("sceneDidBecomeActive:"), scene)
+        }
+        if let error = error {
+            session.lastError = "Dashboard: \(error)"
+            return
+        }
+        session.dashboardController = controller
+        session.dashboardScene = scene
+        session.dashboardWindow = window
+    }
+
+    /// Giorno/notte dell'auto: CarPlay lo comunica alle scene con contentStyleDidChange:.
+    func contentStyleChanged(dark: Bool) {
+        let style: UIUserInterfaceStyle = dark ? .dark : .light
+        for session in sessions.values {
+            session.controller.prefersDarkUserInterfaceStyle = dark
+            session.window.overrideUserInterfaceStyle = style
+            session.dashboardWindow?.overrideUserInterfaceStyle = style
+            for delegate in [session.sceneDelegate, session.dashboardDelegate].compactMap({ $0 }) {
+                session.guest("Tema") {
+                    CPSObjC.send(delegate, NSSelectorFromString("contentStyleDidChange:"), integer: style.rawValue)
+                }
+            }
+        }
     }
 }
 

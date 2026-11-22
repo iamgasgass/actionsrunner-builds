@@ -244,81 +244,95 @@ extension View {
 
 // MARK: - Finestra dell'auto (app di navigazione)
 
-/// Mostra la CPWindow dell'app come finestra vera della scena, sopra l'area del template mappa,
-/// come fa CarPlay. (Annidarla come sottovista confonde i motori di Auto Layout delle due finestre.)
-/// I controlli del template vengono disegnati in uno strato trasparente dentro la CPWindow.
-struct CarWindowHost: UIViewRepresentable {
-    @ObservedObject var session: GuestSession
-    let map: CPMapTemplate
+/// Intercetta solo i tocchi sui controlli (aree comunicate dalla vista SwiftUI); il resto va all'app.
+final class GuestPassthroughView: UIView {
+    weak var content: UIView?
+    var regions: CPHitRegions?
 
-    /// Intercetta solo i tocchi sui controlli (aree comunicate dalla vista SwiftUI); il resto va alla mappa.
-    final class PassthroughView: UIView {
-        weak var content: UIView?
-        var regions: CPHitRegions?
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let content = content, let regions = regions else { return nil }
+        let p = convert(point, to: content)
+        guard regions.contains(p) else { return nil }
+        return content.hitTest(p, with: event) ?? content
+    }
+}
 
-        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-            guard let content = content, let regions = regions else { return nil }
-            let p = convert(point, to: content)
-            guard regions.contains(p) else { return nil }
-            return content.hitTest(p, with: event) ?? content
+final class GuestWindowPlaceholder: UIView {
+    weak var guest: UIWindow?
+    var overlay: GuestPassthroughView?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        place()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        place()
+    }
+
+    func place() {
+        guard let guest = guest else { return }
+        guard let host = window, let scene = host.windowScene, !bounds.isEmpty else {
+            guest.isHidden = true
+            return
+        }
+        if guest.windowScene !== scene {
+            _ = CPSObjC.catching { guest.windowScene = scene }
+        }
+        guest.windowLevel = host.windowLevel + 1
+        let rect = convert(bounds, to: nil)
+        if guest.frame != rect { guest.frame = rect }
+        guest.isHidden = false
+        if let overlay = overlay {
+            if overlay.superview !== guest { guest.addSubview(overlay) }
+            overlay.frame = guest.bounds
+            guest.bringSubviewToFront(overlay)
         }
     }
 
-    final class Placeholder: UIView {
-        weak var guest: UIWindow?
-        var overlay: PassthroughView?
-
-        override func layoutSubviews() {
-            super.layoutSubviews()
-            place()
-        }
-
-        override func didMoveToWindow() {
-            super.didMoveToWindow()
-            place()
-        }
-
-        func place() {
-            guard let guest = guest else { return }
-            guard let host = window, let scene = host.windowScene, !bounds.isEmpty else {
-                guest.isHidden = true
-                return
-            }
-            if guest.windowScene !== scene {
-                _ = CPSObjC.catching { guest.windowScene = scene }
-            }
-            guest.windowLevel = host.windowLevel + 1
-            let rect = convert(bounds, to: nil)
-            if guest.frame != rect { guest.frame = rect }
-            guest.isHidden = false
-            if let overlay = overlay {
-                if overlay.superview !== guest { guest.addSubview(overlay) }
-                overlay.frame = guest.bounds
-                guest.bringSubviewToFront(overlay)
-            }
-        }
-
-        func hideGuest() {
-            guest?.isHidden = true
-            overlay?.removeFromSuperview()
-        }
+    func hideGuest() {
+        guest?.isHidden = true
+        overlay?.removeFromSuperview()
     }
+}
 
-    final class Coordinator {
-        var hosting: UIHostingController<CPMapOverlay>?
-        let regions = CPHitRegions()
-    }
+final class GuestWindowCoordinator {
+    var hosting: UIHostingController<AnyView>?
+    let regions = CPHitRegions()
+}
+
+
+/// Mostra una finestra dell'app ospite (CPWindow della mappa o finestra della Dashboard) come finestra
+/// vera della scena, sopra l'area occupata da questo segnaposto. (Annidarla come sottovista confonde
+/// i motori di Auto Layout delle due finestre.) `overlay` viene disegnato dentro la finestra, sopra
+/// il contenuto dell'app: riceve solo i tocchi sulle aree marcate con `cpsHitRegion()`.
+struct GuestWindowHost<Overlay: View>: UIViewRepresentable {
+    let window: UIWindow
+    let overlay: Overlay
+
+    typealias Coordinator = GuestWindowCoordinator
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeUIView(context: Context) -> Placeholder {
-        let view = Placeholder()
+    private func root(_ regions: CPHitRegions) -> AnyView {
+        AnyView(
+            overlay
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+                .coordinateSpace(name: CPHitRegions.space)
+                .onPreferenceChange(CPHitRegionKey.self) { regions.rects = $0 }
+        )
+    }
+
+    func makeUIView(context: Context) -> GuestWindowPlaceholder {
+        let view = GuestWindowPlaceholder()
         view.backgroundColor = .black
-        view.guest = session.window
-        let hosting = UIHostingController(rootView: CPMapOverlay(session: session, map: map, regions: context.coordinator.regions))
+        view.guest = window
+        let hosting = UIHostingController(rootView: root(context.coordinator.regions))
         hosting.view.backgroundColor = .clear
         hosting.overrideUserInterfaceStyle = .dark
-        let overlay = PassthroughView()
+        let overlay = GuestPassthroughView()
         overlay.backgroundColor = .clear
         hosting.view.frame = overlay.bounds
         hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -330,13 +344,13 @@ struct CarWindowHost: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: Placeholder, context: Context) {
-        context.coordinator.hosting?.rootView = CPMapOverlay(session: session, map: map, regions: context.coordinator.regions)
-        view.guest = session.window
+    func updateUIView(_ view: GuestWindowPlaceholder, context: Context) {
+        context.coordinator.hosting?.rootView = root(context.coordinator.regions)
+        view.guest = window
         view.place()
     }
 
-    static func dismantleUIView(_ view: Placeholder, coordinator: Coordinator) {
+    static func dismantleUIView(_ view: GuestWindowPlaceholder, coordinator: Coordinator) {
         view.hideGuest()
     }
 }
@@ -348,7 +362,7 @@ struct CPMapTemplateView: View {
     let map: CPMapTemplate
 
     var body: some View {
-        CarWindowHost(session: session, map: map)
+        GuestWindowHost(window: session.window, overlay: CPMapOverlay(session: session, map: map))
     }
 }
 
@@ -356,7 +370,6 @@ struct CPMapTemplateView: View {
 struct CPMapOverlay: View {
     @ObservedObject var session: GuestSession
     let map: CPMapTemplate
-    let regions: CPHitRegions
 
     var body: some View {
         let navigation = CPSHooks.navigationSession(for: map)
@@ -462,9 +475,6 @@ struct CPMapOverlay: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .ignoresSafeArea()
-        .coordinateSpace(name: CPHitRegions.space)
-        .onPreferenceChange(CPHitRegionKey.self) { regions.rects = $0 }
     }
 
     private var delegate: Any? { map.mapDelegate }

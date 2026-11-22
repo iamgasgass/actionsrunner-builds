@@ -68,6 +68,11 @@ static void CPSPostChange(void) {
     ((void (*)(id, SEL, id, NSInteger))objc_msgSend)(target, sel, a, value);
 }
 
++ (void)send:(id)target selector:(SEL)sel integer:(NSInteger)value {
+    if (!target || ![target respondsToSelector:sel]) return;
+    ((void (*)(id, SEL, NSInteger))objc_msgSend)(target, sel, value);
+}
+
 + (void)send:(id)target selector:(SEL)sel object:(id)a region:(MKCoordinateRegion)region {
     if (!target || ![target respondsToSelector:sel]) return;
     ((void (*)(id, SEL, id, MKCoordinateRegion))objc_msgSend)(target, sel, a, region);
@@ -380,6 +385,47 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 
 @end
 
+#pragma mark - Dashboard
+
+@implementation CPSDashboardController {
+    NSArray<CPDashboardButton *> *_cpsButtons;
+}
+
++ (instancetype)makeController {
+    return [self alloc];
+}
+
+- (NSArray<CPDashboardButton *> *)shortcutButtons { return _cpsButtons ?: @[]; }
+
+- (void)setShortcutButtons:(NSArray<CPDashboardButton *> *)shortcutButtons {
+    _cpsButtons = [shortcutButtons copy];
+    CPSPostChange();
+}
+
+@end
+
+@implementation CPSDashboardScene {
+    CPSDashboardController *_cpsController;
+    UIWindow *_cpsWindow;
+}
+
++ (instancetype)makeSceneWithController:(CPSDashboardController *)controller window:(UIWindow *)window {
+    CPSDashboardScene *scene = [self alloc];
+    scene->_cpsController = controller;
+    scene->_cpsWindow = window;
+    return scene;
+}
+
+- (CPDashboardController *)dashboardController { return _cpsController; }
+- (UIWindow *)dashboardWindow { return _cpsWindow; }
+- (id<UISceneDelegate>)delegate { return self.cps_delegate; }
+- (void)setDelegate:(id<UISceneDelegate>)delegate { self.cps_delegate = delegate; }
+- (UISceneActivationState)activationState { return UISceneActivationStateForegroundActive; }
+- (NSString *)title { return @"Dashboard"; }
+- (void)setTitle:(NSString *)title {}
+
+@end
+
 #pragma mark - CPSHooks
 
 static NSBundle *gGuestBundle;
@@ -504,16 +550,32 @@ static id h_startNav(id self, SEL _cmd, CPTrip *trip) {
     return session;
 }
 
+/// Notifica asincrona al mapDelegate, come fa CarPlay dopo le transizioni dell'interfaccia.
+static void CPSNotifyMapDelegate(id mapTemplate, NSString *selectorName) {
+    __weak id weakTemplate = mapTemplate;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        id t = weakTemplate;
+        if (!t) return;
+        id delegate = [CPSObjC get:t selector:NSSelectorFromString(@"mapDelegate")];
+        SEL sel = NSSelectorFromString(selectorName);
+        if (!delegate || ![delegate respondsToSelector:sel]) return;
+        @try { ((void (*)(id, SEL, id))objc_msgSend)(delegate, sel, t); } @catch (id e) {}
+    });
+}
+
 static void h_showPan(id self, SEL _cmd, BOOL animated) {
     CPSMapStateFor(self)[@"panning"] = @YES;
     CPSPostChange();
     @try { ((void (*)(id, SEL, BOOL))o_showPan)(self, _cmd, animated); } @catch (id e) {}
+    CPSNotifyMapDelegate(self, @"mapTemplateDidShowPanningInterface:");
 }
 
 static void h_dismissPan(id self, SEL _cmd, BOOL animated) {
     CPSMapStateFor(self)[@"panning"] = @NO;
     CPSPostChange();
+    CPSNotifyMapDelegate(self, @"mapTemplateWillDismissPanningInterface:");
     @try { ((void (*)(id, SEL, BOOL))o_dismissPan)(self, _cmd, animated); } @catch (id e) {}
+    CPSNotifyMapDelegate(self, @"mapTemplateDidDismissPanningInterface:");
 }
 
 static void h_presentAlert(id self, SEL _cmd, id alert, BOOL animated) {

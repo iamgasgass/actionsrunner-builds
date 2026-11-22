@@ -32,6 +32,7 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 + (void)send:(id)target selector:(SEL)sel object:(nullable id)a object:(nullable id)b object:(nullable id)c NS_SWIFT_NAME(send(_:_:_:_:_:));
 + (void)send:(id)target selector:(SEL)sel object:(nullable id)a flag:(BOOL)flag NS_SWIFT_NAME(send(_:_:_:flag:));
 + (void)send:(id)target selector:(SEL)sel object:(nullable id)a integer:(NSInteger)value NS_SWIFT_NAME(send(_:_:_:integer:));
++ (void)send:(id)target selector:(SEL)sel integer:(NSInteger)value NS_SWIFT_NAME(send(_:_:integer:));
 + (void)send:(id)target selector:(SEL)sel object:(nullable id)a region:(MKCoordinateRegion)region NS_SWIFT_NAME(send(_:_:_:region:));
 + (BOOL)sendLaunch:(id)target selector:(SEL)sel application:(UIApplication *)app NS_SWIFT_NAME(sendLaunch(_:_:application:));
 
@@ -68,6 +69,20 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 
 @interface CPSTemplateApplicationScene : CPTemplateApplicationScene
 + (instancetype)makeSceneWithController:(CPSInterfaceController *)controller
+                                 window:(UIWindow *)window NS_SWIFT_NAME(make(controller:window:));
+@property (nonatomic, strong, nullable) id cps_delegate;
+@end
+
+#pragma mark - Dashboard CarPlay
+
+/// CPDashboardController simulato: conserva le scorciatoie impostate dall'app.
+@interface CPSDashboardController : CPDashboardController
++ (instancetype)makeController NS_SWIFT_NAME(make());
+@end
+
+/// Scena Dashboard simulata (CPTemplateApplicationDashboardScene).
+@interface CPSDashboardScene : CPTemplateApplicationDashboardScene
++ (instancetype)makeSceneWithController:(CPSDashboardController *)controller
                                  window:(UIWindow *)window NS_SWIFT_NAME(make(controller:window:));
 @property (nonatomic, strong, nullable) id cps_delegate;
 @end

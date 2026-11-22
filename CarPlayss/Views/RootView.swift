@@ -7,6 +7,7 @@ struct RootView: View {
     @EnvironmentObject var media: MediaController
     @EnvironmentObject var nav: NavigationModel
     @EnvironmentObject var assistant: VoiceAssistant
+    @EnvironmentObject var runtime: GuestRuntime
 
     var body: some View {
         GeometryReader { geo in
@@ -35,6 +36,7 @@ struct RootView: View {
         .onAppear(perform: wireUp)
         .onChange(of: settings.simulationSpeed) { nav.simulationMultiplier = $0 }
         .onChange(of: settings.spokenFeedback) { assistant.speakResponses = $0 }
+        .onChange(of: settings.appearance) { runtime.contentStyleChanged(dark: $0 != .light) }
     }
 
     private var screen: some View {
