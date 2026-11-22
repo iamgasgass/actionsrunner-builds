@@ -123,12 +123,44 @@ struct SettingsView: View {
     @EnvironmentObject var settings: SettingsStore
     @EnvironmentObject var media: MediaController
     @EnvironmentObject var location: LocationManager
+    @EnvironmentObject var library: AppLibrary
+    @EnvironmentObject var runtime: GuestRuntime
+    @State private var showManager = false
 
     var body: some View {
+        if showManager {
+            AppManagerView { showManager = false }
+        } else {
+            settingsList
+        }
+    }
+
+    private var settingsList: some View {
         VStack(spacing: 0) {
             AppHeader(title: "Impostazioni")
             ScrollView {
                 VStack(spacing: 14) {
+                    section("App CarPlay") {
+                        Button { showManager = true } label: {
+                            HStack {
+                                Image(systemName: "square.and.arrow.down.on.square.fill")
+                                    .foregroundColor(.white)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color.blue, in: RoundedRectangle(cornerRadius: 7))
+                                Text("Installa e gestisci app").font(.system(size: 16))
+                                Spacer()
+                                Text("\(library.apps.count)").foregroundStyle(.secondary)
+                                Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 52)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        Divider()
+                        toggleRow("Avvia l'AppDelegate delle app", isOn: $settings.runGuestAppDelegate)
+                    }
+
                     section("Display") {
                         pickerRow("Risoluzione", selection: $settings.displayPreset, options: DisplayPreset.allCases) { $0.title }
                         Divider()
@@ -200,7 +232,7 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
 
-                    Text("CarPlay Sim \(version) · simulatore non ufficiale, non affiliato ad Apple. Pensato per LiveContainer.")
+                    Text("CarPlayss \(version) · simulatore non ufficiale, non affiliato ad Apple. Pensato per LiveContainer.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -209,10 +241,11 @@ struct SettingsView: View {
                 .padding(14)
             }
         }
+        .onChange(of: settings.runGuestAppDelegate) { runtime.runAppDelegate = $0 }
     }
 
     private var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        CPSHooks.hostBundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
     }
 
     private var locationText: String {

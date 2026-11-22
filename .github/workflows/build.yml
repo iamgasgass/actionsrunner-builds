@@ -11,14 +11,14 @@ permissions:
   contents: write
 
 env:
-  APP_NAME: CarPlaySim
-  SCHEME: CarPlaySim
+  APP_NAME: CarPlayss
+  SCHEME: CarPlayss
 
 jobs:
   build:
     name: Build IPA
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
@@ -50,7 +50,10 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGN_ENTITLEMENTS="" \
             clean build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: unable|BUILD (SUCCEEDED|FAILED)" || true
-          grep -q "BUILD SUCCEEDED" xcodebuild.log || { tail -n 200 xcodebuild.log; exit 1; }
+          grep -q "BUILD SUCCEEDED" xcodebuild.log || { grep -E "error:" xcodebuild.log | head -n 80; tail -n 80 xcodebuild.log; exit 1; }
+
+      - name: Embed CarPlay apps (EmbeddedApps/*.ipa)
+        run: python3 scripts/embed_carplay_apps.py "build/Build/Products/Release-iphoneos/$APP_NAME.app" EmbeddedApps
 
       - name: Package IPA
         run: |

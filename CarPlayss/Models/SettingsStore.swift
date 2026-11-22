@@ -96,6 +96,9 @@ final class SettingsStore: ObservableObject {
     @Published var use24h: Bool {
         didSet { defaults.set(use24h, forKey: "use24h") }
     }
+    @Published var runGuestAppDelegate: Bool {
+        didSet { defaults.set(runGuestAppDelegate, forKey: "runGuestAppDelegate") }
+    }
 
     var wallpaper: Wallpaper {
         Wallpaper.all.indices.contains(wallpaperIndex) ? Wallpaper.all[wallpaperIndex] : Wallpaper.all[0]
@@ -110,5 +113,6 @@ final class SettingsStore: ObservableObject {
         spokenFeedback = defaults.object(forKey: "spokenFeedback") as? Bool ?? true
         simulationSpeed = defaults.object(forKey: "simulationSpeed") as? Double ?? 4
         use24h = defaults.object(forKey: "use24h") as? Bool ?? true
+        runGuestAppDelegate = defaults.object(forKey: "runGuestAppDelegate") as? Bool ?? true
     }
 }

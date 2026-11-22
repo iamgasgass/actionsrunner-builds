@@ -52,6 +52,8 @@ struct CarScreenView: View {
             DashboardView()
         case .app(let app):
             AppContainer(app: app)
+        case .guest(let id):
+            GuestAppView(appID: id)
         }
     }
 }

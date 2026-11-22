@@ -401,7 +401,7 @@ final class NavigationModel: NSObject, ObservableObject {
 }
 
 extension Notification.Name {
-    static let navigationArrived = Notification.Name("CarPlaySim.navigationArrived")
+    static let navigationArrived = Notification.Name("CarPlayss.navigationArrived")
 }
 
 enum Formatters {

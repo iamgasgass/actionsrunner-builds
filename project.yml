@@ -1,17 +1,22 @@
-name: CarPlaySim
+name: CarPlayss
 
 options:
-  bundleIdPrefix: com.carplaysim
+  bundleIdPrefix: com.iamgasgass
   deploymentTarget:
     iOS: "16.0"
   createIntermediateGroups: true
   developmentLanguage: it
 
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: 0.9.19
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "2.0.0"
+    CURRENT_PROJECT_VERSION: "2"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
     # Build unsigned: l'IPA viene firmata da LiveContainer / SideStore / AltStore
     CODE_SIGNING_ALLOWED: "NO"
@@ -21,37 +26,49 @@ settings:
     DEVELOPMENT_TEAM: ""
     ENABLE_BITCODE: "NO"
     ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    CLANG_ENABLE_OBJC_ARC: "YES"
 
 targets:
-  CarPlaySim:
+  CarPlayss:
     type: application
     platform: iOS
     sources:
-      - path: CarPlaySim
+      - path: CarPlayss
+    dependencies:
+      - package: ZIPFoundation
+      - sdk: CarPlay.framework
+      - sdk: MediaPlayer.framework
+      - sdk: MapKit.framework
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.carplaysim.app
-        PRODUCT_NAME: CarPlaySim
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.carplayss
+        PRODUCT_NAME: CarPlayss
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         GENERATE_INFOPLIST_FILE: "NO"
         SUPPORTS_MACCATALYST: "NO"
+        SWIFT_OBJC_BRIDGING_HEADER: CarPlayss/ObjC/CarPlayss-Bridging-Header.h
+        # Le app CarPlay caricate a runtime usano simboli dell'host: niente dead-strip aggressivo
+        DEAD_CODE_STRIPPING: "NO"
     info:
       path: Support/Info.plist
       properties:
-        CFBundleDisplayName: CarPlay Sim
-        CFBundleName: CarPlaySim
+        CFBundleDisplayName: CarPlayss
+        CFBundleName: CarPlayss
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: it
         LSRequiresIPhoneOS: true
         ITSAppUsesNonExemptEncryption: false
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBlack
         UIRequiresFullScreen: true
         UIStatusBarHidden: true
         UIViewControllerBasedStatusBarAppearance: false
         UIUserInterfaceStyle: Dark
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: false
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UISupportedInterfaceOrientations:
@@ -62,7 +79,16 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIBackgroundModes:
           - audio
-        NSLocationWhenInUseUsageDescription: La posizione viene usata per mostrarti sulla mappa e calcolare i percorsi.
-        NSMicrophoneUsageDescription: Il microfono serve all'assistente vocale per ascoltare i comandi.
+          - location
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: iOS App Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes:
+              - com.apple.itunes.ipa
+        NSLocationWhenInUseUsageDescription: La posizione viene usata da Mappe e dalle app di navigazione CarPlay.
+        NSLocationAlwaysAndWhenInUseUsageDescription: La posizione viene usata dalle app di navigazione CarPlay anche in background.
+        NSMicrophoneUsageDescription: Il microfono serve a Siri e alle app CarPlay che usano la voce.
         NSSpeechRecognitionUsageDescription: Il riconoscimento vocale trasforma i tuoi comandi in testo.
         NSAppleMusicUsageDescription: L'accesso alla libreria musicale permette di riprodurre i tuoi brani.
+        NSContactsUsageDescription: Alcune app CarPlay mostrano i tuoi contatti.
