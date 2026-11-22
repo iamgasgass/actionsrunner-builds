@@ -212,6 +212,36 @@ struct CPNowPlayingView: View {
     }
 }
 
+// MARK: - Aree toccabili dello strato controlli
+
+/// Rettangoli (nello spazio dello strato) occupati dai controlli SwiftUI sopra la mappa.
+final class CPHitRegions {
+    static let space = "cpsMapOverlay"
+    var rects: [CGRect] = []
+
+    func contains(_ point: CGPoint) -> Bool {
+        rects.contains { $0.insetBy(dx: -4, dy: -4).contains(point) }
+    }
+}
+
+struct CPHitRegionKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension View {
+    /// Segna la vista come toccabile quando sta sopra la mappa dell'app.
+    func cpsHitRegion() -> some View {
+        background(
+            GeometryReader { g in
+                Color.clear.preference(key: CPHitRegionKey.self, value: [g.frame(in: .named(CPHitRegions.space))])
+            }
+        )
+    }
+}
+
 // MARK: - Finestra dell'auto (app di navigazione)
 
 /// Mostra la CPWindow dell'app come finestra vera della scena, sopra l'area del template mappa,
@@ -221,13 +251,16 @@ struct CarWindowHost: UIViewRepresentable {
     @ObservedObject var session: GuestSession
     let map: CPMapTemplate
 
-    /// Lascia passare i tocchi alla mappa dove lo strato dei controlli è vuoto.
+    /// Intercetta solo i tocchi sui controlli (aree comunicate dalla vista SwiftUI); il resto va alla mappa.
     final class PassthroughView: UIView {
         weak var content: UIView?
+        var regions: CPHitRegions?
 
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-            let hit = super.hitTest(point, with: event)
-            return (hit === self || hit === content) ? nil : hit
+            guard let content = content, let regions = regions else { return nil }
+            let p = convert(point, to: content)
+            guard regions.contains(p) else { return nil }
+            return content.hitTest(p, with: event) ?? content
         }
     }
 
@@ -273,6 +306,7 @@ struct CarWindowHost: UIViewRepresentable {
 
     final class Coordinator {
         var hosting: UIHostingController<CPMapOverlay>?
+        let regions = CPHitRegions()
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -281,7 +315,7 @@ struct CarWindowHost: UIViewRepresentable {
         let view = Placeholder()
         view.backgroundColor = .black
         view.guest = session.window
-        let hosting = UIHostingController(rootView: CPMapOverlay(session: session, map: map))
+        let hosting = UIHostingController(rootView: CPMapOverlay(session: session, map: map, regions: context.coordinator.regions))
         hosting.view.backgroundColor = .clear
         hosting.overrideUserInterfaceStyle = .dark
         let overlay = PassthroughView()
@@ -290,13 +324,14 @@ struct CarWindowHost: UIViewRepresentable {
         hosting.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         overlay.addSubview(hosting.view)
         overlay.content = hosting.view
+        overlay.regions = context.coordinator.regions
         view.overlay = overlay
         context.coordinator.hosting = hosting
         return view
     }
 
     func updateUIView(_ view: Placeholder, context: Context) {
-        context.coordinator.hosting?.rootView = CPMapOverlay(session: session, map: map)
+        context.coordinator.hosting?.rootView = CPMapOverlay(session: session, map: map, regions: context.coordinator.regions)
         view.guest = session.window
         view.place()
     }
@@ -321,6 +356,7 @@ struct CPMapTemplateView: View {
 struct CPMapOverlay: View {
     @ObservedObject var session: GuestSession
     let map: CPMapTemplate
+    let regions: CPHitRegions
 
     var body: some View {
         let navigation = CPSHooks.navigationSession(for: map)
@@ -337,13 +373,14 @@ struct CPMapOverlay: View {
                         Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold))
                     }
                     .buttonStyle(CPCapsuleButtonStyle())
+                    .cpsHitRegion()
                 }
                 ForEach(Array((CPSObjC.get(map, NSSelectorFromString("leadingNavigationBarButtons")) as? [CPBarButton] ?? []).enumerated()), id: \.offset) { _, b in
-                    CPBarButtonView(button: b, session: session)
+                    CPBarButtonView(button: b, session: session).cpsHitRegion()
                 }
                 Spacer()
                 ForEach(Array((CPSObjC.get(map, NSSelectorFromString("trailingNavigationBarButtons")) as? [CPBarButton] ?? []).enumerated()), id: \.offset) { _, b in
-                    CPBarButtonView(button: b, session: session)
+                    CPBarButtonView(button: b, session: session).cpsHitRegion()
                 }
             }
             .padding(10)
@@ -352,13 +389,13 @@ struct CPMapOverlay: View {
             VStack(alignment: .leading, spacing: 8) {
                 Spacer().frame(height: 52)
                 if let navigation = navigation {
-                    guidancePanel(navigation)
+                    guidancePanel(navigation).cpsHitRegion()
                 } else if !trips.isEmpty {
-                    tripPanel(trips)
+                    tripPanel(trips).cpsHitRegion()
                 }
                 Spacer(minLength: 0)
                 if navigation != nil, let estimates = CPSHooks.tripEstimates(for: map) {
-                    estimatesPanel(estimates)
+                    estimatesPanel(estimates).cpsHitRegion()
                 }
             }
             .padding(10)
@@ -386,6 +423,7 @@ struct CPMapOverlay: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(!button.isEnabled)
+                            .cpsHitRegion()
                         }
                     }
                 }
@@ -403,6 +441,7 @@ struct CPMapOverlay: View {
             // Alert / action sheet presentati sopra la mappa (la CPWindow copre la finestra principale)
             if let presented = session.presented {
                 CPPresentedView(session: session, template: presented)
+                    .cpsHitRegion()
             }
 
             if let err = session.lastError {
@@ -417,11 +456,15 @@ struct CPMapOverlay: View {
                     }
                     .padding(10)
                     .background(Color(white: 0.15), in: RoundedRectangle(cornerRadius: 10))
+                    .cpsHitRegion()
                     .padding(10)
                 }
                 .frame(maxWidth: .infinity)
             }
         }
+        .ignoresSafeArea()
+        .coordinateSpace(name: CPHitRegions.space)
+        .onPreferenceChange(CPHitRegionKey.self) { regions.rects = $0 }
     }
 
     private var delegate: Any? { map.mapDelegate }
@@ -585,6 +628,7 @@ struct CPMapOverlay: View {
                 .background(Circle().fill(Color(white: 0.16).opacity(0.95)))
         }
         .buttonStyle(.plain)
+        .cpsHitRegion()
     }
 
     private func navigationAlert(_ alert: CPNavigationAlert) -> some View {
@@ -615,6 +659,7 @@ struct CPMapOverlay: View {
             .padding(14)
             .frame(width: 360)
             .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(CP.panel))
+            .cpsHitRegion()
             .padding(.bottom, 16)
         }
         .frame(maxWidth: .infinity)
