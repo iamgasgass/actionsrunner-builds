@@ -17,6 +17,12 @@ final class AltLabelAnnotation: MLNPointAnnotation {
 final class MapController {
     weak var mapView: MLNMapView?
     weak var state: AppState?
+    /// Mappa dello schermo di CarPlay (stessa interfaccia orizzontale del telefono): riceve le stesse azioni
+    /// di questa (percorso, segnaposto, risultati, inquadrature di guida, zoom…). È impostata solo sul
+    /// controller del telefono mentre CarPlay è collegato.
+    var mirror: MapController?
+    /// chiamato quando la mappa viene collegata (CarPlay la usa per mostrare subito lo stato attuale)
+    var onAttach: (() -> Void)?
 
     private(set) var routeCoordinates: [CLLocationCoordinate2D] = []
     private(set) var alternativeCoordinates: [[CLLocationCoordinate2D]] = []
@@ -43,6 +49,7 @@ final class MapController {
 
     func attach(_ map: MLNMapView) {
         mapView = map
+        if let cb = onAttach { DispatchQueue.main.async { cb() } }
     }
 
     // MARK: - Camera
@@ -57,6 +64,7 @@ final class MapController {
     }
 
     func recenter() {
+        defer { mirror?.recenter() }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         setBottomInset(0)
         if let loc = m.userLocation?.location ?? state?.location.location {
@@ -80,6 +88,7 @@ final class MapController {
 
     /// Applica i livelli scelti: satellite (con strade ed etichette sopra), trasporti pubblici, piste ciclabili
     func applyLayers() {
+        defer { mirror?.applyLayers() }   // stessa azione sulla mappa di CarPlay
         guard let style = mapView?.style else { return }
         let sat = Prefs.bool(Prefs.layerSatellite, default: false)
         let transit = Prefs.bool(Prefs.layerTransit, default: false)
@@ -150,6 +159,7 @@ final class MapController {
     private var altLabels: [AltLabelAnnotation] = []
 
     func showAltLabels(_ items: [(coordinate: CLLocationCoordinate2D, text: String, index: Int)]) {
+        defer { mirror?.showAltLabels(items) }   // stessa azione sulla mappa di CarPlay
         clearAltLabels()
         guard let m = mapView else { return }
         altLabels = items.map { item in
@@ -163,6 +173,7 @@ final class MapController {
     }
 
     func clearAltLabels() {
+        defer { mirror?.clearAltLabels() }   // stessa azione sulla mappa di CarPlay
         guard !altLabels.isEmpty else { return }
         mapView?.removeAnnotations(altLabels)
         altLabels = []
@@ -173,6 +184,7 @@ final class MapController {
     static let measureSourceID = "gm-measure"
 
     func drawMeasure(_ points: [CLLocationCoordinate2D]) {
+        defer { mirror?.drawMeasure(points) }   // stessa azione sulla mappa di CarPlay
         guard let style = mapView?.style else { return }
         var coords = points
         let shape: MLNShape? = coords.count > 1 ? MLNPolylineFeature(coordinates: &coords, count: UInt(coords.count)) : nil
@@ -209,6 +221,7 @@ final class MapController {
 
     /// Dalla modalità bussola: nord in alto continuando a seguire la posizione
     func resetNorthFollowing() {
+        defer { mirror?.resetNorthFollowing() }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         m.setUserTrackingMode(.follow, animated: true, completionHandler: nil)
         m.setDirection(0, animated: true)
@@ -216,6 +229,7 @@ final class MapController {
     }
 
     func setTracking(_ t: TrackingState) {
+        defer { mirror?.setTracking(t) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         switch t {
         case .none: m.setUserTrackingMode(.none, animated: true, completionHandler: nil)
@@ -226,6 +240,7 @@ final class MapController {
     }
 
     func fly(to coordinate: CLLocationCoordinate2D) {
+        defer { mirror?.fly(to: coordinate) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         m.setUserTrackingMode(.none, animated: false, completionHandler: nil)
         state?.tracking = .none
@@ -246,6 +261,7 @@ final class MapController {
     private var lastBottomInset: CGFloat = 0
 
     func setBottomInset(_ bottom: CGFloat) {
+        defer { mirror?.setBottomInset(bottom) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         lastBottomInset = bottom
         if isLandscape {
@@ -275,6 +291,7 @@ final class MapController {
     // MARK: - Pin
 
     func showPin(_ place: Place) {
+        defer { mirror?.showPin(place) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         removePin()
         let a = MLNPointAnnotation()
@@ -293,6 +310,7 @@ final class MapController {
     }
 
     func removePin() {
+        defer { mirror?.removePin() }   // stessa azione sulla mappa di CarPlay
         if let a = pinAnnotation { mapView?.removeAnnotation(a) }
         pinAnnotation = nil
     }
@@ -305,6 +323,7 @@ final class MapController {
 
     /// Percorso scelto (colore del tema) + alternative (grigie, toccabili) come in Google Maps
     func showRoute(_ coordinates: [CLLocationCoordinate2D], alternatives: [[CLLocationCoordinate2D]], overview: Bool) {
+        defer { mirror?.showRoute(coordinates, alternatives: alternatives, overview: overview) }   // stessa azione sulla mappa di CarPlay
         routeCoordinates = coordinates
         alternativeCoordinates = alternatives.filter { $0.count > 1 }
         guard let m = mapView else { return }
@@ -435,6 +454,7 @@ final class MapController {
     }
 
     func clearRoute() {
+        defer { mirror?.clearRoute() }   // stessa azione sulla mappa di CarPlay
         routeCoordinates = []
         alternativeCoordinates = []
         guard let style = mapView?.style else { return }
@@ -472,6 +492,7 @@ final class MapController {
     // MARK: - Risultati di ricerca
 
     func showResults(_ items: [MKMapItem]) {
+        defer { mirror?.showResults(items) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         clearResults()
         removePin()
@@ -505,6 +526,7 @@ final class MapController {
     }
 
     func clearResults() {
+        defer { mirror?.clearResults() }   // stessa azione sulla mappa di CarPlay
         if !resultAnnotations.isEmpty { mapView?.removeAnnotations(resultAnnotations) }
         resultAnnotations = []
     }
@@ -521,6 +543,7 @@ final class MapController {
     }
 
     func resetNorth() {
+        defer { mirror?.resetNorth() }   // stessa azione sulla mappa di CarPlay
         mapView?.resetNorth()
     }
 
@@ -551,6 +574,7 @@ final class MapController {
 
     /// Zoom in base alla velocità (più lontano in autostrada, più vicino in città), come Google Maps
     func adjustNavigationZoom(speedKmh: Int, walking: Bool) {
+        defer { mirror?.adjustNavigationZoom(speedKmh: speedKmh, walking: walking) }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView, state?.tracking == .heading else { return }
         let z: Double
         if walking { z = 18 }
@@ -563,6 +587,7 @@ final class MapController {
 
     /// Il tratto già percorso sparisce dietro la freccia (come Google Maps)
     func trimRoute(from point: CLLocationCoordinate2D, index: Int) {
+        defer { mirror?.trimRoute(from: point, index: index) }   // stessa azione sulla mappa di CarPlay
         guard routeCoordinates.count > 1, let style = mapView?.style,
               let source = style.source(withIdentifier: MapController.routeSourceID) as? MLNShapeSource else { return }
         let rest = index + 1 < routeCoordinates.count ? Array(routeCoordinates[(index + 1)...]) : []
@@ -572,6 +597,7 @@ final class MapController {
     }
 
     func startNavigation() {
+        defer { mirror?.startNavigation() }   // stessa azione sulla mappa di CarPlay
         guard let m = mapView else { return }
         applyNavigationInsets()
         if let loc = m.userLocation?.location ?? state?.location.location {

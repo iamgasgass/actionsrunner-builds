@@ -1,57 +1,47 @@
 import UIKit
+import SwiftUI
 import CarPlay
 import MapKit
+import MapLibre
 import Combine
 
-/// CarPlay come app di navigazione completa:
-/// - schermo principale: mappa col tema scelto, centra / zoom / sposta (pulsanti, frecce e gesti touch),
-///   "Destinazioni" (Casa, Lavoro, Parcheggio, Nei dintorni, Salvati, Recenti) e ricerca;
-/// - anteprima del viaggio con i percorsi alternativi (anche quella scelta sul telefono), "Avvia";
-/// - guida svolta per svolta nelle schede di CarPlay con le istruzioni di Apple Maps del telefono,
-///   distanze e orario aggiornati, ricalcolo, panoramica, arrivo;
-/// - notifiche della prossima manovra quando sullo schermo dell'auto c'è un'altra app;
-/// - metadati di navigazione (iOS 17.4+) per quadro strumenti e head-up display;
-/// - widget nella Dashboard di CarPlay (mappa + scorciatoie Casa/Lavoro) e mappa nel quadro strumenti.
-/// La guida è una sola: avviata o terminata dal telefono o dall'auto, gli altri schermi la seguono.
+/// CarPlay di GassMaps = la schermata principale dell'app in orizzontale, identica al telefono e sincronizzata con esso
+/// (CarLandscapeScreen: mappa del tema, barra, chip, scheda del luogo, indicazioni, banner di guida, pannello di guida,
+/// tachimetro, pulsanti laterali).
+///
+/// CarPlay non passa i tocchi alle viste dell'app, quindi i comandi sono:
+/// - pulsanti di CarPlay in alto e sulla destra, diversi secondo la schermata e collegati alle stesse funzioni
+///   dei pulsanti del telefono (Avvia, Indicazioni, Percorsi, Termina, voce, panoramica, percorsi alternativi, centra…);
+/// - elenchi di CarPlay per scegliere: Destinazioni, Nei dintorni, ricerca, risultati, percorsi;
+/// - gesti sulla mappa: trascina, pizzica, frecce del pannello "Sposta".
+/// Le barre di CarPlay si nascondono da sole dopo qualche secondo, lasciando visibile solo l'interfaccia di GassMaps.
+///
+/// Inoltre: mappa nel widget della Dashboard di CarPlay (con scorciatoie Casa/Lavoro) e nel quadro strumenti.
 @MainActor
 final class CarPlayManager: NSObject {
     static let shared = CarPlayManager()
 
     private let state = AppState.shared
     private var interface: CPInterfaceController?
-    private var mapVC: CarPlayMapViewController?
     private var mapTemplate: CPMapTemplate?
-    private var session: CPNavigationSession?
-    private var trip: CPTrip?
-    /// viaggio avviato dall'auto, in attesa che la navigazione parta sul telefono
-    private var pendingTrip: CPTrip?
+    private var carScreen: CarScreenContext?
+    private var cancellables = Set<AnyCancellable>()
+    private var panning = false
+    /// "Percorsi alternativi" chiesti dall'auto: quando arrivano si mostra l'elenco
+    private var wantsAlternativesList = false
     /// destinazione scelta dalla Dashboard prima che lo schermo principale fosse collegato
     private var pendingPlace: Place?
-    private var cancellables = Set<AnyCancellable>()
-    private var contentStyle: UIUserInterfaceStyle = .dark
+    // gesti sullo schermo touch dell'auto
+    private var dragStart: CGPoint?
+    private var zoomStart: Double?
 
     // mappe secondarie (Dashboard, quadro strumenti)
     private var dashboardVC: CarPlayMapViewController?
     private var dashboardController: CPDashboardController?
     private var clusterVC: CarPlayMapViewController?
     private var clusterController: CPInstrumentClusterController?
-
-    // anteprima
-    private var previewRoutes: [RouteInfo] = []
-    private var previewPlace: Place?
-    private var previewItem: MKMapItem?
-    /// anteprima mostrata perché sul telefono c'è il pannello "Indicazioni"
-    private var previewFromPhone = false
-    private var previewTrip: CPTrip?
-
-    // guida
-    private var routeManeuvers: [CPManeuver] = []
-    private var maneuversRouteID: UUID?
-    private var shownStep = -1
-    private var shownStepRouteID: UUID?
-    private var routeCumulative: [Double] = []
-    private var arrivalShown = false
-    private var panning = false
+    private var secondaryRouteID: UUID?
+    private var secondaryCumulative: [Double] = []
 
     // ricerca
     private let completer = MKLocalSearchCompleter()
@@ -68,68 +58,74 @@ final class CarPlayManager: NSObject {
 
     // MARK: - Schermo principale
 
-    func connect(_ interfaceController: CPInterfaceController, window: CPWindow, contentStyle: UIUserInterfaceStyle) {
+    func connect(_ interfaceController: CPInterfaceController, window: CPWindow) {
         interface = interfaceController
-        self.contentStyle = contentStyle
         state.location.setCarPlay(true)
 
-        let vc = CarPlayMapViewController(state: state, role: .main)
-        window.rootViewController = vc
-        mapVC = vc
+        // mappa dell'auto: riceve le stesse azioni della mappa del telefono
+        let ctx = CarScreenContext(state: state)
+        carScreen = ctx
+        state.map.mirror = ctx.map
+        ctx.map.onAttach = { [weak self] in self?.replayState() }
+        window.rootViewController = CarLandscapeHost.make(state: state, context: ctx)
 
-        // le mappe dei temi sono scure: interfaccia di CarPlay scura per coerenza
         interfaceController.prefersDarkUserInterfaceStyle = true
-
         let t = CPMapTemplate()
         t.mapDelegate = self
-        t.automaticallyHidesNavigationBar = false
-        t.hidesButtonsWithNavigationBar = false
-        t.guidanceBackgroundColor = state.theme.accent
-        t.tripEstimateStyle = contentStyle == .light ? .light : .dark
+        // barre e pulsanti di CarPlay compaiono al tocco e poi si nascondono: resta l'interfaccia di GassMaps
+        t.automaticallyHidesNavigationBar = true
+        t.hidesButtonsWithNavigationBar = true
         mapTemplate = t
         refreshButtons()
         interfaceController.setRootTemplate(t, animated: false, completion: nil)
 
         observe()
-        if state.panel == .navigating {
-            beginSession()
-        } else {
-            syncPhonePreview()
+        // app avviata dall'auto senza passare dal telefono: si chiude l'intestazione d'avvio come farebbe lo splash
+        if state.showHeader {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.2) { [weak self] in
+                withAnimation(.easeInOut(duration: 0.45)) { self?.state.showHeader = false }
+            }
         }
         checkLocationPermission()
         if let p = pendingPlace {
             pendingPlace = nil
-            preview(p, item: nil)
+            state.go(to: p)
         }
     }
 
     func disconnect() {
-        session = nil
-        trip = nil
-        pendingTrip = nil
-        previewRoutes = []
-        previewTrip = nil
-        previewFromPhone = false
-        routeManeuvers = []
-        maneuversRouteID = nil
-        shownStep = -1
-        shownStepRouteID = nil
+        if state.map.mirror === carScreen?.map { state.map.mirror = nil }
+        carScreen = nil
         searchHandler = nil
+        wantsAlternativesList = false
+        dragStart = nil
+        zoomStart = nil
         mapTemplate = nil
-        mapVC = nil
         interface = nil
         afterScreenChange()
     }
 
-    func contentStyleChanged(_ style: UIUserInterfaceStyle) {
-        contentStyle = style
-        mapTemplate?.tripEstimateStyle = style == .light ? .light : .dark
+    /// La mappa dell'auto appena collegata mostra subito quello che mostra il telefono
+    private func replayState() {
+        guard let car = carScreen?.map else { return }
+        let phone = state.map
+        if !state.searchResults.isEmpty && state.panel == .results { car.showResults(state.searchResults) }
+        if let p = state.pinnedPlace, state.panel != .none { car.showPin(p) }
+        if phone.routeCoordinates.count > 1 {
+            car.showRoute(phone.routeCoordinates, alternatives: phone.alternativeCoordinates,
+                          overview: state.panel == .directions)
+        }
+        if state.panel == .navigating {
+            car.startNavigation()
+        } else if state.panel == .pinned || state.panel == .results || state.panel == .saved || state.panel == .myLocation {
+            car.setBottomInset(330)
+        }
+        if state.measuring { car.drawMeasure(state.measurePoints) }
     }
 
-    /// La guida è iniziata o la manovra è stata toccata in una notifica: si torna alla mappa
+    /// Manovra o avviso toccati in una notifica di CarPlay: si torna alla mappa
     func showGuidance() {
         interface?.popToRootTemplate(animated: true, completion: nil)
-        mapVC?.recenter()
     }
 
     private func checkLocationPermission() {
@@ -143,6 +139,326 @@ final class CarPlayManager: NSObject {
         }
     }
 
+    // MARK: - Osservazione dello stato
+
+    private func observe() {
+        guard cancellables.isEmpty else { return }
+        // receive(on:) → si legge lo stato dopo che è stato aggiornato (@Published avvisa prima)
+        state.$panel.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.panelChanged() }.store(in: &cancellables)
+        state.$voiceMuted.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshButtons() }.store(in: &cancellables)
+        state.$tracking.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshButtons() }.store(in: &cancellables)
+        state.$navAlternatives.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.alternativesChanged() }.store(in: &cancellables)
+        state.$routes.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.syncSecondaryMaps() }.store(in: &cancellables)
+        state.$progress.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateSecondaryProgress() }.store(in: &cancellables)
+        state.$themeIndex.receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                for vc in [self.dashboardVC, self.clusterVC].compactMap({ $0 }) { vc.applyTheme() }
+            }.store(in: &cancellables)
+        state.$home.combineLatest(state.$work, state.$parking).receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refreshDashboardButtons() }.store(in: &cancellables)
+    }
+
+    private func panelChanged() {
+        refreshButtons()
+        syncSecondaryMaps()
+        refreshDashboardButtons()
+        // la guida è partita (dal telefono o dall'auto): via gli elenchi aperti, si vede la guida
+        if state.panel == .navigating { interface?.popToRootTemplate(animated: true, completion: nil) }
+    }
+
+    // MARK: - Pulsanti di CarPlay (le stesse funzioni dei pulsanti del telefono)
+
+    private func bar(_ title: String, _ action: @escaping (CarPlayManager) -> Void) -> CPBarButton {
+        CPBarButton(title: title) { [weak self] _ in if let self = self { action(self) } }
+    }
+
+    private func bar(icon: String, _ action: @escaping (CarPlayManager) -> Void) -> CPBarButton {
+        CPBarButton(image: symbol(icon)) { [weak self] _ in if let self = self { action(self) } }
+    }
+
+    private func mapButton(_ icon: String, _ action: @escaping (CarPlayManager) -> Void) -> CPMapButton {
+        let b = CPMapButton { [weak self] _ in if let self = self { action(self) } }
+        b.image = symbol(icon)
+        return b
+    }
+
+    private func refreshButtons() {
+        guard let t = mapTemplate else { return }
+        var leading: [CPBarButton] = []
+        var trailing: [CPBarButton] = []
+
+        switch state.panel {
+        case .navigating:
+            // come i pulsanti laterali della guida: voce, panoramica, percorsi alternativi; "Termina percorso"
+            leading = [bar(icon: state.voiceMuted ? "speaker.slash.fill" : "speaker.wave.2.fill") { $0.state.voiceMuted.toggle() },
+                       bar(icon: "map.fill") { $0.state.showRouteOverview() }]
+            trailing = [bar(icon: "arrow.triangle.branch") { $0.requestAlternatives() },
+                        bar("Termina") { $0.state.endNavigation() }]
+        case .directions:
+            // pannello "Indicazioni": annulla, scelta del percorso, Avvia
+            leading = [bar("Annulla") { $0.state.dismissPanel() },
+                       bar("Percorsi") { $0.showRouteChoices() }]
+            trailing = [bar("Avvia") { $0.state.startNavigation() }]
+        case .pinned:
+            // scheda del luogo: chiudi, cerca; Indicazioni e Avvia
+            leading = [bar("Chiudi") { $0.state.dismissPanel() },
+                       bar(icon: "magnifyingglass") { $0.showSearch() }]
+            trailing = [bar("Indicazioni") { $0.state.requestDirections() },
+                        bar("Avvia") { $0.state.startDirectly() }]
+        case .results:
+            leading = [bar("Chiudi") { $0.state.closeResults() },
+                       bar(icon: "magnifyingglass") { $0.showSearch() }]
+            trailing = [bar("Risultati") { $0.showSearchResults() }]
+        case .saved, .myLocation:
+            leading = [bar("Chiudi") { $0.state.dismissPanel() },
+                       bar("Destinazioni") { $0.showDestinations() }]
+            trailing = [bar(icon: "magnifyingglass") { $0.showSearch() }]
+        case .none:
+            leading = [bar("Destinazioni") { $0.showDestinations() }]
+            trailing = [bar(icon: "magnifyingglass") { $0.showSearch() }]
+        }
+        t.leadingNavigationBarButtons = leading
+        t.trailingNavigationBarButtons = trailing
+
+        // a destra: posizione/riposiziona (stesso pulsante del telefono), zoom, sposta
+        let locate: CPMapButton
+        if state.panel == .navigating {
+            locate = mapButton(state.tracking == .none ? "location.north.fill" : "location.north.line.fill") {
+                $0.state.repositionNavigation()
+            }
+        } else {
+            let icon: String
+            switch state.tracking {
+            case .none: icon = "location"
+            case .follow: icon = "location.fill"
+            case .heading: icon = "location.north.line.fill"
+            }
+            locate = mapButton(icon) { $0.state.cycleTracking() }
+        }
+        t.mapButtons = [locate,
+                        mapButton("plus") { $0.carMap?.zoom(by: 1) },
+                        mapButton("minus") { $0.carMap?.zoom(by: -1) },
+                        mapButton(panning ? "xmark" : "arrow.up.and.down.and.arrow.left.and.right") { $0.togglePanning() }]
+    }
+
+    private func symbol(_ name: String, size: CGFloat = 22) -> UIImage {
+        let cfg = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
+        return UIImage(systemName: name, withConfiguration: cfg) ?? UIImage()
+    }
+
+    private func togglePanning() {
+        guard let t = mapTemplate else { return }
+        if panning { t.dismissPanningInterface(animated: true) } else { t.showPanningInterface(animated: true) }
+    }
+
+    private func alert(_ text: String) {
+        guard let ic = interface else { return }
+        let ok = CPAlertAction(title: "OK", style: .cancel) { [weak self] _ in
+            self?.interface?.dismissTemplate(animated: true, completion: nil)
+        }
+        let a = CPAlertTemplate(titleVariants: [text], actions: [ok])
+        if ic.presentedTemplate != nil {
+            ic.dismissTemplate(animated: false) { _, _ in
+                ic.presentTemplate(a, animated: true, completion: nil)
+            }
+        } else {
+            ic.presentTemplate(a, animated: true, completion: nil)
+        }
+    }
+
+    private var listLimit: Int { min(12, CPListTemplate.maximumItemCount) }
+
+    private func push(_ template: CPTemplate) {
+        interface?.pushTemplate(template, animated: true, completion: nil)
+    }
+
+    /// dopo una scelta si torna alla schermata di GassMaps
+    private func backToMap() {
+        interface?.popToRootTemplate(animated: true, completion: nil)
+    }
+
+    /// mappa dello schermo dell'auto
+    private var carMap: CarMapGestures? {
+        guard let m = carScreen?.map.mapView else { return nil }
+        return CarMapGestures(map: m)
+    }
+
+    // MARK: - Destinazioni (come "Salvati" e la ricerca del telefono)
+
+    private func showDestinations() {
+        var top: [CPListItem] = []
+        // Casa, Lavoro e parcheggio aprono subito le indicazioni (come le scorciatoie del telefono)
+        if let h = state.home { top.append(placeItem(h, title: "Casa", icon: "house.fill", directions: true)) }
+        if let w = state.work { top.append(placeItem(w, title: "Lavoro", icon: "briefcase.fill", directions: true)) }
+        if let p = state.parking {
+            top.append(placeItem(p, title: "Auto parcheggiata", icon: "parkingsign.circle.fill", directions: true))
+        }
+        let nearby = CPListItem(text: "Nei dintorni", detailText: "Le stesse categorie dei chip della mappa",
+                                image: symbol("mappin.and.ellipse"))
+        nearby.accessoryType = .disclosureIndicator
+        nearby.handler = { [weak self] _, done in
+            self?.showCategories()
+            done()
+        }
+        top.append(nearby)
+
+        var sections = [CPListSection(items: top)]
+        let saved = state.saved.prefix(listLimit).map { placeItem($0, title: nil, icon: "star.fill", directions: false) }
+        if !saved.isEmpty { sections.append(CPListSection(items: saved, header: "Salvati", sectionIndexTitle: nil)) }
+        let recent = state.history.prefix(listLimit).map { placeItem($0, title: nil, icon: "clock.arrow.circlepath", directions: false) }
+        if !recent.isEmpty { sections.append(CPListSection(items: recent, header: "Recenti", sectionIndexTitle: nil)) }
+
+        push(CPListTemplate(title: "Destinazioni", sections: sections))
+    }
+
+    private func placeItem(_ place: Place, title: String?, icon: String, directions: Bool) -> CPListItem {
+        let name = place.name.isEmpty ? "Posizione" : place.name
+        var detail = title == nil ? place.address : (place.name.isEmpty ? place.address : place.name)
+        if let here = state.location.location {
+            let d = here.distance(from: CLLocation(latitude: place.latitude, longitude: place.longitude))
+            detail = detail.isEmpty ? state.units.short(d) : "\(state.units.short(d)) · \(detail)"
+        }
+        let item = CPListItem(text: title ?? name, detailText: detail, image: symbol(icon))
+        item.handler = { [weak self] _, done in
+            done()
+            guard let self = self else { return }
+            if self.state.panel == .navigating {
+                self.alert("Termina prima la navigazione in corso")
+                return
+            }
+            if directions {
+                self.state.go(to: place)        // pannello "Indicazioni" con i percorsi
+            } else {
+                self.state.pin(place)           // scheda del luogo
+            }
+            self.backToMap()
+        }
+        return item
+    }
+
+    /// Le stesse categorie dei chip sotto la barra di ricerca del telefono
+    private func showCategories() {
+        let electric = ["electric", "plugin"].contains(UserDefaults.standard.string(forKey: Prefs.engine) ?? "gas")
+        let cats: [(String, String)] = [
+            ("Ristoranti", "fork.knife"),
+            electric ? ("Ricarica elettrica", "bolt.car.fill") : ("Benzina", "fuelpump.fill"),
+            ("Caffè", "cup.and.saucer.fill"), ("Supermercati", "cart.fill"),
+            ("Hotel", "bed.double.fill"), ("Farmacie", "pills.fill"),
+            ("Parcheggi", "parkingsign"), ("Bancomat", "creditcard.fill")
+        ]
+        let buttons = cats.map { cat -> CPGridButton in
+            CPGridButton(titleVariants: [cat.0], image: symbol(cat.1, size: 30)) { [weak self] _ in
+                guard let self = self else { return }
+                if self.state.panel == .navigating {
+                    self.alert("Termina prima la navigazione in corso")
+                    return
+                }
+                self.state.searchCategory(cat.0)      // pannello "Risultati" come col chip del telefono
+                self.backToMap()
+            }
+        }
+        push(CPGridTemplate(title: "Nei dintorni", gridButtons: buttons))
+    }
+
+    // MARK: - Ricerca
+
+    private func showSearch() {
+        if let loc = state.location.location {
+            completer.region = MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 60_000, longitudinalMeters: 60_000)
+        }
+        let s = CPSearchTemplate()
+        s.delegate = self
+        push(s)
+    }
+
+    /// Elenco dei risultati mostrati nel pannello "Risultati"
+    private func showSearchResults() {
+        let items = state.searchResults
+        guard !items.isEmpty else { return }
+        let here = state.location.location
+        let list: [CPListItem] = items.prefix(listLimit).map { mi in
+            var detail = Place.formatShort(mi.placemark)
+            if let h = here, let l = mi.placemark.location {
+                detail = "\(state.units.short(l.distance(from: h))) · \(detail)"
+            }
+            let it = CPListItem(text: mi.name ?? "Luogo", detailText: detail)
+            it.handler = { [weak self] _, done in
+                done()
+                self?.state.pin(Place(mapItem: mi), item: mi)
+                self?.backToMap()
+            }
+            return it
+        }
+        push(CPListTemplate(title: state.resultsTitle.isEmpty ? "Risultati" : state.resultsTitle,
+                            sections: [CPListSection(items: list)]))
+    }
+
+    // MARK: - Percorsi
+
+    /// Pannello "Indicazioni": scelta tra i percorsi proposti (come toccarli nel pannello del telefono)
+    private func showRouteChoices() {
+        let routes = state.routes
+        guard !routes.isEmpty else { return }
+        let items: [CPListItem] = routes.enumerated().map { pair in
+            let i = pair.offset, r = pair.element
+            var detail = state.units.short(r.distance)
+            if !r.name.isEmpty { detail = "via \(r.name) · \(detail)" }
+            if r.hasTolls { detail += " · pedaggi" }
+            let title = (i == 0 ? "Più veloce · " : "") + r.durationText
+            let it = CPListItem(text: title, detailText: detail,
+                                image: symbol(i == state.selectedRoute ? "checkmark.circle.fill" : "circle"))
+            it.handler = { [weak self] _, done in
+                done()
+                self?.state.selectRoute(i)
+                self?.backToMap()
+            }
+            return it
+        }
+        push(CPListTemplate(title: "Percorsi", sections: [CPListSection(items: items)]))
+    }
+
+    /// Durante la guida: percorsi alternativi da qui (stesso pulsante del telefono), poi l'elenco per sceglierne uno
+    private func requestAlternatives() {
+        wantsAlternativesList = true
+        if state.navAlternatives.isEmpty { state.showNavAlternatives() } else { alternativesChanged() }
+    }
+
+    private func alternativesChanged() {
+        guard wantsAlternativesList, state.panel == .navigating, !state.navAlternatives.isEmpty else { return }
+        wantsAlternativesList = false
+        let remaining = state.progress.remainingTime
+        let items: [CPListItem] = state.navAlternatives.enumerated().map { pair in
+            let i = pair.offset, alt = pair.element
+            let diff = (alt.travelTime - remaining) / 60
+            let text: String
+            if abs(diff) < 1 { text = "Durata simile" }
+            else if diff > 0 { text = "\(Int(diff.rounded())) min in più" }
+            else { text = "\(Int((-diff).rounded())) min in meno" }
+            let detail = alt.name.isEmpty ? alt.durationText : "via \(alt.name) · \(alt.durationText)"
+            let it = CPListItem(text: text, detailText: detail, image: symbol("arrow.triangle.branch"))
+            it.handler = { [weak self] _, done in
+                done()
+                self?.state.switchToNavAlternative(i)
+                self?.backToMap()
+            }
+            return it
+        }
+        let keep = CPListItem(text: "Mantieni il percorso attuale", detailText: nil, image: symbol("xmark"))
+        keep.handler = { [weak self] _, done in
+            done()
+            self?.state.repositionNavigation()
+            self?.backToMap()
+        }
+        push(CPListTemplate(title: "Percorsi alternativi", sections: [CPListSection(items: items + [keep])]))
+    }
+
     // MARK: - Dashboard e quadro strumenti
 
     func connectDashboard(_ controller: CPDashboardController, window: UIWindow) {
@@ -153,6 +469,7 @@ final class CarPlayManager: NSObject {
         dashboardVC = vc
         observe()
         refreshDashboardButtons()
+        secondaryRouteID = nil
         syncSecondaryMaps()
     }
 
@@ -173,6 +490,7 @@ final class CarPlayManager: NSObject {
         let vc = CarPlayMapViewController(state: state, role: .cluster)
         window.rootViewController = vc
         clusterVC = vc
+        secondaryRouteID = nil
         syncSecondaryMaps()
     }
 
@@ -203,8 +521,7 @@ final class CarPlayManager: NSObject {
             guard let p = place else { return }
             var subtitle: [String] = []
             if let here = state.location.location {
-                let d = here.distance(from: CLLocation(latitude: p.latitude, longitude: p.longitude))
-                subtitle = [state.units.short(d)]
+                subtitle = [state.units.short(here.distance(from: CLLocation(latitude: p.latitude, longitude: p.longitude)))]
             }
             buttons.append(CPDashboardButton(titleVariants: [title], subtitleVariants: subtitle,
                                              image: symbol(icon, size: 24)) { [weak self] _ in
@@ -220,595 +537,71 @@ final class CarPlayManager: NSObject {
         dc.shortcutButtons = Array(buttons.prefix(2))
     }
 
-    /// Scorciatoia della Dashboard: CarPlay apre l'app sullo schermo principale, lì si mostra l'anteprima
+    /// Scorciatoia della Dashboard: CarPlay apre l'app sullo schermo principale con le indicazioni
     private func startFromShortcut(_ place: Place) {
-        if mapTemplate != nil { preview(place, item: nil) } else { pendingPlace = place }
+        guard state.panel != .navigating else { return }
+        if interface != nil { state.go(to: place) } else { pendingPlace = place }
     }
 
     private func syncSecondaryMaps() {
+        let maps = [dashboardVC, clusterVC].compactMap { $0 }
+        guard !maps.isEmpty else { return }
+        if state.panel == .navigating, let r = state.route {
+            if secondaryRouteID != r.id {
+                secondaryRouteID = r.id
+                secondaryCumulative = RouteMath.cumulative(r.coordinates)
+            }
+            for vc in maps {
+                if vc.navigating { vc.setRoute(r.coordinates) } else { vc.beginNavigation(route: r.coordinates) }
+            }
+        } else {
+            secondaryRouteID = nil
+            for vc in maps where vc.navigating { vc.endNavigation() }
+        }
+    }
+
+    private func updateSecondaryProgress() {
+        guard state.panel == .navigating, let r = state.route else { return }
+        if secondaryRouteID != r.id { syncSecondaryMaps() }
         for vc in [dashboardVC, clusterVC].compactMap({ $0 }) {
-            if session != nil || state.panel == .navigating, let r = state.route {
-                if !vc.navigating { vc.beginNavigation(route: r.coordinates) } else { vc.setRoute(r.coordinates) }
-            } else if vc.navigating {
-                vc.endNavigation()
-            }
-        }
-    }
-
-    // MARK: - Osservazione dello stato
-
-    private func observe() {
-        guard cancellables.isEmpty else { return }
-        // receive(on:) → si legge lo stato dopo che è stato aggiornato (@Published avvisa prima)
-        state.$panel.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.panelChanged() }.store(in: &cancellables)
-        state.$routes.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.routesChanged() }.store(in: &cancellables)
-        state.$selectedRoute.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.routesChanged() }.store(in: &cancellables)
-        state.$progress.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.progressChanged() }.store(in: &cancellables)
-        state.$isRerouting.receive(on: DispatchQueue.main)
-            .sink { [weak self] rerouting in
-                guard rerouting, let self = self, let s = self.session else { return }
-                s.pauseTrip(for: .rerouting, description: "Ricalcolo del percorso…")
-            }.store(in: &cancellables)
-        state.$arrived.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.arrivalChanged() }.store(in: &cancellables)
-        state.$themeIndex.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                guard let self = self else { return }
-                for vc in [self.mapVC, self.dashboardVC, self.clusterVC].compactMap({ $0 }) { vc.applyTheme() }
-                self.mapTemplate?.guidanceBackgroundColor = self.state.theme.accent
-                self.maneuversRouteID = nil      // schede rifatte col nuovo colore
-                self.progressChanged()
-            }.store(in: &cancellables)
-        state.$voiceMuted.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.refreshButtons() }.store(in: &cancellables)
-        state.$home.combineLatest(state.$work, state.$parking).receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.refreshDashboardButtons() }.store(in: &cancellables)
-    }
-
-    // MARK: - Pulsanti
-
-    private func refreshButtons() {
-        guard let t = mapTemplate else { return }
-        if session != nil {
-            let mute = CPBarButton(image: symbol(state.voiceMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")) { [weak self] _ in
-                self?.state.voiceMuted.toggle()
-            }
-            let overview = CPBarButton(image: symbol("point.topleft.down.to.point.bottomright.curvepath")) { [weak self] _ in
-                self?.mapVC?.showOverview()
-            }
-            let end = CPBarButton(title: "Termina") { [weak self] _ in
-                self?.state.endNavigation()
-            }
-            t.leadingNavigationBarButtons = [mute, overview]
-            t.trailingNavigationBarButtons = [end]
-        } else if !previewRoutes.isEmpty {
-            t.leadingNavigationBarButtons = []
-            t.trailingNavigationBarButtons = [CPBarButton(title: "Annulla") { [weak self] _ in self?.cancelPreview() }]
-        } else {
-            let dest = CPBarButton(title: "Destinazioni") { [weak self] _ in self?.showDestinations() }
-            let search = CPBarButton(image: symbol("magnifyingglass")) { [weak self] _ in self?.showSearch() }
-            t.leadingNavigationBarButtons = [dest]
-            t.trailingNavigationBarButtons = [search]
-        }
-
-        let center = CPMapButton { [weak self] _ in self?.mapVC?.recenter() }
-        center.image = symbol(session != nil ? "location.north.line.fill" : "location.fill")
-        let zoomIn = CPMapButton { [weak self] _ in self?.mapVC?.zoom(by: 1) }
-        zoomIn.image = symbol("plus")
-        let zoomOut = CPMapButton { [weak self] _ in self?.mapVC?.zoom(by: -1) }
-        zoomOut.image = symbol("minus")
-        let pan = CPMapButton { [weak self] _ in self?.togglePanning() }
-        pan.image = symbol(panning ? "xmark" : "arrow.up.and.down.and.arrow.left.and.right")
-        t.mapButtons = [center, zoomIn, zoomOut, pan]
-    }
-
-    private func symbol(_ name: String, size: CGFloat = 22) -> UIImage {
-        let cfg = UIImage.SymbolConfiguration(pointSize: size, weight: .semibold)
-        return UIImage(systemName: name, withConfiguration: cfg) ?? UIImage()
-    }
-
-    private func togglePanning() {
-        guard let t = mapTemplate else { return }
-        if panning { t.dismissPanningInterface(animated: true) } else { t.showPanningInterface(animated: true) }
-    }
-
-    private func alert(_ text: String) {
-        guard let ic = interface else { return }
-        let ok = CPAlertAction(title: "OK", style: .cancel) { [weak self] _ in
-            self?.interface?.dismissTemplate(animated: true, completion: nil)
-        }
-        let a = CPAlertTemplate(titleVariants: [text], actions: [ok])
-        if ic.presentedTemplate != nil {
-            ic.dismissTemplate(animated: false) { _, _ in
-                ic.presentTemplate(a, animated: true, completion: nil)
-            }
-        } else {
-            ic.presentTemplate(a, animated: true, completion: nil)
-        }
-    }
-
-    // MARK: - Destinazioni
-
-    private var listLimit: Int { min(12, CPListTemplate.maximumItemCount) }
-
-    private func showDestinations() {
-        var top: [CPListItem] = []
-        if let h = state.home { top.append(placeItem(h, title: "Casa", icon: "house.fill")) }
-        if let w = state.work { top.append(placeItem(w, title: "Lavoro", icon: "briefcase.fill")) }
-        if let p = state.parking { top.append(placeItem(p, title: "Auto parcheggiata", icon: "parkingsign.circle.fill")) }
-        let nearby = CPListItem(text: "Nei dintorni", detailText: "Benzina, ricarica, parcheggi, ristoranti…",
-                                image: symbol("mappin.and.ellipse"))
-        nearby.accessoryType = .disclosureIndicator
-        nearby.handler = { [weak self] _, done in
-            self?.showCategories()
-            done()
-        }
-        top.append(nearby)
-
-        var sections = [CPListSection(items: top)]
-        let saved = state.saved.prefix(listLimit).map { placeItem($0, title: nil, icon: "star.fill") }
-        if !saved.isEmpty { sections.append(CPListSection(items: saved, header: "Salvati", sectionIndexTitle: nil)) }
-        let recent = state.history.prefix(listLimit).map { placeItem($0, title: nil, icon: "clock.arrow.circlepath") }
-        if !recent.isEmpty { sections.append(CPListSection(items: recent, header: "Recenti", sectionIndexTitle: nil)) }
-
-        interface?.pushTemplate(CPListTemplate(title: "Destinazioni", sections: sections), animated: true, completion: nil)
-    }
-
-    private func placeItem(_ place: Place, title: String?, icon: String) -> CPListItem {
-        let name = place.name.isEmpty ? "Posizione" : place.name
-        var detail = title == nil ? place.address : (place.name.isEmpty ? place.address : place.name)
-        if let here = state.location.location {
-            let d = here.distance(from: CLLocation(latitude: place.latitude, longitude: place.longitude))
-            detail = detail.isEmpty ? state.units.short(d) : "\(state.units.short(d)) · \(detail)"
-        }
-        let item = CPListItem(text: title ?? name, detailText: detail, image: symbol(icon))
-        item.handler = { [weak self] _, done in
-            self?.preview(place, item: nil, completion: done)
-        }
-        return item
-    }
-
-    private func showCategories() {
-        let cats: [(String, String, String)] = [
-            ("Benzina", "Stazione di servizio", "fuelpump.fill"),
-            ("Ricarica", "Colonnina di ricarica", "ev.charger.fill"),
-            ("Parcheggi", "Parcheggio", "parkingsign.circle.fill"),
-            ("Ristoranti", "Ristorante", "fork.knife"),
-            ("Caffè", "Bar caffè", "cup.and.saucer.fill"),
-            ("Supermercati", "Supermercato", "cart.fill"),
-            ("Farmacie", "Farmacia", "cross.case.fill"),
-            ("Hotel", "Hotel", "bed.double.fill")
-        ]
-        let buttons = cats.map { (cat: (String, String, String)) -> CPGridButton in
-            CPGridButton(titleVariants: [cat.0], image: symbol(cat.2, size: 30)) { [weak self] _ in
-                self?.runSearch(cat.1, title: cat.0)
-            }
-        }
-        interface?.pushTemplate(CPGridTemplate(title: "Nei dintorni", gridButtons: buttons), animated: true, completion: nil)
-    }
-
-    // MARK: - Ricerca
-
-    private func showSearch() {
-        if let loc = state.location.location {
-            completer.region = MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 60_000, longitudinalMeters: 60_000)
-        }
-        let s = CPSearchTemplate()
-        s.delegate = self
-        interface?.pushTemplate(s, animated: true, completion: nil)
-    }
-
-    private func runSearch(_ query: String, title: String) {
-        let req = MKLocalSearch.Request()
-        req.naturalLanguageQuery = query
-        if let loc = state.location.location {
-            req.region = MKCoordinateRegion(center: loc.coordinate, latitudinalMeters: 15_000, longitudinalMeters: 15_000)
-        }
-        MKLocalSearch(request: req).start { [weak self] response, _ in
-            let items = response?.mapItems ?? []
-            DispatchQueue.main.async { self?.showResults(items, title: title) }
-        }
-    }
-
-    private func showResults(_ items: [MKMapItem], title: String) {
-        guard !items.isEmpty else { alert("Nessun risultato per \"\(title)\""); return }
-        let here = state.location.location
-        let sorted: [MKMapItem]
-        if let h = here {
-            sorted = items.sorted { ($0.placemark.location?.distance(from: h) ?? .infinity)
-                                  < ($1.placemark.location?.distance(from: h) ?? .infinity) }
-        } else {
-            sorted = items
-        }
-        let list: [CPListItem] = sorted.prefix(listLimit).map { mi in
-            var detail = Place.formatShort(mi.placemark)
-            if let h = here, let l = mi.placemark.location {
-                detail = "\(state.units.short(l.distance(from: h))) · \(detail)"
-            }
-            let it = CPListItem(text: mi.name ?? "Luogo", detailText: detail)
-            it.handler = { [weak self] _, done in
-                let place = Place(mapItem: mi)
-                self?.state.addToHistory(place)
-                self?.preview(place, item: mi, completion: done)
-            }
-            return it
-        }
-        interface?.pushTemplate(CPListTemplate(title: title, sections: [CPListSection(items: list)]),
-                                animated: true, completion: nil)
-    }
-
-    // MARK: - Anteprima del viaggio
-
-    /// Calcola i percorsi dalla posizione reale e mostra l'anteprima (fino a 3 percorsi).
-    /// `completion` chiude lo spinner della riga toccata quando i percorsi sono pronti.
-    func preview(_ place: Place, item: MKMapItem?, completion: (() -> Void)? = nil) {
-        guard mapTemplate != nil else { completion?(); return }
-        if session != nil {
-            completion?()
-            alert("Termina prima la navigazione in corso")
-            return
-        }
-        DirectionsService.routes(from: state.location.location?.coordinate, to: place.coordinate,
-                                 destinationItem: item, mode: .car, options: state.routeOptions,
-                                 alternatives: true) { [weak self] infos in
-            completion?()
-            guard let self = self, self.mapTemplate != nil else { return }
-            let routes = Array(infos.filter { !$0.etaOnly && $0.coordinates.count > 1 }.prefix(3))
-            guard !routes.isEmpty else { self.alert("Impossibile calcolare il percorso"); return }
-            self.presentPreview(place: place, item: item, routes: routes, selected: 0, fromPhone: false)
-        }
-    }
-
-    private func presentPreview(place: Place?, item: MKMapItem?, routes: [RouteInfo], selected: Int, fromPhone: Bool) {
-        guard let t = mapTemplate else { return }
-        previewRoutes = routes
-        previewPlace = place
-        previewItem = item
-        previewFromPhone = fromPhone
-        let trip = makeTrip(place: place, item: item, routes: routes)
-        previewTrip = trip
-        interface?.popToRootTemplate(animated: true, completion: nil)
-        let text = CPTripPreviewTextConfiguration(startButtonTitle: "Avvia",
-                                                  additionalRoutesButtonTitle: "Altri percorsi",
-                                                  overviewButtonTitle: "Panoramica")
-        t.showTripPreviews([trip], textConfiguration: text)
-        let sel = routes.indices.contains(selected) ? selected : 0
-        mapVC?.showPreview(routes[sel].coordinates)
-        t.updateEstimates(travel(routes[sel].distance, time: routes[sel].travelTime), for: trip)
-        refreshButtons()
-    }
-
-    private func cancelPreview() {
-        mapTemplate?.hideTripPreviews()
-        let fromPhone = previewFromPhone
-        clearPreview()
-        mapVC?.endPreview()
-        refreshButtons()
-        // annullata in auto: si chiude anche il pannello "Indicazioni" del telefono
-        if fromPhone && state.panel == .directions { state.dismissPanel() }
-    }
-
-    private func clearPreview() {
-        previewRoutes = []
-        previewPlace = nil
-        previewItem = nil
-        previewTrip = nil
-        previewFromPhone = false
-    }
-
-    /// Percorsi scelti sul telefono (pannello "Indicazioni"): li mostra anche in auto, come Apple Maps
-    private func syncPhonePreview() {
-        guard session == nil, mapTemplate != nil else { return }
-        let phoneRoutes = state.routes.filter { !$0.etaOnly && $0.coordinates.count > 1 }
-        if state.panel == .directions, !phoneRoutes.isEmpty, state.routes.count == phoneRoutes.count {
-            if previewFromPhone, previewRoutes.map(\.id) == phoneRoutes.map(\.id) {
-                // stessi percorsi: si aggiorna solo il percorso evidenziato
-                if phoneRoutes.indices.contains(state.selectedRoute) {
-                    mapVC?.showPreview(phoneRoutes[state.selectedRoute].coordinates)
-                }
-                return
-            }
-            presentPreview(place: state.pinnedPlace, item: state.destinationItem, routes: phoneRoutes,
-                           selected: state.selectedRoute, fromPhone: true)
-        } else if previewFromPhone {
-            mapTemplate?.hideTripPreviews()
-            clearPreview()
-            mapVC?.endPreview()
-            refreshButtons()
-        }
-    }
-
-    private func makeTrip(place: Place?, item: MKMapItem?, routes: [RouteInfo]) -> CPTrip {
-        let coord = place?.coordinate ?? routes.first?.coordinates.last ?? CLLocationCoordinate2D()
-        let dest = item ?? MKMapItem(placemark: MKPlacemark(coordinate: coord))
-        let name = (place?.name.isEmpty == false ? place?.name : nil) ?? dest.name ?? "Destinazione"
-        if dest.name == nil || dest.name?.isEmpty == true { dest.name = name }
-        let choices = routes.enumerated().map { pair -> CPRouteChoice in
-            let i = pair.offset, r = pair.element
-            let dist = state.units.short(r.distance)
-            let via = r.name.isEmpty ? "" : "via \(r.name)"
-            var info = via.isEmpty ? dist : "\(via) · \(dist)"
-            if r.hasTolls { info += " · pedaggi" }
-            let arrival = "arrivo \(Formatters.time.string(from: Date().addingTimeInterval(r.travelTime)))"
-            let choice = CPRouteChoice(summaryVariants: [i == 0 ? "Più veloce · \(r.durationText)" : r.durationText, r.durationText],
-                                       additionalInformationVariants: ["\(info) · \(arrival)", info, dist],
-                                       selectionSummaryVariants: [via.isEmpty ? r.durationText : via])
-            choice.userInfo = i
-            return choice
-        }
-        let t = CPTrip(origin: MKMapItem.forCurrentLocation(), destination: dest, routeChoices: choices)
-        t.destinationNameVariants = [name]
-        return t
-    }
-
-    // MARK: - Guida
-
-    private func panelChanged() {
-        if state.panel == .navigating {
-            if session == nil { beginSession() }
-        } else if let s = session {
-            if state.arrived { s.finishTrip() } else { s.cancelTrip() }
-            endSessionState()
-        } else {
-            syncPhonePreview()
-        }
-        syncSecondaryMaps()
-        refreshDashboardButtons()
-    }
-
-    private func endSessionState() {
-        session = nil
-        trip = nil
-        routeManeuvers = []
-        maneuversRouteID = nil
-        shownStep = -1
-        shownStepRouteID = nil
-        arrivalShown = false
-        mapVC?.endNavigation()
-        refreshButtons()
-    }
-
-    private func beginSession() {
-        guard let t = mapTemplate, let r = state.route else { return }
-        t.hideTripPreviews()
-        let theTrip = pendingTrip ?? previewTrip ?? makeTrip(place: state.pinnedPlace, item: state.destinationItem, routes: [r])
-        pendingTrip = nil
-        clearPreview()
-        trip = theTrip
-        session = t.startNavigationSession(for: theTrip)
-        routeManeuvers = []
-        maneuversRouteID = nil
-        shownStep = -1
-        shownStepRouteID = nil
-        arrivalShown = false
-        interface?.popToRootTemplate(animated: false, completion: nil)
-        mapVC?.beginNavigation(route: r.coordinates)
-        refreshButtons()
-        progressChanged()
-    }
-
-    private func routesChanged() {
-        guard session != nil else {
-            if state.panel == .directions || previewFromPhone { syncPhonePreview() }
-            return
-        }
-        guard let r = state.route else { return }
-        for vc in [mapVC, dashboardVC, clusterVC].compactMap({ $0 }) { vc.setRoute(r.coordinates) }
-        progressChanged()
-    }
-
-    /// Tutte le manovre del percorso, create una volta per percorso: CarPlay (metadati iOS 17.4+) vuole
-    /// riceverle tutte in ordine, e le schede mostrate devono essere gli stessi oggetti.
-    private func ensureManeuvers(for r: RouteInfo) {
-        guard maneuversRouteID != r.id || routeManeuvers.count != r.steps.count else { return }
-        maneuversRouteID = r.id
-        routeCumulative = RouteMath.cumulative(r.coordinates)
-        let leftTraffic = CarPlayManeuvers.drivesOnLeft
-        routeManeuvers = r.steps.enumerated().map { i, step in
-            maneuver(step, index: i, route: r, leftTraffic: leftTraffic)
-        }
-        shownStep = -1
-        if let s = session, s.responds(to: NSSelectorFromString("addManeuvers:")) {
-            _ = s.perform(NSSelectorFromString("addManeuvers:"), with: routeManeuvers)
-        }
-    }
-
-    private func progressChanged() {
-        guard let s = session, let r = state.route, !r.steps.isEmpty else { return }
-        ensureManeuvers(for: r)
-        guard routeManeuvers.count == r.steps.count else { return }
-        let p = state.progress
-        let idx = min(max(p.nextStep, 0), r.steps.count - 1)
-
-        if idx != shownStep || shownStepRouteID != r.id {
-            shownStep = idx
-            shownStepRouteID = r.id
-            // scheda attuale + la successiva (CarPlay mostra la seconda quando c'è spazio)
-            s.upcomingManeuvers = Array(routeManeuvers[idx..<min(idx + 2, routeManeuvers.count)])
-            // strada su cui ti trovi (quadro strumenti / head-up display)
-            s.currentRoadNameVariants = currentRoad(r, index: idx)
-        }
-        s.updateEstimates(estimates(distance: p.toManeuver, route: r), for: routeManeuvers[idx])
-        if let t = trip {
-            mapTemplate?.updateEstimates(travel(p.remaining, time: p.remainingTime), for: t)
-        }
-        if let st = CPManeuverState(rawValue: phase(progress: p, route: r, index: idx).rawValue) { s.maneuverState = st }
-
-        // tratto percorso nascosto e zoom secondo la velocità, su tutti gli schermi dell'auto
-        for vc in [mapVC, dashboardVC, clusterVC].compactMap({ $0 }) {
-            vc.trimRoute(traveled: p.traveled, cumulative: routeCumulative)
+            vc.trimRoute(traveled: state.progress.traveled, cumulative: secondaryCumulative)
             vc.adjustZoom(speedKmh: state.speedKmh)
         }
     }
+}
 
-    /// Fase della manovra (come Apple Maps): appena iniziata, in preparazione, da eseguire ora, prosegui
-    private func phase(progress p: RouteProgress, route r: RouteInfo, index: Int) -> CarPlayManeuvers.Phase {
-        let speed = max(state.location.location?.speed ?? 0, 0)
-        let executeAt = r.mode == .walk ? 25 : max(60, speed * 6)
-        let prepareAt = r.mode == .walk ? 120 : max(400, speed * 20)
-        if p.toManeuver <= executeAt { return .execute }
-        if p.toManeuver <= prepareAt { return .prepare }
-        let sinceLast = index > 0 ? p.traveled - r.steps[index - 1].startDistance : p.traveled
-        if sinceLast < (r.mode == .walk ? 20 : 80) { return .initial }
-        return .continue
+/// Zoom e spostamenti della mappa dell'auto (pulsanti e frecce di CarPlay)
+@MainActor
+struct CarMapGestures {
+    let map: MLNMapView
+
+    func zoom(by delta: Double) {
+        map.setZoomLevel(min(max(map.zoomLevel + delta, 3), 19.5), animated: true)
     }
 
-    private func currentRoad(_ r: RouteInfo, index: Int) -> [String] {
-        // la via in cui ti trovi è quella imboccata con la manovra precedente
-        let source = index > 0 ? r.steps[index - 1].instruction : r.steps[0].instruction
-        if index > 0, let road = Departure.street(in: source) { return [road] }
-        if let road = r.steps.first?.instruction, let st = departureStreet(road) { return [st] }
-        return []
+    /// la mappa smette di seguire la posizione: compare "Riposiziona", come spostandola col dito sul telefono
+    func stopFollowing() {
+        if map.userTrackingMode != .none { map.setUserTrackingMode(.none, animated: false, completionHandler: nil) }
     }
 
-    /// "Procedi verso nord su Via Roma in direzione di …" → "Via Roma"
-    private func departureStreet(_ text: String) -> String? {
-        guard let r = text.range(of: " su ") else { return nil }
-        var rest = String(text[r.upperBound...])
-        if let cut = rest.range(of: " in direzione di ") { rest = String(rest[..<cut.lowerBound]) }
-        return rest.isEmpty ? nil : rest
-    }
-
-    private func arrivalChanged() {
-        guard state.arrived, !arrivalShown, let s = session else { return }
-        arrivalShown = true
-        let dest = state.pinnedPlace.map { $0.name.isEmpty ? "a destinazione" : "a \($0.name)" } ?? "a destinazione"
-        s.pauseTrip(for: .arrived, description: "Sei arrivato \(dest)")
-    }
-
-    /// Scheda della manovra: testo di Apple Maps (intero → solo la via → solo la manovra se lo spazio
-    /// è poco), freccia uguale al telefono in variante chiara/scura, tipo di manovra per i metadati.
-    private func maneuver(_ step: RouteStep, index: Int, route r: RouteInfo, leftTraffic: Bool) -> CPManeuver {
-        let m = CPManeuver()
-        var variants = [step.instruction]
-        let road = step.isDeparture ? departureStreet(step.instruction) : Departure.street(in: step.instruction)
-        let short = Departure.maneuver(of: step.instruction).trimmingCharacters(in: .whitespacesAndNewlines)
-        if !step.isDeparture, !short.isEmpty, short != step.instruction, let road = road {
-            variants.append("\(short) · \(road)")
-        }
-        if let road = road, !variants.contains(road) { variants.append(road) }
-        if !short.isEmpty, !variants.contains(short) { variants.append(short) }
-        m.instructionVariants = variants
-        m.dashboardInstructionVariants = variants
-        m.notificationInstructionVariants = variants
-
-        let icon = ManeuverIcon.symbol(for: step)
-        m.symbolImage = CarPlayManeuvers.image(icon, size: 44)
-        m.dashboardSymbolImage = CarPlayManeuvers.image(icon, size: 30)
-        m.notificationSymbolImage = CarPlayManeuvers.image(icon, size: 30)
-        m.cardBackgroundColor = state.theme.accent
-
-        // stima del tratto che porta a questa manovra (dalla manovra precedente)
-        let leg = index > 0 ? max(0, step.startDistance - r.steps[index - 1].startDistance) : step.distance
-        m.initialTravelEstimates = estimates(distance: leg, route: r)
-
-        // metadati per quadro strumenti / head-up display
-        if let type = CPManeuverType(rawValue: CarPlayManeuvers.typeRaw(for: step)) { m.maneuverType = type }
-        if let side = CPTrafficSide(rawValue: leftTraffic ? 1 : 0) { m.trafficSide = side }
-        if let junction = CPJunctionType(rawValue: CarPlayManeuvers.isRoundabout(step) ? 1 : 0) { m.junctionType = junction }
-        if let road = road { m.roadFollowingManeuverVariants = [road] }
-        m.userInfo = index
-        return m
-    }
-
-    private func estimates(distance: Double, route r: RouteInfo) -> CPTravelEstimates {
-        let speed = r.travelTime > 0 ? max(r.distance / r.travelTime, 1) : 10
-        return travel(distance, time: max(0, distance) / speed)
-    }
-
-    /// Distanza esatta (metadati per quadro strumenti) + distanza arrotondata da mostrare, come sul telefono
-    private func travel(_ meters: Double, time: TimeInterval) -> CPTravelEstimates {
-        CPTravelEstimates(distanceRemaining: Measurement(value: max(0, meters), unit: UnitLength.meters),
-                          distanceRemainingToDisplay: measure(meters),
-                          timeRemaining: max(0, time))
-    }
-
-    /// Distanze arrotondate come sul telefono ("350 m", "1,2 km")
-    private func measure(_ meters: Double) -> Measurement<UnitLength> {
-        let m = max(0, meters)
-        if state.units == .imperial {
-            let feet = m * 3.28084
-            if feet < 1000 { return Measurement(value: (feet / 50).rounded() * 50, unit: .feet) }
-            return Measurement(value: (m / 1609.344 * 10).rounded() / 10, unit: .miles)
-        }
-        if m < 1000 {
-            let r = m < 100 ? (m / 10).rounded() * 10 : (m / 50).rounded() * 50
-            return Measurement(value: r, unit: .meters)
-        }
-        if m < 10_000 { return Measurement(value: (m / 100).rounded() / 10, unit: .kilometers) }
-        return Measurement(value: (m / 1000).rounded(), unit: .kilometers)
+    func pan(dx: CGFloat, dy: CGFloat) {
+        stopFollowing()
+        let step = min(map.bounds.width, map.bounds.height) * 0.3
+        let p = CGPoint(x: map.bounds.midX + dx * step, y: map.bounds.midY + dy * step)
+        map.setCenter(map.convert(p, toCoordinateFrom: map), animated: true)
     }
 }
 
-// MARK: - CPMapTemplateDelegate
+// MARK: - CPMapTemplateDelegate (frecce "Sposta" e gesti sullo schermo touch dell'auto)
 
 extension CarPlayManager: CPMapTemplateDelegate {
-    func mapTemplate(_ mapTemplate: CPMapTemplate, selectedPreviewFor trip: CPTrip, using routeChoice: CPRouteChoice) {
-        let i = routeChoice.userInfo as? Int ?? 0
-        guard previewRoutes.indices.contains(i) else { return }
-        let r = previewRoutes[i]
-        mapVC?.showPreview(r.coordinates)
-        mapTemplate.updateEstimates(travel(r.distance, time: r.travelTime),
-                                    for: trip)
-        // percorso arrivato dal telefono: la scelta si vede anche lì
-        if previewFromPhone, state.panel == .directions, state.routes.indices.contains(i), state.selectedRoute != i {
-            state.selectRoute(i)
-        }
-    }
-
-    func mapTemplate(_ mapTemplate: CPMapTemplate, startedTrip trip: CPTrip, using routeChoice: CPRouteChoice) {
-        let i = routeChoice.userInfo as? Int ?? 0
-        guard previewRoutes.indices.contains(i) else { return }
-        mapTemplate.hideTripPreviews()
-        let routes = previewRoutes
-        let fromPhone = previewFromPhone
-        let place = previewPlace
-        let item = previewItem
-        pendingTrip = trip
-        clearPreview()
-        if fromPhone && state.panel == .directions {
-            // stessi percorsi del telefono: si avvia quello scelto
-            state.selectedRoute = i
-            state.startNavigation()
-        } else if let place = place {
-            // la guida parte sul telefono (stessa logica, stessa voce): CarPlay la segue
-            state.pin(place, fly: false, item: item)
-            state.travelMode = .car
-            state.routes = routes
-            state.selectedRoute = i
-            state.startNavigation()
-        }
-    }
-
-    func mapTemplateDidCancelNavigation(_ mapTemplate: CPMapTemplate) {
-        // il sistema ha chiuso la guida (es. è partita un'altra app di navigazione)
-        endSessionState()
-        if state.panel == .navigating { state.endNavigation() }
-    }
-
-    // metadati di navigazione per quadro strumenti e head-up display (iOS 17.4+)
-    func mapTemplateShouldProvideNavigationMetadata(_ mapTemplate: CPMapTemplate) -> Bool { true }
-
-    // notifiche quando sullo schermo dell'auto c'è un'altra app
-    func mapTemplate(_ mapTemplate: CPMapTemplate, shouldShowNotificationFor maneuver: CPManeuver) -> Bool { true }
-
-    func mapTemplate(_ mapTemplate: CPMapTemplate, shouldUpdateNotificationFor maneuver: CPManeuver,
-                     with travelEstimates: CPTravelEstimates) -> Bool { true }
-
-    func mapTemplate(_ mapTemplate: CPMapTemplate, shouldShowNotificationFor navigationAlert: CPNavigationAlert) -> Bool { true }
-
-    // pannello "Sposta" (frecce)
     func mapTemplate(_ mapTemplate: CPMapTemplate, panWith direction: CPMapTemplate.PanDirection) {
         var dx: CGFloat = 0, dy: CGFloat = 0
         if direction.contains(.left) { dx = -1 }
         if direction.contains(.right) { dx = 1 }
         if direction.contains(.up) { dy = -1 }
         if direction.contains(.down) { dy = 1 }
-        mapVC?.pan(dx: dx, dy: dy)
+        carMap?.pan(dx: dx, dy: dy)
     }
 
     func mapTemplateDidShowPanningInterface(_ mapTemplate: CPMapTemplate) {
@@ -821,23 +614,38 @@ extension CarPlayManager: CPMapTemplateDelegate {
         refreshButtons()
     }
 
-    // trascinamento sullo schermo touch dell'auto
-    func mapTemplateDidBeginPanGesture(_ mapTemplate: CPMapTemplate) { mapVC?.beginDrag() }
+    // trascinamento
+    func mapTemplateDidBeginPanGesture(_ mapTemplate: CPMapTemplate) {
+        guard let g = carMap else { return }
+        g.stopFollowing()
+        dragStart = g.map.convert(g.map.centerCoordinate, toPointTo: g.map)
+    }
 
     func mapTemplate(_ mapTemplate: CPMapTemplate, didUpdatePanGestureWithTranslation translation: CGPoint, velocity: CGPoint) {
-        mapVC?.drag(translation: translation)
+        guard let m = carMap?.map, let start = dragStart else { return }
+        let p = CGPoint(x: start.x - translation.x, y: start.y - translation.y)
+        m.setCenter(m.convert(p, toCoordinateFrom: m), animated: false)
     }
 
-    func mapTemplate(_ mapTemplate: CPMapTemplate, didEndPanGestureWithVelocity velocity: CGPoint) { mapVC?.endDrag() }
+    func mapTemplate(_ mapTemplate: CPMapTemplate, didEndPanGestureWithVelocity velocity: CGPoint) {
+        dragStart = nil
+    }
 
-    // pizzico per lo zoom (iOS 26)
-    func mapTemplateDidBeginZoomGesture(_ mapTemplate: CPMapTemplate) { mapVC?.beginZoomGesture() }
+    // pizzico (iOS 26)
+    func mapTemplateDidBeginZoomGesture(_ mapTemplate: CPMapTemplate) {
+        guard let g = carMap else { return }
+        g.stopFollowing()
+        zoomStart = g.map.zoomLevel
+    }
 
     func mapTemplate(_ mapTemplate: CPMapTemplate, didUpdateZoomGestureWithCenter center: CGPoint, scale: CGFloat, velocity: CGFloat) {
-        mapVC?.zoomGesture(scale: scale)
+        guard let m = carMap?.map, let z0 = zoomStart, scale > 0 else { return }
+        m.setZoomLevel(min(max(z0 + log2(Double(scale)), 3), 19.5), animated: false)
     }
 
-    func mapTemplate(_ mapTemplate: CPMapTemplate, didEndZoomGestureWithVelocity velocity: CGFloat) { mapVC?.endZoomGesture() }
+    func mapTemplate(_ mapTemplate: CPMapTemplate, didEndZoomGestureWithVelocity velocity: CGFloat) {
+        zoomStart = nil
+    }
 }
 
 // MARK: - Ricerca (CPSearchTemplate + suggerimenti di Apple Maps)
@@ -857,28 +665,32 @@ extension CarPlayManager: CPSearchTemplateDelegate {
         completer.queryFragment = q
     }
 
+    /// Suggerimento scelto: come sceglierlo nella ricerca del telefono (scheda del luogo, cronologia)
     func searchTemplate(_ searchTemplate: CPSearchTemplate, selectedResult item: CPListItem,
                         completionHandler: @escaping () -> Void) {
         guard let completion = item.userInfo as? MKLocalSearchCompletion else { completionHandler(); return }
         MKLocalSearch(request: MKLocalSearch.Request(completion: completion)).start { [weak self] response, _ in
             let mi = response?.mapItems.first
             DispatchQueue.main.async {
-                guard let self = self else { completionHandler(); return }
-                if let mi = mi {
-                    let place = Place(mapItem: mi)
-                    self.state.addToHistory(place)
-                    self.preview(place, item: mi, completion: completionHandler)
-                } else {
-                    completionHandler()
-                    self.alert("Luogo non trovato")
+                completionHandler()
+                guard let self = self else { return }
+                guard let mi = mi else { self.alert("Luogo non trovato"); return }
+                if self.state.panel == .navigating {
+                    self.alert("Termina prima la navigazione in corso")
+                    return
                 }
+                self.state.searchPurpose = .destination
+                self.state.select(mapItem: mi)
+                self.backToMap()
             }
         }
     }
 
+    /// Tasto "Cerca": risultati sulla mappa nel pannello "Risultati", come la ricerca del telefono
     func searchTemplateSearchButtonPressed(_ searchTemplate: CPSearchTemplate) {
-        guard !lastQuery.isEmpty else { return }
-        runSearch(lastQuery, title: lastQuery)
+        guard !lastQuery.isEmpty, state.panel != .navigating else { return }
+        state.searchCategory(lastQuery)
+        backToMap()
     }
 }
 

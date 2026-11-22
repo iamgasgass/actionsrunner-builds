@@ -5,13 +5,15 @@ struct MainMapScreen: View {
     @EnvironmentObject var location: LocationManager
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(Prefs.showCompass) private var showCompass = true
+    /// non nil sullo schermo di CarPlay: stessa interfaccia orizzontale, con la mappa dell'auto
+    @Environment(\.carScreen) private var car
 
     var body: some View {
         GeometryReader { geo in
             let landscape = geo.size.width > geo.size.height
             let sideW = MapController.sidePanelWidth(for: geo.size.width + geo.safeAreaInsets.leading + geo.safeAreaInsets.trailing)
             ZStack {
-                GameMapView(state: state)
+                GameMapView(state: state, controller: car?.map, feed: car?.feed)
                     .ignoresSafeArea()
 
                 // vignettatura del tema (bordi scuri come nelle schermate di riferimento)
@@ -170,6 +172,8 @@ struct MainMapScreen: View {
             .environment(\.isLandscapeLayout, landscape)
             .onChange(of: landscape) { _, _ in
                 // dopo la rotazione si riapplicano i margini della mappa per il nuovo orientamento
+                // (lo schermo dell'auto non ruota)
+                guard car == nil else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
                     state.map.orientationChanged(navigating: state.panel == .navigating)
                 }
@@ -177,15 +181,15 @@ struct MainMapScreen: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.88), value: state.panel)
         .animation(.easeInOut(duration: 0.2), value: abs(state.mapHeading) > 2)
-        .sheet(isPresented: $state.showSteps) {
+        .sheet(isPresented: car == nil ? $state.showSteps : .constant(false)) {
             StepsSheet()
                 .environmentObject(state)
         }
-        .sheet(isPresented: $state.showAlongRoute) {
+        .sheet(isPresented: car == nil ? $state.showAlongRoute : .constant(false)) {
             AlongRouteSheet()
                 .environmentObject(state)
         }
-        .sheet(isPresented: $state.showLayers) {
+        .sheet(isPresented: car == nil ? $state.showLayers : .constant(false)) {
             LayersSheet()
                 .environmentObject(state)
                 .presentationDetents([.height(330)])
@@ -194,7 +198,7 @@ struct MainMapScreen: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: state.tracking)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: state.showSearchArea)
         .animation(.easeInOut(duration: 0.3), value: state.isLoadingRoute)
-        .alert("Indicazioni", isPresented: Binding(get: { state.routeError != nil },
+        .alert("Indicazioni", isPresented: Binding(get: { car == nil && state.routeError != nil },
                                                    set: { if !$0 { state.routeError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {

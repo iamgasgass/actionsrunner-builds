@@ -1,14 +1,14 @@
 import UIKit
 import CarPlay
 
-/// Schermo principale di CarPlay (app di navigazione): mappa nella CPWindow, comandi nei template.
+/// Schermo principale di CarPlay: la schermata principale di GassMaps in orizzontale (CarLandscapeScreen)
+/// nella CPWindow, comandi dai pulsanti e dagli elenchi di CarPlay.
 @MainActor
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
                                   didConnect interfaceController: CPInterfaceController,
                                   to window: CPWindow) {
-        CarPlayManager.shared.connect(interfaceController, window: window,
-                                      contentStyle: templateApplicationScene.contentStyle)
+        CarPlayManager.shared.connect(interfaceController, window: window)
     }
 
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,
@@ -17,10 +17,8 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         CarPlayManager.shared.disconnect()
     }
 
-    /// Giorno/notte dell'auto
-    func contentStyleDidChange(_ contentStyle: UIUserInterfaceStyle) {
-        CarPlayManager.shared.contentStyleChanged(contentStyle)
-    }
+    /// Giorno/notte dell'auto: l'interfaccia di GassMaps resta quella del tema scelto (come sul telefono)
+    func contentStyleDidChange(_ contentStyle: UIUserInterfaceStyle) {}
 
     /// Notifica di una manovra toccata mentre era aperta un'altra app: si torna alla guida
     func templateApplicationScene(_ templateApplicationScene: CPTemplateApplicationScene,

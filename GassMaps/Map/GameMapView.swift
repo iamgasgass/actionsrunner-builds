@@ -3,12 +3,15 @@ import MapLibre
 
 struct GameMapView: UIViewRepresentable {
     @ObservedObject var state: AppState
+    /// sullo schermo di CarPlay: controller e sorgente di posizione propri della mappa dell'auto
+    var controller: MapController? = nil
+    var feed: MapLocationFeed? = nil
     @AppStorage(Prefs.showScale) private var showScale = false
     @AppStorage(Prefs.tilt3D) private var tilt3D = true
     @AppStorage(Prefs.avatar) private var avatar = 0
 
     func makeCoordinator() -> MapCoordinator {
-        MapCoordinator(state: state)
+        MapCoordinator(state: state, controller: controller ?? state.map)
     }
 
     func makeUIView(context: Context) -> MLNMapView {
@@ -21,7 +24,7 @@ struct GameMapView: UIViewRepresentable {
         map.attributionButtonMargins = CGPoint(x: 8, y: 6)
         map.attributionButton.alpha = 0.45
         // la freccia usa la posizione già filtrata (stessa della navigazione)
-        map.locationManager = state.location.mapFeed
+        map.locationManager = feed ?? state.location.mapFeed
         map.showsUserLocation = true
         map.showsUserHeadingIndicator = true   // la freccia riceve la bussola anche senza modalità bussola
         map.allowsTilting = true
@@ -42,7 +45,7 @@ struct GameMapView: UIViewRepresentable {
         map.addGestureRecognizer(tap)
 
         context.coordinator.currentStyleID = state.theme.id
-        state.map.attach(map)
+        (controller ?? state.map).attach(map)
         return map
     }
 
@@ -71,16 +74,20 @@ final class MapCoordinator: NSObject, MLNMapViewDelegate {
     var currentStyleID: String = ""
     var tilt3D = Prefs.bool(Prefs.tilt3D, default: true)
 
-    init(state: AppState) {
+    /// controller della mappa a cui appartiene questa vista (telefono o CarPlay)
+    let controller: MapController
+
+    init(state: AppState, controller: MapController) {
         self.state = state
+        self.controller = controller
     }
 
     // MARK: Stile
 
     func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
         MapIcons.install(in: style, theme: state.theme)
-        state.map.installRoute(in: style)
-        state.map.applyLayers()
+        controller.installRoute(in: style)
+        controller.applyLayers()
         if state.measuring { state.updateMeasure() }
         UserArrowView.tint = state.theme.arrowColor
         UserArrowView.marker = state.theme.userMarker
@@ -159,7 +166,7 @@ final class MapCoordinator: NSObject, MLNMapViewDelegate {
 
     func mapView(_ mapView: MLNMapView, didUpdate userLocation: MLNUserLocation?) {
         guard let loc = userLocation?.location else { return }
-        state.map.initialPosition(loc.coordinate)
+        controller.initialPosition(loc.coordinate)
     }
 
     func mapView(_ mapView: MLNMapView, didChange mode: MLNUserTrackingMode, animated: Bool) {
@@ -191,13 +198,13 @@ final class MapCoordinator: NSObject, MLNMapViewDelegate {
         }
 
         // durante la navigazione: tocco su un percorso alternativo → si passa a quello
-        if state.panel == .navigating, !state.navAlternatives.isEmpty, let i = state.map.alternativeIndex(near: point) {
+        if state.panel == .navigating, !state.navAlternatives.isEmpty, let i = controller.alternativeIndex(near: point) {
             state.switchToNavAlternative(i)
             return
         }
 
         // scelta di un percorso alternativo
-        if state.panel == .directions, let i = state.map.alternativeIndex(near: point),
+        if state.panel == .directions, let i = controller.alternativeIndex(near: point),
            state.alternativeIndices.indices.contains(i) {
             state.selectRoute(state.alternativeIndices[i])
             return

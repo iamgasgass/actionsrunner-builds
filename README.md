@@ -109,29 +109,29 @@ Organizzate come Google Maps:
 
 ## 🚗 CarPlay
 
-GassMaps è un'app di navigazione CarPlay completa (scene e API verificate sugli header dell'SDK di iOS 26):
+**Sullo schermo dell'auto c'è la schermata principale di GassMaps in orizzontale, identica al telefono**: mappa del tema,
+barra in alto, chip delle categorie, scheda del luogo, pannello "Indicazioni" con i percorsi, banner della manovra,
+pannello di guida con tempo e arrivo, tachimetro, pulsanti laterali, freccia di posizione. Telefono e auto sono
+sincronizzati: quello che fai su uno si vede sull'altro. La mappa dell'auto è una seconda mappa che riceve le stesse
+azioni di quella del telefono (percorso, segnaposto, risultati, inquadrature di guida, zoom secondo la velocità).
 
-**Schermo principale**
-- mappa con il tema e la freccia di posizione del telefono; **centra**, **zoom**, **sposta** (pulsanti, frecce,
-  trascinamento e pizzico sugli schermi touch);
-- **Destinazioni**: Casa, Lavoro, auto parcheggiata, **Nei dintorni** (benzina, ricarica, parcheggi, ristoranti,
-  caffè, supermercati, farmacie, hotel), Salvati, Recenti; **ricerca** con i suggerimenti di Apple Maps;
-- **anteprima del viaggio** con fino a 3 percorsi (durata, distanza, pedaggi, orario d'arrivo) e **Avvia**;
-  i percorsi aperti sul telefono compaiono anche in auto e la scelta resta allineata;
-- **guida svolta per svolta**: scheda della manovra e della successiva con il testo di Apple Maps e la stessa freccia
-  del telefono (variante chiara e scura), distanze esatte e arrotondate come sul telefono, orario d'arrivo,
-  ricalcolo, panoramica del percorso, tratto percorso che sparisce, zoom secondo la velocità, arrivo;
-  **Muto**, **Panoramica**, **Termina**;
-- **notifiche della manovra** quando sullo schermo dell'auto c'è un'altra app; toccandole si torna alla guida.
+CarPlay **non passa i tocchi** alle viste delle app, quindi i comandi in auto sono:
 
-**Dashboard di CarPlay**: riquadro con la mappa (e il percorso durante la guida) e due scorciatoie
-(Casa, Lavoro, oppure parcheggio o ultima destinazione).
+| Schermata | Pulsanti di CarPlay (in alto) |
+|---|---|
+| Mappa | Destinazioni · Cerca |
+| Scheda del luogo | Chiudi · Cerca · Indicazioni · Avvia |
+| Risultati | Chiudi · Cerca · Risultati (elenco) |
+| Indicazioni | Annulla · Percorsi (elenco) · Avvia |
+| Guida | Voce · Panoramica · Percorsi alternativi (elenco) · Termina |
 
-**Quadro strumenti / head-up display** (auto compatibili, iOS 17.4+): mappa nel quadro e metadati di navigazione
-(tipo di manovra, uscita della rotonda, senso di marcia, strada attuale, fase della manovra) per le indicazioni dell'auto.
+A destra: posizione / Riposiziona (come il pulsante del telefono), zoom +/−, Sposta. Sulla mappa: trascina e pizzica
+(schermi touch). Le barre di CarPlay si nascondono da sole dopo qualche secondo e resta solo l'interfaccia di GassMaps.
+**Destinazioni**: Casa, Lavoro, parcheggio (aprono subito le indicazioni), Nei dintorni (gli stessi chip della mappa),
+Salvati, Recenti. **Cerca**: tastiera di CarPlay con i suggerimenti di Apple Maps.
 
-La guida è una sola: avviata o terminata dal telefono o dall'auto, gli altri schermi la seguono. Con CarPlay collegato
-la posizione continua ad aggiornarsi anche a telefono bloccato e la mappa continua a essere disegnata.
+Anche: mappa nel widget della **Dashboard** di CarPlay (con scorciatoie Casa/Lavoro) e nel **quadro strumenti**.
+Con CarPlay collegato la posizione continua ad aggiornarsi anche a telefono bloccato e la mappa continua a essere disegnata.
 
 **Entitlement.** CarPlay mostra l'app solo se è firmata con `com.apple.developer.carplay-maps`
 ([`GassMaps.entitlements`](GassMaps.entitlements)). Il workflow lo incorpora nell'IPA con una firma ad hoc:
