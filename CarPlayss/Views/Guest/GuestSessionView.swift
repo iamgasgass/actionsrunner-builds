@@ -565,7 +565,7 @@ struct CPContactView: View {
             if let s = c.subtitle { Text(s).font(.system(size: 15)).foregroundColor(CP.secondaryText) }
             if let i = c.informativeText { Text(i).font(.system(size: 14)).foregroundColor(CP.tertiaryText) }
             HStack(spacing: 22) {
-                ForEach(Array(c.actions.enumerated()), id: \.offset) { _, action in
+                ForEach(Array((c.actions ?? []).enumerated()), id: \.offset) { _, action in
                     Button {
                         session.tap(handlerOf: action, label: "Contatto")
                     } label: {
