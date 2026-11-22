@@ -1,72 +1,76 @@
-<p align="center">
-  <img src="src/app/Husk/Assets.xcassets/AppIcon.appiconset/Icon-Default.png" width="120" height="120" alt="Husk">
-</p>
+# CarPlay Sim
 
-<h1 align="center">Husk</h1>
+Simulatore dell'interfaccia di un'unità di bordo in stile CarPlay, scritto in SwiftUI,
+pensato per girare dentro **LiveContainer** (o installato con SideStore/AltStore/TrollStore).
 
-<p align="center">Android apps and games on your iPhone.</p>
+> Progetto non ufficiale, non affiliato né approvato da Apple. "CarPlay" è un marchio di Apple Inc.
+> L'app **non** usa il framework CarPlay (che richiede entitlement Apple e un'auto vera):
+> ricrea l'esperienza a schermo intero sul tuo iPhone/iPad.
 
-<p align="center">
-  <a href="https://itslevii.dev/docs/install">Install</a>
-  ·
-  <a href="https://itslevii.dev/husk">Compatibility</a>
-  ·
-  <a href="https://itslevii.dev">Website</a>
-  ·
-  <a href="https://github.com/Leviidev/Husk/releases">Releases</a>
-</p>
+## Funzioni
 
-<p align="center">
-  <a href="https://github.com/Leviidev/Husk/releases"><img src="https://img.shields.io/github/downloads/Leviidev/Husk/total?style=flat-square&color=5B49EB&labelColor=111111" alt="Downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Leviidev/Husk?style=flat-square&color=5B49EB&labelColor=111111" alt="GPL-2.0-or-later"></a>
-</p>
+| App | Cosa fa |
+|---|---|
+| **Dashboard** | Mappa live, widget "In riproduzione", meteo e prossimo evento |
+| **Mappe** | Ricerca luoghi (MapKit), percorsi alternativi, navigazione con GPS reale **o guida simulata** lungo il percorso (velocità ×1…×20) con indicazioni svolta per svolta |
+| **In riproduzione** | Copertina, avanzamento, controlli, volume di sistema |
+| **Musica** | Libreria Musica di iOS (playlist, album, casuale) + brani demo |
+| **Radio** | Radio in streaming reale (SomaFM, Radio Paradise) con titolo del brano in diretta |
+| **Telefono** | Preferiti, recenti, tastiera, schermata di chiamata (passa la chiamata a iOS con `tel://`) |
+| **Messaggi** | Conversazioni di esempio, lettura ad alta voce, risposte rapide |
+| **Calendario / Meteo** | Dati dimostrativi, "portami lì" dagli eventi |
+| **Assistente vocale** | Riconoscimento vocale in italiano + sintesi vocale. Se il microfono non funziona (frequente in LiveContainer) puoi scrivere il comando |
+| **Impostazioni** | Risoluzione schermo simulato (800×480, 1280×720, 1440×540, 1920×720 o adatta), cornice, guida a destra, tema, sfondi, velocità simulazione |
 
-Add an APK, tap it, and it opens full-screen.
+Comandi vocali di esempio: *"portami al Colosseo"*, *"metti la radio"*, *"radio groove salad"*,
+*"prossimo brano"*, *"pausa"*, *"chiama Marco"*, *"leggi i messaggi"*, *"che tempo fa"*,
+*"quanto manca"*, *"termina navigazione"*, *"apri impostazioni"*.
 
-- **Translation layer** — the game’s own 64-bit Android code runs on the iPhone. Husk stands in for Android around it (C library, Java, GL, Vulkan, audio, input). No Android boot; a game starts in seconds.
-- **Emulation** — a full LineageOS guest under QEMU, for apps the translation layer cannot run yet.
-- **PS4** — fake packages and game folders on iOS 17.4+.
+Il tasto in basso nella barra laterale alterna **Home ↔ Dashboard**; le tre icone sopra sono le app recenti.
 
-## Install
+## Ottenere l'IPA unsigned (GitHub Actions)
 
-Sideload with SideStore, AltStore, or TrollStore. iOS 15.5 or later.
+1. Crea un nuovo repository su GitHub e carica il contenuto di questo zip (incluse le cartelle nascoste `.github/`).
+2. Vai su **Actions** → abilita i workflow se richiesto.
+3. Il workflow **Build unsigned IPA** parte a ogni push (oppure avvialo a mano con **Run workflow**).
+4. A fine build scarica l'artifact **CarPlaySim-unsigned-ipa** (uno zip che contiene `CarPlaySim.ipa`).
+5. Facoltativo: crea un tag `v1.0.0` (`git tag v1.0.0 && git push --tags`) e l'IPA verrà allegata a una Release.
 
-**Guide:** [itslevii.dev/docs/install](https://itslevii.dev/docs/install)
+Il workflow usa `macos-latest`, l'ultima Xcode stabile, genera il progetto con **XcodeGen** da `project.yml`
+e compila con `CODE_SIGNING_ALLOWED=NO`, poi impacchetta `Payload/CarPlaySim.app` in `CarPlaySim.ipa`.
 
-Add this source in SideStore or AltStore (Sources › +). It also lists AetherPS4, Utsuro, Podium and Fathom:
+## Installazione in LiveContainer
 
-```
-https://itslevii.dev/repo.json
-```
+1. Apri LiveContainer → **+** → seleziona `CarPlaySim.ipa`.
+2. Avvia "CarPlay Sim" e ruota il telefono in orizzontale.
+3. Concedi posizione (Mappe), microfono e riconoscimento vocale (assistente) e libreria musicale se vuoi.
 
-Or download `Husk.ipa` from [Releases](https://github.com/Leviidev/Husk/releases).
+Note su LiveContainer:
+- I permessi vengono chiesti a nome di LiveContainer; se un permesso era già stato negato, abilitalo
+  per LiveContainer nelle Impostazioni di iOS.
+- Il riconoscimento vocale e l'accesso alla libreria Musica potrebbero non funzionare in alcune
+  configurazioni: in quel caso usa il campo di testo dell'assistente e i brani Demo/Radio.
+- La musica continua in background solo se LiveContainer lo consente.
 
-Games need [JIT](https://itslevii.dev/docs/jit), or they can run from [Play without JIT](https://itslevii.dev/docs/play-without-jit) after you import the certificate that installed Husk.
+## Compilare in locale (macOS)
 
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><img src="Screenshots/gta-san-andreas.jpeg" alt="GTA: San Andreas"><br><sub>GTA: San Andreas</sub></td>
-    <td align="center"><img src="Screenshots/minecraft-dungeons.jpeg" alt="Minecraft Dungeons"><br><sub>Minecraft Dungeons</sub></td>
-  </tr>
-  <tr>
-    <td align="center" width="33%"><img src="Screenshots/library.png" alt="Library"><br><sub>Library</sub></td>
-    <td align="center" width="33%"><img src="Screenshots/game-settings.png" alt="Game Settings"><br><sub>Game Settings</sub></td>
-    <td align="center" width="33%"><img src="Screenshots/settings.png" alt="Settings"><br><sub>Settings</sub></td>
-  </tr>
-</table>
-
-## Building
-
-On a Mac with Xcode, plus `meson`, `ninja`, `pkg-config`, `python3`, `xcodegen`, `qemu-img`, and a Rust toolchain with `aarch64-apple-ios`:
-
-```sh
-./scripts/ci_build.sh
+```bash
+brew install xcodegen
+xcodegen generate
+open CarPlaySim.xcodeproj
 ```
 
-That produces `build/Husk.ipa`. Later app-only rebuilds: `./scripts/package_ipa.sh` → `~/Desktop/Husk.ipa`.
+## Struttura
 
-## Licence
+```
+.github/workflows/build.yml   # CI: genera progetto, compila, crea IPA unsigned
+project.yml                   # definizione XcodeGen (target, Info.plist, impostazioni)
+CarPlaySim/
+  App/                        # entry point SwiftUI
+  Models/                     # stato, media, navigazione, assistente vocale, dati demo
+  Views/                      # schermo auto, dock, home, dashboard, overlay assistente
+  Views/Apps/                 # Mappe, Musica, Radio, Telefono, Messaggi, Calendario, Meteo, Impostazioni
+  Resources/Assets.xcassets   # icona e colore d'accento
+```
 
-GPL-2.0-or-later. Husk links QEMU (GPLv2), so the shipped binary is a combined GPLv2 work. It cannot go on the App Store. See [docs/01-licensing.md](docs/01-licensing.md).
+Requisiti: iOS 16.0 o successivo.
