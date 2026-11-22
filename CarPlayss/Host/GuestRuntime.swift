@@ -228,6 +228,16 @@ final class GuestRuntime: ObservableObject {
         UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
     }
 
+    static let hostLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue + 1)
+
+    /// Finestra principale di CarPlayss (quella SwiftUI, non le finestre di sistema).
+    func mainHostWindow() -> UIWindow? {
+        allWindows().first {
+            hostWindows.contains(ObjectIdentifier($0)) && !$0.isHidden &&
+                ($0.windowLevel == .normal || $0.windowLevel == Self.hostLevel)
+        }
+    }
+
     /// Le app possono aprire finestre per l'interfaccia del telefono: nell'auto non si vedono, quindi si nascondono.
     private func startWindowGuard() {
         guard windowTimer == nil else { return }
@@ -244,11 +254,11 @@ final class GuestRuntime: ObservableObject {
 
             if let d = s.dashboardWindow { allowed.insert(ObjectIdentifier(d)) }
         }
-        // Finestra principale di CarPlayss (livello normale); quelle di sistema (tastiera ecc.) hanno livelli alti.
-        let hostWindow = allWindows().first {
-            hostWindows.contains(ObjectIdentifier($0)) && !$0.isHidden && $0.windowLevel == .normal
-        }
-        let behind = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
+        // iOS non accetta livelli sotto .normal: è CarPlayss che sale di un livello (sotto tastiera e avvisi di
+        // sistema), le finestre "telefono" delle app restano a .normal, quindi dietro lo schermo dell'auto.
+        let hostWindow = mainHostWindow()
+        if let host = hostWindow, host.windowLevel != Self.hostLevel { host.windowLevel = Self.hostLevel }
+        let behind = UIWindow.Level.normal
         for window in allWindows() where !allowed.contains(ObjectIdentifier(window)) {
             let name = NSStringFromClass(type(of: window))
             let isSystem = name.hasPrefix("UI") || name.hasPrefix("_UI")
@@ -256,6 +266,7 @@ final class GuestRuntime: ObservableObject {
             // L'interfaccia telefono dell'app resta attiva (Flutter/SwiftUI/UIKit continuano a lavorare)
             // ma sta dietro lo schermo dell'auto.
             if window.windowLevel != behind { window.windowLevel = behind }
+            if window.isHidden == false, window.alpha > 0, window.frame.width > 0 { window.isUserInteractionEnabled = false }
             if window.isKeyWindow, let host = hostWindow { host.makeKey() }
         }
     }
@@ -435,7 +446,7 @@ final class GuestRuntime: ObservableObject {
                 guard let root = storyboard.instantiateInitialViewController() else { return }
                 let window = UIWindow(windowScene: hostScene)
                 window.rootViewController = root
-                window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
+                window.windowLevel = .normal
                 window.isHidden = false
                 session.phoneWindow = window
                 if let delegate = session.appDelegate, delegate.responds(to: NSSelectorFromString("setWindow:")) {
@@ -472,8 +483,9 @@ final class GuestRuntime: ObservableObject {
             }
         }
         // L'interfaccia telefono resta attiva ma dietro lo schermo dell'auto, e CarPlayss resta la finestra principale.
-        session.phoneWindow?.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
-        if let host = hostScene.windows.first(where: { hostWindows.contains(ObjectIdentifier($0)) && $0.windowLevel == .normal }) {
+        session.phoneWindow?.windowLevel = .normal
+        if let host = mainHostWindow() {
+            host.windowLevel = Self.hostLevel
             host.makeKey()
         }
 
