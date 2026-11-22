@@ -53,6 +53,17 @@ final class GuestSession: ObservableObject, Identifiable {
     @Published var selectedPOI: Int?
     @Published var searchText = ""
     @Published var searchResults: [CPListItem] = []
+    /// Diagnostica: cosa è stato chiamato e cosa ha fatto l'app.
+    @Published var log: [String] = []
+    var delegateClassName = "—"
+    var delegateMethods: [String] = []
+
+    func note(_ message: String) {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        log.append("\(f.string(from: Date()))  \(message)")
+        if log.count > 60 { log.removeFirst(log.count - 60) }
+    }
 
     private var timer: Timer?
     private var observer: NSObjectProtocol?
@@ -65,6 +76,7 @@ final class GuestSession: ObservableObject, Identifiable {
         window = CPSObjC.makeCarWindow(frame: CGRect(x: 0, y: 0, width: 800, height: 480))
         scene = CPSTemplateApplicationScene.make(controller: controller, window: window)
         controller.cps_onChange = { [weak self] in self?.refresh() }
+        controller.cps_onLog = { [weak self] msg in self?.note("App → \(msg)") }
         observer = NotificationCenter.default.addObserver(forName: .cpsStateDidChange, object: nil, queue: .main) { [weak self] _ in
             self?.refresh()
         }
@@ -124,6 +136,7 @@ final class GuestRuntime: ObservableObject {
 
     func launch(_ app: GuestApp) {
         guard sessions[app.id] == nil, !loading.contains(app.id) else { return }
+        captureHostWindows()
         loading.insert(app.id)
         errors[app.id] = nil
         DispatchQueue.main.async {
@@ -136,6 +149,8 @@ final class GuestRuntime: ObservableObject {
             let session = try load(app)
             sessions[app.id] = session
             CrashGuard.finished(app: app)
+            scheduleFallback(session)
+            startWindowGuard()
             loading.remove(app.id)
         } catch GuestError.needsSigning {
             guard allowSigning else {
@@ -156,6 +171,67 @@ final class GuestRuntime: ObservableObject {
             errors[app.id] = error.localizedDescription
             loading.remove(app.id)
             CrashGuard.failed(app: app)
+        }
+    }
+
+    /// Molte app gestiscono CarPlay in scene(_:willConnectTo:options:) (con `scene as? CPTemplateApplicationScene`)
+    /// invece che in templateApplicationScene(_:didConnect:). Se dopo 2 s non c'è un template, si prova anche lì.
+    private func scheduleFallback(_ session: GuestSession) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            guard session.stack.isEmpty, let delegate = session.sceneDelegate,
+                  !CrashGuard.skip(.fallback, session.app.id) else { return }
+            let sel = NSSelectorFromString("scene:willConnectToSession:options:")
+            guard delegate.responds(to: sel) else {
+                session.note("Nessun template dopo 2 s; il delegato non implementa scene:willConnectToSession:options:")
+                return
+            }
+            session.note("Nessun template dopo 2 s → CarPlayss → scene:willConnectToSession:options:")
+            CrashGuard.begin(.fallback, app: session.app)
+            session.guest("Avvio alternativo") {
+                CPSObjC.send(delegate, sel, session.scene, nil, nil)
+                CPSObjC.send(delegate, NSSelectorFromString("sceneWillEnterForeground:"), session.scene)
+                CPSObjC.send(delegate, NSSelectorFromString("sceneDidBecomeActive:"), session.scene)
+            }
+            CrashGuard.finished(app: session.app)
+        }
+    }
+
+    // MARK: Finestre dell'interfaccia telefono
+
+    private var hostWindows: Set<ObjectIdentifier> = []
+    private var windowTimer: Timer?
+
+    /// Finestre esistenti prima di caricare qualsiasi app: sono di CarPlayss.
+    func captureHostWindows() {
+        guard hostWindows.isEmpty else { return }
+        hostWindows = Set(allWindows().map { ObjectIdentifier($0) })
+    }
+
+    private func allWindows() -> [UIWindow] {
+        UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
+    }
+
+    /// Le app possono aprire finestre per l'interfaccia del telefono: nell'auto non si vedono, quindi si nascondono.
+    private func startWindowGuard() {
+        guard windowTimer == nil else { return }
+        windowTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.hideForeignWindows()
+        }
+        hideForeignWindows()
+    }
+
+    private func hideForeignWindows() {
+        var allowed = hostWindows
+        for s in sessions.values {
+            allowed.insert(ObjectIdentifier(s.window))
+            if let d = s.dashboardWindow { allowed.insert(ObjectIdentifier(d)) }
+        }
+        for window in allWindows() where !allowed.contains(ObjectIdentifier(window)) && !window.isHidden {
+            let name = NSStringFromClass(type(of: window))
+            let isSystem = name.hasPrefix("UI") || name.hasPrefix("_UI")
+            if type(of: window) == UIWindow.self || !isSystem {
+                window.isHidden = true
+            }
         }
     }
 
@@ -230,6 +306,7 @@ final class GuestRuntime: ObservableObject {
                         session.appDelegate = delegate
                         _ = CPSObjC.sendLaunch(delegate, NSSelectorFromString("application:willFinishLaunchingWithOptions:"), application: UIApplication.shared)
                         _ = CPSObjC.sendLaunch(delegate, NSSelectorFromString("application:didFinishLaunchingWithOptions:"), application: UIApplication.shared)
+                        session.note("CarPlayss → AppDelegate \(NSStringFromClass(cls)) didFinishLaunching")
                         CPSObjC.send(delegate, NSSelectorFromString("applicationDidBecomeActive:"), UIApplication.shared)
                     }
                 }
@@ -250,6 +327,10 @@ final class GuestRuntime: ObservableObject {
             var connectError: String?
             connectError = CPSObjC.catching {
                 guard let delegate = CPSObjC.instantiate(cls) as? NSObject else { return }
+                session.delegateClassName = NSStringFromClass(cls)
+                session.delegateMethods = CPSObjC.methodNames(of: cls).filter {
+                    $0.contains("scene") || $0.contains("Scene") || $0.contains("template") || $0.contains("Template") || $0.contains("contentStyle")
+                }
                 session.sceneDelegate = delegate
                 session.scene.cps_delegate = delegate
                 let withWindow = NSSelectorFromString("templateApplicationScene:didConnectInterfaceController:toWindow:")
@@ -257,9 +338,13 @@ final class GuestRuntime: ObservableObject {
                 CPSObjC.send(delegate, NSSelectorFromString("sceneWillEnterForeground:"), session.scene)
                 if delegate.responds(to: withWindow) {
                     session.usesWindow = true
+                    session.note("CarPlayss → templateApplicationScene:didConnectInterfaceController:toWindow:")
                     CPSObjC.send(delegate, withWindow, session.scene, session.controller, session.window)
-                } else {
+                } else if delegate.responds(to: plain) {
+                    session.note("CarPlayss → templateApplicationScene:didConnectInterfaceController:")
                     CPSObjC.send(delegate, plain, session.scene, session.controller)
+                } else {
+                    session.note("Il delegato non implementa templateApplicationScene:didConnect…")
                 }
                 CPSObjC.send(delegate, NSSelectorFromString("sceneDidBecomeActive:"), session.scene)
             }

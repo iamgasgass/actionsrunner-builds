@@ -12,6 +12,7 @@ enum CrashGuard {
         case appDelegate = "AppDelegate dell'app (application:didFinishLaunchingWithOptions:)"
         case carplay = "collegamento della scena CarPlay"
         case dashboard = "collegamento della Dashboard CarPlay"
+        case fallback = "avvio alternativo (scene:willConnectToSession:options:)"
         case running = "esecuzione (subito dopo l'avvio)"
     }
 
@@ -42,6 +43,7 @@ enum CrashGuard {
             switch phase {
             case .appDelegate?: setSkip(.appDelegate, appID, true)
             case .dashboard?: setSkip(.dashboard, appID, true)
+            case .fallback?: setSkip(.fallback, appID, true)
             default: break
             }
             records[appID] = Record(appID: appID, appName: pending["name"] ?? appID, phase: phaseRaw,
@@ -82,6 +84,7 @@ enum CrashGuard {
     enum Skip: String {
         case appDelegate
         case dashboard
+        case fallback
     }
 
     static func skip(_ what: Skip, _ appID: String) -> Bool {
@@ -95,6 +98,7 @@ enum CrashGuard {
     static func resetSafeMode(_ appID: String) {
         setSkip(.appDelegate, appID, false)
         setSkip(.dashboard, appID, false)
+        setSkip(.fallback, appID, false)
     }
 
     private static var hostVersion: String {

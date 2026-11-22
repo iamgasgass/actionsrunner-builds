@@ -49,6 +49,8 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 + (NSArray<NSString *> *)classNamesInImageAtPath:(NSString *)path NS_SWIFT_NAME(classNames(inImageAtPath:));
 + (BOOL)isClass:(Class)cls conformingTo:(Protocol *)proto NS_SWIFT_NAME(isClass(_:conformingTo:));
 + (nullable id)instantiate:(Class)cls NS_SWIFT_NAME(instantiate(_:));
+/// Selettori implementati direttamente da una classe (diagnostica).
++ (NSArray<NSString *> *)methodNamesOfClass:(Class)cls NS_SWIFT_NAME(methodNames(of:));
 
 /// Crea la finestra dell'auto (CPWindow se disponibile, altrimenti UIWindow).
 + (UIWindow *)makeCarWindowWithFrame:(CGRect)frame NS_SWIFT_NAME(makeCarWindow(frame:));
@@ -60,6 +62,8 @@ FOUNDATION_EXPORT NSNotificationName const CPSStateDidChangeNotification NS_SWIF
 @interface CPSInterfaceController : CPInterfaceController
 + (instancetype)makeController NS_SWIFT_NAME(make());
 @property (nonatomic, copy, nullable) void (^cps_onChange)(void);
+/// Registro delle chiamate dell'app al controller (diagnostica).
+@property (nonatomic, copy, nullable) void (^cps_onLog)(NSString *message);
 @property (nonatomic, readonly) NSArray<CPTemplate *> *cps_stack;
 @property (nonatomic, readonly, nullable) CPTemplate *cps_presented;
 /// Indietro / chiudi, come se l'utente toccasse i pulsanti di sistema.

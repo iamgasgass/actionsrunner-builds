@@ -161,6 +161,15 @@ static NSString *CPSNormalizedPath(NSString *path) {
     return NO;
 }
 
++ (NSArray<NSString *> *)methodNamesOfClass:(Class)cls {
+    NSMutableArray *names = [NSMutableArray array];
+    unsigned int count = 0;
+    Method *methods = class_copyMethodList(cls, &count);
+    for (unsigned int i = 0; i < count; i++) [names addObject:NSStringFromSelector(method_getName(methods[i]))];
+    free(methods);
+    return [names sortedArrayUsingSelector:@selector(compare:)];
+}
+
 + (id)instantiate:(Class)cls {
     if (!cls) return nil;
     return [[cls alloc] init];
@@ -221,6 +230,13 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
     _cpsPrefersDark = YES;
 }
 
+- (void)cps_note:(SEL)sel template:(CPTemplate *)t {
+    void (^log)(NSString *) = self.cps_onLog;
+    if (!log) return;
+    NSString *msg = [NSString stringWithFormat:@"%@ %@", NSStringFromSelector(sel), t ? NSStringFromClass([t class]) : @""];
+    dispatch_async(dispatch_get_main_queue(), ^{ log(msg); });
+}
+
 - (void)cps_changed {
     void (^cb)(void) = self.cps_onChange;
     dispatch_async(dispatch_get_main_queue(), ^{ if (cb) cb(); });
@@ -252,6 +268,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 #pragma mark Stack
 
 - (void)setRootTemplate:(CPTemplate *)rootTemplate animated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:rootTemplate];
     if (!rootTemplate) { CPSComplete(completion); return; }
     CPTemplate *old = _cpsStack.lastObject;
     CPSCallAppearance(_cpsDelegate, @"templateWillDisappear:animated:", old, animated);
@@ -269,6 +286,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 }
 
 - (void)pushTemplate:(CPTemplate *)templateToPush animated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:templateToPush];
     if (!templateToPush) { CPSComplete(completion); return; }
     CPTemplate *old = _cpsStack.lastObject;
     CPSCallAppearance(_cpsDelegate, @"templateWillDisappear:animated:", old, animated);
@@ -297,6 +315,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 }
 
 - (void)popTemplateAnimated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:nil];
     [self cps_popTo:_cpsStack.count - 1 animated:animated];
     CPSComplete(completion);
 }
@@ -306,6 +325,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 }
 
 - (void)popToRootTemplateAnimated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:nil];
     [self cps_popTo:1 animated:animated];
     CPSComplete(completion);
 }
@@ -325,6 +345,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 }
 
 - (void)presentTemplate:(CPTemplate *)templateToPresent animated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:templateToPresent];
     if (!templateToPresent) { CPSComplete(completion); return; }
     CPSCallAppearance(_cpsDelegate, @"templateWillAppear:animated:", templateToPresent, animated);
     _cpsPresented = templateToPresent;
@@ -338,6 +359,7 @@ static void CPSComplete(void (^completion)(BOOL, NSError *)) {
 }
 
 - (void)dismissTemplateAnimated:(BOOL)animated completion:(void (^)(BOOL, NSError *))completion {
+    [self cps_note:_cmd template:nil];
     CPTemplate *old = _cpsPresented;
     if (old) {
         CPSCallAppearance(_cpsDelegate, @"templateWillDisappear:animated:", old, animated);

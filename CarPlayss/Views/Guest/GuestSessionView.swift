@@ -142,12 +142,7 @@ struct GuestSessionView: View {
                 CPTemplateScreen(session: session, template: top)
                     .id(ObjectIdentifier(top))
             } else {
-                VStack(spacing: 12) {
-                    GuestIconView(app: session.app, size: 64)
-                    Text(session.app.name)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                }
+                GuestWaitingView(session: session)
             }
 
             if let presented = session.presented, !(session.top is CPMapTemplate) {
@@ -822,5 +817,52 @@ struct CPPresentedView: View {
             Button("Annulla") { session.dismissPresented() }
                 .buttonStyle(CPCapsuleButtonStyle())
         }
+    }
+}
+
+/// L'app è caricata ma non ha ancora impostato un template: diagnostica a schermo.
+struct GuestWaitingView: View {
+    @ObservedObject var session: GuestSession
+    @State private var copied = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                GuestIconView(app: session.app, size: 56)
+                Text(session.app.name)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.white)
+                Text("L'app è caricata ma non ha ancora impostato un template CarPlay.")
+                    .font(.system(size: 13))
+                    .foregroundColor(CP.secondaryText)
+                    .multilineTextAlignment(.center)
+                Button(copied ? "Copiato" : "Copia diagnostica") {
+                    UIPasteboard.general.string = diagnostics
+                    copied = true
+                }
+                .buttonStyle(CPCapsuleButtonStyle())
+                Text(diagnostics)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundColor(CP.secondaryText)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color(white: 0.1)))
+            }
+            .padding(20)
+        }
+    }
+
+    private var diagnostics: String {
+        var lines: [String] = []
+        lines.append("App: \(session.app.name) (\(session.app.id)) \(session.app.version)")
+        lines.append("Delegato CarPlay: \(session.delegateClassName)")
+        lines.append("Metodi del delegato: " + (session.delegateMethods.isEmpty ? "—" : session.delegateMethods.joined(separator: ", ")))
+        lines.append("AppDelegate: " + (session.appDelegate.map { NSStringFromClass(type(of: $0)) } ?? (CrashGuard.skip(.appDelegate, session.app.id) ? "saltato (modalità sicura)" : "non trovato/non eseguito")))
+        lines.append("Dashboard: " + (session.dashboardWindow != nil ? "collegata" : "no"))
+        if let err = session.lastError { lines.append("Ultimo errore: \(err)") }
+        lines.append("")
+        lines.append(contentsOf: session.log)
+        return lines.joined(separator: "\n")
     }
 }
