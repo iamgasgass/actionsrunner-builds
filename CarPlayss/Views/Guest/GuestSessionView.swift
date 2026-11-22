@@ -860,6 +860,16 @@ struct GuestWaitingView: View {
         lines.append("Metodi del delegato: " + (session.delegateMethods.isEmpty ? "—" : session.delegateMethods.joined(separator: ", ")))
         lines.append("AppDelegate: " + (session.appDelegate.map { NSStringFromClass(type(of: $0)) } ?? (CrashGuard.skip(.appDelegate, session.app.id) ? "saltato (modalità sicura)" : "non trovato/non eseguito")))
         lines.append("Dashboard: " + (session.dashboardWindow != nil ? "collegata" : "no"))
+        lines.append("Tipo di app: \(session.appKind)")
+        lines.append("Interfaccia telefono: " + (session.phoneWindow.map { w in
+            "finestra \(w.rootViewController.map { NSStringFromClass(type(of: $0)) } ?? "senza root")"
+        } ?? "non avviata"))
+        if let exec = Bundle(url: session.app.bundleURL)?.executableURL {
+            let libs = MachO.linkedLibraries(exec)
+                .filter { !$0.hasPrefix("/usr/lib/") }
+                .map { ($0 as NSString).lastPathComponent }
+            lines.append("Librerie: " + libs.joined(separator: ", "))
+        }
         if let err = session.lastError { lines.append("Ultimo errore: \(err)") }
         lines.append("")
         lines.append(contentsOf: session.log)

@@ -45,6 +45,11 @@ final class GuestSession: ObservableObject, Identifiable {
     var dashboardWindow: UIWindow?
     var dashboardDelegate: NSObject?
 
+    // Interfaccia "telefono" dell'app (storyboard / scena principale): avviata dietro lo schermo dell'auto
+    var phoneWindow: UIWindow?
+    var phoneSceneDelegate: NSObject?
+    var appKind = "—"
+
     @Published var tick = 0
     @Published var selectedTab = 0
     @Published var lastError: String?
@@ -224,14 +229,19 @@ final class GuestRuntime: ObservableObject {
         var allowed = hostWindows
         for s in sessions.values {
             allowed.insert(ObjectIdentifier(s.window))
+            if let p = s.phoneWindow, p.windowLevel.rawValue >= 0 { p.windowLevel = UIWindow.Level(rawValue: -1) }
             if let d = s.dashboardWindow { allowed.insert(ObjectIdentifier(d)) }
         }
-        for window in allWindows() where !allowed.contains(ObjectIdentifier(window)) && !window.isHidden {
+        let hostWindow = allWindows().first { hostWindows.contains(ObjectIdentifier($0)) && !$0.isHidden }
+        let behind = UIWindow.Level(rawValue: (hostWindow?.windowLevel.rawValue ?? 0) - 1)
+        for window in allWindows() where !allowed.contains(ObjectIdentifier(window)) {
             let name = NSStringFromClass(type(of: window))
             let isSystem = name.hasPrefix("UI") || name.hasPrefix("_UI")
-            if type(of: window) == UIWindow.self || !isSystem {
-                window.isHidden = true
-            }
+            guard type(of: window) == UIWindow.self || !isSystem else { continue }
+            // L'interfaccia telefono dell'app resta attiva (Flutter/SwiftUI/UIKit continuano a lavorare)
+            // ma sta dietro lo schermo dell'auto.
+            if window.windowLevel != behind { window.windowLevel = behind }
+            if window.isKeyWindow, let host = hostWindow { host.makeKey() }
         }
     }
 
@@ -313,6 +323,8 @@ final class GuestRuntime: ObservableObject {
             }
         }
 
+        bootPhoneUI(session, bundle: bundle)
+
         // Delegato della scena CarPlay
         CrashGuard.begin(.carplay, app: app)
         var delegateClass: AnyClass?
@@ -366,6 +378,75 @@ final class GuestRuntime: ObservableObject {
             connectDashboard(session, bundle: bundle, classNames: classNames)
         }
         return session
+    }
+
+    /// Avvia l'interfaccia principale dell'app (come farebbe UIApplicationMain): molte app inizializzano
+    /// mappa, posizione e dati lì, e il codice CarPlay aspetta che siano pronti.
+    private func bootPhoneUI(_ session: GuestSession, bundle: Bundle) {
+        let info = bundle.infoDictionary ?? [:]
+        var kind: [String] = []
+        let frameworks = (try? FileManager.default.contentsOfDirectory(atPath: bundle.bundleURL.appendingPathComponent("Frameworks").path)) ?? []
+        if frameworks.contains("Flutter.framework") { kind.append("Flutter") }
+        if frameworks.contains(where: { $0.hasPrefix("React") || $0.hasPrefix("hermes") }) { kind.append("React Native") }
+        if frameworks.contains(where: { $0.hasPrefix("UnityFramework") }) { kind.append("Unity") }
+
+        var storyboardName = info["UIMainStoryboardFile"] as? String
+        var phoneDelegateClass: AnyClass?
+        if let manifest = info["UIApplicationSceneManifest"] as? [String: Any],
+           let configs = manifest["UISceneConfigurations"] as? [String: Any],
+           let phone = (configs["UIWindowSceneSessionRoleApplication"] as? [[String: Any]])?.first {
+            kind.append("scene")
+            if let sb = phone["UISceneStoryboardFile"] as? String { storyboardName = sb }
+            if let name = phone["UISceneDelegateClassName"] as? String { phoneDelegateClass = NSClassFromString(name) }
+        }
+        if storyboardName != nil { kind.append("storyboard") }
+
+        guard let hostScene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else {
+            session.appKind = kind.joined(separator: ", ")
+            return
+        }
+
+        // Finestra già creata dall'AppDelegate (UI programmatica)?
+        if let delegate = session.appDelegate,
+           let existing = CPSObjC.get(delegate, NSSelectorFromString("window")) as? UIWindow {
+            session.phoneWindow = existing
+            kind.append("finestra dell'AppDelegate")
+        }
+
+        if session.phoneWindow == nil, let name = storyboardName {
+            session.guest("Interfaccia telefono") {
+                let storyboard = UIStoryboard(name: name, bundle: bundle)
+                guard let root = storyboard.instantiateInitialViewController() else { return }
+                let window = UIWindow(windowScene: hostScene)
+                window.rootViewController = root
+                window.windowLevel = UIWindow.Level(rawValue: UIWindow.Level.normal.rawValue - 1)
+                window.isHidden = false
+                session.phoneWindow = window
+                if let delegate = session.appDelegate, delegate.responds(to: NSSelectorFromString("setWindow:")) {
+                    CPSObjC.send(delegate, NSSelectorFromString("setWindow:"), window)
+                }
+                session.note("CarPlayss → interfaccia telefono avviata dallo storyboard \(name)")
+            }
+        }
+
+        if let cls = phoneDelegateClass {
+            session.guest("Scena telefono") {
+                guard let delegate = CPSObjC.instantiate(cls) as? NSObject else { return }
+                session.phoneSceneDelegate = delegate
+                if let window = session.phoneWindow, delegate.responds(to: NSSelectorFromString("setWindow:")) {
+                    CPSObjC.send(delegate, NSSelectorFromString("setWindow:"), window)
+                }
+                session.note("CarPlayss → delegato scena telefono \(NSStringFromClass(cls)) creato")
+            }
+        }
+
+        if NSClassFromString("SwiftUI.AppDelegate") != nil || classLinksSwiftUI(bundle) { kind.append("SwiftUI") }
+        session.appKind = kind.isEmpty ? "UIKit" : kind.joined(separator: ", ")
+    }
+
+    private func classLinksSwiftUI(_ bundle: Bundle) -> Bool {
+        guard let exec = bundle.executableURL else { return false }
+        return MachO.linkedLibraries(exec).contains { $0.contains("SwiftUI.framework") }
     }
 
     /// Collega la scena Dashboard di CarPlay, se l'app la dichiara.

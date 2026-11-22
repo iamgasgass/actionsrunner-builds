@@ -192,6 +192,18 @@ enum MachO {
         return u32(b, 0) == mhMagic64 || [fatMagic, fatMagic64].contains(u32be(b, 0))
     }
 
+    /// Librerie collegate (LC_LOAD_DYLIB e simili) dell'eseguibile.
+    static func linkedLibraries(_ url: URL) -> [String] {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return [] }
+        let b = [UInt8](data)
+        guard let slice = (try? arm64Slices(b))?.first else { return [] }
+        let kinds: Set<UInt32> = [lcLoadDylib, lcLoadWeakDylib, lcReexportDylib, lcLazyLoadDylib, lcLoadUpwardDylib]
+        return commands(b, slice: slice).filter { kinds.contains($0.cmd) }.map { c in
+            let off = Int(u32(b, c.offset + 8))
+            return cString(b, c.offset + off, max: c.size - off)
+        }
+    }
+
     /// Tutti i file Mach-O del bundle (percorsi relativi), esclusi i link simbolici.
     static func machOFiles(in appURL: URL) -> [URL] {
         guard let walker = FileManager.default.enumerator(at: appURL, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else {
