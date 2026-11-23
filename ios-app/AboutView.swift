@@ -37,7 +37,7 @@ struct AboutView: View {
 
     private var header: some View {
         BrandHeader(icon: "info.circle", image: "AppLogo", title: "iLoader X",
-                    subtitle: L("an app by Frizzle")) {
+                    subtitle: L("an app by iamgasgass")) {
             Text(versionText)
                 .font(.footnote.monospaced())
                 .foregroundStyle(Theme.muted)

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>iLoader X</title>
 <meta name="description" content="Install SideStore and LiveContainer directly on your iPhone. No PC required. A fork of SideInstaller by FrizzleM.">
-<meta name="theme-color" content="#F4F7F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0B0F0D" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F8F4F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#100608" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 <meta property="og:title" content="iLoader X">
@@ -14,15 +14,15 @@
 <meta property="og:image" content="https://iamgasgass.github.io/iLoaderX/icon.png">
 <style>
   :root {
-    --bg: #F4F7F5; --card: rgba(255,255,255,.72); --card-solid: #fff; --text: #0E1511; --dim: #5A6760;
-    --line: rgba(14,21,17,.10); --accent: #12A150; --accent-2: #19C566; --accent-text: #fff;
-    --warn-bg: #FFF6E0; --warn-line: #F1D79A; --warn-text: #6B4D00; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 12px 32px rgba(10,60,30,.08);
+    --bg: #F8F4F5; --card: rgba(255,255,255,.72); --card-solid: #fff; --text: #1A0E11; --dim: #6E5A5F;
+    --line: rgba(26,14,17,.10); --accent: #AC1A32; --accent-2: #D42444; --accent-text: #fff;
+    --warn-bg: #FFF6E0; --warn-line: #F1D79A; --warn-text: #6B4D00; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 12px 32px rgba(70,10,20,.08);
     color-scheme: light dark;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0B0F0D; --card: rgba(26,33,29,.72); --card-solid: #161C19; --text: #EAF2ED; --dim: #93A29A;
-      --line: rgba(255,255,255,.09); --accent: #2BD97A; --accent-2: #19C566; --accent-text: #04140A;
+      --bg: #100608; --card: rgba(36,18,22,.72); --card-solid: #1E1013; --text: #F4EAEC; --dim: #B09095;
+      --line: rgba(255,255,255,.09); --accent: #FF7082; --accent-2: #D42444; --accent-text: #1E0408;
       --warn-bg: #2A2310; --warn-line: #5A4A1C; --warn-text: #F3D58A; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
     }
   }
@@ -31,8 +31,8 @@
   body {
     margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-image: radial-gradient(900px 500px at 85% -10%, rgba(25,197,102,.18), transparent 60%),
-                      radial-gradient(700px 400px at -10% 10%, rgba(25,197,102,.10), transparent 60%);
+    background-image: radial-gradient(900px 500px at 85% -10%, rgba(212,36,68,.18), transparent 60%),
+                      radial-gradient(700px 400px at -10% 10%, rgba(212,36,68,.10), transparent 60%);
     background-attachment: fixed; min-height: 100vh;
   }
   main { max-width: 680px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 16px 48px; }
@@ -41,7 +41,7 @@
     border-radius: 999px; padding: 4px 12px; cursor: pointer; }
   .lang button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
   header { text-align: center; padding: 18px 0 8px; }
-  header img { width: 128px; height: 128px; border-radius: 28.5px; box-shadow: 0 10px 30px rgba(10,80,40,.25), 0 0 0 1px var(--line); }
+  header img { width: 128px; height: 128px; border-radius: 28.5px; box-shadow: 0 10px 30px rgba(110,10,30,.25), 0 0 0 1px var(--line); }
   h1 { font-size: 40px; letter-spacing: -.8px; margin: 18px 0 4px; line-height: 1.1; }
   .tagline { color: var(--dim); font-size: 18px; margin: 0 0 12px; }
   .meta { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; color: var(--dim); }
@@ -54,8 +54,8 @@
   a.btn, button.btn { display: flex; align-items: center; gap: 12px; width: 100%; text-decoration: none; font: inherit; text-align: left;
     padding: 13px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--card-solid); color: var(--text); cursor: pointer; }
   a.btn:active, button.btn:active { transform: scale(.985); }
-  .btn.primary { background: linear-gradient(180deg, var(--accent-2), var(--accent)); color: var(--accent-text); border-color: transparent; font-weight: 600; }
-  .btn .ic { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center; background: rgba(25,197,102,.14); }
+  .btn.primary { background: linear-gradient(180deg, #D42444, #9E1530); color: #fff; border-color: transparent; font-weight: 600; }
+  .btn .ic { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center; background: rgba(212,36,68,.14); }
   .btn.primary .ic { background: rgba(255,255,255,.22); }
   .btn .ic svg { width: 20px; height: 20px; }
   .btn b { display: block; font-weight: 600; }

@@ -1,52 +1,55 @@
 import SwiftUI
 
-/// The app's shared visual language: a ramp of night blues, three blues
-/// with a job each, and the cards, buttons and headers every screen is
-/// composed from.
+/// The app's shared visual language: iLoader X's garnet. A ramp of
+/// near-black garnets, three reds with a job each, and the cards, buttons and
+/// headers every screen is composed from.
 ///
-/// The surfaces are navy so dark they read as night, and the blues are kept
-/// apart by what they do: `navy` for the logo art and the wash at the top of
-/// a page, `blue` for what's filled behind white (the main button), `accent`
-/// for what's drawn on the dark (progress, links, the selection). Depth comes
-/// from a step between surfaces and a hairline edge.
+/// The surfaces are a garnet so dark they read as night, and the reds are
+/// kept apart by what they do: `navy` (deep garnet) for the logo art and the
+/// wash at the top of a page, `blue` (garnet red) for what's filled behind
+/// white (the main button), `accent` (light garnet) for what's drawn on the
+/// dark (progress, links, the selection). The names are SideInstaller's, kept
+/// so upstream changes still merge. Depth comes from a step between surfaces
+/// and a hairline edge.
 enum Theme {
     // MARK: Ramp
 
-    /// The page behind everything: a navy so deep it reads as black until a
+    /// The page behind everything: a garnet so deep it reads as black until a
     /// card sits on it.
-    static let page = Color(red: 5 / 255, green: 11 / 255, blue: 24 / 255)
+    static let page = Color(red: 20 / 255, green: 6 / 255, blue: 10 / 255)
     /// A card on the page.
-    static let card = Color(red: 13 / 255, green: 21 / 255, blue: 36 / 255)
+    static let card = Color(red: 33 / 255, green: 12 / 255, blue: 17 / 255)
     /// One step above a card: popups, which float over the dimmed app.
-    static let raised = Color(red: 20 / 255, green: 30 / 255, blue: 49 / 255)
-    /// The pale blue that controls and edges are drawn in, faintly, so they
+    static let raised = Color(red: 46 / 255, green: 18 / 255, blue: 24 / 255)
+    /// The pale rose that controls and edges are drawn in, faintly, so they
     /// stay in the ramp's hue instead of greying it.
-    static let ice = Color(red: 185 / 255, green: 211 / 255, blue: 249 / 255)
+    static let ice = Color(red: 250 / 255, green: 204 / 255, blue: 212 / 255)
     /// A control's fill, a step up from whatever it sits on.
     static let control = ice.opacity(0.07)
     /// The edge of a card or control.
     static let hairline = ice.opacity(0.1)
-    /// Captions, meta and quiet icons: a slate blue, at least 4.5:1 on a
+    /// Captions, meta and quiet icons: a warm mauve grey, at least 4.5:1 on a
     /// popup and more on a card.
-    static let muted = Color(red: 127 / 255, green: 141 / 255, blue: 165 / 255)
+    static let muted = Color(red: 176 / 255, green: 140 / 255, blue: 148 / 255)
 
     // MARK: Colour
 
-    /// The deep blue of the logo art's patterns, and of the wash at the top
+    /// The deep garnet of the logo art's patterns, and of the wash at the top
     /// of every page.
-    static let navy = Color(red: 9 / 255, green: 50 / 255, blue: 143 / 255)
-    /// The filled blue: the main button and a ticked box. White on it reads
-    /// at 4.8:1.
-    static let blue = Color(red: 38 / 255, green: 105 / 255, blue: 237 / 255)
-    /// The light blue drawn on the dark: progress, the selection, links and
+    static let navy = Color(red: 112 / 255, green: 14 / 255, blue: 34 / 255)
+    /// The filled garnet red: the main button and a ticked box. White on it
+    /// reads at 7:1.
+    static let blue = Color(red: 172 / 255, green: 26 / 255, blue: 50 / 255)
+    /// The light garnet drawn on the dark: progress, the selection, links and
     /// a card's label icon. At least 6:1 on every surface above.
-    static let accent = Color(red: 96 / 255, green: 167 / 255, blue: 253 / 255)
+    static let accent = Color(red: 255 / 255, green: 112 / 255, blue: 130 / 255)
     /// Done, connected, granted.
     static let positive = Color(red: 76 / 255, green: 195 / 255, blue: 138 / 255)
     /// Something needs the user, or will soon.
     static let warning = Color(red: 229 / 255, green: 161 / 255, blue: 64 / 255)
-    /// Failed, missing, can't be undone.
-    static let negative = Color(red: 229 / 255, green: 72 / 255, blue: 77 / 255)
+    /// Failed, missing, can't be undone: an orange red, kept apart from the
+    /// garnet accent.
+    static let negative = Color(red: 255 / 255, green: 138 / 255, blue: 76 / 255)
 
     // MARK: Shape
 

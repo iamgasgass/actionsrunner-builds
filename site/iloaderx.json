@@ -6,7 +6,7 @@
   "iconURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
   "headerURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
   "website": "https://iamgasgass.github.io/iLoaderX/",
-  "tintColor": "#19C566",
+  "tintColor": "#D42444",
   "apiVersion": "v2",
   "apps": [
     {
@@ -16,7 +16,7 @@
       "subtitle": "Install SideStore and LiveContainer on your iPhone. No PC required.",
       "localizedDescription": "iLoader X installs SideStore and LiveContainer directly on your iPhone, with no computer involved: it pairs, provisions, signs and installs on-device. On iOS 27 the iPhone pairs with itself; from iOS 17.4 it uses a pairing file made on a computer.\n\niLoader X is a fork of SideInstaller by FrizzleM (github.com/FrizzleM/SideInstaller), with its own name, bundle ID and icon. It is not the official SideInstaller.",
       "iconURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
-      "tintColor": "#19C566",
+      "tintColor": "#D42444",
       "category": "utilities",
       "screenshotURLs": [],
       "versions": [

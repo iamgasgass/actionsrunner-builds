@@ -159,7 +159,7 @@ private struct TermsPage: View {
                     Text("iLoader X")
                         .font(.system(size: 40, weight: .semibold))
                         .foregroundStyle(.primary)
-                    Text(L("an app by Frizzle"))
+                    Text(L("an app by iamgasgass"))
                         .font(.body)
                         .foregroundStyle(.secondary)
                 }

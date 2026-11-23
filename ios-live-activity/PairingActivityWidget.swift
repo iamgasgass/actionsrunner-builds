@@ -70,16 +70,16 @@ struct PairingActivityWidget: Widget {
 /// binary and takes none of the app's views.
 enum Brand {
     /// The light blue the app draws on the dark.
-    static let accent = Color(red: 96 / 255, green: 167 / 255, blue: 253 / 255)
+    static let accent = Color(red: 255 / 255, green: 112 / 255, blue: 130 / 255)
     /// The filled blue, behind a white symbol.
-    static let blue = Color(red: 38 / 255, green: 105 / 255, blue: 237 / 255)
+    static let blue = Color(red: 172 / 255, green: 26 / 255, blue: 50 / 255)
     static let positive = Color(red: 76 / 255, green: 195 / 255, blue: 138 / 255)
     static let warning = Color(red: 229 / 255, green: 161 / 255, blue: 64 / 255)
-    static let negative = Color(red: 229 / 255, green: 72 / 255, blue: 77 / 255)
+    static let negative = Color(red: 255 / 255, green: 138 / 255, blue: 76 / 255)
 
     /// The app's page, behind a Lock Screen card: a navy so deep it reads
     /// as night.
-    static let backdrop = Color(red: 5 / 255, green: 11 / 255, blue: 24 / 255)
+    static let backdrop = Color(red: 20 / 255, green: 6 / 255, blue: 10 / 255)
 }
 
 private typealias Stage = PairingActivityAttributes.ContentState.Stage

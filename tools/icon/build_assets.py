@@ -12,6 +12,7 @@ Writes, under ios-app/:
   Assets.xcassets/AppIcon-iOS6.appiconset  the iOS 6 alternate icon, same set
   Assets.xcassets/AppLogo.imageset   in-app logo tile (light + dark)
   Assets.xcassets/IconPreviewIOS6.imageset  the iOS 6 tile for the icon picker
+  Assets.xcassets/<Tool>Logo.imageset  the in-app tool tiles (tools.mjs), light + dark
 and docs/icon.png, docs/icon-variants.png.
 """
 import json
@@ -139,17 +140,17 @@ def icon_composer():
 
     doc = {
         "fill-specializations": [
-            {"value": {"linear-gradient": [hexc("#FFFFFF"), hexc("#E4F1E8")],
+            {"value": {"linear-gradient": [hexc("#FFFFFF"), hexc("#F6E6EA")],
                        "orientation": {"start": {"x": 0.5, "y": 0}, "stop": {"x": 0.5, "y": 0.7}}}},
             {"appearance": "dark",
-             "value": {"linear-gradient": [hexc("#1A231D"), hexc("#000000")],
+             "value": {"linear-gradient": [hexc("#2A0C12"), hexc("#000000")],
                        "orientation": {"start": {"x": 0.5, "y": 0}, "stop": {"x": 0.5, "y": 0.7}}}},
         ],
         "groups": [
             {   # front: the download arrow and its tray
                 "layers": [
-                    layer("Arrow", hexc("#1E6B42"), hexc("#FFFFFF"), hexc("#FFFFFF")),
-                    layer("Tray", hexc("#1E6B42"), hexc("#FFFFFF"), hexc("#FFFFFF")),
+                    layer("Arrow", hexc("#4E0F1D"), hexc("#FFFFFF"), hexc("#FFFFFF")),
+                    layer("Tray", hexc("#4E0F1D"), hexc("#FFFFFF"), hexc("#FFFFFF")),
                 ],
                 "lighting": "combined",
                 "shadow": {"kind": "layer-color", "opacity": 0.5},
@@ -157,7 +158,7 @@ def icon_composer():
                 "translucency": {"enabled": True, "value": 0.2},
             },
             {   # back: the L
-                "layers": [layer("Letter", hexc("#19C566"), hexc("#2BD97A"), hexc("#FFFFFF"), 0.78)],
+                "layers": [layer("Letter", hexc("#C41A3A"), hexc("#E8344F"), hexc("#FFFFFF"), 0.78)],
                 "lighting": "individual",
                 "shadow": {"kind": "layer-color", "opacity": 0.5},
                 "specular": True,
@@ -174,6 +175,8 @@ appiconset("AppIcon", "glass-light.png", "glass-dark.png", "glass-tinted.png")
 appiconset("AppIcon-iOS6", "ios6-light.png", "ios6-dark.png", "ios6-tinted.png")
 imageset("AppLogo", "glass-light.png", "glass-dark.png")
 imageset("IconPreviewIOS6", "ios6-light.png", "ios6-dark.png")
+for tool in ("AppsLogo", "CertsLogo", "DownloadsLogo", "EntitlementsLogo", "LocationLogo", "PairingLogo", "SideBySideLogo"):
+    imageset(tool, f"tool-{tool}-light.png", f"tool-{tool}-dark.png")
 (root / "docs").mkdir(exist_ok=True)
 tile("glass-light.png", 512, (255, 255, 255)).save(root / "docs" / "icon.png", optimize=True)
 shutil.copy(src / "preview.png", root / "docs" / "icon-variants.png")

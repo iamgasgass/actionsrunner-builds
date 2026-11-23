@@ -18,7 +18,7 @@ let japaneseStrings: [String: String] = [
     "Cancelling": "キャンセル中",
     "Installed": "インストール済み",
     "Something went wrong": "問題が発生しました",
-    "an app by Frizzle": "Frizzle 制作のアプリ",
+    "an app by iamgasgass": "iamgasgass 制作のアプリ",
     "device": "デバイス",
 
     // MARK: - Welcome

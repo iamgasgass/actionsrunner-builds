@@ -18,7 +18,7 @@ let vietnameseStrings: [String: String] = [
     "Cancelling": "Đang hủy",
     "Installed": "Đã cài đặt",
     "Something went wrong": "Đã xảy ra lỗi",
-    "an app by Frizzle": "một ứng dụng của Frizzle",
+    "an app by iamgasgass": "một ứng dụng của iamgasgass",
     "device": "thiết bị",
 
     // MARK: - Welcome

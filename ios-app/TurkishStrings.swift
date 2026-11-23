@@ -18,7 +18,7 @@ let turkishStrings: [String: String] = [
     "Cancelling": "İptal ediliyor",
     "Installed": "Yüklendi",
     "Something went wrong": "Bir şeyler ters gitti",
-    "an app by Frizzle": "Frizzle tarafından bir uygulama",
+    "an app by iamgasgass": "iamgasgass tarafından bir uygulama",
     "device": "cihaz",
 
     // MARK: - Welcome

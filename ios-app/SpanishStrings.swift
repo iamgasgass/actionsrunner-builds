@@ -18,7 +18,7 @@ let spanishStrings: [String: String] = [
     "Cancelling": "Cancelando",
     "Installed": "Instalado",
     "Something went wrong": "Algo ha ido mal",
-    "an app by Frizzle": "una app de Frizzle",
+    "an app by iamgasgass": "una app de iamgasgass",
     "device": "dispositivo",
 
     // MARK: - Welcome

@@ -19,7 +19,7 @@ let koreanStrings: [String: String] = [
     "Cancelling": "취소 중",
     "Installed": "설치됨",
     "Something went wrong": "문제가 발생했습니다",
-    "an app by Frizzle": "by Frizzle",
+    "an app by iamgasgass": "by iamgasgass",
     "device": "기기",
 
     // MARK: - Welcome

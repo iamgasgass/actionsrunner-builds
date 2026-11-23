@@ -8,8 +8,8 @@
 
 Bundle ID `com.iamgasgass.iloaderx` · iOS 17.4+ (iOS 27 pairs with itself)
 
-[![Install](https://img.shields.io/badge/Install-iLoader%20X-19C566?style=for-the-badge)](https://iamgasgass.github.io/iLoaderX/)
-[![Release](https://img.shields.io/github/v/release/iamgasgass/iLoaderX?style=for-the-badge&color=12A150)](https://github.com/iamgasgass/iLoaderX/releases/latest)
+[![Install](https://img.shields.io/badge/Install-iLoader%20X-AC1A32?style=for-the-badge)](https://iamgasgass.github.io/iLoaderX/)
+[![Release](https://img.shields.io/github/v/release/iamgasgass/iLoaderX?style=for-the-badge&color=AC1A32)](https://github.com/iamgasgass/iLoaderX/releases/latest)
 [![License](https://img.shields.io/badge/license-SideInstaller%20License-orange?style=for-the-badge)](LICENSE.md)
 
 </div>
@@ -43,8 +43,11 @@ in with your Apple ID and install SideStore or LiveContainer from the Install ta
 
 ## The icon
 
-Drawn from scratch for iLoader X: a rounded “L” with a download arrow landing on
-a tray in the notch. Two looks, each with every appearance iOS asks for:
+Drawn from scratch for iLoader X: a garnet rounded “L” with a download arrow landing on
+a tray in the notch. Two looks, each with every appearance iOS asks for; the app's tool
+tiles (Apps, Certificates, Downloads, Entitlements, Location, Pairing, Side by Side) are
+drawn in the same glass design (`tools/icon/tools.mjs`), and the whole app is garnet
+(`ios-app/Theme.swift`, `AccentColor`):
 
 <img src="docs/icon-variants.png" alt="iLoader X icon variants" width="100%" />
 
@@ -52,7 +55,7 @@ a tray in the notch. Two looks, each with every appearance iOS asks for:
 |---|---|---|
 | **Liquid Glass** (primary) | `ios-app/AppIcon.icon` (Icon Composer, iOS 26+) | Default, Dark, Clear light, Clear dark, Tinted light, Tinted dark: drawn by the system from three glass layers (L, arrow, tray) in two groups, each with its own fill per appearance |
 | | `ios-app/Assets.xcassets/AppIcon.appiconset` (iOS 17.4 – 25) | every iPhone, iPad, CarPlay and App Store size; Dark and Tinted (iOS 18+) |
-| **iOS 6** (alternate) | `ios-app/Assets.xcassets/AppIcon-iOS6.appiconset` | linen backdrop, beveled emerald gel “L”, embossed gunmetal arrow, the gloss arc baked in; every size, plus Dark (chrome arrow on charcoal) and Tinted |
+| **iOS 6** (alternate) | `ios-app/Assets.xcassets/AppIcon-iOS6.appiconset` | linen backdrop, beveled garnet gel “L”, embossed gunmetal arrow, the gloss arc baked in; every size, plus Dark (chrome arrow on charcoal) and Tinted |
 
 Switch between them in **Settings › App Icon**. The artwork is generated from
 code, so it can be regenerated at any size:

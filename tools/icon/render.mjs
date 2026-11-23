@@ -10,7 +10,8 @@ import { createRequire } from "node:module";
 const { chromium } = createRequire(import.meta.url)("playwright");
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { glass, ios6, layer } from "./styles.mjs";
+import { glass, ios6, layer, toolTile } from "./styles.mjs";
+import { TOOLS } from "./tools.mjs";
 import { squirclePath } from "./glyph.mjs";
 
 const out = process.argv[2] ?? "build/icon";
@@ -38,6 +39,11 @@ async function shot(html, file, w = 1024, h = 1024) {
   await page.screenshot({ path: file, omitBackground: true, clip: { x: 0, y: 0, width: w, height: h } });
 }
 for (const [name, doc] of Object.entries(masters)) await shot(doc, join(out, `${name}.png`));
+const tools = {};
+for (const name of Object.keys(TOOLS)) for (const mode of ["light", "dark"]) {
+  tools[`${name}-${mode}`] = toolTile(name, mode);
+  await shot(tools[`${name}-${mode}`], join(out, `tool-${name}-${mode}.png`));
+}
 
 // ---- preview sheet: each variant as iOS shows it, masked, on its backdrop.
 const enc = (s) => "data:image/svg+xml;base64," + Buffer.from(s).toString("base64");
@@ -50,6 +56,7 @@ const tile = (svgDoc, backdrop, label, sub, tint) => `
         <g clip-path="url(#c${label.replace(/\W/g, "")}${sub.replace(/\W/g, "")})">
           ${tint ? `<rect width="1024" height="1024" fill="${tint.bg}"/>` : ""}
           <image href="${enc(svgDoc)}" width="1024" height="1024" ${tint ? `style="filter:${tint.filter}"` : ""}/>
+          ${tint && tint.color ? `<rect width="1024" height="1024" fill="${tint.color}" style="mix-blend-mode:multiply"/>` : ""}
         </g>
         <path d="${sq}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="6"/>
       </svg>
@@ -60,8 +67,8 @@ const darkSys = "radial-gradient(120% 120% at 30% 20%, #2b2f33, #050607)";
 const wallLight = "linear-gradient(160deg,#9fd8ff,#ffd3e8 55%,#ffe9b0)";
 const wallDark = "linear-gradient(160deg,#0b1b2e,#2a1031 60%,#0d0d10)";
 const sysDarkBg = "linear-gradient(180deg,#303336,#0b0c0d)";
-const tintBg = "linear-gradient(180deg,#1d2a22,#050806)";
-const tintFilter = "sepia(1) saturate(3.2) hue-rotate(78deg) brightness(.95)";
+const tintBg = "linear-gradient(180deg,#2a1d20,#080505)";
+const tintFilter = "grayscale(1) brightness(1.15)";
 const frosted = (c) => `linear-gradient(180deg,${c})`;
 
 const sheet = `
@@ -69,7 +76,7 @@ const sheet = `
   body{font:15px -apple-system,"SF Pro Text","Helvetica Neue",Inter,Arial,sans-serif;color:#e8ecef;background:#0e1012}
   .sheet{width:1600px;padding:48px 56px;box-sizing:border-box;background:#0e1012}
   h1{font-size:34px;margin:0 0 4px;font-weight:700;letter-spacing:-.4px}
-  h2{font-size:19px;margin:36px 0 16px;font-weight:600;color:#9fe6b8}
+  h2{font-size:19px;margin:36px 0 16px;font-weight:600;color:#ff9aab}
   p{margin:0;color:#97a1a8}
   .row{display:flex;gap:22px;flex-wrap:wrap}
   figure{margin:0;width:262px}
@@ -86,13 +93,20 @@ const sheet = `
     ${tile(masters["glass-dark"], wallDark, "Dark", "system dark backdrop", { bg: sysDarkBg, filter: "none" })}
     ${tile(masters["glass-clear-light"], wallLight, "Clear", "light", { bg: "rgba(255,255,255,.28)", filter: "none" })}
     ${tile(masters["glass-clear-dark"], wallDark, "Clear", "dark", { bg: "rgba(20,20,24,.55)", filter: "none" })}
-    ${tile(masters["glass-tinted"], wallDark, "Tinted", "green tint, dark", { bg: tintBg, filter: tintFilter })}
+    ${tile(masters["glass-tinted"], wallDark, "Tinted", "red tint, dark", { bg: tintBg, filter: tintFilter, color: "#FF5A72" })}
+  </div>
+  <h2>In-app tool tiles (light / dark)</h2>
+  <div class="row">
+    ${Object.keys(TOOLS).map((n) => tile(tools[n + "-light"], "#e9e4e5", n.replace("Logo", ""), "light")).join("")}
+  </div>
+  <div class="row" style="margin-top:22px">
+    ${Object.keys(TOOLS).map((n) => tile(tools[n + "-dark"], "#14070a", n.replace("Logo", ""), "dark")).join("")}
   </div>
   <h2>iOS 6 — alternate icon “AppIcon-iOS6” (Settings › App Icon)</h2>
   <div class="row">
     ${tile(masters["ios6-light"], "#4c5a63 url('') ", "Default", "light")}
     ${tile(masters["ios6-dark"], wallDark, "Dark", "iOS 18+")}
-    ${tile(masters["ios6-tinted"], wallDark, "Tinted", "green tint, iOS 18+", { bg: tintBg, filter: tintFilter })}
+    ${tile(masters["ios6-tinted"], wallDark, "Tinted", "red tint, iOS 18+", { bg: tintBg, filter: tintFilter, color: "#FF5A72" })}
   </div>
 </div>`;
 await page.setViewportSize({ width: 1600, height: 900 });

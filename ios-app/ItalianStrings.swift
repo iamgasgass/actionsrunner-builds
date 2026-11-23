@@ -16,7 +16,7 @@ let italianStrings: [String: String] = [
     "Cancelling": "Annullamento in corso",
     "Installed": "Installato",
     "Something went wrong": "Qualcosa è andato storto",
-    "an app by Frizzle": "un'app di Frizzle",
+    "an app by iamgasgass": "un'app di iamgasgass",
     "device": "dispositivo",
 
     // MARK: - Welcome

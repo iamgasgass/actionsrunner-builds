@@ -5,7 +5,7 @@
 //                PNG for the asset catalog (iOS 17.4 - 25) and the previews;
 //                on iOS 26+ the system draws the real material from
 //                ios-app/AppIcon.icon instead.
-//   ios6(mode)   iOS 6 skeuomorphic: linen backdrop, beveled emerald gel "L",
+//   ios6(mode)   iOS 6 skeuomorphic: linen backdrop, beveled garnet gel "L",
 //                embossed gunmetal arrow, the glossy highlight arc baked in.
 //
 // mode: light | dark | tinted | clear-light | clear-dark (glass) ; light | dark | tinted (ios6)
@@ -117,14 +117,14 @@ const fillL = (p) => shapeL(`fill="${p}"`);
 
 const GLASS = {
   light: {
-    bg: [[0, "#FFFFFF"], [1, "#EAF3ED"]], glowBg: "#C6F2D6",
-    L: { top: "#3EE385", bottom: "#0A9446", opacity: 0.97, glow: 0.22, sheen: 0.26 },
-    D: { top: "#23774A", bottom: "#06331B", opacity: 1, glow: 0.12, sheen: 0.2 },
+    bg: [[0, "#FFFFFF"], [1, "#F6E8EB"]], glowBg: "#F3C3CC",
+    L: { top: "#E2425E", bottom: "#8C0F27", opacity: 0.97, glow: 0.22, sheen: 0.26 },
+    D: { top: "#5E1424", bottom: "#2A050D", opacity: 1, glow: 0.12, sheen: 0.2 },
   },
   dark: {
     bg: null, // transparent: the system lays its own dark backdrop under it
-    L: { top: "#4DF0A0", bottom: "#0B8A45", opacity: 0.9, glow: 0.42 },
-    D: { top: "#FFFFFF", bottom: "#CFE6D8", glow: 0.1 },
+    L: { top: "#FF6E84", bottom: "#A0132E", opacity: 0.92, glow: 0.42 },
+    D: { top: "#FFFFFF", bottom: "#EBD3D8", glow: 0.1 },
   },
   tinted: {
     bg: null,
@@ -162,14 +162,14 @@ export function glass(mode = "light") {
 
 const IOS6 = {
   light: {
-    bg: [[0, "#F4F6F5"], [0.55, "#DDE2DF"], [1, "#B4BCB7"]], linen: 0.14,
-    L: [[0, "#7DF5A8"], [0.48, "#22C25F"], [0.52, "#14A84C"], [1, "#0A7534"]], Lstroke: "#075A27",
+    bg: [[0, "#F7F4F4"], [0.55, "#E2DCDD"], [1, "#BDB3B5"]], linen: 0.14,
+    L: [[0, "#FF8FA0"], [0.48, "#D42444"], [0.52, "#B5152F"], [1, "#7A0A1E"]], Lstroke: "#560615",
     D: [[0, "#5E656C"], [0.5, "#2B3035"], [1, "#0E1012"]], Dstroke: "#000",
     emboss: true, gloss: 0.7,
   },
   dark: {
     bg: [[0, "#4A4E52"], [0.5, "#2B2E31"], [1, "#121415"]], linen: 0.12,
-    L: [[0, "#8CFFB6"], [0.48, "#2BD36B"], [0.52, "#18B455"], [1, "#0B7D38"]], Lstroke: "#04351A",
+    L: [[0, "#FF9DAD"], [0.48, "#E5304F"], [0.52, "#C21C38"], [1, "#840C22"]], Lstroke: "#3A040E",
     D: [[0, "#FFFFFF"], [0.5, "#DDE3E7"], [0.52, "#C3CBD1"], [1, "#8E989F"]], Dstroke: "#2E3337",
     emboss: false, gloss: 0.38,
   },
@@ -229,4 +229,21 @@ export function layer(name) {
     Tray: shapeTray(`fill="#fff"`),
   }[name];
   return svg(body);
+}
+
+// ------------------------------------------------------ in-app tool tiles ----
+
+import { TOOLS, TOOL_DEFS } from "./tools.mjs";
+
+/** A tool tile (tools.mjs) in the icon's glass design: light or dark. */
+export function toolTile(name, mode = "light") {
+  const dark = mode === "dark";
+  const piece = glassPiece("tool", TOOLS[name], dark
+    ? { top: "#FF7D92", bottom: "#B0173A", opacity: 0.95, glow: 0.38, sheen: 0.24 }
+    : { top: "#E2425E", bottom: "#8C0F27", opacity: 0.97, glow: 0.22, sheen: 0.26 });
+  const bg = dark ? [[0, "#3A1018"], [1, "#12040A"]] : [[0, "#FFFFFF"], [1, "#F6E8EB"]];
+  const glow = dark ? "#7A1426" : "#F3C3CC";
+  const defs = FILTERS + RIM_MASK + TOOL_DEFS + piece.defs + lin("tbg", bg) +
+    rad("tglow", 0.82, 0.92, 0.75, [[0, glow, 0.7], [1, glow, 0]]);
+  return svg(`<rect width="1024" height="1024" fill="url(#tbg)"/><rect width="1024" height="1024" fill="url(#tglow)"/>${piece.body}`, defs);
 }

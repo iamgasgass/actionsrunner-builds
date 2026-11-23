@@ -17,7 +17,7 @@ let frenchStrings: [String: String] = [
     "Cancelling": "Annulation en cours",
     "Installed": "Installé",
     "Something went wrong": "Une erreur s'est produite",
-    "an app by Frizzle": "une app de Frizzle",
+    "an app by iamgasgass": "une app de iamgasgass",
     "device": "appareil",
 
     // MARK: - Welcome

@@ -20,7 +20,7 @@ let portugueseStrings: [String: String] = [
     "Cancelling": "Cancelando",
     "Installed": "Instalado",
     "Something went wrong": "Algo deu errado",
-    "an app by Frizzle": "um app de Frizzle",
+    "an app by iamgasgass": "um app de iamgasgass",
     "device": "dispositivo",
 
     // MARK: - Welcome
