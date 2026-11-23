@@ -22,18 +22,18 @@
       "versions": [
         {
           "version": "1.0.0",
-          "date": "2026-11-23T00:00:00Z",
+          "date": "2026-11-23T12:13:52Z",
           "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
-          "localizedDescription": "First release of iLoader X, based on SideInstaller 2.1.1.",
-          "size": 0,
+          "localizedDescription": "iLoader X 1.0.0",
+          "size": 17845010,
           "minOSVersion": "17.4"
         }
       ],
       "version": "1.0.0",
-      "versionDate": "2026-11-23T00:00:00Z",
-      "versionDescription": "First release of iLoader X, based on SideInstaller 2.1.1.",
+      "versionDate": "2026-11-23T12:13:52Z",
+      "versionDescription": "iLoader X 1.0.0",
       "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
-      "size": 0,
+      "size": 17845010,
       "appPermissions": {
         "entitlements": [],
         "privacy": {
