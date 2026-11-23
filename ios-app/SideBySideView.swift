@@ -162,7 +162,7 @@ final class SideBySideManager: ObservableObject {
 
     /// Unsigned IPA from iLoader X's latest GitHub release.
     static let releaseIPA = URL(string:
-        "https://iamgasgass.github.io/iloaderx/iLoaderX/releases/latest/download/iLoaderX.ipa")!
+        "https://iamgasgass.github.io/iLoaderX/iLoaderX/releases/latest/download/iLoaderX.ipa")!
 
     /// What the release asset is called, and what the download is saved as.
     static let ipaFileName = "iLoaderX.ipa"

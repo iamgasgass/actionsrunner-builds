@@ -1220,20 +1220,20 @@ let italianStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from iamgasgass.github.io/iloaderx?":
-        "Hai scaricato iLoader X da iamgasgass.github.io/iloaderx?",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iloaderx is official.":
-        "iLoader X è open source, quindi chiunque può pubblicarne una copia modificata che ruba l'Apple ID inserito. Solo iamgasgass.github.io/iloaderx è ufficiale.",
-    "Yes, from iamgasgass.github.io/iloaderx":
-        "Sì, da iamgasgass.github.io/iloaderx",
+    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?":
+        "Hai scaricato iLoader X da iamgasgass.github.io/iLoaderX?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
+        "iLoader X è open source, quindi chiunque può pubblicarne una copia modificata che ruba l'Apple ID inserito. Solo iamgasgass.github.io/iLoaderX è ufficiale.",
+    "Yes, from iamgasgass.github.io/iLoaderX":
+        "Sì, da iamgasgass.github.io/iLoaderX",
     "No, or I'm not sure":
         "No, o non ne sono sicuro",
     "Don't sign in with this copy":
         "Non accedere con questa copia",
-    "Copies from anywhere other than iamgasgass.github.io/iloaderx are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iloaderx, then sign in there.":
-        "Le copie scaricate da siti diversi da iamgasgass.github.io/iloaderx non sono ufficiali e potrebbero essere state modificate per rubare il tuo Apple ID. Elimina questa, installa iLoader X da iamgasgass.github.io/iloaderx e accedi da lì.",
-    "Open iamgasgass.github.io/iloaderx":
-        "Apri iamgasgass.github.io/iloaderx",
+    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
+        "Le copie scaricate da siti diversi da iamgasgass.github.io/iLoaderX non sono ufficiali e potrebbero essere state modificate per rubare il tuo Apple ID. Elimina questa, installa iLoader X da iamgasgass.github.io/iLoaderX e accedi da lì.",
+    "Open iamgasgass.github.io/iLoaderX":
+        "Apri iamgasgass.github.io/iLoaderX",
     "Back":
         "Indietro",
     "I understand the risks":

@@ -1183,20 +1183,20 @@ let chineseStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from iamgasgass.github.io/iloaderx?":
-        "你是从 iamgasgass.github.io/iloaderx 下载的 iLoader X 吗？",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iloaderx is official.":
-        "iLoader X 是开源的，任何人都可以发布经过修改、会窃取所输入 Apple ID 的副本。只有 iamgasgass.github.io/iloaderx 是官方来源。",
-    "Yes, from iamgasgass.github.io/iloaderx":
-        "是，来自 iamgasgass.github.io/iloaderx",
+    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?":
+        "你是从 iamgasgass.github.io/iLoaderX 下载的 iLoader X 吗？",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
+        "iLoader X 是开源的，任何人都可以发布经过修改、会窃取所输入 Apple ID 的副本。只有 iamgasgass.github.io/iLoaderX 是官方来源。",
+    "Yes, from iamgasgass.github.io/iLoaderX":
+        "是，来自 iamgasgass.github.io/iLoaderX",
     "No, or I'm not sure":
         "不是，或不确定",
     "Don't sign in with this copy":
         "请勿用此副本登录",
-    "Copies from anywhere other than iamgasgass.github.io/iloaderx are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iloaderx, then sign in there.":
-        "来自 iamgasgass.github.io/iloaderx 以外的副本均非官方，可能已被修改以窃取你的 Apple ID。请删除此副本，从 iamgasgass.github.io/iloaderx 安装 iLoader X，然后在那里登录。",
-    "Open iamgasgass.github.io/iloaderx":
-        "打开 iamgasgass.github.io/iloaderx",
+    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
+        "来自 iamgasgass.github.io/iLoaderX 以外的副本均非官方，可能已被修改以窃取你的 Apple ID。请删除此副本，从 iamgasgass.github.io/iLoaderX 安装 iLoader X，然后在那里登录。",
+    "Open iamgasgass.github.io/iLoaderX":
+        "打开 iamgasgass.github.io/iLoaderX",
     "Back":
         "返回",
     "I understand the risks":

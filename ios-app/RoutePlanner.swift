@@ -506,7 +506,7 @@ private actor Valhalla {
     /// Identifies the app, as fair use asks.
     private static let userAgent: String = {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        return "iLoaderX/\(version) (+https://iamgasgass.github.io/iloaderx/iLoaderX)"
+        return "iLoaderX/\(version) (+https://iamgasgass.github.io/iLoaderX/iLoaderX)"
     }()
 
     /// The earliest the next request may go out.

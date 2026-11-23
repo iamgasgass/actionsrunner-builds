@@ -40,7 +40,7 @@ struct SideInstallerApp: App {
                         .task { await updateChecker.check() }
                         .transition(.opacity)
                 } else {
-                    // The terms, the iamgasgass.github.io/iloaderx question and the Apple
+                    // The terms, the iamgasgass.github.io/iLoaderX question and the Apple
                     // ID, a page each; the pages move among themselves.
                     SetupView()
                         .environmentObject(localizer)

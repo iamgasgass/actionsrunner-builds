@@ -3,9 +3,9 @@
   "identifier": "com.iamgasgass.iloaderx.source",
   "subtitle": "SideStore and LiveContainer, installed on-device",
   "description": "The source for iLoader X, a fork of SideInstaller by FrizzleM. Not the official SideInstaller.",
-  "iconURL": "https://iamgasgass.github.io/iloaderx/icon.png",
-  "headerURL": "https://iamgasgass.github.io/iloaderx/icon.png",
-  "website": "https://iamgasgass.github.io/iloaderx/",
+  "iconURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
+  "headerURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
+  "website": "https://iamgasgass.github.io/iLoaderX/",
   "tintColor": "#19C566",
   "apiVersion": "v2",
   "apps": [
@@ -15,7 +15,7 @@
       "developerName": "iamgasgass",
       "subtitle": "Install SideStore and LiveContainer on your iPhone. No PC required.",
       "localizedDescription": "iLoader X installs SideStore and LiveContainer directly on your iPhone, with no computer involved: it pairs, provisions, signs and installs on-device. On iOS 27 the iPhone pairs with itself; from iOS 17.4 it uses a pairing file made on a computer.\n\niLoader X is a fork of SideInstaller by FrizzleM (github.com/FrizzleM/SideInstaller), with its own name, bundle ID and icon. It is not the official SideInstaller.",
-      "iconURL": "https://iamgasgass.github.io/iloaderx/icon.png",
+      "iconURL": "https://iamgasgass.github.io/iLoaderX/icon.png",
       "tintColor": "#19C566",
       "category": "utilities",
       "screenshotURLs": [],
@@ -23,7 +23,7 @@
         {
           "version": "1.0.0",
           "date": "2026-11-23T00:00:00Z",
-          "downloadURL": "https://github.com/iamgasgass/iloaderx/releases/download/v1.0.0/iLoaderX.ipa",
+          "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
           "localizedDescription": "First release of iLoader X, based on SideInstaller 2.1.1.",
           "size": 0,
           "minOSVersion": "17.4"
@@ -32,7 +32,7 @@
       "version": "1.0.0",
       "versionDate": "2026-11-23T00:00:00Z",
       "versionDescription": "First release of iLoader X, based on SideInstaller 2.1.1.",
-      "downloadURL": "https://github.com/iamgasgass/iloaderx/releases/download/v1.0.0/iLoaderX.ipa",
+      "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
       "size": 0,
       "appPermissions": {
         "entitlements": [],
