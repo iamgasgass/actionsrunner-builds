@@ -1190,20 +1190,20 @@ let japaneseStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?":
-        "iLoader X を iamgasgass.github.io/iLoaderX からダウンロードしましたか？",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
-        "iLoader X はオープンソースのため、入力された Apple ID を盗むように改変したコピーを誰でも公開できます。公式は iamgasgass.github.io/iLoaderX だけです。",
-    "Yes, from iamgasgass.github.io/iLoaderX":
-        "はい、iamgasgass.github.io/iLoaderX から",
+    "Did you download iLoader X from iamgasgass.github.io/iloaderx?":
+        "iLoader X を iamgasgass.github.io/iloaderx からダウンロードしましたか？",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iloaderx is official.":
+        "iLoader X はオープンソースのため、入力された Apple ID を盗むように改変したコピーを誰でも公開できます。公式は iamgasgass.github.io/iloaderx だけです。",
+    "Yes, from iamgasgass.github.io/iloaderx":
+        "はい、iamgasgass.github.io/iloaderx から",
     "No, or I'm not sure":
         "いいえ、またはわからない",
     "Don't sign in with this copy":
         "このコピーではサインインしないでください",
-    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
-        "iamgasgass.github.io/iLoaderX 以外から入手したコピーは非公式で、Apple ID を盗むように改変されている可能性があります。このコピーを削除し、iamgasgass.github.io/iLoaderX から iLoader X をインストールしてからサインインしてください。",
-    "Open iamgasgass.github.io/iLoaderX":
-        "iamgasgass.github.io/iLoaderX を開く",
+    "Copies from anywhere other than iamgasgass.github.io/iloaderx are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iloaderx, then sign in there.":
+        "iamgasgass.github.io/iloaderx 以外から入手したコピーは非公式で、Apple ID を盗むように改変されている可能性があります。このコピーを削除し、iamgasgass.github.io/iloaderx から iLoader X をインストールしてからサインインしてください。",
+    "Open iamgasgass.github.io/iloaderx":
+        "iamgasgass.github.io/iloaderx を開く",
     "Back":
         "戻る",
     "I understand the risks":

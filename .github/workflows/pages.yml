@@ -1,7 +1,7 @@
 name: Deploy the install page
 
 # Publishes site/ (install page, terms, the AltStore / SideStore source
-# iloaderx.json) to GitHub Pages: https://iamgasgass.github.io/iLoaderX/
+# iloaderx.json) to GitHub Pages: https://iamgasgass.github.io/iloaderx/
 #
 # Settings › Pages › Source: "GitHub Actions".
 

@@ -34,7 +34,7 @@ struct ProblemReport {
     let logLines: [String]
     let created = Date()
 
-    static let repository = "iamgasgass/iLoaderX"
+    static let repository = "iamgasgass/iloaderx"
 
     /// Where iLoader X stands now.
     @MainActor

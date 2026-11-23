@@ -25,7 +25,7 @@ enum SetupPage: Int, CaseIterable, Hashable {
 /// segment for each. Moving on, the page's objects slide out to the left one
 /// after another while the next page's come in from the right.
 ///
-/// The terms and the iamgasgass.github.io/iLoaderX answer are kept as soon as they're
+/// The terms and the iamgasgass.github.io/iloaderx answer are kept as soon as they're
 /// given, so setup left halfway resumes at the page it stopped on. The Apple
 /// ID page ends it: Continue saves the account, and "Set this up later" skips
 /// it; either sets `hasCompletedAccountSetup` and the app opens.
@@ -248,7 +248,7 @@ private struct TermsPage: View {
                        isOn: $accepted.animation(.smooth(duration: 0.2)))
             }
 
-            Link(destination: URL(string: "https://iamgasgass.github.io/iLoaderX/terms.html")!) {
+            Link(destination: URL(string: "https://iamgasgass.github.io/iloaderx/terms.html")!) {
                 Text("TOS")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.accent)
@@ -258,7 +258,7 @@ private struct TermsPage: View {
     }
 }
 
-/// Page 2: was this copy downloaded from iamgasgass.github.io/iLoaderX? "No" turns the
+/// Page 2: was this copy downloaded from iamgasgass.github.io/iloaderx? "No" turns the
 /// page into the warning, with Back to answer again; the bar stays where it
 /// is, as the answer is still to come.
 private struct SourcePage: View {

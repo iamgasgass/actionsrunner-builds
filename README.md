@@ -8,8 +8,8 @@
 
 Bundle ID `com.iamgasgass.iloaderx` · iOS 17.4+ (iOS 27 pairs with itself)
 
-[![Install](https://img.shields.io/badge/Install-iLoader%20X-19C566?style=for-the-badge)](https://iamgasgass.github.io/iLoaderX/)
-[![Release](https://img.shields.io/github/v/release/iamgasgass/iLoaderX?style=for-the-badge&color=12A150)](https://github.com/iamgasgass/iLoaderX/releases/latest)
+[![Install](https://img.shields.io/badge/Install-iLoader%20X-19C566?style=for-the-badge)](https://iamgasgass.github.io/iloaderx/)
+[![Release](https://img.shields.io/github/v/release/iamgasgass/iloaderx?style=for-the-badge&color=12A150)](https://github.com/iamgasgass/iloaderx/releases/latest)
 [![License](https://img.shields.io/badge/license-SideInstaller%20License-orange?style=for-the-badge)](LICENSE.md)
 
 </div>
@@ -29,13 +29,13 @@ is SideInstaller's; iLoader X gives it its own name, bundle ID and icon.
 
 ## Install
 
-**Install page: <https://iamgasgass.github.io/iLoaderX/>** — add the source to
+**Install page: <https://iamgasgass.github.io/iloaderx/>** — add the source to
 SideStore or AltStore, install in LiveContainer or TrollStore, or download the IPA.
 
 | | |
 |---|---|
-| AltStore / SideStore source | `https://iamgasgass.github.io/iLoaderX/iloaderx.json` |
-| Latest IPA (unsigned) | <https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa> |
+| AltStore / SideStore source | `https://iamgasgass.github.io/iloaderx/iloaderx.json` |
+| Latest IPA (unsigned) | <https://github.com/iamgasgass/iloaderx/releases/latest/download/iLoaderX.ipa> |
 
 Then connect [LocalDevVPN](https://apps.apple.com/app/id6755608044), pair (iOS 27
 pairs with itself; iOS 17.4 – 26 imports a pairing file made on a computer), sign
@@ -94,8 +94,8 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
 - **Icon**: new artwork, Liquid Glass primary and iOS 6 alternate (above), the
   in-app logo, and a Settings › App Icon picker (`ios-app/AppIconPicker.swift`).
 - **Links**: update banner, Side by Side, problem reports, source-code link and
-  terms use `iamgasgass/iLoaderX` and its install page, not FrizzleM's.
-- **Official-source check**: points to iamgasgass.github.io/iLoaderX instead of
+  terms use `iamgasgass/iloaderx` and its install page, not FrizzleM's.
+- **Official-source check**: points to iamgasgass.github.io/iloaderx instead of
   sideinstaller.net.
 - **Install page and source**: `site/` (install page in English and Italian, terms,
   AltStore/SideStore source `iloaderx.json`) replaces sideinstaller.net and

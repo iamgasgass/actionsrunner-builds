@@ -1191,20 +1191,20 @@ let koreanStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?":
-        "iamgasgass.github.io/iLoaderX에서 iLoader X를 받으셨습니까?",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
-        "iLoader X는 오픈 소스이므로 누구나 입력한 Apple ID를 훔치도록 수정한 복사본을 배포할 수 있습니다. 공식 사이트는 iamgasgass.github.io/iLoaderX뿐입니다.",
-    "Yes, from iamgasgass.github.io/iLoaderX":
-        "예, iamgasgass.github.io/iLoaderX에서 받았습니다",
+    "Did you download iLoader X from iamgasgass.github.io/iloaderx?":
+        "iamgasgass.github.io/iloaderx에서 iLoader X를 받으셨습니까?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iloaderx is official.":
+        "iLoader X는 오픈 소스이므로 누구나 입력한 Apple ID를 훔치도록 수정한 복사본을 배포할 수 있습니다. 공식 사이트는 iamgasgass.github.io/iloaderx뿐입니다.",
+    "Yes, from iamgasgass.github.io/iloaderx":
+        "예, iamgasgass.github.io/iloaderx에서 받았습니다",
     "No, or I'm not sure":
         "아니요, 또는 잘 모르겠습니다",
     "Don't sign in with this copy":
         "이 복사본으로 로그인하지 마세요",
-    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
-        "iamgasgass.github.io/iLoaderX이 아닌 곳에서 받은 복사본은 비공식이며 Apple ID를 훔치도록 변경되었을 수 있습니다. 이 앱을 삭제하고 iamgasgass.github.io/iLoaderX에서 iLoader X를 설치한 뒤 그곳에서 로그인하세요.",
-    "Open iamgasgass.github.io/iLoaderX":
-        "iamgasgass.github.io/iLoaderX 열기",
+    "Copies from anywhere other than iamgasgass.github.io/iloaderx are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iloaderx, then sign in there.":
+        "iamgasgass.github.io/iloaderx이 아닌 곳에서 받은 복사본은 비공식이며 Apple ID를 훔치도록 변경되었을 수 있습니다. 이 앱을 삭제하고 iamgasgass.github.io/iloaderx에서 iLoader X를 설치한 뒤 그곳에서 로그인하세요.",
+    "Open iamgasgass.github.io/iloaderx":
+        "iamgasgass.github.io/iloaderx 열기",
     "Back":
         "뒤로",
     "I understand the risks":

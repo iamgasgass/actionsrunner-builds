@@ -7,16 +7,16 @@ import Foundation
 @MainActor
 final class UpdateChecker: ObservableObject {
 
-    /// The newest published, non-prerelease release of iamgasgass/iLoaderX;
+    /// The newest published, non-prerelease release of iamgasgass/iloaderx;
     /// its `tag_name` is e.g. "v1.0.0" (its title, "iLoader X 1.0.0", works too).
     static let latestReleaseAPIURL =
-        "https://api.github.com/repos/iamgasgass/iLoaderX/releases/latest"
+        "https://api.github.com/repos/iamgasgass/iloaderx/releases/latest"
     /// The install page the banner offers first, which carries the OTA links.
-    static let installPageURL = "https://iamgasgass.github.io/iLoaderX/"
+    static let installPageURL = "https://iamgasgass.github.io/iloaderx/"
     /// The latest release's unsigned IPA, for the banner's other two ways:
     /// signed with the Apple ID's certificate, or installed in LiveContainer.
     static let releaseIPAURL =
-        "https://iamgasgass.github.io/iLoaderX/iLoaderX/releases/latest/download/iLoaderX.ipa"
+        "https://iamgasgass.github.io/iloaderx/iLoaderX/releases/latest/download/iLoaderX.ipa"
 
     /// The newest version GitHub advertises, once fetched.
     @Published private(set) var latestVersion: String?

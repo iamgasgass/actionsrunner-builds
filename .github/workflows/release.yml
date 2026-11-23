@@ -104,7 +104,7 @@ jobs:
             cat "$RUNNER_TEMP/notes.md"
             echo
             echo "---"
-            echo "Unsigned IPA, bundle ID \`com.iamgasgass.iloaderx\`. Install: https://iamgasgass.github.io/iLoaderX/"
+            echo "Unsigned IPA, bundle ID \`com.iamgasgass.iloaderx\`. Install: https://iamgasgass.github.io/iloaderx/"
             echo "iLoader X is a fork of [SideInstaller by FrizzleM](https://github.com/FrizzleM/SideInstaller); it is not the official SideInstaller."
           } > "$RUNNER_TEMP/release.md"
           gh release create "v$VERSION" "$RUNNER_TEMP/ipa/iLoaderX.ipa" \

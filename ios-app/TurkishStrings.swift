@@ -1089,15 +1089,15 @@ let turkishStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?": "iLoader X'ı iamgasgass.github.io/iLoaderX'ten mi indirdin?",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
-        "iLoader X açık kaynaklıdır, bu yüzden herkes içine yazılan Apple kimliğini çalan değiştirilmiş bir kopya yayınlayabilir. Yalnızca iamgasgass.github.io/iLoaderX resmidir.",
-    "Yes, from iamgasgass.github.io/iLoaderX": "Evet, iamgasgass.github.io/iLoaderX'ten",
+    "Did you download iLoader X from iamgasgass.github.io/iloaderx?": "iLoader X'ı iamgasgass.github.io/iloaderx'ten mi indirdin?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iloaderx is official.":
+        "iLoader X açık kaynaklıdır, bu yüzden herkes içine yazılan Apple kimliğini çalan değiştirilmiş bir kopya yayınlayabilir. Yalnızca iamgasgass.github.io/iloaderx resmidir.",
+    "Yes, from iamgasgass.github.io/iloaderx": "Evet, iamgasgass.github.io/iloaderx'ten",
     "No, or I'm not sure": "Hayır veya emin değilim",
     "Don't sign in with this copy": "Bu kopya ile oturum açma",
-    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
-        "iamgasgass.github.io/iLoaderX dışındaki her yerden gelen kopyalar resmi değildir ve Apple kimliğini çalmak için değiştirilmiş olabilir. Bunu sil, iLoader X'ı iamgasgass.github.io/iLoaderX'ten yükle ve orada oturum aç.",
-    "Open iamgasgass.github.io/iLoaderX": "iamgasgass.github.io/iLoaderX'i aç",
+    "Copies from anywhere other than iamgasgass.github.io/iloaderx are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iloaderx, then sign in there.":
+        "iamgasgass.github.io/iloaderx dışındaki her yerden gelen kopyalar resmi değildir ve Apple kimliğini çalmak için değiştirilmiş olabilir. Bunu sil, iLoader X'ı iamgasgass.github.io/iloaderx'ten yükle ve orada oturum aç.",
+    "Open iamgasgass.github.io/iloaderx": "iamgasgass.github.io/iloaderx'i aç",
     "Back": "Geri",
     "I understand the risks": "Riskleri anlıyorum",
     "Use an unofficial copy?": "Resmi olmayan bir kopya kullanılsın mı?",

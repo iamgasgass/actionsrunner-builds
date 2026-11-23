@@ -5,7 +5,7 @@
 
 The release's entry goes first in `versions` (one already there for the same
 version is replaced) and the app's top-level fields follow it, for the older
-AltStore format. downloadURL is the release asset on iamgasgass/iLoaderX.
+AltStore format. downloadURL is the release asset on iamgasgass/iloaderx.
 """
 import json
 import os
@@ -13,7 +13,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = os.environ.get("REPO", "iamgasgass/iLoaderX")
+REPO = os.environ.get("REPO", "iamgasgass/iloaderx")
 SOURCE = Path(os.environ.get("SOURCE_FILE", "site/iloaderx.json"))
 version = os.environ.get("VERSION", "").strip().lstrip("vV")
 ipa = Path(os.environ.get("IPA", "build/iLoaderX.ipa"))
