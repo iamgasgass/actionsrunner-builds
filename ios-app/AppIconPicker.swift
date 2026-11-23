@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// iLoader X's two icons: the Liquid Glass one (primary: AppIcon.icon on
-/// iOS 26+, AppIcon.appiconset below) and the iOS 6 one (alternate
+/// iLoader X's two icons: the Liquid Glass one (primary AppIcon.appiconset,
+/// the same artwork as the in-app logo, AppLogo) and the iOS 6 one (alternate
 /// AppIcon-iOS6). Each has its Dark and Tinted variants; iOS picks among those
 /// itself, by the Home Screen's appearance.
 enum AppIconChoice: String, CaseIterable, Identifiable {

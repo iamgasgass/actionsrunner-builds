@@ -87,10 +87,10 @@ const sheet = `
 <div class="sheet">
   <h1>iLoader X — app icon</h1>
   <p>com.iamgasgass.iloaderx · glyph redrawn from scratch: rounded “L”, download arrow landing on a tray</p>
-  <h2>Liquid Glass — primary icon (AppIcon.icon on iOS 26+, AppIcon.appiconset on iOS 17.4–25)</h2>
+  <h2>Liquid Glass — primary icon (AppIcon.appiconset: the same artwork as the in-app logo)</h2>
   <div class="row">
     ${tile(masters["glass-light"], wallLight, "Default", "light")}
-    ${tile(masters["glass-dark"], wallDark, "Dark", "system dark backdrop", { bg: sysDarkBg, filter: "none" })}
+    ${tile(masters["glass-dark"], wallDark, "Dark", "same tile as in-app", { bg: "#121416", filter: "none" })}
     ${tile(masters["glass-clear-light"], wallLight, "Clear", "light", { bg: "rgba(255,255,255,.28)", filter: "none" })}
     ${tile(masters["glass-clear-dark"], wallDark, "Clear", "dark", { bg: "rgba(20,20,24,.55)", filter: "none" })}
     ${tile(masters["glass-tinted"], wallDark, "Tinted", "red tint, dark", { bg: tintBg, filter: tintFilter, color: "#FF5A72" })}

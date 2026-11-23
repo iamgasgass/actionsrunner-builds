@@ -9,12 +9,6 @@ options:
   deploymentTarget:
     iOS: "17.4"
   createIntermediateGroups: true
-  # ios-app/AppIcon.icon (Icon Composer, iOS 26 Liquid Glass) is one file to
-  # Xcode, not a folder to walk; scripts/patch-xcodeproj.sh sets its type.
-  fileTypes:
-    icon:
-      file: true
-      buildPhase: resources
 
 settings:
   base:
@@ -45,7 +39,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.iloaderx
         INFOPLIST_FILE: ios-app/Info.plist
-        # Primary icon: AppIcon.icon on iOS 26+, AppIcon.appiconset below it.
+        # Primary icon: AppIcon.appiconset, the same artwork as the in-app logo
+        # (AppLogo) on every iOS, with its Dark and Tinted variants.
         # Alternate: the iOS 6 one, picked in Settings › App Icon.
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-iOS6

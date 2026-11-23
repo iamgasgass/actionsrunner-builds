@@ -70,7 +70,6 @@ fi
 # --- Xcode project ------------------------------------------------------------
 echo "==> Generating iLoaderX.xcodeproj from project.yml"
 xcodegen generate --spec project.yml --quiet
-bash scripts/patch-xcodeproj.sh iLoaderX.xcodeproj
 touch "$MARKER"
 
 # --- Simulator ----------------------------------------------------------------

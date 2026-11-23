@@ -5,8 +5,6 @@
     python3 tools/icon/build_assets.py build/icon
 
 Writes, under ios-app/:
-  AppIcon.icon/                      Icon Composer document (iOS 26+ Liquid Glass,
-                                     with Default / Dark / Clear / Tinted)
   Assets.xcassets/AppIcon.appiconset Liquid Glass look for iOS 17.4 - 25: every
                                      legacy size, plus Dark and Tinted (iOS 18+)
   Assets.xcassets/AppIcon-iOS6.appiconset  the iOS 6 alternate icon, same set
@@ -55,7 +53,7 @@ def save_json(path, obj):
     path.write_text(json.dumps(obj, indent=2) + "\n")
 
 
-def appiconset(name, light, dark, tinted):
+def appiconset(name, light, dark, tinted, dark_bg=None):
     d = xc / f"{name}.appiconset"
     if d.exists():
         shutil.rmtree(d)
@@ -72,7 +70,11 @@ def appiconset(name, light, dark, tinted):
     images.append({"filename": f"{name}-Light.png", "idiom": "universal", "platform": "ios", "size": "1024x1024"})
     for value, file in (("dark", dark), ("tinted", tinted)):
         fn = f"{name}-{value.capitalize()}.png"
-        Image.open(src / file).convert("RGBA").save(d / fn, optimize=True)
+        im = Image.open(src / file).convert("RGBA")
+        if value == "dark" and dark_bg:
+            # The same tile as the in-app logo's dark variant (AppLogo-Dark).
+            im = opaque(im, dark_bg)
+        im.save(d / fn, optimize=True)
         images.append({
             "appearances": [{"appearance": "luminosity", "value": value}],
             "filename": fn, "idiom": "universal", "platform": "ios", "size": "1024x1024",
@@ -111,69 +113,12 @@ def hexc(h, a=1.0):
     return srgb(*(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)), a)
 
 
-def icon_composer():
-    """AppIcon.icon: three glyph layers in two glass groups, with a fill per appearance."""
-    d = app / "AppIcon.icon"
-    if d.exists():
-        shutil.rmtree(d)
-    (d / "Assets").mkdir(parents=True)
-    for n in ("Letter", "Arrow", "Tray"):
-        shutil.copy(src / f"layer-{n}.svg", d / "Assets" / f"{n}.svg")
-
-    def layer(name, light, dark, tinted, opacity_tinted=1.0):
-        return {
-            "fill-specializations": [
-                {"value": {"automatic-gradient": light}},
-                {"appearance": "dark", "value": {"automatic-gradient": dark}},
-                {"appearance": "tinted", "value": {"solid": tinted}},
-            ],
-            "opacity-specializations": [
-                {"value": 1},
-                {"appearance": "tinted", "value": opacity_tinted},
-            ],
-            "glass": True,
-            "hidden": False,
-            "image-name": f"{name}.svg",
-            "name": name,
-            "position": {"scale": 1, "translation-in-points": [0, 0]},
-        }
-
-    doc = {
-        "fill-specializations": [
-            {"value": {"linear-gradient": [hexc("#FFFFFF"), hexc("#F6E6EA")],
-                       "orientation": {"start": {"x": 0.5, "y": 0}, "stop": {"x": 0.5, "y": 0.7}}}},
-            {"appearance": "dark",
-             "value": {"linear-gradient": [hexc("#2A0C12"), hexc("#000000")],
-                       "orientation": {"start": {"x": 0.5, "y": 0}, "stop": {"x": 0.5, "y": 0.7}}}},
-        ],
-        "groups": [
-            {   # front: the download arrow and its tray
-                "layers": [
-                    layer("Arrow", hexc("#4E0F1D"), hexc("#FFFFFF"), hexc("#FFFFFF")),
-                    layer("Tray", hexc("#4E0F1D"), hexc("#FFFFFF"), hexc("#FFFFFF")),
-                ],
-                "lighting": "combined",
-                "shadow": {"kind": "layer-color", "opacity": 0.5},
-                "specular": True,
-                "translucency": {"enabled": True, "value": 0.2},
-            },
-            {   # back: the L
-                "layers": [layer("Letter", hexc("#C41A3A"), hexc("#E8344F"), hexc("#FFFFFF"), 0.78)],
-                "lighting": "individual",
-                "shadow": {"kind": "layer-color", "opacity": 0.5},
-                "specular": True,
-                "translucency": {"enabled": True, "value": 0.35},
-            },
-        ],
-        "supported-platforms": {"circles": ["watchOS"], "squares": "shared"},
-    }
-    save_json(d / "icon.json", doc)
-
-
-icon_composer()
-appiconset("AppIcon", "glass-light.png", "glass-dark.png", "glass-tinted.png")
+# The Home Screen icon is the in-app logo's artwork: AppLogo (light) and
+# AppLogo-Dark (dark, on the same tile colour), plus the tinted one.
+LOGO_DARK_BG = (18, 20, 22)
+appiconset("AppIcon", "glass-light.png", "glass-dark.png", "glass-tinted.png", dark_bg=LOGO_DARK_BG)
 appiconset("AppIcon-iOS6", "ios6-light.png", "ios6-dark.png", "ios6-tinted.png")
-imageset("AppLogo", "glass-light.png", "glass-dark.png")
+imageset("AppLogo", "glass-light.png", "glass-dark.png", LOGO_DARK_BG)
 imageset("IconPreviewIOS6", "ios6-light.png", "ios6-dark.png")
 for tool in ("AppsLogo", "CertsLogo", "DownloadsLogo", "EntitlementsLogo", "LocationLogo", "PairingLogo", "SideBySideLogo"):
     imageset(tool, f"tool-{tool}-light.png", f"tool-{tool}-dark.png")

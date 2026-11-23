@@ -98,7 +98,6 @@ fi
 # --- Xcode project ------------------------------------------------------------
 echo "==> Generating iLoaderX.xcodeproj from project.yml"
 xcodegen generate --spec project.yml --quiet
-bash scripts/patch-xcodeproj.sh iLoaderX.xcodeproj
 pbx=iLoaderX.xcodeproj/project.pbxproj
 [ -f "$pbx" ] || die "xcodegen made no $pbx"
 # Give the app the bundle id to build with, and the extension the same id plus

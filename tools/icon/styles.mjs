@@ -2,9 +2,8 @@
 //
 //   glass(mode)  Liquid Glass (iOS 26 look): flat light backdrop, translucent
 //                glyphs with a specular rim, soft lift shadow. Rendered to
-//                PNG for the asset catalog (iOS 17.4 - 25) and the previews;
-//                on iOS 26+ the system draws the real material from
-//                ios-app/AppIcon.icon instead.
+//                PNG for the asset catalog (the Home Screen icon on every iOS)
+//                and the in-app logo, so the two are the same artwork.
 //   ios6(mode)   iOS 6 skeuomorphic: linen backdrop, beveled garnet gel "L",
 //                embossed gunmetal arrow, the glossy highlight arc baked in.
 //
@@ -221,7 +220,7 @@ export function ios6(mode = "light") {
 
 // ------------------------------------------------ Icon Composer layers ----
 
-/** Plain white layers for AppIcon.icon: Icon Composer fills and lights them. */
+/** Plain white glyph layers (L, arrow, tray), for an Icon Composer document. */
 export function layer(name) {
   const body = {
     Letter: shapeL(`fill="#fff"`),

@@ -102,8 +102,7 @@ drawn in the same glass design (`tools/icon/tools.mjs`), and the whole app is ga
 
 | | Where | Variants |
 |---|---|---|
-| **Liquid Glass** (primary) | `ios-app/AppIcon.icon` (Icon Composer, iOS 26+) | Default, Dark, Clear light, Clear dark, Tinted light, Tinted dark: drawn by the system from three glass layers (L, arrow, tray) in two groups, each with its own fill per appearance |
-| | `ios-app/Assets.xcassets/AppIcon.appiconset` (iOS 17.4 – 25) | every iPhone, iPad, CarPlay and App Store size; Dark and Tinted (iOS 18+) |
+| **Liquid Glass** (primary) | `ios-app/Assets.xcassets/AppIcon.appiconset` | the same artwork as the in-app logo (`AppLogo`): Default, Dark (the in-app dark tile) and Tinted, at every iPhone, iPad, CarPlay and App Store size; iOS 26 derives Clear from it |
 | **iOS 6** (alternate) | `ios-app/Assets.xcassets/AppIcon-iOS6.appiconset` | linen backdrop, beveled garnet gel “L”, embossed gunmetal arrow, the gloss arc baked in; every size, plus Dark (chrome arrow on charcoal) and Tinted |
 
 Switch between them in **Settings › App Icon**. The artwork is generated from
@@ -111,7 +110,7 @@ code, so it can be regenerated at any size:
 
 ```sh
 node tools/icon/render.mjs build/icon        # masters + Icon Composer layers + preview sheet (Playwright/Chromium)
-python3 tools/icon/build_assets.py build/icon # asset catalog sets, AppIcon.icon, docs/
+python3 tools/icon/build_assets.py build/icon # asset catalog sets (icons, logo, tool tiles), docs/
 ```
 
 ## Building
@@ -162,10 +161,8 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
 - **How to use it**: the siboot route, with `--ipa` pointing at iLoader X's release.
 - **Removed** what only the official SideInstaller publishes: the
   sideinstaller.net pages, the AltSource (`frizzlem.json`), the DNS profile, and
-  the release/signing/Pages workflows. Added `build.yml`, `pages.yml`,
-  `scripts/update_source.py` and
-  `scripts/patch-xcodeproj.sh` (marks `AppIcon.icon` as an Icon Composer file
-  after `xcodegen`).
+  the release/signing/Pages workflows. Added `build.yml`, `pages.yml` and
+  `scripts/update_source.py`.
 - Internal names that never show (the Rust core, `SideInstallerFFI`, Swift type
   names) are unchanged, so upstream changes merge cleanly.
 
