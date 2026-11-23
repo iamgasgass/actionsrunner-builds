@@ -41,6 +41,55 @@ Then connect [LocalDevVPN](https://apps.apple.com/app/id6755608044), pair (iOS 2
 pairs with itself; iOS 17.4 – 26 imports a pairing file made on a computer), sign
 in with your Apple ID and install SideStore or LiveContainer from the Install tab.
 
+## How to use it
+
+[siboot](https://github.com/FrizzleM/siboot) (by FrizzleM, MIT) installs iLoader X from the
+iPhone itself, signed with your own Apple account: no computer and no certificate. You need
+**iOS 27 or later, Wi-Fi and Developer Mode on**, and an iLoader X release (siboot downloads
+`releases/latest/download/iLoaderX.ipa` from this repository).
+
+1. **Get the apps.** Install [rootshell](https://apps.apple.com/app/id6755794662),
+   [Open Minis](https://apps.apple.com/app/id6759188481) and
+   [LocalDevVPN](https://apps.apple.com/app/id6755608044), all free on the App Store.
+
+2. **Pair in rootshell.** Turn on Settings › Location Diary Mode › Session Only in rootshell,
+   then tap Local Shell and Open at the top right, and run these one line at a time:
+
+   ```sh
+   curl -fsSLO https://raw.githubusercontent.com/FrizzleM/siboot/main/rootshell/bin/siboot-pair.wasm
+   ifconfig en0 > ifconfig.txt
+   ./siboot-pair.wasm
+   ```
+
+   Open Settings › Privacy & Security › Developer Mode, scroll to the bottom, tap
+   **Pair with siboot**, and enter your passcode and the code rootshell shows. Leave rootshell running.
+   (With Open Minis 1.16 or later siboot can also pair the iPhone with itself in the next step.)
+
+3. **Install from Open Minis.** Connect LocalDevVPN. In Open Minis, tap the console icon at the
+   top right, then Shell Terminal, and run (one line):
+
+   ```sh
+   wget -qO- https://raw.githubusercontent.com/FrizzleM/siboot/main/minis/install.sh | sh -s -- --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa
+   ```
+
+   The `--ipa` part is what makes siboot install **iLoader X** instead of SideInstaller.
+   Type the transfer code rootshell shows (only the first time: after that, siboot uses the
+   pairing file it saved), then your Apple account email, password and verification code. Keep
+   Minis open until it says it's done. The first time, trust your Apple account in
+   Settings › General › VPN & Device Management.
+
+4. **Open iLoader X** from the Home Screen (siboot's last screen offers “Open SideInstaller”:
+   that link is for SideInstaller, ignore it). With LocalDevVPN connected, log in with your Apple
+   account and tap **Install SideStore** or **Install SideStore + LiveContainer**. siboot has
+   already put the pairing file into iLoader X.
+
+To install or refresh iLoader X again later, run `siboot --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa`
+in Open Minis (plain `siboot` would install SideInstaller). Once paired, `siboot developer-mode`
+asks the iPhone to show the Developer Mode switch in Settings, or with `--turn-on` turns it on.
+
+Already sideloading? Use the [install page](https://iamgasgass.github.io/iLoaderX/) instead:
+SideStore / AltStore source, LiveContainer, TrollStore or the plain IPA.
+
 ## The icon
 
 Drawn from scratch for iLoader X: a garnet rounded “L” with a download arrow landing on
@@ -110,6 +159,7 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
   AltStore/SideStore source `iloaderx.json`) replaces sideinstaller.net and
   `frizzlem.json`.
 - **About**: links this fork's source and credits SideInstaller by FrizzleM.
+- **How to use it**: the siboot route, with `--ipa` pointing at iLoader X's release.
 - **Removed** what only the official SideInstaller publishes: the
   sideinstaller.net pages, the AltSource (`frizzlem.json`), the DNS profile, and
   the release/signing/Pages workflows. Added `build.yml`, `pages.yml`,
