@@ -1,0 +1,45 @@
+name: Deploy the install page
+
+# Publishes site/ (install page, terms, the AltStore / SideStore source
+# iloaderx.json) to GitHub Pages: https://iamgasgass.github.io/iLoaderX/
+#
+# Settings › Pages › Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main   # after a release, the commit that updated iloaderx.json
+      - name: Assemble the site
+        run: |
+          python3 -c "import json; json.load(open('site/iloaderx.json'))"
+          cp -R site _site
+          cp site/index.html _site/404.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

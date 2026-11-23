@@ -72,7 +72,7 @@ struct AboutView: View {
                 sectionTitle(L("Links"), systemImage: "link")
                 AboutRow(systemImage: "chevron.left.forwardslash.chevron.right",
                          title: L("Source code"),
-                         urlString: "https://github.com/iamgasgass/actionsrunner-builds/tree/claude/vigilant-shannon-rqdiof")
+                         urlString: "https://iamgasgass.github.io/iLoaderX/iLoaderX")
                 // Required by SideInstaller's licence (section 4): credit and link.
                 AboutRow(systemImage: "arrow.triangle.branch",
                          title: "Based on SideInstaller by FrizzleM",

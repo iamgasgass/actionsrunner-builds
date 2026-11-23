@@ -8,6 +8,10 @@
 
 Bundle ID `com.iamgasgass.iloaderx` · iOS 17.4+ (iOS 27 pairs with itself)
 
+[![Install](https://img.shields.io/badge/Install-iLoader%20X-19C566?style=for-the-badge)](https://iamgasgass.github.io/iLoaderX/)
+[![Release](https://img.shields.io/github/v/release/iamgasgass/iLoaderX?style=for-the-badge&color=12A150)](https://github.com/iamgasgass/iLoaderX/releases/latest)
+[![License](https://img.shields.io/badge/license-SideInstaller%20License-orange?style=for-the-badge)](LICENSE.md)
+
 </div>
 
 ---
@@ -22,6 +26,20 @@ is SideInstaller's; iLoader X gives it its own name, bundle ID and icon.
 > iLoader X is **not** the official SideInstaller and is not affiliated with FrizzleM.
 > For the original app, go to <https://github.com/FrizzleM/SideInstaller>.
 > Problems with this fork belong in this repository's issues, not in SideInstaller's.
+
+## Install
+
+**Install page: <https://iamgasgass.github.io/iLoaderX/>** — add the source to
+SideStore or AltStore, install in LiveContainer or TrollStore, or download the IPA.
+
+| | |
+|---|---|
+| AltStore / SideStore source | `https://iamgasgass.github.io/iLoaderX/iloaderx.json` |
+| Latest IPA (unsigned) | <https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa> |
+
+Then connect [LocalDevVPN](https://apps.apple.com/app/id6755608044), pair (iOS 27
+pairs with itself; iOS 17.4 – 26 imports a pairing file made on a computer), sign
+in with your Apple ID and install SideStore or LiveContainer from the Install tab.
 
 ## The icon
 
@@ -52,9 +70,13 @@ On a Mac with Xcode 27 (iOS 27 SDK), Rust with `aarch64-apple-ios` and `xcodegen
 scripts/build-ipa.sh     # → build/iLoaderX.ipa, unsigned
 ```
 
-On GitHub, `.github/workflows/build.yml` does the same on `macos-26` and puts
-`iLoaderX.ipa` on the rolling release **iloaderx-latest**. Sign it with SideStore,
-AltStore, iLoader or Sideloadly, or install it with TrollStore.
+On GitHub (`macos-26` runners):
+
+- `build.yml` builds the IPA on every push to `main` and every pull request (kept on the run page);
+- `release.yml` (Actions › Release iLoader X › Run workflow: version + notes) publishes
+  release `v<version>` with `iLoaderX.ipa`, adds it to `site/iloaderx.json` and redeploys the page;
+- `pages.yml` publishes `site/` (install page, terms, source) to GitHub Pages
+  (Settings › Pages › Source: **GitHub Actions**).
 
 ## What this fork changes
 
@@ -71,14 +93,18 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
   nothing with it.
 - **Icon**: new artwork, Liquid Glass primary and iOS 6 alternate (above), the
   in-app logo, and a Settings › App Icon picker (`ios-app/AppIconPicker.swift`).
-- **Updates, Side by Side, problem reports**: read from / sent to this
-  repository (release `iloaderx-latest`, its issues), not FrizzleM's.
-- **Official-source check**: points to this fork's releases instead of
+- **Links**: update banner, Side by Side, problem reports, source-code link and
+  terms use `iamgasgass/iLoaderX` and its install page, not FrizzleM's.
+- **Official-source check**: points to iamgasgass.github.io/iLoaderX instead of
   sideinstaller.net.
+- **Install page and source**: `site/` (install page in English and Italian, terms,
+  AltStore/SideStore source `iloaderx.json`) replaces sideinstaller.net and
+  `frizzlem.json`.
 - **About**: links this fork's source and credits SideInstaller by FrizzleM.
 - **Removed** what only the official SideInstaller publishes: the
   sideinstaller.net pages, the AltSource (`frizzlem.json`), the DNS profile, and
-  the release/signing/Pages workflows. Added `build.yml` and
+  the release/signing/Pages workflows. Added `build.yml`, `release.yml`, `pages.yml`,
+  `scripts/update_source.py` and
   `scripts/patch-xcodeproj.sh` (marks `AppIcon.icon` as an Icon Composer file
   after `xcodegen`).
 - Internal names that never show (the Rust core, `SideInstallerFFI`, Swift type

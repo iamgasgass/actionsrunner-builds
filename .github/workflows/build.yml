@@ -1,31 +1,22 @@
 name: Build iLoader X
 
 # Builds iLoader X's unsigned IPA (scripts/build-ipa.sh: the Rust library, an
-# Xcode project from project.yml, a Release build with signing off) and puts
-# it on the rolling release "iloaderx-latest" as iLoaderX.ipa, titled
-# "iLoader X <version>": the in-app update banner reads that title, and Side by
-# Side downloads that IPA. Sign it with SideStore, AltStore, iLoader,
-# Sideloadly, or install it with TrollStore.
+# Xcode project from project.yml, a Release build with signing off) on every
+# push to main and every pull request, and keeps it on the run page.
+# Releases are made by release.yml.
 #
 # Bundle ID com.iamgasgass.iloaderx (Live Activity: .LiveActivity).
 
 on:
   push:
-    branches: [iloaderx, "claude/**"]
-    paths-ignore: ["**.md", "docs/**"]
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**", "site/**"]
+  pull_request:
+    paths-ignore: ["**.md", "docs/**", "site/**"]
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version (CFBundleShortVersionString), e.g. 1.0.0. Empty = project.yml's"
-        type: string
-        default: ""
-      publish:
-        description: "Update the iloaderx-latest release with this IPA"
-        type: boolean
-        default: true
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: iloaderx-${{ github.ref }}
@@ -84,7 +75,6 @@ jobs:
       - name: Build the IPA
         shell: bash
         env:
-          VERSION: ${{ inputs.version }}
           BUILD_NUMBER: ${{ github.run_number }}
           BUNDLE_ID: com.iamgasgass.iloaderx
           OUTPUT: ${{ runner.temp }}/ipa/iLoaderX.ipa
@@ -105,26 +95,7 @@ jobs:
       - name: Keep the IPA on the run page
         uses: actions/upload-artifact@v4
         with:
-          name: iLoaderX-${{ env.VERSION_BUILT }}-${{ github.run_number }}-unsigned
+          name: iLoaderX-${{ env.VERSION_BUILT }}-build${{ github.run_number }}-unsigned
           path: ${{ runner.temp }}/ipa/iLoaderX.ipa
           if-no-files-found: error
           retention-days: 30
-
-      - name: Update the iloaderx-latest release
-        if: ${{ github.event_name == 'push' || inputs.publish }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          IPA: ${{ runner.temp }}/ipa/iLoaderX.ipa
-        run: |
-          set -euo pipefail
-          title="iLoader X $VERSION_BUILT"
-          notes="Unsigned build ${GITHUB_SHA:0:7} from $GITHUB_REF_NAME (run $GITHUB_RUN_NUMBER). Bundle ID com.iamgasgass.iloaderx. iLoader X is a fork of SideInstaller by FrizzleM: https://github.com/FrizzleM/SideInstaller"
-          if gh release view iloaderx-latest >/dev/null 2>&1; then
-            gh release edit iloaderx-latest --title "$title" --notes "$notes" --prerelease=false --latest=false
-            gh release upload iloaderx-latest "$IPA" --clobber
-          else
-            gh release create iloaderx-latest "$IPA" --title "$title" --notes "$notes" --target "$GITHUB_SHA" --latest=false
-          fi
-          echo "Published: $(gh release view iloaderx-latest --json url -q .url)" | tee -a "$GITHUB_STEP_SUMMARY"

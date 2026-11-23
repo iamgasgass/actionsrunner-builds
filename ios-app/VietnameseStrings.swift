@@ -1218,20 +1218,20 @@ let vietnameseStrings: [String: String] = [
 
     // MARK: - Official download check
 
-    "Did you download iLoader X from github.com/iamgasgass?":
-        "Bạn đã tải iLoader X từ github.com/iamgasgass phải không?",
-    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
-        "iLoader X là mã nguồn mở, nên bất kỳ ai cũng có thể phát hành một bản đã chỉnh sửa để đánh cắp Apple ID được nhập vào. Chỉ github.com/iamgasgass là chính thức.",
-    "Yes, from github.com/iamgasgass":
-        "Có, từ github.com/iamgasgass",
+    "Did you download iLoader X from iamgasgass.github.io/iLoaderX?":
+        "Bạn đã tải iLoader X từ iamgasgass.github.io/iLoaderX phải không?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official.":
+        "iLoader X là mã nguồn mở, nên bất kỳ ai cũng có thể phát hành một bản đã chỉnh sửa để đánh cắp Apple ID được nhập vào. Chỉ iamgasgass.github.io/iLoaderX là chính thức.",
+    "Yes, from iamgasgass.github.io/iLoaderX":
+        "Có, từ iamgasgass.github.io/iLoaderX",
     "No, or I'm not sure":
         "Không, hoặc tôi không chắc",
     "Don't sign in with this copy":
         "Đừng đăng nhập bằng bản này",
-    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
-        "Các bản tải từ nơi khác ngoài github.com/iamgasgass không chính thức và có thể đã bị chỉnh sửa để đánh cắp Apple ID của bạn. Hãy xoá bản này, cài iLoader X từ github.com/iamgasgass rồi đăng nhập ở đó.",
-    "Open github.com/iamgasgass":
-        "Mở github.com/iamgasgass",
+    "Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there.":
+        "Các bản tải từ nơi khác ngoài iamgasgass.github.io/iLoaderX không chính thức và có thể đã bị chỉnh sửa để đánh cắp Apple ID của bạn. Hãy xoá bản này, cài iLoader X từ iamgasgass.github.io/iLoaderX rồi đăng nhập ở đó.",
+    "Open iamgasgass.github.io/iLoaderX":
+        "Mở iamgasgass.github.io/iLoaderX",
     "Back":
         "Quay lại",
     "I understand the risks":

@@ -3,14 +3,14 @@ import SwiftUI
 // MARK: - Official download check
 
 /// Asked once, before an Apple ID is first typed in: was this copy downloaded
-/// from github.com/iamgasgass? The app is open source, so anyone can publish a
+/// from iamgasgass.github.io/iLoaderX? The app is open source, so anyone can publish a
 /// copy that sends the Apple ID somewhere else. "No" says why that's a risk
 /// and where the official app is, with only Back to answer again.
 ///
 /// The first-run setup lays the same pieces out as a page of its own
 /// (`SetupView`), with the buttons at its foot.
 struct OfficialSourceCheck: View {
-    /// Set once the user says the app came from github.com/iamgasgass.
+    /// Set once the user says the app came from iamgasgass.github.io/iLoaderX.
     static let defaultsKey = "confirmedOfficialSource"
     static let websiteURL = URL(string: UpdateChecker.installPageURL)!
 
@@ -49,12 +49,12 @@ struct OfficialSourceQuestion: View {
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 4)
                 .setupObject(0)
-            Text(L("Did you download iLoader X from github.com/iamgasgass?"))
+            Text(L("Did you download iLoader X from iamgasgass.github.io/iLoaderX?"))
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .setupObject(1)
-            Text(L("iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official."))
+            Text(L("iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only iamgasgass.github.io/iLoaderX is official."))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -72,7 +72,7 @@ struct OfficialSourceAnswers: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Button(L("Yes, from github.com/iamgasgass"), action: onYes)
+            Button(L("Yes, from iamgasgass.github.io/iLoaderX"), action: onYes)
                 .buttonStyle(PrimaryButtonStyle())
                 .setupObject(3)
             Button(action: onNo) {
@@ -98,7 +98,7 @@ struct OfficialSourceWarning: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("Don't sign in with this copy"))
                     .font(.headline)
-                Text(L("Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there."))
+                Text(L("Copies from anywhere other than iamgasgass.github.io/iLoaderX are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from iamgasgass.github.io/iLoaderX, then sign in there."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -121,7 +121,7 @@ struct OfficialSourceWarningActions: View {
     var body: some View {
         VStack(spacing: 16) {
             Link(destination: OfficialSourceCheck.websiteURL) {
-                Text(L("Open github.com/iamgasgass"))
+                Text(L("Open iamgasgass.github.io/iLoaderX"))
             }
             .buttonStyle(PrimaryButtonStyle())
             Button(L("Back"), action: onBack)
