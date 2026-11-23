@@ -36,7 +36,10 @@ env:
 jobs:
   release:
     name: Build and publish
-    runs-on: macos-26
+    # Xcode 27 / iOS 27.x SDK: GitHub's hosted images don't have it yet, so set the
+    # repository variable IOS27_RUNNER to a runner that does, e.g.
+    # ["self-hosted","macOS","xcode-27"] (README › Building).
+    runs-on: ${{ fromJSON(vars.IOS27_RUNNER || '"macos-26"') }}
     timeout-minutes: 90
     permissions:
       contents: write
@@ -61,19 +64,22 @@ jobs:
           printf '%b\n' "$NOTES" > "$RUNNER_TEMP/notes.md"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Select the newest Xcode
+      - name: Select Xcode with the newest iOS 27.x SDK
         shell: bash
-        run: |
-          set -euo pipefail
-          app="$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -n 1)"
-          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
-          DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version
+        env:
+          XCODE: ${{ vars.XCODE }}
+          PREFER_NEWEST: ${{ vars.XCODE_PREFER_NEWEST }}
+        run: bash scripts/select-xcode.sh
 
       - name: Install build tools
         shell: bash
         run: |
           set -euo pipefail
           command -v xcodegen >/dev/null || brew install xcodegen
+          if ! command -v rustup >/dev/null; then   # a self-hosted Mac without Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"
+          fi
           rustup target add aarch64-apple-ios
 
       - name: Restore the Rust library

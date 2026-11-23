@@ -64,19 +64,37 @@ python3 tools/icon/build_assets.py build/icon # asset catalog sets, AppIcon.icon
 
 ## Building
 
-On a Mac with Xcode 27 (iOS 27 SDK), Rust with `aarch64-apple-ios` and `xcodegen`:
+iLoader X builds **only with Xcode 27 and the iOS 27.x SDK** (the newest stable
+27.x on the machine; `scripts/select-xcode.sh` picks it and refuses anything older).
+Needs Rust with `aarch64-apple-ios` and `xcodegen`:
 
 ```sh
+scripts/select-xcode.sh  # shows the Xcodes, picks the newest stable iOS 27.x SDK
 scripts/build-ipa.sh     # → build/iLoaderX.ipa, unsigned
 ```
 
-On GitHub (`macos-26` runners):
+### On GitHub
 
 - `build.yml` builds the IPA on every push to `main` and every pull request (kept on the run page);
 - `release.yml` (Actions › Release iLoader X › Run workflow: version + notes) publishes
   release `v<version>` with `iLoaderX.ipa`, adds it to `site/iloaderx.json` and redeploys the page;
 - `pages.yml` publishes `site/` (install page, terms, source) to GitHub Pages
-  (Settings › Pages › Source: **GitHub Actions**).
+  (Settings › Pages › Source: **GitHub Actions**);
+- `xcode-probe.yml` lists the Xcodes / iOS SDKs on the runners and which one would be used.
+
+GitHub's hosted macOS images (`macos-26`, `macos-latest`) stop at Xcode 26.6 / iOS 26.5
+SDK for now, so the build needs **a Mac with Xcode 27 as a self-hosted runner**:
+
+1. On the Mac: install Xcode 27.x from the App Store or developer.apple.com, open it once
+   (accept the licence, let it install its components), and `brew install xcodegen`.
+2. Repository › Settings › Actions › Runners › **New self-hosted runner** › macOS, follow the
+   commands, and add the label `xcode-27` when `config.sh` asks.
+3. Repository › Settings › Secrets and variables › Actions › **Variables**:
+   `IOS27_RUNNER` = `["self-hosted","macOS","xcode-27"]`.
+
+Optional variables: `XCODE` pins one Xcode (e.g. `27.1`); `XCODE_PREFER_NEWEST=1`
+takes the newest iOS SDK even from a beta or RC. When GitHub adds Xcode 27 to its
+images, delete `IOS27_RUNNER` and the hosted runner picks it up by itself.
 
 ## What this fork changes
 

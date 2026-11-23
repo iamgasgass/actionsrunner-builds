@@ -25,30 +25,36 @@ concurrency:
 env:
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
-  # build-ipa.sh refuses an older iOS SDK (the code needs the iOS 27 SDK).
+  # Xcode 27 with the iOS 27.x SDK, nothing older (select-xcode.sh, build-ipa.sh).
   MIN_IOS_SDK: "27.0"
 
 jobs:
   build:
     name: Build the unsigned IPA
-    runs-on: macos-26
+    # Xcode 27 / iOS 27.x SDK: GitHub's hosted images don't have it yet, so set the
+    # repository variable IOS27_RUNNER to a runner that does, e.g.
+    # ["self-hosted","macOS","xcode-27"] (README › Building).
+    runs-on: ${{ fromJSON(vars.IOS27_RUNNER || '"macos-26"') }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
-      - name: Select the newest Xcode
+      - name: Select Xcode with the newest iOS 27.x SDK
         shell: bash
-        run: |
-          set -euo pipefail
-          app="$(ls -d /Applications/Xcode*.app | grep -v -i beta | sort -V | tail -n 1)"
-          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
-          DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version
+        env:
+          XCODE: ${{ vars.XCODE }}
+          PREFER_NEWEST: ${{ vars.XCODE_PREFER_NEWEST }}
+        run: bash scripts/select-xcode.sh
 
       - name: Install build tools
         shell: bash
         run: |
           set -euo pipefail
           command -v xcodegen >/dev/null || brew install xcodegen
+          if ! command -v rustup >/dev/null; then   # a self-hosted Mac without Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"
+          fi
           rustup target add aarch64-apple-ios
           xcodegen --version | tail -1
           rustc --version

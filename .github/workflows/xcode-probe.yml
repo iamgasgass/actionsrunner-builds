@@ -1,8 +1,8 @@
 name: Xcode probe
 
-# Lists the Xcode versions and iOS SDKs on GitHub's macOS runners, to find
-# the one with the newest iOS 27.x SDK. Run it from Actions when a build
-# can't find Xcode 27.
+# Lists the Xcode versions and iOS SDKs on GitHub's macOS runners and on the
+# runner set in IOS27_RUNNER, and which one scripts/select-xcode.sh would take
+# (iLoader X needs Xcode 27 with the iOS 27.x SDK). Run it from Actions.
 
 on:
   workflow_dispatch:
@@ -12,15 +12,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-26, macos-latest, macos-27, macos-26-xlarge]
-    runs-on: ${{ matrix.runner }}
+        runner: ['"macos-26"', '"macos-latest"', "${{ vars.IOS27_RUNNER || '\"macos-26\"' }}"]
+    runs-on: ${{ fromJSON(matrix.runner) }}
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v5
       - name: Xcodes and SDKs
+        shell: bash
         run: |
           sw_vers
-          for x in /Applications/Xcode*.app; do
-            v=$(defaults read "$x/Contents/Info" CFBundleShortVersionString 2>/dev/null || echo "?")
-            sdk=$(DEVELOPER_DIR="$x/Contents/Developer" xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo "?")
-            echo "$x | Xcode $v | iOS SDK $sdk" | tee -a "$GITHUB_STEP_SUMMARY"
-          done
+          SELECT_XCODE_DRY=1 GITHUB_ENV= bash scripts/select-xcode.sh || true

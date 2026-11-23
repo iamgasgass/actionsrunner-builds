@@ -93,37 +93,32 @@ jobs:
 
   ios:
     name: Simulator build and Swift tests
-    # The code needs the iOS 27 SDK (Xcode 27, on GitHub's macos-26 image).
-    runs-on: macos-26
+    # Xcode 27 / iOS 27.x SDK: see IOS27_RUNNER in build.yml.
+    runs-on: ${{ fromJSON(vars.IOS27_RUNNER || '"macos-26"') }}
     timeout-minutes: 60
     env:
-      XCODE_VERSION: "27.1"
+      XCODE_VERSION: "27"
+      MIN_IOS_SDK: "27.0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Select Xcode
+      - name: Select Xcode with the newest iOS 27.x SDK
         shell: bash
-        run: |
-          set -euo pipefail
-          app=""
-          for candidate in "/Applications/Xcode_${XCODE_VERSION}.app" /Applications/Xcode_"${XCODE_VERSION}"_*.app; do
-            if [[ -d "$candidate" ]]; then app="$candidate"; break; fi
-          done
-          if [[ -z "$app" ]]; then
-            app="$(xcode-select -p)"
-            app="${app%/Contents/Developer}"
-            echo "::warning::Xcode $XCODE_VERSION isn't on this runner; building with $app"
-            ls -d /Applications/Xcode*.app
-          fi
-          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
-          DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version
+        env:
+          XCODE: ${{ vars.XCODE }}
+          PREFER_NEWEST: ${{ vars.XCODE_PREFER_NEWEST }}
+        run: bash scripts/select-xcode.sh
 
       - name: Install build tools
         shell: bash
         run: |
           set -euo pipefail
           command -v xcodegen >/dev/null || brew install xcodegen
+          if ! command -v rustup >/dev/null; then   # a self-hosted Mac without Rust
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"
+          fi
           rustup target add aarch64-apple-ios-sim
           echo "xcodegen $(xcodegen --version 2>/dev/null | tail -1)"
           rustc --version
