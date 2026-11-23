@@ -224,6 +224,18 @@ final class LiveContainerJITController: ObservableObject {
                 Self.waitForJITPrerequisites()
             }
 
+            // Like LiveContainer before every launch: make sure the app is validly signed
+            // (JITLess mode), otherwise dlopen fails with "code signature invalid".
+            do {
+                try await LiveContainerSigning.ensureSigned(app) { [weak self] in
+                    self?.show(String(format: "Signing %@…".localized, app.displayName), .working)
+                }
+            } catch {
+                prerequisites.cancel()
+                finish(error: error.localizedDescription)
+                return
+            }
+
             let pid: Int32
             do {
                 pid = try await LiveContainerBridge.launchInMultitask(app)

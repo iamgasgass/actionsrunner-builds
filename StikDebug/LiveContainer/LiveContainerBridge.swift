@@ -118,6 +118,27 @@ enum LiveContainerBridge {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
+    /// Password of the certificate imported in LiveContainer (set only in JITLess mode).
+    /// +[LCSharedUtils certificatePassword] reads LiveContainer's shared defaults, which
+    /// LiveContainer opens before the guest's preference redirection is installed.
+    static var certificatePassword: String? {
+        guard isRunningInLiveContainer, let utils = NSClassFromString("LCSharedUtils") else { return nil }
+        return callClassObject(on: utils, selector: "certificatePassword") as? String
+    }
+
+    /// Certificate imported in LiveContainer. Read from LiveContainer's own shared/user defaults
+    /// objects: a fresh NSUserDefaults(suiteName:) inside a guest is redirected to the guest.
+    static var certificateData: Data? {
+        guard isRunningInLiveContainer else { return nil }
+        for selector in ["lcSharedDefaults", "lcUserDefaults"] {
+            if let defaults = callClassObject(on: UserDefaults.self, selector: selector) as? UserDefaults,
+               let data = defaults.data(forKey: "LCCertificateData"), !data.isEmpty {
+                return data
+            }
+        }
+        return nil
+    }
+
     /// True when `bundleID` identifies the LiveContainer process StikDebug is running in.
     /// Launching/relaunching that bundle through debugserver would terminate StikDebug itself.
     static func isOwnHost(bundleID: String?) -> Bool {
