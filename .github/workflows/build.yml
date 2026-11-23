@@ -1,72 +1,160 @@
-name: Build iLoader X
-
-# Builds iLoader X's unsigned IPA (scripts/build-ipa.sh: the Rust library, an
-# Xcode project from project.yml, a Release build with signing off) on every
-# push to main and every pull request, and keeps it on the run page.
-# Releases are made by release.yml.
+# .github/workflows/build.yml
 #
-# Bundle ID com.iamgasgass.iloaderx (Live Activity: .LiveActivity).
+# iLoader X: builds iLoaderX.ipa (SideStore / AltStore / LiveContainer / Sideloadly) and iLoaderX.tipa
+# (TrollStore) from a clean checkout, the way Henge X's build-ipa.yml builds Henge-X.ipa.
+#
+#   push to main or claude/**              build, keep both files as workflow artifacts
+#   push of a tag like v1.0.0              the same, publish them on that tag's release, put it on the
+#                                          AltStore / SideStore source (site/iloaderx.json) and redeploy the page
+#   Run workflow (Actions tab, manual)     the same from the branch you pick; "release" also publishes
+#
+# "Unsigned" as sideloaders mean it: the IPA has no signature, so SideStore / AltStore re-sign it at install;
+# the .tipa is the same app ad hoc signed, which TrollStore installs as it is.
+# Builds on GitHub's xcode-27 runner with Xcode 27.2 and the iOS 27.2 SDK, and fails if that SDK is not the one
+# used (the repository variables ILOADERX_XCODE and ILOADERX_IOS_SDK change them).
+# The Rust core (rust-core/, SideInstallerFFI.xcframework) is cached, so only the first run is slow.
+
+name: Build IPA
 
 on:
   push:
-    branches: [main]
-    paths-ignore: ["**.md", "docs/**", "site/**"]
-  pull_request:
-    paths-ignore: ["**.md", "docs/**", "site/**"]
+    branches: [main, 'claude/**']
+    tags: ['v[0-9]+.[0-9]+*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'site/**'
   workflow_dispatch:
+    inputs:
+      release:
+        description: Publish a GitHub release with the IPA and the TIPA
+        type: boolean
+        default: false
+      version:
+        description: Version (CFBundleShortVersionString, e.g. 1.0.0; empty = project.yml's)
+        type: string
+        default: ''
+      notes:
+        description: 'Release notes (Markdown; \n for a line break)'
+        type: string
+        default: ''
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: iloaderx-${{ github.ref }}
+  group: build-ipa-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  HOMEBREW_NO_AUTO_UPDATE: "1"
-  HOMEBREW_NO_INSTALL_CLEANUP: "1"
-  # Xcode 27 with the iOS 27.x SDK, nothing older (select-xcode.sh, build-ipa.sh).
-  MIN_IOS_SDK: "27.0"
+  HOMEBREW_NO_AUTO_UPDATE: '1'
+  HOMEBREW_NO_INSTALL_CLEANUP: '1'
 
 jobs:
   build:
-    name: Build the unsigned IPA
-    # Xcode 27 / iOS 27.x SDK: GitHub's hosted images don't have it yet, so set the
-    # repository variable IOS27_RUNNER to a runner that does, e.g.
-    # ["self-hosted","macOS","xcode-27"] (README › Building).
-    runs-on: ${{ fromJSON(vars.IOS27_RUNNER || '"macos-26"') }}
-    timeout-minutes: 90
+    # GitHub's Xcode 27 image (macOS 27): the only one with Xcode 27.2 and the iOS 27.2 SDK.
+    runs-on: xcode-27
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      release: ${{ steps.version.outputs.release }}
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Check out iLoader X
+        uses: actions/checkout@v4
 
-      - name: Select Xcode with the newest iOS 27.x SDK
-        shell: bash
+      - name: Select Xcode (the newest SDK on the runner)
         env:
-          XCODE: ${{ vars.XCODE }}
-          PREFER_NEWEST: ${{ vars.XCODE_PREFER_NEWEST }}
-        run: bash scripts/select-xcode.sh
-
-      - name: Install build tools
-        shell: bash
+          # iLoader X builds with Xcode 27.2 and the iOS 27.2 SDK. The repository variables ILOADERX_XCODE and
+          # ILOADERX_IOS_SDK change them (e.g. to try a newer Xcode when GitHub adds one).
+          PIN: ${{ vars.ILOADERX_XCODE || '27.2' }}
+          WANT_SDK: ${{ vars.ILOADERX_IOS_SDK || '27.2' }}
         run: |
           set -euo pipefail
-          command -v xcodegen >/dev/null || brew install xcodegen
-          if ! command -v rustup >/dev/null; then   # a self-hosted Mac without Rust
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"; export PATH="$HOME/.cargo/bin:$PATH"
+          # Every Xcode on the runner, by the version in its own Info.plist (folder names vary: Xcode_27.0.app,
+          # Xcode_27.0_beta.app, Xcode-beta.app, symlinks), with its iOS SDK. The newest wins, betas included;
+          # at an equal version a release beats a beta. ILOADERX_XCODE (a version, e.g. 27.1) pins one instead.
+          echo "### Xcode on this runner" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Xcode | build | iOS SDK | path |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          candidates=""
+          for app in /Applications/Xcode*.app; do
+            [ -L "$app" ] && continue
+            plist="$app/Contents/Info.plist"
+            [ -f "$plist" ] || continue
+            ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null || true)"
+            [ -n "$ver" ] || continue
+            build="$(/usr/libexec/PlistBuddy -c 'Print :ProductBuildVersion' "$app/Contents/version.plist" 2>/dev/null || echo '?')"
+            sdk="$(DEVELOPER_DIR="$app/Contents/Developer" xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo '?')"
+            case "$app" in *[Bb]eta*|*_RC*|*_rc*|*Release_Candidate*) rel=0 ;; *) rel=1 ;; esac
+            echo "  $ver ($build), iOS SDK $sdk: $app"
+            echo "| $ver | $build | $sdk | \`$app\` |" >> "$GITHUB_STEP_SUMMARY"
+            candidates+="$ver.$rel $app"$'\n'
+          done
+          if [ -n "$PIN" ]; then
+            app="$(printf '%s' "$candidates" | awk -v pin="$PIN" 'index($1, pin".") == 1' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+          else
+            app="$(printf '%s' "$candidates" | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
           fi
+          [ -n "$app" ] && [ -d "$app" ] || { echo "::error::no Xcode found (pin: ${PIN:-none})"; exit 1; }
+          sudo xcode-select -s "$app/Contents/Developer"
+          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
+          ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
+          [ "${ver%%.*}" -ge 27 ] || { echo "::error::Xcode $ver is too old: iLoader X needs Xcode 27 and the iOS 27 SDK"; exit 1; }
+          sdk_now="$(xcrun --sdk iphoneos --show-sdk-version)"
+          [ -z "$WANT_SDK" ] || [ "$sdk_now" = "$WANT_SDK" ] || {
+            echo "::error::Xcode $ver has the iOS SDK $sdk_now, not $WANT_SDK: iLoader X must build with the iOS $WANT_SDK SDK"; exit 1; }
+          echo "Building with Xcode $ver, iOS SDK $sdk_now ($app)"
+          echo "**Building with Xcode $ver, iOS SDK $sdk_now**" >> "$GITHUB_STEP_SUMMARY"
+          echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
+          echo "IOS_SDK=$sdk_now" >> "$GITHUB_ENV"
+
+      - name: Install build tools
+        run: |
+          set -euxo pipefail
+          command -v xcodegen >/dev/null 2>&1 || brew install xcodegen
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustup default stable
           rustup target add aarch64-apple-ios
           xcodegen --version | tail -1
           rustc --version
 
-      - name: Restore the Rust library
+      - name: Version
+        id: version
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+          RELEASE_INPUT: ${{ inputs.release }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+          elif [ -n "$VERSION_INPUT" ]; then
+            version="${VERSION_INPUT#[vV]}"
+          else
+            version="$(awk -F'"' '/MARKETING_VERSION:/{print $2; exit}' project.yml)"
+          fi
+          version="${version%%-*}"
+          [[ "$version" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]] || { echo "::error::Version must look like 1.0.0 (got: $version)"; exit 1; }
+          release=false
+          if [[ "$GITHUB_REF" == refs/tags/v* ]] || [ "$RELEASE_INPUT" = "true" ]; then release=true; fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          { echo "version=$version"; echo "tag=v$version"; echo "release=$release"; } >> "$GITHUB_OUTPUT"
+
+      # The Rust library only changes with rust-core/, so it's kept between runs.
+      - name: Cache the Rust library
         id: ffi-cache
         uses: actions/cache@v4
         with:
           path: SideInstallerFFI.xcframework
-          key: iloaderx-ffi-ios-${{ hashFiles('rust-core/**', 'build-rust.sh') }}
+          key: iloaderx-ffi-${{ env.XCODE_BUILD }}-${{ hashFiles('rust-core/**', 'build-rust.sh') }}
 
-      - name: Restore the Rust build folder
+      - name: Cache the Rust build folder
         if: steps.ffi-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
@@ -75,33 +163,88 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             rust-core/target
-          key: iloaderx-cargo-ios-${{ hashFiles('rust-core/Cargo.lock') }}
-          restore-keys: iloaderx-cargo-ios-
+          key: iloaderx-cargo-${{ hashFiles('rust-core/Cargo.lock') }}
+          restore-keys: iloaderx-cargo-
 
-      - name: Build the IPA
-        shell: bash
+      - name: Build iLoaderX.ipa
         env:
+          VERSION: ${{ steps.version.outputs.version }}
           BUILD_NUMBER: ${{ github.run_number }}
           BUNDLE_ID: com.iamgasgass.iloaderx
-          OUTPUT: ${{ runner.temp }}/ipa/iLoaderX.ipa
+          OUTPUT: ${{ runner.temp }}/out/iLoaderX.ipa
           DERIVED_DATA: ${{ runner.temp }}/DerivedData
+          MIN_IOS_SDK: ${{ env.IOS_SDK }}
         run: bash scripts/build-ipa.sh
 
-      - name: Check the icons made it in
-        shell: bash
+      - name: Check the app (icons, bundle ID, SDK)
         run: |
           set -euo pipefail
-          app="${{ runner.temp }}/DerivedData/Build/Products/Release-iphoneos/iLoaderX.app"
-          plutil -p "$app/Info.plist" | grep -A12 CFBundleIcons | tee -a "$GITHUB_STEP_SUMMARY" || true
-          plutil -p "$app/Info.plist" | grep -q 'AppIcon-iOS6' ||
-            { echo "::error::the iOS 6 alternate icon isn't in the app's Info.plist"; exit 1; }
-          version="$(plutil -extract CFBundleShortVersionString raw "$app/Info.plist")"
-          echo "VERSION_BUILT=$version" >> "$GITHUB_ENV"
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/iLoaderX.app"
+          plutil -p "$app/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString|DTSDKName|DTXcode"' | tee -a "$GITHUB_STEP_SUMMARY"
+          plutil -p "$app/Info.plist" | grep -q 'AppIcon-iOS6' || { echo "::error::the iOS 6 alternate icon isn't in the app"; exit 1; }
+          [ "$(plutil -extract DTSDKName raw "$app/Info.plist")" = "iphoneos$IOS_SDK" ] ||
+            { echo "::error::the app wasn't built with the iOS $IOS_SDK SDK"; exit 1; }
 
-      - name: Keep the IPA on the run page
+      - name: Package iLoaderX.tipa (TrollStore)
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/tipa"; rm -rf "$stage"; mkdir -p "$stage/Payload"
+          ditto "$RUNNER_TEMP/DerivedData/Build/Products/Release-iphoneos/iLoaderX.app" "$stage/Payload/iLoaderX.app"
+          # Ad hoc sign, extension first, so TrollStore installs it as it is.
+          for ext in "$stage"/Payload/iLoaderX.app/PlugIns/*.appex; do codesign -f -s - "$ext"; done
+          codesign -f -s - "$stage/Payload/iLoaderX.app"
+          codesign -dv "$stage/Payload/iLoaderX.app" 2>&1 | head -3
+          (cd "$stage" && zip -qryX "$RUNNER_TEMP/out/iLoaderX.tipa" Payload)
+          ls -l "$RUNNER_TEMP/out"
+
+      - name: Upload iLoaderX.ipa and .tipa
         uses: actions/upload-artifact@v4
         with:
-          name: iLoaderX-${{ env.VERSION_BUILT }}-build${{ github.run_number }}-unsigned
-          path: ${{ runner.temp }}/ipa/iLoaderX.ipa
+          name: iLoaderX-${{ env.VERSION }}-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/out/iLoaderX.ipa
+            ${{ runner.temp }}/out/iLoaderX.tipa
           if-no-files-found: error
-          retention-days: 30
+
+      - name: Release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES_INPUT: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          {
+            if [ -n "$NOTES_INPUT" ]; then printf '%b\n\n' "$NOTES_INPUT"; fi
+            echo "Built with Xcode $(xcodebuild -version | awk '/^Xcode/{print $2}') and the iOS $IOS_SDK SDK. Bundle ID \`com.iamgasgass.iloaderx\`."
+            echo
+            echo "- **iLoaderX.ipa**: SideStore, AltStore, LiveContainer, Sideloadly"
+            echo "- **iLoaderX.tipa**: TrollStore"
+            echo
+            echo "Install page: https://iamgasgass.github.io/iLoaderX/"
+            echo
+            echo "iLoader X is a fork of [SideInstaller by FrizzleM](https://github.com/FrizzleM/SideInstaller); it is not the official SideInstaller."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "iLoader X $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" --latest
+          gh release upload "$TAG" "$RUNNER_TEMP/out/iLoaderX.ipa" "$RUNNER_TEMP/out/iLoaderX.tipa" --clobber
+          echo "Published $(gh release view "$TAG" --json url -q .url)" >> "$GITHUB_STEP_SUMMARY"
+
+          # The AltStore / SideStore source lists it; committed to main, then the page is redeployed below.
+          printf '%b\n' "${NOTES_INPUT:-iLoader X $VERSION}" > "$RUNNER_TEMP/source-notes.md"
+          git fetch -q origin main && git checkout -q -B source-update origin/main
+          VERSION="$VERSION" IPA="$RUNNER_TEMP/out/iLoaderX.ipa" NOTES_FILE="$RUNNER_TEMP/source-notes.md" python3 scripts/update_source.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/iloaderx.json
+          git diff --cached --quiet || { git commit -q -m "Source: iLoader X $VERSION"; git push -q origin HEAD:main; }
+
+  pages:
+    name: Redeploy the install page
+    needs: build
+    if: needs.build.outputs.release == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

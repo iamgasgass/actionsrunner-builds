@@ -64,37 +64,25 @@ python3 tools/icon/build_assets.py build/icon # asset catalog sets, AppIcon.icon
 
 ## Building
 
-iLoader X builds **only with Xcode 27 and the iOS 27.x SDK** (the newest stable
-27.x on the machine; `scripts/select-xcode.sh` picks it and refuses anything older).
-Needs Rust with `aarch64-apple-ios` and `xcodegen`:
+iLoader X builds with **Xcode 27.2 and the iOS 27.2 SDK**, with Rust (`aarch64-apple-ios`) and `xcodegen`:
 
 ```sh
-scripts/select-xcode.sh  # shows the Xcodes, picks the newest stable iOS 27.x SDK
 scripts/build-ipa.sh     # → build/iLoaderX.ipa, unsigned
 ```
 
-### On GitHub
+On GitHub, `.github/workflows/build.yml` (modelled on Henge X's `build-ipa.yml`) runs on
+GitHub's **`xcode-27`** image (macOS 27):
 
-- `build.yml` builds the IPA on every push to `main` and every pull request (kept on the run page);
-- `release.yml` (Actions › Release iLoader X › Run workflow: version + notes) publishes
-  release `v<version>` with `iLoaderX.ipa`, adds it to `site/iloaderx.json` and redeploys the page;
-- `pages.yml` publishes `site/` (install page, terms, source) to GitHub Pages
-  (Settings › Pages › Source: **GitHub Actions**);
-- `xcode-probe.yml` lists the Xcodes / iOS SDKs on the runners and which one would be used.
+| Trigger | What it does |
+|---|---|
+| push to `main` or `claude/**` | builds `iLoaderX.ipa` and `iLoaderX.tipa` (TrollStore, ad hoc signed), kept as artifacts |
+| push of a tag `v1.0.0` | the same, plus release `v1.0.0` with both files, the AltStore/SideStore source updated and the install page redeployed |
+| Actions › Build IPA › Run workflow | the same from the branch you pick; tick **release** (with a version and notes) to publish |
 
-GitHub's hosted macOS images (`macos-26`, `macos-latest`) stop at Xcode 26.6 / iOS 26.5
-SDK for now, so the build needs **a Mac with Xcode 27 as a self-hosted runner**:
-
-1. On the Mac: install Xcode 27.x from the App Store or developer.apple.com, open it once
-   (accept the licence, let it install its components), and `brew install xcodegen`.
-2. Repository › Settings › Actions › Runners › **New self-hosted runner** › macOS, follow the
-   commands, and add the label `xcode-27` when `config.sh` asks.
-3. Repository › Settings › Secrets and variables › Actions › **Variables**:
-   `IOS27_RUNNER` = `["self-hosted","macOS","xcode-27"]`.
-
-Optional variables: `XCODE` pins one Xcode (e.g. `27.1`); `XCODE_PREFER_NEWEST=1`
-takes the newest iOS SDK even from a beta or RC. When GitHub adds Xcode 27 to its
-images, delete `IOS27_RUNNER` and the hosted runner picks it up by itself.
+The Xcode step lists every Xcode on the runner, picks 27.2 and fails if the iOS SDK isn't 27.2;
+the repository variables `ILOADERX_XCODE` and `ILOADERX_IOS_SDK` change them (e.g. to a newer
+27.x when GitHub adds it). `checks.yml` (Rust tests, simulator build, translations) runs on the same
+image; `pages.yml` publishes `site/` to GitHub Pages (Settings › Pages › Source: **GitHub Actions**).
 
 ## What this fork changes
 
@@ -121,7 +109,7 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
 - **About**: links this fork's source and credits SideInstaller by FrizzleM.
 - **Removed** what only the official SideInstaller publishes: the
   sideinstaller.net pages, the AltSource (`frizzlem.json`), the DNS profile, and
-  the release/signing/Pages workflows. Added `build.yml`, `release.yml`, `pages.yml`,
+  the release/signing/Pages workflows. Added `build.yml`, `pages.yml`,
   `scripts/update_source.py` and
   `scripts/patch-xcodeproj.sh` (marks `AppIcon.icon` as an Icon Composer file
   after `xcodegen`).

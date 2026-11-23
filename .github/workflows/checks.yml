@@ -93,22 +93,61 @@ jobs:
 
   ios:
     name: Simulator build and Swift tests
-    # Xcode 27 / iOS 27.x SDK: see IOS27_RUNNER in build.yml.
-    runs-on: ${{ fromJSON(vars.IOS27_RUNNER || '"macos-26"') }}
+    # GitHub's Xcode 27 image (macOS 27), as in build.yml.
+    runs-on: xcode-27
     timeout-minutes: 60
     env:
-      XCODE_VERSION: "27"
-      MIN_IOS_SDK: "27.0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Select Xcode with the newest iOS 27.x SDK
-        shell: bash
+      - name: Select Xcode (the newest SDK on the runner)
         env:
-          XCODE: ${{ vars.XCODE }}
-          PREFER_NEWEST: ${{ vars.XCODE_PREFER_NEWEST }}
-        run: bash scripts/select-xcode.sh
+          # iLoader X builds with Xcode 27.2 and the iOS 27.2 SDK. The repository variables ILOADERX_XCODE and
+          # ILOADERX_IOS_SDK change them (e.g. to try a newer Xcode when GitHub adds one).
+          PIN: ${{ vars.ILOADERX_XCODE || '27.2' }}
+          WANT_SDK: ${{ vars.ILOADERX_IOS_SDK || '27.2' }}
+        run: |
+          set -euo pipefail
+          # Every Xcode on the runner, by the version in its own Info.plist (folder names vary: Xcode_27.0.app,
+          # Xcode_27.0_beta.app, Xcode-beta.app, symlinks), with its iOS SDK. The newest wins, betas included;
+          # at an equal version a release beats a beta. ILOADERX_XCODE (a version, e.g. 27.1) pins one instead.
+          echo "### Xcode on this runner" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Xcode | build | iOS SDK | path |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          candidates=""
+          for app in /Applications/Xcode*.app; do
+            [ -L "$app" ] && continue
+            plist="$app/Contents/Info.plist"
+            [ -f "$plist" ] || continue
+            ver="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist" 2>/dev/null || true)"
+            [ -n "$ver" ] || continue
+            build="$(/usr/libexec/PlistBuddy -c 'Print :ProductBuildVersion' "$app/Contents/version.plist" 2>/dev/null || echo '?')"
+            sdk="$(DEVELOPER_DIR="$app/Contents/Developer" xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo '?')"
+            case "$app" in *[Bb]eta*|*_RC*|*_rc*|*Release_Candidate*) rel=0 ;; *) rel=1 ;; esac
+            echo "  $ver ($build), iOS SDK $sdk: $app"
+            echo "| $ver | $build | $sdk | \`$app\` |" >> "$GITHUB_STEP_SUMMARY"
+            candidates+="$ver.$rel $app"$'\n'
+          done
+          if [ -n "$PIN" ]; then
+            app="$(printf '%s' "$candidates" | awk -v pin="$PIN" 'index($1, pin".") == 1' | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+          else
+            app="$(printf '%s' "$candidates" | sort -V -k1,1 | tail -1 | cut -d' ' -f2)"
+          fi
+          [ -n "$app" ] && [ -d "$app" ] || { echo "::error::no Xcode found (pin: ${PIN:-none})"; exit 1; }
+          sudo xcode-select -s "$app/Contents/Developer"
+          echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
+          ver="$(xcodebuild -version | awk '/^Xcode/{print $2}')"
+          [ "${ver%%.*}" -ge 27 ] || { echo "::error::Xcode $ver is too old: iLoader X needs Xcode 27 and the iOS 27 SDK"; exit 1; }
+          sdk_now="$(xcrun --sdk iphoneos --show-sdk-version)"
+          [ -z "$WANT_SDK" ] || [ "$sdk_now" = "$WANT_SDK" ] || {
+            echo "::error::Xcode $ver has the iOS SDK $sdk_now, not $WANT_SDK: iLoader X must build with the iOS $WANT_SDK SDK"; exit 1; }
+          echo "Building with Xcode $ver, iOS SDK $sdk_now ($app)"
+          echo "**Building with Xcode $ver, iOS SDK $sdk_now**" >> "$GITHUB_STEP_SUMMARY"
+          echo "XCODE_BUILD=$(xcodebuild -version | awk '/Build version/{print $3}')" >> "$GITHUB_ENV"
+          echo "IOS_SDK=$sdk_now" >> "$GITHUB_ENV"
+
 
       - name: Install build tools
         shell: bash
@@ -132,7 +171,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: SideInstallerFFI.xcframework
-          key: ffi-sim-${{ env.XCODE_VERSION }}-${{ hashFiles('rust-core/**', 'build-rust.sh') }}
+          key: ffi-sim-${{ env.XCODE_BUILD }}-${{ hashFiles('rust-core/**', 'build-rust.sh') }}
 
       - name: Restore the Rust build folder
         if: steps.ffi-cache.outputs.cache-hit != 'true'
