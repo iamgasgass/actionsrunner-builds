@@ -28,14 +28,14 @@ let frenchStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "Il vous faudra un fichier de jumelage",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "Cet iPhone est sous iOS %@. Seul iOS %@ peut se jumeler tout seul : vous devrez créer un fichier de jumelage sur un ordinateur — avec jitterbugpair ou pymobiledevice3 — puis l'importer dans l'app. SideInstaller vous guide pas à pas.",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "Cet iPhone est sous iOS %@. Seul iOS %@ peut se jumeler tout seul : vous devrez créer un fichier de jumelage sur un ordinateur — avec jitterbugpair ou pymobiledevice3 — puis l'importer dans l'app. iLoader X vous guide pas à pas.",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "Passez à iOS %@",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "Cet iPhone peut passer à iOS %@, où SideInstaller fonctionne sans ordinateur : l'iPhone se jumelle tout seul, donc aucun fichier de jumelage à créer. Mettez à jour dans Réglages › Général › Mise à jour logicielle.",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "Cet iPhone peut passer à iOS %@, où iLoader X fonctionne sans ordinateur : l'iPhone se jumelle tout seul, donc aucun fichier de jumelage à créer. Mettez à jour dans Réglages › Général › Mise à jour logicielle.",
     "OK": "OK",
 
     // MARK: - Account setup & Settings › Account
@@ -56,15 +56,15 @@ let frenchStrings: [String: String] = [
     "In use": "Utilisé",
     "Edit": "Modifier",
     "Remove": "Supprimer",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "Aucun Apple ID enregistré. Ajoutez-en un et SideInstaller l'utilisera à chaque connexion.",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "Aucun Apple ID enregistré. Ajoutez-en un et iLoader X l'utilisera à chaque connexion.",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "Enregistré dans le trousseau de cet iPhone, et envoyé uniquement à Apple lors de la connexion. Balayez une ligne pour modifier son mot de passe ou la supprimer.",
     "Remove this Apple ID?": "Supprimer cet Apple ID ?",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "« %@ » et son mot de passe enregistré seront supprimés de cet iPhone. Votre compte Apple reste inchangé.",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "Le trousseau de cet iPhone a refusé d'enregistrer le mot de passe (erreur %d) : il n'est conservé que tant que SideInstaller est ouvert.",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "Le trousseau de cet iPhone a refusé d'enregistrer le mot de passe (erreur %d) : il n'est conservé que tant que iLoader X est ouvert.",
     "No Apple ID saved. Add one in Settings › Account.":
         "Aucun Apple ID enregistré. Ajoutez-en un dans Réglages › Compte.",
 
@@ -131,8 +131,8 @@ let frenchStrings: [String: String] = [
     "Tunnel connected": "Tunnel connecté",
     "Tunnel off": "Tunnel désactivé",
     "Update available": "Mise à jour disponible",
-    "SideInstaller %@ is available — you're on %@.":
-        "SideInstaller %@ est disponible — vous utilisez la %@.",
+    "iLoader X %@ is available — you're on %@.":
+        "iLoader X %@ est disponible — vous utilisez la %@.",
     "Get the latest version": "Obtenir la dernière version",
     "From the website": "Depuis le site web",
     "Sign it with your Apple ID": "La signer avec votre Apple ID",
@@ -147,12 +147,12 @@ let frenchStrings: [String: String] = [
     "Replace": "Remplacer",
     "or": "ou",
     "Paste a download link": "Collez un lien de téléchargement",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller reconnaît ici %@ et le configure comme s'il l'avait téléchargé lui-même.",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X reconnaît ici %@ et le configure comme s'il l'avait téléchargé lui-même.",
     "Downloading… %d%%": "Téléchargement… %d%%",
     "iOS %@ required": "iOS %@ requis",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "Cet iPhone est sous iOS %@, sur lequel SideInstaller ne peut rien installer. Mettez à jour vers iOS %@ ou une version ultérieure dans Réglages › Général › Mise à jour logicielle.",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "Cet iPhone est sous iOS %@, sur lequel iLoader X ne peut rien installer. Mettez à jour vers iOS %@ ou une version ultérieure dans Réglages › Général › Mise à jour logicielle.",
     "Wi-Fi required": "Wi-Fi requis",
     "Pairing code": "Code de jumelage",
     "Type this into the prompt in Settings.":
@@ -263,8 +263,8 @@ let frenchStrings: [String: String] = [
     "failed: empty pairing file": "échec : fichier de jumelage vide",
     "failed: %@": "échec : %@",
     "Pairing is already in progress.": "Un jumelage est déjà en cours.",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "L'autorisation Réseau local est désactivée. Activez-la dans Réglages › SideInstaller › Réseau local, puis réessayez.",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "L'autorisation Réseau local est désactivée. Activez-la dans Réglages › iLoader X › Réseau local, puis réessayez.",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "Le jumelage a produit un fichier vide. Vérifiez que vous avez accepté la demande de jumelage, puis réessayez.",
 
@@ -289,11 +289,11 @@ let frenchStrings: [String: String] = [
     "This certificate has no serial number, so it can't be revoked.":
         "Ce certificat n'a pas de numéro de série, il ne peut donc pas être révoqué.",
 
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
     "This certificate has no serial number, so it can't be exported.":
         "Ce certificat n'a pas de numéro de série, il ne peut donc pas être exporté.",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "Seul le certificat avec lequel SideInstaller signe peut être exporté : la clé privée de tout autre reste sur l'appareil qui l'a demandé à Apple.",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "Seul le certificat avec lequel iLoader X signe peut être exporté : la clé privée de tout autre reste sur l'appareil qui l'a demandé à Apple.",
     "Couldn't export the certificate: %@": "Impossible d'exporter le certificat : %@",
     "Export certificate": "Exporter le certificat",
     "Password (optional)": "Mot de passe (facultatif)",
@@ -301,37 +301,37 @@ let frenchStrings: [String: String] = [
     "Exporting": "Exportation",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "Enregistre ce certificat et sa clé privée dans un fichier .p12, avec lequel une autre app de signature ou un ordinateur peut signer. Choisissez un mot de passe, qu'il vous faudra pour importer le fichier, ou laissez le champ vide : les apps de signature l'importent sans mot de passe, mais pas un Mac. Ne le donnez à personne.",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller ne peut exporter que le certificat avec lequel il signe, et aucun de ceux-ci ne l'est : la clé privée d'un certificat reste sur l'appareil qui l'a demandé à Apple.",
-    "SideInstaller signs with this one": "SideInstaller signe avec celui-ci",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X ne peut exporter que le certificat avec lequel il signe, et aucun de ceux-ci ne l'est : la clé privée d'un certificat reste sur l'appareil qui l'a demandé à Apple.",
+    "iLoader X signs with this one": "iLoader X signe avec celui-ci",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "Utiliser le certificat de SideStore",
     "Checking the certificate": "Vérification du certificat",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore s'ouvre et renvoie son certificat. SideInstaller signe ensuite aussi avec lui : avec un Apple ID gratuit, aucune des deux apps n'a plus à révoquer celui de l'autre.",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple n'émettra pas un second certificat de signature pour cet Apple ID. Si c'est SideStore qui a créé celui qui existe, SideInstaller peut signer avec lui aussi, sans rien révoquer. Le révoquer permet aussi de poursuivre l'installation, mais c'est irréversible.",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "Si c'est SideStore qui l'a créé, touchez « Utiliser le certificat de SideStore » ci-dessus : SideInstaller signe aussi avec lui, et rien n'est révoqué.",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "SideInstaller signe désormais avec « %@ ». Rien n'a été révoqué : les apps déjà signées avec lui continuent de fonctionner.",
-    "SideInstaller already signs with “%@”.": "SideInstaller signe déjà avec « %@ ».",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore s'ouvre et renvoie son certificat. iLoader X signe ensuite aussi avec lui : avec un Apple ID gratuit, aucune des deux apps n'a plus à révoquer celui de l'autre.",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple n'émettra pas un second certificat de signature pour cet Apple ID. Si c'est SideStore qui a créé celui qui existe, iLoader X peut signer avec lui aussi, sans rien révoquer. Le révoquer permet aussi de poursuivre l'installation, mais c'est irréversible.",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "Si c'est SideStore qui l'a créé, touchez « Utiliser le certificat de SideStore » ci-dessus : iLoader X signe aussi avec lui, et rien n'est révoqué.",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "iLoader X signe désormais avec « %@ ». Rien n'a été révoqué : les apps déjà signées avec lui continuent de fonctionner.",
+    "iLoader X already signs with “%@”.": "iLoader X signe déjà avec « %@ ».",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "Ce certificat n'appartient pas à cet Apple ID : il a été révoqué, ou il appartient à un autre Apple ID (SideStore est peut-être connecté avec un autre). Rien n'a été modifié.",
     "Couldn't use that certificate: %@": "Impossible d'utiliser ce certificat : %@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "SideStore n'est pas installé sur cet iPhone, il n'y a donc aucun certificat à récupérer.",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "Dans LiveContainer, SideStore ne peut pas renvoyer son certificat à SideInstaller, et LiveContainer n'en a pas encore. Dans les Settings de LiveContainer, touchez « Import Certificate From SideStore » (connectez-vous d'abord à SideStore s'il n'a pas de certificat), puis réessayez ici.",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "Dans LiveContainer, SideStore ne peut pas renvoyer son certificat à iLoader X, et LiveContainer n'en a pas encore. Dans les Settings de LiveContainer, touchez « Import Certificate From SideStore » (connectez-vous d'abord à SideStore s'il n'a pas de certificat), puis réessayez ici.",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "Le certificat que LiveContainer garde pour SideStore n'appartient pas à cet Apple ID : il a été révoqué, ou il appartient à un autre Apple ID. Rien n'a été modifié. Si SideStore en a créé un nouveau depuis, touchez « Refresh Certificate from SideStore » dans les Settings de LiveContainer, puis réessayez ici.",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller récupère le certificat de SideStore dans LiveContainer et signe aussi avec lui : avec un Apple ID gratuit, aucune des deux apps n'a plus à révoquer celui de l'autre.",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X récupère le certificat de SideStore dans LiveContainer et signe aussi avec lui : avec un Apple ID gratuit, aucune des deux apps n'a plus à révoquer celui de l'autre.",
     "Sign with this certificate?": "Signer avec ce certificat ?",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "Un lien a envoyé un certificat de signature à SideInstaller. Ne l'utilisez que si vous l'avez demandé : SideInstaller signera désormais les apps avec lui, à la place du sien. Il n'est utilisé que s'il fait partie des certificats de votre Apple ID.",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "Un lien a envoyé un certificat de signature à iLoader X. Ne l'utilisez que si vous l'avez demandé : iLoader X signera désormais les apps avec lui, à la place du sien. Il n'est utilisé que s'il fait partie des certificats de votre Apple ID.",
     "Use it": "L'utiliser",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "Ce lien devait contenir un certificat de signature, mais son contenu est illisible.",
@@ -441,8 +441,8 @@ let frenchStrings: [String: String] = [
     "%d App ID": "%d App ID",
     "%d App IDs": "%d App ID",
     "No App IDs": "Aucun App ID",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "Cet Apple ID n'a encore enregistré aucune app. Installes-en une avec SideInstaller, puis reviens ici.",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "Cet Apple ID n'a encore enregistré aucune app. Installes-en une avec iLoader X, puis reviens ici.",
     "Memory and performance": "Mémoire et performances",
     "Other free capabilities": "Autres fonctionnalités gratuites",
     "Beta": "Bêta",
@@ -461,8 +461,8 @@ let frenchStrings: [String: String] = [
     "Reading the device": "Lecture de l'appareil",
 
     // Refresh all: signing the installed apps again.
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "iOS %@ n'est pas pris en charge : SideInstaller nécessite iOS %@ ou une version ultérieure.",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "iOS %@ n'est pas pris en charge : iLoader X nécessite iOS %@ ou une version ultérieure.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple ne délivre pas de certificat de signature pour cet Apple ID : elle indique qu'il en existe déjà un (erreur 7460). Dans Outils › Certificats, utilisez le certificat de SideStore ou révoquez celui-ci, puis renouvelez à nouveau.",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -490,10 +490,10 @@ let frenchStrings: [String: String] = [
     "Waiting": "En attente",
     "In progress": "En cours",
     "Failed": "Échec",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "%d app ici n'a pas d'IPA dans SideInstaller : elle ne peut pas être renouvelée depuis cette page. Renouvelez-la dans l'app qui l'a installée, ou importez d'abord son .ipa.",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "%d apps ici n'ont pas d'IPA dans SideInstaller : elles ne peuvent pas être renouvelées depuis cette page. Renouvelez-les dans l'app qui les a installées, ou importez d'abord leurs .ipa.",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "%d app ici n'a pas d'IPA dans iLoader X : elle ne peut pas être renouvelée depuis cette page. Renouvelez-la dans l'app qui l'a installée, ou importez d'abord son .ipa.",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "%d apps ici n'ont pas d'IPA dans iLoader X : elles ne peuvent pas être renouvelées depuis cette page. Renouvelez-les dans l'app qui les a installées, ou importez d'abord leurs .ipa.",
     "%d app": "%d app",
     "%d apps": "%d apps",
     "%d app needs refreshing": "%d app à renouveler",
@@ -538,9 +538,9 @@ let frenchStrings: [String: String] = [
         "Le Wi-Fi est désactivé. Les deux iPhone doivent être sur le même réseau Wi-Fi pour que cela fonctionne.",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "Le téléchargement de la version n'était pas un IPA. GitHub renvoie peut-être une page d'erreur : réessayez dans une minute.",
-    "Couldn't download the latest SideInstaller release: %@":
-        "Impossible de télécharger la dernière version de SideInstaller : %@",
-    "No SideInstaller IPA downloaded.": "Aucun IPA SideInstaller téléchargé.",
+    "Couldn't download the latest iLoader X release: %@":
+        "Impossible de télécharger la dernière version de iLoader X : %@",
+    "No iLoader X IPA downloaded.": "Aucun IPA iLoader X téléchargé.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). One has to be revoked first. Use the Certificates tool if this is the Apple ID saved in Settings › Account, or developer.apple.com signed in as it otherwise.":
         "Apple refuse de délivrer un certificat de signature pour cet Apple ID : elle indique qu'il en existe déjà un (erreur 7460). Il faut d'abord en révoquer un. Utilisez l'outil Certificats s'il s'agit de l'Apple ID enregistré dans Réglages › Compte, sinon developer.apple.com en vous y connectant avec.",
     "Apple wouldn't register their iPhone with this Apple ID's developer team, so it won't issue a provisioning profile. %@":
@@ -570,14 +570,14 @@ let frenchStrings: [String: String] = [
         "Saisissez le code qui s'affiche ici dans la demande affichée sur leur iPhone.",
     "Type this into the prompt on their iPhone.":
         "Saisissez ce code dans la demande affichée sur leur iPhone.",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller attend déjà qu'un iPhone se jumelle avec lui, depuis l'onglet Installer, la page Jumelage ou une tentative précédente ici. Terminez ce jumelage, ou fermez puis rouvrez SideInstaller, puis réessayez.",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X attend déjà qu'un iPhone se jumelle avec lui, depuis l'onglet Installer, la page Jumelage ou une tentative précédente ici. Terminez ce jumelage, ou fermez puis rouvrez iLoader X, puis réessayez.",
     "Pairing with their iPhone didn't finish: %@":
         "Le jumelage avec leur iPhone n'a pas abouti : %@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "Leur iPhone à l'adresse %@ a refusé la connexion. Il n'en accepte qu'avec le mode développeur activé, et iOS demande de le confirmer de nouveau après chaque redémarrage : sur leur iPhone, activez-le dans Réglages › Confidentialité et sécurité › Mode développeur, puis réessayez.",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Impossible de joindre leur iPhone à l'adresse %@. Vérifiez que les deux iPhone sont sur le même réseau Wi-Fi et que Réseau local est activé pour SideInstaller dans les Réglages de cet iPhone. Les réseaux invités et publics empêchent souvent les appareils de communiquer entre eux.",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Impossible de joindre leur iPhone à l'adresse %@. Vérifiez que les deux iPhone sont sur le même réseau Wi-Fi et que Réseau local est activé pour iLoader X dans les Réglages de cet iPhone. Les réseaux invités et publics empêchent souvent les appareils de communiquer entre eux.",
     "The link to their iPhone didn't come up: %@":
         "La liaison avec leur iPhone n'a pas pu s'établir : %@",
     "%d%% downloaded": "%d%% téléchargés",
@@ -664,7 +664,7 @@ let frenchStrings: [String: String] = [
     "Start LocalDevVPN when needed": "Lancer LocalDevVPN au besoin",
     "Start LocalDevVPN now": "Lancer LocalDevVPN maintenant",
     "LocalDevVPN isn't installed. Get it from the App Store, and this can start it for you.":
-        "LocalDevVPN n'est pas installé. Téléchargez-le sur l'App Store et SideInstaller pourra le lancer pour vous.",
+        "LocalDevVPN n'est pas installé. Téléchargez-le sur l'App Store et iLoader X pourra le lancer pour vous.",
 
     "Downloaded IPAs": "IPA téléchargés",
     "%@ used": "%@ utilisés",
@@ -685,10 +685,10 @@ let frenchStrings: [String: String] = [
     "Starts with %@": "Commence par %@",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "Le mode Automatique commence par le serveur de la dernière connexion réussie, puis essaie les autres, en commençant par ceux qui ont le plus de chances de fonctionner.",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
-        "Seul ce serveur est essayé. S'il échoue, la connexion échoue aussi : choisissez Automatique pour que SideInstaller essaie les autres.",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "Seul le serveur choisi dans Réglages › Serveur Anisette a été essayé. Choisissez Automatique à cet endroit pour que SideInstaller essaie les autres quand l'un échoue.",
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
+        "Seul ce serveur est essayé. S'il échoue, la connexion échoue aussi : choisissez Automatique pour que iLoader X essaie les autres.",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "Seul le serveur choisi dans Réglages › Serveur Anisette a été essayé. Choisissez Automatique à cet endroit pour que iLoader X essaie les autres quand l'un échoue.",
     "Device IP": "IP de l'appareil",
     "Advanced": "Avancé",
     "Clear": "Effacer",
@@ -766,28 +766,28 @@ let frenchStrings: [String: String] = [
         "Échec de la connexion à l'Apple ID sur %@. Erreur : %@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "Échec de la connexion à l'Apple ID sur %@. Erreur via %@ : %@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Le serveur de connexion d'Apple a refusé la requête (HTTP 503). Ce n'est ni votre mot de passe ni le serveur anisette : essayer d'autres serveurs n'y changera rien. Réessayez plus tard ou mettez à jour SideInstaller.",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Le serveur de connexion d'Apple a refusé la requête (HTTP 503). Ce n'est ni votre mot de passe ni le serveur anisette : essayer d'autres serveurs n'y changera rien. Réessayez plus tard ou mettez à jour iLoader X.",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "« %@ » produit ses données anisette avec la bibliothèque Android d'Apple, et Apple refuse désormais de terminer la connexion via ces serveurs (erreur -80046), après votre mot de passe et votre code. Dans Réglages › Serveur Anisette, choisissez Automatique ou un serveur Mac comme « SideStore (New) ».",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple a refusé de terminer la connexion (erreur -80046), même via un serveur anisette Mac, le type qu'il acceptait encore. Réessayez plus tard ou vérifiez s'il existe une mise à jour de SideInstaller.",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple a refusé de terminer la connexion (erreur -80046), même via un serveur anisette Mac, le type qu'il acceptait encore. Réessayez plus tard ou vérifiez s'il existe une mise à jour de iLoader X.",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple a refusé de terminer la connexion via « %@ » (erreur -80046). Il n'accepte désormais que les connexions via des serveurs anisette utilisant sa bibliothèque macOS : dans Réglages › Serveur Anisette, choisissez Automatique ou un serveur Mac comme « SideStore (New) ».",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple n'envoie pas de code par SMS ou par appel pour cette connexion, il a donc été envoyé sur vos appareils Apple.",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple n'a pas confirmé l'envoi d'un code sur vos appareils Apple. Si vous en avez reçu un, saisissez-le ; sinon, essayez une autre méthode.",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "SideInstaller ne parvient pas à joindre le serveur de connexion d'Apple (gsa.apple.com), alors que cet iPhone est connecté à Internet. Quelque chose le bloque : un pare-feu, un filtre DNS ou un bloqueur de publicités, les restrictions de contenu de Temps d'écran ou une autre app VPN. Désactivez-le ou essayez un autre réseau, puis réessayez.",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller ne parvient pas à joindre Apple : les données cellulaires sont désactivées pour l'app. Activez SideInstaller dans Réglages › Données cellulaires, ou connectez-vous à un réseau Wi-Fi avec accès à Internet, puis réessayez.",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller ne parvient pas à joindre Apple : iOS ne l'autorise pas à utiliser le Wi-Fi. Dans Réglages › Apps › SideInstaller › Données sans fil, choisissez « WLAN et données cellulaires », puis réessayez.",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller ne parvient pas à joindre Apple : un VPN configuré pour faire passer tout le trafic est déconnecté, et iOS retient donc le trafic. Reconnectez-le, ou désactivez son kill switch ou sa connexion à la demande, puis réessayez.",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller ne parvient pas à joindre Apple : cet iPhone n'est pas connecté à Internet. Connectez-vous à un réseau Wi-Fi ou activez les données cellulaires, puis réessayez.",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "iLoader X ne parvient pas à joindre le serveur de connexion d'Apple (gsa.apple.com), alors que cet iPhone est connecté à Internet. Quelque chose le bloque : un pare-feu, un filtre DNS ou un bloqueur de publicités, les restrictions de contenu de Temps d'écran ou une autre app VPN. Désactivez-le ou essayez un autre réseau, puis réessayez.",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X ne parvient pas à joindre Apple : les données cellulaires sont désactivées pour l'app. Activez iLoader X dans Réglages › Données cellulaires, ou connectez-vous à un réseau Wi-Fi avec accès à Internet, puis réessayez.",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X ne parvient pas à joindre Apple : iOS ne l'autorise pas à utiliser le Wi-Fi. Dans Réglages › Apps › iLoader X › Données sans fil, choisissez « WLAN et données cellulaires », puis réessayez.",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X ne parvient pas à joindre Apple : un VPN configuré pour faire passer tout le trafic est déconnecté, et iOS retient donc le trafic. Reconnectez-le, ou désactivez son kill switch ou sa connexion à la demande, puis réessayez.",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X ne parvient pas à joindre Apple : cet iPhone n'est pas connecté à Internet. Connectez-vous à un réseau Wi-Fi ou activez les données cellulaires, puis réessayez.",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "Apple limite temporairement les connexions pour cet identifiant Apple ou ce réseau (HTTP 429). Essayer d'autres serveurs n'y changera rien et chaque tentative peut prolonger l'attente : patientez un moment avant de vous reconnecter.",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -820,16 +820,16 @@ let frenchStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "Aucun IPA importé pour l'instant. Touchez « Importer un .ipa » et choisissez-en un.",
     "Couldn't import %@: %@": "Impossible d'importer %@ : %@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "SideInstaller ne peut pas télécharger ce lien. Collez l'adresse https:// complète depuis laquelle le .ipa se télécharge.",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "iLoader X ne peut pas télécharger ce lien. Collez l'adresse https:// complète depuis laquelle le .ipa se télécharge.",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "Ce lien n'a pas renvoyé d'IPA. Il doit télécharger le fichier lui-même : une page qui se contente de pointer vers le .ipa, ou qui demande d'abord une connexion, arrive ici sous forme de page web.",
     "Couldn't download that link: %@": "Impossible de télécharger ce lien : %@",
     "there's nothing to download for a custom IPA — import one first":
         "il n'y a rien à télécharger pour un IPA personnalisé — importez-en un d'abord",
     "your app": "votre app",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "Apple n'émettra pas de certificat de signature pour cet Apple ID : il indique qu'il en existe déjà un, ou qu'une demande est encore en attente (erreur 7460). SideInstaller n'a pas pu réutiliser le certificat déjà présent, il s'est donc arrêté au lieu de le remplacer. Voir les étapes ci-dessus.",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "Apple n'émettra pas de certificat de signature pour cet Apple ID : il indique qu'il en existe déjà un, ou qu'une demande est encore en attente (erreur 7460). iLoader X n'a pas pu réutiliser le certificat déjà présent, il s'est donc arrêté au lieu de le remplacer. Voir les étapes ci-dessus.",
     " (UDID %@)": " (UDID %@)",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "Impossible d'enregistrer cet iPhone%@ auprès de l'équipe de développement de votre Apple ID, Apple ne délivrera donc pas de profil de provisionnement. %@ — voir les étapes ci-dessus.",
@@ -844,54 +844,54 @@ let frenchStrings: [String: String] = [
     "Import an .ipa first": "Importez d'abord un .ipa",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "Touchez « Importer un .ipa » ci-dessus et choisissez le fichier : il peut se trouver partout où l'app Fichiers a accès, y compris iCloud Drive ou une clé USB.",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "Ou collez un lien de téléchargement direct sous ce bouton : SideInstaller récupère le .ipa lui-même.",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "Ou ouvrez l'app Fichiers, maintenez le .ipa, touchez Partager et choisissez SideInstaller : le fichier arrive sans passer par le sélecteur.",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "Ou copiez-le dans Fichiers › Sur mon iPhone › SideInstaller, où SideInstaller le trouve aussi.",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "Ou collez un lien de téléchargement direct sous ce bouton : iLoader X récupère le .ipa lui-même.",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "Ou ouvrez l'app Fichiers, maintenez le .ipa, touchez Partager et choisissez iLoader X : le fichier arrive sans passer par le sélecteur.",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "Ou copiez-le dans Fichiers › Sur mon iPhone › iLoader X, où iLoader X le trouve aussi.",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "C'est la solution là où GitHub est bloqué : récupérez l'IPA sur n'importe quel appareil, apportez-le ici et installez-le.",
     "Bring the .ipa yourself": "Apportez vous-même le .ipa",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "%@ ne peut pas être téléchargé tant que son dépôt GitHub est hors ligne. Les autres apps s'installent comme d'habitude.",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "Pour l'installer quand même, récupérez son .ipa auprès d'une source de confiance, nommez-le %@ et copiez-le dans Fichiers › Sur mon iPhone › SideInstaller.",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "Touchez ensuite à nouveau Installer — SideInstaller utilise votre fichier au lieu d'en télécharger un.",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "Pour l'installer quand même, récupérez son .ipa auprès d'une source de confiance, nommez-le %@ et copiez-le dans Fichiers › Sur mon iPhone › iLoader X.",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "Touchez ensuite à nouveau Installer — iLoader X utilise votre fichier au lieu d'en télécharger un.",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "Si vous accédez à GitHub via une app VPN ou proxy, désactivez LocalDevVPN et activez celle-ci : iOS n'exécute qu'un seul VPN à la fois.",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "Touchez « Obtenir le .ipa » ci-dessous et enregistrez le fichier, ou téléchargez-le sur un autre appareil et transférez-le ici.",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "De retour dans SideInstaller, choisissez IPA personnalisé sous Installer, touchez « Importer un .ipa » et sélectionnez le fichier. SideInstaller reconnaît %@ et le configure comme s'il l'avait téléchargé lui-même.",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "De retour dans iLoader X, choisissez IPA personnalisé sous Installer, touchez « Importer un .ipa » et sélectionnez le fichier. iLoader X reconnaît %@ et le configure comme s'il l'avait téléchargé lui-même.",
     "Turn LocalDevVPN back on, then tap Install.":
         "Réactivez LocalDevVPN, puis touchez Installer.",
     "Get the .ipa": "Obtenir le .ipa",
     "Pair this iPhone in Settings": "Jumelez cet iPhone dans Réglages",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "Ouvrez l'app Réglages, puis allez dans Confidentialité et sécurité › Mode développeur.",
-    "Tap “Pair with SideInstaller”.": "Touchez « Jumeler avec SideInstaller ».",
+    "Tap “Pair with iLoader X”.": "Touchez « Jumeler avec iLoader X ».",
     "Enter your iPhone’s passcode if it asks for it.":
         "Saisissez le code de votre iPhone s'il vous le demande.",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "Revenez dans SideInstaller, notez le code qu'il affiche, puis saisissez ce même code dans la demande affichée dans Réglages.",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "Saisissez le code qui s'affiche en haut de l'écran dans la demande affichée dans Réglages. S'il n'apparaît pas, revenez dans SideInstaller pour le lire.",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "Autorisez les notifications quand SideInstaller le demande : c'est ainsi que le code de jumelage vous parvient dans Réglages.",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "Revenez dans iLoader X, notez le code qu'il affiche, puis saisissez ce même code dans la demande affichée dans Réglages.",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "Saisissez le code qui s'affiche en haut de l'écran dans la demande affichée dans Réglages. S'il n'apparaît pas, revenez dans iLoader X pour le lire.",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "Autorisez les notifications quand iLoader X le demande : c'est ainsi que le code de jumelage vous parvient dans Réglages.",
 
     // The pairing Live Activity
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "Confidentialité et sécurité › Mode développeur › Jumeler avec SideInstaller",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "Confidentialité et sécurité › Mode développeur › Jumeler avec iLoader X",
     "Paired": "Jumelé",
-    "Tap to return to SideInstaller.": "Touchez pour revenir dans SideInstaller.",
+    "Tap to return to iLoader X.": "Touchez pour revenir dans iLoader X.",
 
     // The install's progress outside the app
     "Installing %@": "Installation de %@",
     "Paused": "En pause",
-    "Open SideInstaller to finish the install.":
-        "Ouvrez SideInstaller pour terminer l'installation.",
+    "Open iLoader X to finish the install.":
+        "Ouvrez iLoader X pour terminer l'installation.",
     "Check the App IDs it needs, then tap Install.":
         "Vérifiez les App ID nécessaires, puis touchez Installer.",
     "Tap Trust": "Touchez Faire confiance",
@@ -901,8 +901,8 @@ let frenchStrings: [String: String] = [
     "A signing certificate already exists": "Un certificat de signature existe déjà",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple a renvoyé l'erreur 7460 : cet Apple ID possède déjà un certificat de développement iOS, ou une demande est encore en attente.",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller n'a pas pu le réutiliser. Cela arrive quand le certificat a été émis ailleurs — AltStore, SideStore, Sideloadly ou Xcode sur un autre appareil — la clé privée nécessaire n'est donc pas sur cet iPhone.",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X n'a pas pu le réutiliser. Cela arrive quand le certificat a été émis ailleurs — AltStore, SideStore, Sideloadly ou Xcode sur un autre appareil — la clé privée nécessaire n'est donc pas sur cet iPhone.",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "Utilise « Révoquer et réessayer » ci-dessus, ou ouvre Certificats dans l'onglet Outils, touche « Charger les certificats » et révoque-le là.",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -919,8 +919,8 @@ let frenchStrings: [String: String] = [
         "Apple a verrouillé ce compte Apple pour des raisons de sécurité, souvent après trop de tentatives de connexion. Toute connexion échoue tant qu'il n'est pas déverrouillé : toucher à nouveau Installer ne servira à rien pour l'instant.",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "Ouvrez iForgot, saisissez l'e-mail de ce compte Apple et suivez les étapes d'Apple pour le déverrouiller et réinitialiser son mot de passe.",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "De retour dans SideInstaller, ouvrez Réglages › Compte, balayez cet Apple ID vers la gauche, touchez Modifier et saisissez le nouveau mot de passe.",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "De retour dans iLoader X, ouvrez Réglages › Compte, balayez cet Apple ID vers la gauche, touchez Modifier et saisissez le nouveau mot de passe.",
     "Then tap Install again.": "Touchez ensuite à nouveau Installer.",
     "Open iForgot": "Ouvrir iForgot",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -931,8 +931,8 @@ let frenchStrings: [String: String] = [
         "Cet iPhone a déjà trois apps signées avec un Apple ID gratuit, le maximum autorisé par iOS, apps expirées comprises. Supprimez-en une, puis réessayez.",
     "This Apple Account can't sign apps":
         "Ce compte Apple ne peut pas signer d'apps",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "Apple réserve aux adultes les services pour développeurs avec lesquels SideInstaller signe les apps, et indique que ce compte Apple appartient à une personne plus jeune (erreur 1102).",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "Apple réserve aux adultes les services pour développeurs avec lesquels iLoader X signe les apps, et indique que ce compte Apple appartient à une personne plus jeune (erreur 1102).",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "Connectez-vous plutôt avec le compte Apple d'un adulte : ouvrez Réglages › Compte et ajoutez-le.",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -946,8 +946,8 @@ let frenchStrings: [String: String] = [
     "Open Apple Account":
         "Ouvrir le compte Apple",
     "No App IDs left this week": "Plus d'App ID cette semaine",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "Chaque app que SideInstaller signe a besoin d'un App ID, que ses extensions partagent. Un Apple ID gratuit peut en enregistrer 10 par semaine, et chacun compte pendant 7 jours.",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "Chaque app que iLoader X signe a besoin d'un App ID, que ses extensions partagent. Un Apple ID gratuit peut en enregistrer 10 par semaine, et chacun compte pendant 7 jours.",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "Ils ne peuvent pas être supprimés plus tôt. Attendez que certains expirent, puis touchez à nouveau Installer.",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -1002,8 +1002,8 @@ let frenchStrings: [String: String] = [
         "Votre Apple ID a atteint sa limite d'appareils enregistrés. Les comptes gratuits ne peuvent enregistrer qu'un petit nombre d'appareils par an et ne peuvent pas retirer les anciens avant la réinitialisation annuelle.",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "Solution la plus simple : saisissez un autre Apple ID (ou un compte de secours) dans les champs ci-dessus, puis touchez à nouveau Installer.",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller n'a pas pu ajouter automatiquement cet iPhone à l'équipe de développement de votre Apple ID. Toucher à nouveau Installer suffit souvent : le service développeur d'Apple est parfois brièvement indisponible.",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X n'a pas pu ajouter automatiquement cet iPhone à l'équipe de développement de votre Apple ID. Toucher à nouveau Installer suffit souvent : le service développeur d'Apple est parfois brièvement indisponible.",
     "If it keeps failing, add the device by hand. Its UDID is:":
         "Si l'erreur persiste, ajoutez l'appareil à la main. Son UDID est :",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
@@ -1041,17 +1041,17 @@ let frenchStrings: [String: String] = [
         "Cet iPhone a coupé la connexion dès son ouverture. Depuis iOS 26.4, il le fait avec les fichiers de jumelage lockdown, comme celui-ci, quand ils passent par LocalDevVPN : en refaire un du même type n'y changera rien. Un fichier de jumelage « Remote pairing » fonctionne toujours : sur un ordinateur, ouvrez idevice_pair, choisissez « Remote pairing », cliquez sur « Create » puis sur « Save to file… », et importez le fichier dans « Fichier de jumelage ».",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "Cet iPhone a coupé la connexion : depuis iOS 26.4, il le fait avec les fichiers de jumelage lockdown comme celui-ci quand ils passent par LocalDevVPN. Voir les étapes ci-dessus.",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "L’appairage de cet iPhone en a besoin : SideInstaller s’annonce sur le réseau local pour que Réglages le trouve.",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "Connectez-vous à un réseau Wi-Fi. L’appairage de cet iPhone en a besoin : SideInstaller doit être détectable sur le réseau local.",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "L’appairage de cet iPhone en a besoin : iLoader X s’annonce sur le réseau local pour que Réglages le trouve.",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "Connectez-vous à un réseau Wi-Fi. L’appairage de cet iPhone en a besoin : iLoader X doit être détectable sur le réseau local.",
 
     // MARK: - About
 
     "About": "À propos",
     "Version %@ (%@)": "Version %@ (%@)",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller installe SideStore et LiveContainer directement sur votre iPhone, sans PC.",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X installe SideStore et LiveContainer directement sur votre iPhone, sans PC.",
 
     "Links": "Liens",
     "Source code": "Code source",
@@ -1060,8 +1060,8 @@ let frenchStrings: [String: String] = [
     "Donation wallets for Bitcoin, Ethereum and Solana.":
         "Portefeuilles de dons pour Bitcoin, Ethereum et Solana.",
     "Crypto donations": "Dons en crypto",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "Les dons sont entièrement facultatifs. Ils n'achètent rien, ne débloquent aucune fonction et ne donnent droit à rien en retour : c'est simplement une façon de dire merci si SideInstaller vous a aidé.",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "Les dons sont entièrement facultatifs. Ils n'achètent rien, ne débloquent aucune fonction et ne donnent droit à rien en retour : c'est simplement une façon de dire merci si iLoader X vous a aidé.",
     "Coin": "Monnaie",
     "Network: %@": "Réseau : %@",
     "QR code for the %@ address": "Code QR de l'adresse %@",
@@ -1070,8 +1070,8 @@ let frenchStrings: [String: String] = [
         "N'envoyez chaque monnaie que sur le réseau indiqué. Les cryptos envoyées sur un autre réseau sont irrécupérables.",
 
     "Special thanks": "Remerciements",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "Pour idevice, la bibliothèque avec laquelle SideInstaller communique avec votre iPhone. Rien de tout cela n’existerait sans elle.",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "Pour idevice, la bibliothèque avec laquelle iLoader X communique avec votre iPhone. Rien de tout cela n’existerait sans elle.",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "Pour le soutien et pour avoir repéré les bugs qui ont ensuite été corrigés.",
     "For the Japanese translation.": "Pour la traduction japonaise.",
@@ -1105,12 +1105,12 @@ let frenchStrings: [String: String] = [
     "%@ needs iOS %d or later. This iPhone runs iOS %@.":
         "%@ nécessite iOS %d ou une version ultérieure. Cet iPhone utilise iOS %@.",
     "Open Madeira from your Home Screen.": "Ouvrez Madeira depuis votre écran d'accueil.",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "Dans sa configuration, sous « Set up JIT », choisissez « In-app with pairing file » : SideInstaller y a déjà placé le fichier, touchez donc « Continue ».",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "Dans sa configuration, sous « Set up JIT », choisissez « In-app with pairing file » : iLoader X y a déjà placé le fichier, touchez donc « Continue ».",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "Dans sa configuration, sous « Set up JIT », choisissez comment cet iPhone obtient le JIT.",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "Désormais, Madeira renouvelle lui-même sa signature, quand il est ouvert et que LocalDevVPN est connecté. SideInstaller lui a donné une connexion pour cela : un jeton pour le service développeur d'Apple, pas votre mot de passe. Madeira peut l'oublier dans Settings › Signing.",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "Désormais, Madeira renouvelle lui-même sa signature, quand il est ouvert et que LocalDevVPN est connecté. iLoader X lui a donné une connexion pour cela : un jeton pour le service développeur d'Apple, pas votre mot de passe. Madeira peut l'oublier dans Settings › Signing.",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "Sa signature dure 7 jours. Avant qu'ils ne soient écoulés, renouvelez-la ici dans Outils › Apps sideloadées.",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1139,16 +1139,16 @@ let frenchStrings: [String: String] = [
 
     "Install from a link?": "Installer depuis un lien ?",
     "Download and install": "Télécharger et installer",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller va télécharger ce .ipa, le signer avec votre Apple ID et l'installer. Ne continuez que si vous faites confiance à la provenance du lien.",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X va télécharger ce .ipa, le signer avec votre Apple ID et l'installer. Ne continuez que si vous faites confiance à la provenance du lien.",
     "It replaces %@, the custom .ipa you have now.": "Il remplace %@, l'IPA personnalisé actuel.",
     "Use SideStore's pairing file?": "Utiliser le fichier de jumelage de SideStore ?",
     "Import this pairing file?": "Importer ce fichier de jumelage ?",
     "Import": "Importer",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore a renvoyé le fichier de jumelage qu'il possède. SideInstaller s'en servira pour se connecter à cet iPhone.",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "Un lien a envoyé un fichier de jumelage à SideInstaller. Ne l'importez que si vous l'avez demandé : SideInstaller s'en servira pour se connecter à cet iPhone.",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore a renvoyé le fichier de jumelage qu'il possède. iLoader X s'en servira pour se connecter à cet iPhone.",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "Un lien a envoyé un fichier de jumelage à iLoader X. Ne l'importez que si vous l'avez demandé : iLoader X s'en servira pour se connecter à cet iPhone.",
     "It replaces %@.": "Il remplace %@.",
     "It replaces the pairing file in use now.": "Il remplace le fichier de jumelage utilisé actuellement.",
     "Get it from SideStore": "Le récupérer depuis SideStore",
@@ -1156,14 +1156,14 @@ let frenchStrings: [String: String] = [
         "SideStore s'ouvre et renvoie le fichier de jumelage qu'il possède.",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "SideStore n'est pas installé sur cet iPhone, il n'y a donc aucun fichier de jumelage à récupérer.",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "SideInstaller prend le fichier de jumelage du SideStore intégré à LiveContainer.",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "Voici le fichier de jumelage du SideStore intégré à LiveContainer. SideInstaller s'en servira pour se connecter à cet iPhone.",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "En mode multitâche de LiveContainer, SideInstaller ne peut pas ouvrir les fichiers du SideStore intégré. Ouvrez SideInstaller dans LiveContainer sans le mode multitâche, puis réessayez, ou touchez « Importer le fichier de jumelage » et choisissez le fichier créé par votre ordinateur.",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "Dans LiveContainer, SideStore ne peut pas renvoyer son fichier de jumelage à SideInstaller, et le SideStore intégré à LiveContainer n'en a aucun que SideInstaller puisse utiliser. Touchez « Importer le fichier de jumelage » et choisissez le fichier créé par votre ordinateur, ou importez-en d'abord un dans SideStore, puis réessayez ici.",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "iLoader X prend le fichier de jumelage du SideStore intégré à LiveContainer.",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "Voici le fichier de jumelage du SideStore intégré à LiveContainer. iLoader X s'en servira pour se connecter à cet iPhone.",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "En mode multitâche de LiveContainer, iLoader X ne peut pas ouvrir les fichiers du SideStore intégré. Ouvrez iLoader X dans LiveContainer sans le mode multitâche, puis réessayez, ou touchez « Importer le fichier de jumelage » et choisissez le fichier créé par votre ordinateur.",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "Dans LiveContainer, SideStore ne peut pas renvoyer son fichier de jumelage à iLoader X, et le SideStore intégré à LiveContainer n'en a aucun que iLoader X puisse utiliser. Touchez « Importer le fichier de jumelage » et choisissez le fichier créé par votre ordinateur, ou importez-en d'abord un dans SideStore, puis réessayez ici.",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "Ce lien d'installation ne contient aucun .ipa. Il lui faut ?url= suivi de l'adresse https:// d'où se télécharge le .ipa.",
     "That link was meant to carry a pairing file, but what it holds can't be read.":
@@ -1208,39 +1208,39 @@ let frenchStrings: [String: String] = [
     "Look again": "Chercher à nouveau",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "Aucun rapport de plantage de SideStore, LiveContainer ou Madeira ces %d derniers jours.",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "iOS transmet à SideInstaller ses propres plantages à sa prochaine ouverture. Les rapports de plantage de SideStore, LiveContainer et Madeira sont lus sur cet iPhone via LocalDevVPN.",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iOS transmet à iLoader X ses propres plantages à sa prochaine ouverture. Les rapports de plantage de SideStore, LiveContainer et Madeira sont lus sur cet iPhone via LocalDevVPN.",
     "Open a GitHub issue": "Ouvrir un ticket GitHub",
     "Share the report": "Partager le rapport",
     "Preview the report": "Aperçu du rapport",
     "Report": "Rapport",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "Le ticket s'ouvre déjà rempli. Si le journal est trop long pour ça, SideInstaller le copie pour que tu le colles à la fin du ticket. Le rapport complet est aussi enregistré dans %@.",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "Le ticket s'ouvre déjà rempli. Si le journal est trop long pour ça, iLoader X le copie pour que tu le colles à la fin du ticket. Le rapport complet est aussi enregistré dans %@.",
     "Files › On My iPhone": "Fichiers › Sur mon iPhone",
     "Copy the full log": "Copier le journal complet",
     "Paste the log into the issue": "Colle le journal dans le ticket",
     "Open GitHub": "Ouvrir GitHub",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "Le journal complet est trop long pour être rempli automatiquement, alors SideInstaller l'a copié. Sur GitHub, touche la fin du texte, choisis Coller, puis envoie le ticket.",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "Le journal complet est trop long pour être rempli automatiquement, alors iLoader X l'a copié. Sur GitHub, touche la fin du texte, choisis Coller, puis envoie le ticket.",
     "Describe the problem above first.": "Décris d'abord le problème ci-dessus.",
     "Couldn't save the report: %@": "Impossible d'enregistrer le rapport : %@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?":
-        "Avez-vous téléchargé SideInstaller depuis sideinstaller.net ?",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller est open source : n'importe qui peut publier une copie modifiée qui vole l'identifiant Apple saisi. Seul sideinstaller.net est officiel.",
-    "Yes, from sideinstaller.net":
-        "Oui, depuis sideinstaller.net",
+    "Did you download iLoader X from github.com/iamgasgass?":
+        "Avez-vous téléchargé iLoader X depuis github.com/iamgasgass ?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X est open source : n'importe qui peut publier une copie modifiée qui vole l'identifiant Apple saisi. Seul github.com/iamgasgass est officiel.",
+    "Yes, from github.com/iamgasgass":
+        "Oui, depuis github.com/iamgasgass",
     "No, or I'm not sure":
         "Non, ou je ne suis pas sûr",
     "Don't sign in with this copy":
         "Ne vous connectez pas avec cette copie",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "Les copies provenant d'ailleurs que sideinstaller.net ne sont pas officielles et ont pu être modifiées pour voler votre identifiant Apple. Supprimez celle-ci, installez SideInstaller depuis sideinstaller.net, puis connectez-vous dans cette version.",
-    "Open sideinstaller.net":
-        "Ouvrir sideinstaller.net",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "Les copies provenant d'ailleurs que github.com/iamgasgass ne sont pas officielles et ont pu être modifiées pour voler votre identifiant Apple. Supprimez celle-ci, installez iLoader X depuis github.com/iamgasgass, puis connectez-vous dans cette version.",
+    "Open github.com/iamgasgass":
+        "Ouvrir github.com/iamgasgass",
     "Back":
         "Retour",
     "I understand the risks":
@@ -1250,10 +1250,10 @@ let frenchStrings: [String: String] = [
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "Si cette copie a été modifiée, elle peut envoyer votre identifiant Apple et votre mot de passe à quelqu'un d'autre. Ne continuez que si vous faites confiance à sa provenance.",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Impossible de joindre leur iPhone à l'adresse %@. Vérifiez l'adresse (Réglages › Wi-Fi › ⓘ sur leur iPhone), que les deux iPhone sont sur le même réseau Wi-Fi et que Réseau local est activé pour SideInstaller dans les Réglages de cet iPhone. Les réseaux invités et publics empêchent souvent les appareils de communiquer entre eux.",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Impossible de joindre leur iPhone à l'adresse %@. Vérifiez l'adresse (Réglages › Wi-Fi › ⓘ sur leur iPhone), que les deux iPhone sont sur le même réseau Wi-Fi et que Réseau local est activé pour iLoader X dans les Réglages de cet iPhone. Les réseaux invités et publics empêchent souvent les appareils de communiquer entre eux.",
     "Their iPhone": "Leur iPhone",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "Ils ont touché « Ne pas faire confiance » sur leur iPhone. Recommencez et demandez-leur de toucher Faire confiance.",
@@ -1269,19 +1269,19 @@ let frenchStrings: [String: String] = [
         "« %@ » n'est pas une adresse IPv4. Elle doit ressembler à 192.168.1.42.",
     "Do you have the device's IP?": "Avez-vous l'adresse IP de l'appareil ?",
     "Optional": "Facultatif",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller demande directement à leur iPhone de se jumeler. Nécessaire avant iOS 27.",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X demande directement à leur iPhone de se jumeler. Nécessaire avant iOS 27.",
     "Their iPhone pairs from its own Settings, which needs iOS 27.":
         "Leur iPhone se jumelle depuis ses propres Réglages, ce qui nécessite iOS 27.",
     "IP address": "Adresse IP",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "Leur iPhone est sous iOS %@. À partir d'iOS 26.4, SideInstaller ne peut pas utiliser le jumelage que leur iPhone donne via le Wi-Fi ; il lui faut donc un fichier de jumelage créé sur un ordinateur.",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "Installez LocalDevVPN depuis l'App Store et connectez-le : SideInstaller passe par lui.",
-    "Open SideInstaller. Its pairing file is already in place.":
-        "Ouvrez SideInstaller. Son fichier de jumelage est déjà en place.",
-    "Open SideInstaller and import a pairing file made on a computer.":
-        "Ouvrez SideInstaller et importez un fichier de jumelage créé sur un ordinateur.",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "Leur iPhone est sous iOS %@. À partir d'iOS 26.4, iLoader X ne peut pas utiliser le jumelage que leur iPhone donne via le Wi-Fi ; il lui faut donc un fichier de jumelage créé sur un ordinateur.",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "Installez LocalDevVPN depuis l'App Store et connectez-le : iLoader X passe par lui.",
+    "Open iLoader X. Its pairing file is already in place.":
+        "Ouvrez iLoader X. Son fichier de jumelage est déjà en place.",
+    "Open iLoader X and import a pairing file made on a computer.":
+        "Ouvrez iLoader X et importez un fichier de jumelage créé sur un ordinateur.",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ est une adresse que cet iPhone possède déjà. Side by Side installe sur l'iPhone de quelqu'un d'autre : utilisez le sien. Pour installer sur celui-ci, utilisez l'onglet Installer.",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1315,19 +1315,27 @@ let frenchStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "Ce compte Apple fait partie de %d équipes de développement. Choisissez celle qui signe.",
     "Which Team?": "Quelle équipe ?",
-    "Signed this copy of SideInstaller": "A signé cette copie de SideInstaller",
+    "Signed this copy of iLoader X": "A signé cette copie de iLoader X",
     "A free team's apps last 7 days; a paid team's last a year.":
         "Les apps d'une équipe gratuite durent 7 jours ; celles d'une équipe payante, un an.",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "Une app installée avec une autre équipe n'est pas remplacée : la signer avec celle-ci en installe une deuxième copie.",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller retient ce choix pour cet Apple ID. Pour choisir à nouveau, ouvrez Réglages › Compte, balayez l'Apple ID vers la gauche et touchez Équipe.",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X retient ce choix pour cet Apple ID. Pour choisir à nouveau, ouvrez Réglages › Compte, balayez l'Apple ID vers la gauche et touchez Équipe.",
     "No developer team was picked, so the sign-in stopped.":
         "Aucune équipe de développement n'a été choisie, la connexion s'est donc arrêtée.",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "Votre compte Apple fait partie de plusieurs équipes de développement. Ouvrez SideInstaller et choisissez celle qui signe.",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "Votre compte Apple fait partie de plusieurs équipes de développement. Ouvrez iLoader X et choisissez celle qui signe.",
     "Pick the team again?": "Choisir l'équipe à nouveau ?",
     "Pick Again": "Choisir à nouveau",
     "The next sign-in with “%@” asks which developer team signs.":
         "La prochaine connexion avec « %@ » demandera quelle équipe de développement signe.",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X en est un fork, avec son propre nom, son identifiant de bundle et son icône.",
+    "App Icon":
+        "Icône de l'app",
+    "Couldn't change the icon: %@":
+        "Impossible de changer l'icône : %@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "Chaque icône a une version Sombre et une version Teintée, qu'iOS utilise selon l'apparence de l'écran d'accueil.",
 ]

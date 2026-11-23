@@ -59,7 +59,7 @@ struct ReportProblemView: View {
                 Button(L("Open GitHub")) { present(issue.url) }
                 Button(L("Cancel"), role: .cancel) {}
             } message: { _ in
-                Text(L("The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue."))
+                Text(L("The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue."))
             }
         }
         .task {
@@ -113,7 +113,7 @@ struct ReportProblemView: View {
     private var crashSection: some View {
         Section {
             ForEach(ownCrashes.crashes) { crash in
-                crashToggle(id: crash.id, title: "SideInstaller",
+                crashToggle(id: crash.id, title: "iLoader X",
                             detail: "\(Self.dateText(crash.date)) · \(crash.summary)")
             }
             ForEach(deviceCrashes ?? []) { crash in
@@ -148,7 +148,7 @@ struct ReportProblemView: View {
         } header: {
             Text(L("Crash logs"))
         } footer: {
-            Text(L("iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN."))
+            Text(L("iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN."))
         }
     }
 
@@ -226,7 +226,7 @@ struct ReportProblemView: View {
             }
         } footer: {
             Text(canSend
-                 ? L("The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.",
+                 ? L("The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.",
                      ProblemReport.reportsFolder(onMyIPhone: L("Files › On My iPhone")))
                  : L("Describe the problem above first."))
         }

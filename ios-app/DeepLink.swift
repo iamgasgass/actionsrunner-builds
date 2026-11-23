@@ -16,7 +16,7 @@ enum DeepLink: Hashable {
     case certificate(LinkedCertificate)
 
     /// The scheme registered in Info.plist.
-    static let scheme = "sideinstaller"
+    static let scheme = "iloaderx"
 
     /// What a `sideinstaller://` URL asks for.
     enum Parsed {
@@ -38,7 +38,7 @@ enum DeepLink: Hashable {
     static let certificateCallbackTemplate =
         "\(scheme)://certificate?data=$(BASE64_CERT)&password=$(PASSWORD)"
 
-    /// Reads a link. `answersSideStore` says SideInstaller asked SideStore for
+    /// Reads a link. `answersSideStore` says iLoader X asked SideStore for
     /// its pairing file a moment ago, so a pairing file arriving now is its
     /// reply; `answersCertificateRequest` says the same of its certificate.
     static func parse(_ url: URL, answersSideStore: Bool,

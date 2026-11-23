@@ -1,7 +1,7 @@
 import ActivityKit
 import Foundation
 
-/// The Live Activity up while an install runs with SideInstaller in the
+/// The Live Activity up while an install runs with iLoader X in the
 /// background: the step it's on and how far along it is, or what it needs from
 /// the user, or why it stopped, on the Lock Screen and in the Dynamic Island.
 ///
@@ -21,7 +21,7 @@ struct InstallActivityAttributes: ActivityAttributes {
             /// Held up on something the user has to do: `title` says what.
             case waiting
             /// iOS stopped giving the app background time; the install goes on
-            /// once SideInstaller is open again.
+            /// once iLoader X is open again.
             case paused
             /// Done; the app has the trust step.
             case installed

@@ -635,7 +635,7 @@ struct BetaBadge: View {
 }
 
 extension Image {
-    /// A logo tile's art, filling its frame: SideInstaller's own are the
+    /// A logo tile's art, filling its frame: iLoader X's own are the
     /// `navy` patterns and a white glyph on a night-blue tile.
     func logoArt() -> some View {
         resizable()

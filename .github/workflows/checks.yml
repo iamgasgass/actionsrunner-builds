@@ -8,7 +8,7 @@ name: checks
 #                 idevice's OPACK decoder and isideload's 2FA handling) and
 #                 clippy, with warnings as errors, on rust-core
 #   ios           the app built for the simulator and its unit tests
-#                 (scripts/check-ios.sh: SideInstallerTests, ios-tests/)
+#                 (scripts/check-ios.sh: iLoaderXTests, ios-tests/)
 #   translations  every string passed to L("…") against each language's table
 #                 (scripts/check_translations.py): a string left untranslated
 #                 by this change fails, as do a duplicate key (it stops the app)
@@ -93,9 +93,8 @@ jobs:
 
   ios:
     name: Simulator build and Swift tests
-    # The code needs the iOS 27 SDK, which only the xcode-27 runner has for now
-    # (as in release-sideinstaller.yml).
-    runs-on: xcode-27
+    # The code needs the iOS 27 SDK (Xcode 27, on GitHub's macos-26 image).
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       XCODE_VERSION: "27.1"
@@ -156,7 +155,7 @@ jobs:
         shell: bash
         env:
           DERIVED_DATA: ${{ runner.temp }}/DerivedData
-          RESULT_BUNDLE: ${{ runner.temp }}/SideInstallerTests.xcresult
+          RESULT_BUNDLE: ${{ runner.temp }}/iLoaderXTests.xcresult
         run: bash scripts/check-ios.sh
 
       # Opens in Xcode (File › Open) with each test's failure and the logs.
@@ -164,8 +163,8 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: SideInstallerTests-xcresult
-          path: ${{ runner.temp }}/SideInstallerTests.xcresult
+          name: iLoaderXTests-xcresult
+          path: ${{ runner.temp }}/iLoaderXTests.xcresult
           if-no-files-found: ignore
           retention-days: 7
 

@@ -25,7 +25,7 @@ enum SetupPage: Int, CaseIterable, Hashable {
 /// segment for each. Moving on, the page's objects slide out to the left one
 /// after another while the next page's come in from the right.
 ///
-/// The terms and the sideinstaller.net answer are kept as soon as they're
+/// The terms and the github.com/iamgasgass answer are kept as soon as they're
 /// given, so setup left halfway resumes at the page it stopped on. The Apple
 /// ID page ends it: Continue saves the account, and "Set this up later" skips
 /// it; either sets `hasCompletedAccountSetup` and the app opens.
@@ -82,7 +82,7 @@ struct SetupView: View {
         .alert(L("Update to iOS %@", Engine.minimumOSText), isPresented: $recommendingUpdate) {
             Button(L("OK"), role: .cancel) {}
         } message: {
-            Text(L("This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.",
+            Text(L("This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.",
                    Engine.minimumOSText))
         }
     }
@@ -156,7 +156,7 @@ private struct TermsPage: View {
                 logo
                     .setupObject(0)
                 VStack(spacing: 8) {
-                    Text("SideInstaller")
+                    Text("iLoader X")
                         .font(.system(size: 40, weight: .semibold))
                         .foregroundStyle(.primary)
                     Text(L("an app by Frizzle"))
@@ -194,7 +194,7 @@ private struct TermsPage: View {
                 Text(L("You'll need a pairing file"))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.primary)
-                Text(L("This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.",
+                Text(L("This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.",
                        Engine.shared.osVersionText, Engine.minimumOSText))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -248,7 +248,7 @@ private struct TermsPage: View {
                        isOn: $accepted.animation(.smooth(duration: 0.2)))
             }
 
-            Link(destination: URL(string: "https://sideinstaller.net/terms.html")!) {
+            Link(destination: URL(string: "https://github.com/FrizzleM/SideInstaller/blob/main/terms.html")!) {
                 Text("TOS")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.accent)
@@ -258,7 +258,7 @@ private struct TermsPage: View {
     }
 }
 
-/// Page 2: was this copy downloaded from sideinstaller.net? "No" turns the
+/// Page 2: was this copy downloaded from github.com/iamgasgass? "No" turns the
 /// page into the warning, with Back to answer again; the bar stays where it
 /// is, as the answer is still to come.
 private struct SourcePage: View {

@@ -112,7 +112,7 @@ final class EntitlementsManager: ObservableObject {
     @Published private(set) var hasLoaded = false
 
     private var session: OpaquePointer?            // CertSession*
-    private let queue = DispatchQueue(label: "sideinstaller.entitlements")
+    private let queue = DispatchQueue(label: "iloaderx.entitlements")
 
     private var engine: Engine { Engine.shared }
 
@@ -341,7 +341,7 @@ final class EntitlementsManager: ObservableObject {
         var newSession: OpaquePointer?
         var summary: UnsafeMutablePointer<CChar>?
         var error: UnsafeMutablePointer<CChar>?
-        let rc = si_cert_signin(id, pw, ani, "SideInstaller", dir, team ?? "",
+        let rc = si_cert_signin(id, pw, ani, "iLoader X", dir, team ?? "",
                                 appleSignInTwoFactorCallback, appleSignInTeamCallback, ticket.context,
                                 &newSession, &summary, &error)
         if rc == 0 {
@@ -550,7 +550,7 @@ struct EntitlementsView: View {
                     .foregroundStyle(Theme.muted)
                 Text(L("No App IDs"))
                     .font(.headline)
-                Text(L("This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back."))
+                Text(L("This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

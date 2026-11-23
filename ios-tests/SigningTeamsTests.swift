@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SideInstaller
+@testable import iLoaderX
 
 // What rust-core's team callback hands over (`team::choices`, whose test
 // `kinds_come_from_a_list_teams_answer` checks the same shape). Made up.

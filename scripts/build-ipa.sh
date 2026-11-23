@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build the unsigned SideInstaller IPA from this checkout, as the
+# Build the unsigned iLoader X IPA from this checkout, as the
 # release-sideinstaller workflow does on GitHub: the Rust library, an Xcode
 # project generated from project.yml, a Release build with signing off, and the
 # app zipped into Payload/.
@@ -10,7 +10,7 @@
 # target (added here when rustup is around) and xcodegen.
 #
 # For a clean clone, like the one CI checks out. The Xcode project is generated
-# into the checkout, so one that already has its own SideInstaller.xcodeproj is
+# into the checkout, so one that already has its own iLoaderX.xcodeproj is
 # refused rather than overwritten; scripts/export-ipa.sh builds from there.
 # Nothing is signed and nothing is sent to Apple.
 #
@@ -18,9 +18,9 @@
 #   VERSION        CFBundleShortVersionString, e.g. 1.6.0 (default: project.yml's)
 #   BUILD_NUMBER   CFBundleVersion (default: project.yml's)
 #   BUNDLE_ID      bundle id of the app; the extension keeps its suffix, e.g.
-#                  .LiveActivity (default: com.frizzlem.sideinstaller, the
+#                  .LiveActivity (default: com.iamgasgass.iloaderx, the
 #                  published one)
-#   OUTPUT         path of the IPA (default: build/SideInstaller.ipa)
+#   OUTPUT         path of the IPA (default: build/iLoaderX.ipa)
 #   DERIVED_DATA   Xcode build folder (default: build/DerivedData)
 #   REBUILD_RUST   1 = rebuild SideInstallerFFI.xcframework even when one is
 #                  there (default: build it only when it's missing)
@@ -34,8 +34,8 @@ trap 'rc=$?; [ "$rc" = 0 ] || echo "error: build-ipa.sh stopped (exit $rc) at: $
 if [ "${RUNNER_DEBUG:-}" = 1 ]; then set -x; fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUNDLE_ID="${BUNDLE_ID:-com.frizzlem.sideinstaller}"
-OUTPUT="${OUTPUT:-$ROOT/build/SideInstaller.ipa}"
+BUNDLE_ID="${BUNDLE_ID:-com.iamgasgass.iloaderx}"
+OUTPUT="${OUTPUT:-$ROOT/build/iLoaderX.ipa}"
 DERIVED_DATA="${DERIVED_DATA:-$ROOT/build/DerivedData}"
 REBUILD_RUST="${REBUILD_RUST:-0}"
 VERSION="${VERSION:-}"
@@ -49,8 +49,8 @@ case "$OUTPUT" in /*) ;; *) OUTPUT="$PWD/$OUTPUT" ;; esac
 case "$DERIVED_DATA" in /*) ;; *) DERIVED_DATA="$PWD/$DERIVED_DATA" ;; esac
 cd "$ROOT"
 
-[ -e SideInstaller.xcodeproj ] &&
-  die "this checkout already has a SideInstaller.xcodeproj, which generating one would overwrite. Run this in a clean clone, or use scripts/export-ipa.sh here."
+[ -e iLoaderX.xcodeproj ] &&
+  die "this checkout already has a iLoaderX.xcodeproj, which generating one would overwrite. Run this in a clean clone, or use scripts/export-ipa.sh here."
 if [ -n "$VERSION" ]; then
   # What iOS accepts as CFBundleShortVersionString.
   [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] || die "VERSION must be up to three numbers, like 1.6.0 (got: $VERSION)"
@@ -81,7 +81,7 @@ echo "==> $(xcodebuild -version | tr '\n' ' ')"
 sdk="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || true)"
 [ -n "$sdk" ] || die "this Xcode has no iOS SDK"
 [ "$(printf '%s\n' "$MIN_IOS_SDK" "$sdk" | sort -V | head -1)" = "$MIN_IOS_SDK" ] ||
-  die "this Xcode has the iOS $sdk SDK; SideInstaller needs the iOS $MIN_IOS_SDK SDK or later (Xcode $MIN_IOS_SDK+), or the iPhone Duo shows it in a window instead of full screen"
+  die "this Xcode has the iOS $sdk SDK; iLoader X needs the iOS $MIN_IOS_SDK SDK or later (Xcode $MIN_IOS_SDK+), or the iPhone Duo shows it in a window instead of full screen"
 
 # --- Rust library -------------------------------------------------------------
 if [ "$REBUILD_RUST" = 1 ] || [ ! -d SideInstallerFFI.xcframework ]; then
@@ -96,9 +96,10 @@ fi
 [ -d SideInstallerFFI.xcframework ] || die "no SideInstallerFFI.xcframework after the Rust build"
 
 # --- Xcode project ------------------------------------------------------------
-echo "==> Generating SideInstaller.xcodeproj from project.yml"
+echo "==> Generating iLoaderX.xcodeproj from project.yml"
 xcodegen generate --spec project.yml --quiet
-pbx=SideInstaller.xcodeproj/project.pbxproj
+bash scripts/patch-xcodeproj.sh iLoaderX.xcodeproj
+pbx=iLoaderX.xcodeproj/project.pbxproj
 [ -f "$pbx" ] || die "xcodegen made no $pbx"
 # Give the app the bundle id to build with, and the extension the same id plus
 # its suffix. The app's id is the shortest one; the extension's starts with it.
@@ -111,17 +112,17 @@ sed -i '' -E "s/(PRODUCT_BUNDLE_IDENTIFIER = \"?)$(printf '%s' "$app_id" | sed '
 overrides=()
 [ -n "$VERSION" ] && overrides+=("MARKETING_VERSION=$VERSION")
 [ -n "$BUILD_NUMBER" ] && overrides+=("CURRENT_PROJECT_VERSION=$BUILD_NUMBER")
-echo "==> Building SideInstaller (Release, unsigned)"
+echo "==> Building iLoader X (Release, unsigned)"
 # A precompiled module of an older Rust header fails the build.
 find "$DERIVED_DATA" -name 'SideInstallerFFI-*.pcm' -delete 2>/dev/null || true
 xcodebuild build \
-  -project SideInstaller.xcodeproj -scheme SideInstaller -configuration Release \
+  -project iLoaderX.xcodeproj -scheme iLoaderX -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath "$DERIVED_DATA" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
   ${overrides[@]+"${overrides[@]}"}
 
-app="$DERIVED_DATA/Build/Products/Release-iphoneos/SideInstaller.app"
-[ -d "$app" ] || die "no SideInstaller.app in $DERIVED_DATA/Build/Products/Release-iphoneos"
+app="$DERIVED_DATA/Build/Products/Release-iphoneos/iLoaderX.app"
+[ -d "$app" ] || die "no iLoaderX.app in $DERIVED_DATA/Build/Products/Release-iphoneos"
 got="$(plist CFBundleIdentifier "$app/Info.plist")"
 [ "$got" = "$BUNDLE_ID" ] || die "the built app's bundle id is $got, not $BUNDLE_ID"
 version="$(plist CFBundleShortVersionString "$app/Info.plist")"
@@ -143,7 +144,7 @@ done
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/Payload" "$(dirname "$OUTPUT")"
-ditto "$app" "$stage/Payload/SideInstaller.app"
+ditto "$app" "$stage/Payload/iLoaderX.app"
 find "$stage" -name .DS_Store -delete
 rm -f "$OUTPUT" # zip would add to an existing archive instead of replacing it
 (cd "$stage" && zip -qryX "$OUTPUT" Payload)

@@ -180,7 +180,7 @@ pub unsafe fn run_host(
     let opts = HostOptions {
         bind_addr: opt_str(bind_addr, "0.0.0.0"),
         port,
-        name: opt_str(name, "SideInstaller"),
+        name: opt_str(name, "iLoader X"),
         model: opt_str(model, "Mac17,7"),
         out_path: opt_str(out_path, "rp_pairing_file.plist"),
         saved_alt_irk: parse_alt_irk(&opt_str(host_alt_irk_hex, "")),

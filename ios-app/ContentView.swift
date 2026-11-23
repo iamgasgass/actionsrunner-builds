@@ -160,7 +160,7 @@ struct ContentView: View {
     // MARK: Header
 
     private var header: some View {
-        BrandHeader(icon: "arrow.down.app", image: "AppLogo", title: "SideInstaller") {
+        BrandHeader(icon: "arrow.down.app", image: "AppLogo", title: "iLoader X") {
             statusDot
                 .transition(.opacity)
                 .id(statusDotID)
@@ -210,7 +210,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L("Update available"))
                             .font(.subheadline.weight(.medium))
-                        Text(L("SideInstaller %@ is available — you're on %@.",
+                        Text(L("iLoader X %@ is available — you're on %@.",
                                updateChecker.latestVersion ?? "", updateChecker.currentVersion))
                             .font(.footnote)
                             .foregroundStyle(.secondary)
@@ -349,11 +349,11 @@ struct ContentView: View {
         .animation(.smooth(duration: 0.25), value: engine.customIPABuild)
     }
 
-    /// Says the imported IPA is one of SideInstaller's own builds, which the
+    /// Says the imported IPA is one of iLoader X's own builds, which the
     /// install sets up just like its download: a LiveContainer + SideStore
     /// brought from elsewhere gets its pairing file where SideStore reads it.
     private func recognizedNote(_ build: InstallSource) -> some View {
-        Text(L("SideInstaller recognizes this as %@ and sets it up just like its own download.",
+        Text(L("iLoader X recognizes this as %@ and sets it up just like its own download.",
                build.displayName))
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -573,7 +573,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L("iOS %@ required", Engine.minimumTunnelOSText))
                         .font(.subheadline.weight(.medium))
-                    Text(L("This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.",
+                    Text(L("This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.",
                            engine.osVersionText, Engine.minimumTunnelOSText))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -639,7 +639,7 @@ struct ContentView: View {
             .buttonStyle(.plain, sound: .tap)
             .disabled(engine.isImportingPairing)
             Text(insideLiveContainer
-                 ? L("SideInstaller takes the pairing file LiveContainer's built-in SideStore has.")
+                 ? L("iLoader X takes the pairing file LiveContainer's built-in SideStore has.")
                  : L("SideStore opens and sends back the pairing file it has."))
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -827,7 +827,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(L("Wi-Fi required"))
                         .font(.subheadline.weight(.medium))
-                    Text(L("Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network."))
+                    Text(L("Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1256,7 +1256,7 @@ struct InstallPopup: View {
             PopupCard(title: L("Sign with this certificate?"), systemImage: "checkmark.seal",
                       tint: Theme.accent, onClose: close) {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(L("A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates."))
+                    Text(L("A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1283,7 +1283,7 @@ struct InstallPopup: View {
     }
 
     private var installLinkMessage: String {
-        let base = L("SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.")
+        let base = L("iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.")
         guard let current = engine.customIPAName else { return base }
         return base + " " + L("It replaces %@, the custom .ipa you have now.", current)
     }
@@ -1291,13 +1291,13 @@ struct InstallPopup: View {
     private func pairingLinkMessage(_ file: LinkedPairingFile) -> String {
         let base: String
         if !file.fromSideStore {
-            base = L("A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.")
+            base = L("A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.")
         } else if Engine.runsInLiveContainer {
             // SideStore's reply can't get there, so it's the file read from
             // the built-in SideStore.
-            base = L("This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.")
+            base = L("This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.")
         } else {
-            base = L("SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.")
+            base = L("SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.")
         }
         if let current = engine.importedPairingName {
             return base + " " + L("It replaces %@.", current)
@@ -1320,7 +1320,7 @@ struct InstallPopup: View {
                          onClose: close) {
             VStack(alignment: .leading, spacing: 16) {
                 Text(sideStoreCertificate
-                     ? L("Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.")
+                     ? L("Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.")
                      : L("Apple won't issue a second signing certificate for this Apple ID. Revoking the one it already has lets the install continue — but it can't be undone."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)

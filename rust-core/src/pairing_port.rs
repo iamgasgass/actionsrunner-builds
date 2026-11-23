@@ -559,7 +559,7 @@ fn chain(e: &dyn std::error::Error) -> String {
 /// The handshake the pairing service answers first, as
 /// `tunnel_create_rppairing` sends it.
 async fn handshake(stream: TcpStream) -> Result<Found, IdeviceError> {
-    let mut client = RemotePairingClient::new(RpPairingSocket::new(stream), "SideInstaller");
+    let mut client = RemotePairingClient::new(RpPairingSocket::new(stream), "iLoader X");
     let reply = client.attempt_pair_verify().await?;
     Ok(Found::from_handshake(&reply))
 }

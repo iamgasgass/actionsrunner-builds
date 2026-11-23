@@ -41,7 +41,7 @@ final class LogStore {
     /// Redacts, stamps and mirrors lines, one at a time in the order logged.
     /// `.utility` fell seconds behind a burst of 2000 lines in the simulator;
     /// this keeps up in a fifth of a second.
-    @ObservationIgnored private let queue = DispatchQueue(label: "sideinstaller.log", qos: .userInitiated)
+    @ObservationIgnored private let queue = DispatchQueue(label: "iloaderx.log", qos: .userInitiated)
     /// Lines ready for `lines`, waiting for the main thread. Guarded by `lock`.
     @ObservationIgnored private var pending: [Entry] = []
     @ObservationIgnored private let lock = NSLock()

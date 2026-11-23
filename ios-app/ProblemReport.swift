@@ -5,7 +5,7 @@ import CryptoKit
 
 // MARK: - The report
 
-/// A problem report for GitHub: what the user wrote, where SideInstaller
+/// A problem report for GitHub: what the user wrote, where iLoader X
 /// stands (version, iOS, device, the step that failed), the redacted log and
 /// the crash logs picked. It's saved as a file the issue gets attached, and a
 /// prefilled issue names that file.
@@ -34,15 +34,15 @@ struct ProblemReport {
     let logLines: [String]
     let created = Date()
 
-    static let repository = "FrizzleM/SideInstaller"
+    static let repository = "iamgasgass/actionsrunner-builds"
 
-    /// Where SideInstaller stands now.
+    /// Where iLoader X stands now.
     @MainActor
     static func current(_ engine: Engine) -> ProblemReport {
         let source = engine.installSource
         let failed = Step.allCases.first { engine.stepStates[$0] == .failed }
         var details = [
-            Detail(label: "SideInstaller", value: appVersion),
+            Detail(label: "iLoader X", value: appVersion),
             Detail(label: "iOS", value: osVersion),
             Detail(label: "Device", value: deviceModel),
             installing(engine),
@@ -141,9 +141,9 @@ struct ProblemReport {
         }
     }
 
-    /// Whether SideInstaller runs as a LiveContainer guest. iOS then reads
-    /// LiveContainer's Info.plist instead of SideInstaller's, which turns off
-    /// whatever needs a key only SideInstaller's has (#38, #69, #100).
+    /// Whether iLoader X runs as a LiveContainer guest. iOS then reads
+    /// LiveContainer's Info.plist instead of iLoader X's, which turns off
+    /// whatever needs a key only iLoader X's has (#38, #69, #100).
     private static var liveContainer: Detail {
         let inside = Engine.runsInLiveContainer
         return Detail(label: "Runs inside LiveContainer", value: inside ? "yes" : "no",
@@ -177,19 +177,19 @@ struct ProblemReport {
 
     // MARK: The file
 
-    /// The report's filename, e.g. `SideInstaller-report-2026-10-17-153012.txt`.
+    /// The report's filename, e.g. `iLoader X-report-2026-10-17-153012.txt`.
     var fileName: String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd-HHmmss"
-        return "SideInstaller-report-\(formatter.string(from: created)).txt"
+        return "iLoaderX-report-\(formatter.string(from: created)).txt"
     }
 
     /// Everything, as the attached file has it.
     func fileText(description: String, deviceCrashes: [DeviceCrashLog],
                   ownCrashes: [CrashDiagnostics.Crash]) -> String {
         var text = """
-        SideInstaller problem report
+        iLoader X problem report
         Created \(created.formatted(.iso8601))
 
         ## What happened
@@ -204,7 +204,7 @@ struct ProblemReport {
         text += "\n## Activity log (\(logLines.count) lines, redacted)\n\n"
         text += logLines.joined(separator: "\n") + "\n"
         for crash in ownCrashes {
-            text += "\n## SideInstaller crash, reported by iOS \(crash.date.formatted(.iso8601)) (MetricKit)\n\n"
+            text += "\n## iLoader X crash, reported by iOS \(crash.date.formatted(.iso8601)) (MetricKit)\n\n"
             text += "Version: \(crash.appVersion)\nWhat ended it: \(crash.summary)\n\n\(crash.json)\n"
         }
         for crash in deviceCrashes {
@@ -223,7 +223,7 @@ struct ProblemReport {
         let url = folder.appendingPathComponent(fileName)
         try text.write(to: url, atomically: true, encoding: .utf8)
         let older = (try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-        for stale in older.filter({ $0.lastPathComponent.hasPrefix("SideInstaller-report-") })
+        for stale in older.filter({ $0.lastPathComponent.hasPrefix("iLoaderX-report-") })
             .sorted(by: { $0.lastPathComponent > $1.lastPathComponent })
             .dropFirst(Self.reportsKept) {
             try? fm.removeItem(at: stale)
@@ -242,7 +242,7 @@ struct ProblemReport {
     /// in LiveContainer's own, under the guest's data folder.
     static func reportsFolder(onMyIPhone: String) -> String {
         guard let home = getenv("LC_HOME_PATH").map({ String(cString: $0) }) else {
-            return "\(onMyIPhone) › SideInstaller › Reports"
+            return "\(onMyIPhone) › iLoader X › Reports"
         }
         let documents = URL(fileURLWithPath: home).appendingPathComponent("Documents")
             .resolvingSymlinksInPath().path + "/"
@@ -397,7 +397,7 @@ struct ProblemReport {
                 : "the full log (\(logLines.count) lines) and \(crashes) crash log\(crashes == 1 ? "" : "s")"
             body += "The report file, `\(fileName)`, has all of it too: "
             body += "\(Self.reportsFolder(onMyIPhone: "Files › On My iPhone")).\n\n"
-            body += "📋 **SideInstaller copied \(copied). Paste below this line:**\n\n"
+            body += "📋 **iLoader X copied \(copied). Paste below this line:**\n\n"
         }
         return body
     }
@@ -453,7 +453,7 @@ struct ProblemReport {
     }
 
     private static func ownCrashSection(_ crash: CrashDiagnostics.Crash) -> (title: String, text: String) {
-        let title = "SideInstaller crash (\(shortDate(crash.date)))"
+        let title = "iLoader X crash (\(shortDate(crash.date)))"
         let text = "### \(title)\n\nVersion: \(crash.appVersion) · What ended it: \(crash.summary)\n\n"
             + collapsed("MetricKit diagnostic", fenced(crash.json, language: "json"))
         return (title, text)
@@ -519,7 +519,7 @@ struct ProblemReport {
 
 // MARK: - Crash logs from this iPhone
 
-/// A crash report iOS kept for one of the apps SideInstaller installs, read over
+/// A crash report iOS kept for one of the apps iLoader X installs, read over
 /// the device link (`Engine.deviceCrashLogs`).
 struct DeviceCrashLog: Identifiable, Hashable {
     /// The report's filename, e.g. `SideStore-2026-10-17-101010.ips`.
@@ -603,9 +603,9 @@ struct DeviceCrashLog: Identifiable, Hashable {
     }
 }
 
-// MARK: - SideInstaller's own crashes (MetricKit)
+// MARK: - iLoader X's own crashes (MetricKit)
 
-/// SideInstaller's own crashes, from MetricKit. iOS hands a crash's diagnostic
+/// iLoader X's own crashes, from MetricKit. iOS hands a crash's diagnostic
 /// over the next time the app opens; each is kept in Application Support (the
 /// newest few, for a month) until a report takes it along.
 final class CrashDiagnostics: NSObject, ObservableObject, MXMetricManagerSubscriber {
@@ -653,7 +653,7 @@ final class CrashDiagnostics: NSObject, ObservableObject, MXMetricManagerSubscri
             guard !added.isEmpty else { return }
             added.forEach(Self.save)
             self.crashes = Self.prune(self.crashes + added)
-            Engine.shared.log("MetricKit: \(added.count) SideInstaller crash\(added.count == 1 ? "" : "es") saved for Report a problem: \(added.map(\.summary).joined(separator: "; ")).")
+            Engine.shared.log("MetricKit: \(added.count) iLoader X crash\(added.count == 1 ? "" : "es") saved for Report a problem: \(added.map(\.summary).joined(separator: "; ")).")
         }
     }
 

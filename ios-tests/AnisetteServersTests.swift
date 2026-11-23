@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import SideInstaller
+@testable import iLoaderX
 
 private let lillq = "https://anisette.lillq.me"
 private let sideStoreNew = "https://new.ani.sidestore.io"

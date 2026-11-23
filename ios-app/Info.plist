@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>SideInstaller</string>
+	<string>iLoader X</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -21,7 +21,7 @@
 			<string>Owner</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.frizzlem.sideinstaller.ipa</string>
+				<string>com.iamgasgass.iloaderx.ipa</string>
 				<string>com.apple.itunes.ipa</string>
 			</array>
 		</dict>
@@ -34,7 +34,7 @@
 			<string>Alternate</string>
 			<key>LSItemContentTypes</key>
 			<array>
-				<string>com.frizzlem.sideinstaller.mobiledevicepairing</string>
+				<string>com.iamgasgass.iloaderx.mobiledevicepairing</string>
 			</array>
 		</dict>
 	</array>
@@ -52,10 +52,10 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.frizzlem.sideinstaller</string>
+			<string>com.iamgasgass.iloaderx</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>sideinstaller</string>
+				<string>iloaderx</string>
 			</array>
 		</dict>
 	</array>
@@ -78,11 +78,11 @@
 		<string>_remotepairing._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>SideInstaller advertises an on-device pairing service so this iPhone can pair with it, and connects to the local lockdown daemon to install apps.</string>
+	<string>iLoader X advertises an on-device pairing service so this iPhone can pair with it, and connects to the local lockdown daemon to install apps.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>SideInstaller can use location to keep running while you approve pairing in Settings.</string>
+	<string>iLoader X can use location to keep running while you approve pairing in Settings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>SideInstaller can use location to keep running while you approve pairing in Settings.</string>
+	<string>iLoader X can use location to keep running while you approve pairing in Settings.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>
@@ -124,7 +124,7 @@
 				<string>IPA</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.frizzlem.sideinstaller.ipa</string>
+			<string>com.iamgasgass.iloaderx.ipa</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -152,7 +152,7 @@
 				<string>PAIR</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
-			<string>com.frizzlem.sideinstaller.mobiledevicepairing</string>
+			<string>com.iamgasgass.iloaderx.mobiledevicepairing</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

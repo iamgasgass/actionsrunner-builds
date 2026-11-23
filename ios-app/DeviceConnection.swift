@@ -275,7 +275,7 @@ final class DeviceConnection {
     /// stores this iPhone's own record and falls back to its own lockdownd on
     /// 127.0.0.1. Never from iOS 26.4 on, where no lockdown record gets through
     /// (`Engine.canMintLockdownRecord`).
-    func connect(deviceIP: String, pairingFilePath: String, hostname: String = "SideInstaller",
+    func connect(deviceIP: String, pairingFilePath: String, hostname: String = "iLoader X",
                  allowLockdownMinting: Bool = true) throws {
         let kind = PairingFileKind.of(path: pairingFilePath)
         guard kind.isUsable else {
@@ -928,7 +928,7 @@ final class DeviceConnection {
     /// prompt.
     func lockdownPairRecord(hostID: String,
                             systemBUID: String,
-                            hostName: String = "SideInstaller") throws -> LockdownPairRecord {
+                            hostName: String = "iLoader X") throws -> LockdownPairRecord {
         guard let adapter, let handshake else { throw fail("not connected") }
 
         var client: OpaquePointer?
@@ -1698,7 +1698,7 @@ final class DeviceConnection {
     /// `body` with it.
     ///
     /// `reachingLibrary` vends the whole container, which only works for apps
-    /// signed for development (every app SideInstaller signs is); otherwise only
+    /// signed for development (every app iLoader X signs is); otherwise only
     /// Documents is vended, the one writable folder under that root.
     ///
     /// Vending consumes the HouseArrestClient on success and failure, so `ha` is
@@ -1942,7 +1942,7 @@ final class DeviceConnection {
     /// where the tunnel itself won't open without Developer Mode.
     func requestDeveloperModeOverLockdown(_ request: DeveloperModeRequest, deviceIP: String,
                                           pairingFilePath: String,
-                                          hostname: String = "SideInstaller") throws {
+                                          hostname: String = "iLoader X") throws {
         let provider = try lockdownProvider(deviceIP: deviceIP,
                                             pairingFilePath: pairingFilePath,
                                             hostname: hostname)
@@ -2151,7 +2151,7 @@ private final class LockdownHeartbeat {
         self.client = client
         self.deviceIP = deviceIP
         let thread = Thread { [self] in run() }
-        thread.name = "sideinstaller.heartbeat"
+        thread.name = "iloaderx.heartbeat"
         // A Polo that goes out too late closes the tunnel, mid-install too.
         thread.qualityOfService = .userInitiated
         thread.start()

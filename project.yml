@@ -1,19 +1,25 @@
-name: SideInstaller
+name: iLoaderX
 options:
   # Brand reverse-DNS prefix. NOTE: this is a chosen handle only — it is NOT
   # tied to an Apple Developer account (DEVELOPMENT_TEAM stays empty below).
-  bundleIdPrefix: com.frizzle
+  bundleIdPrefix: com.iamgasgass
   # iOS 27 is what pairs itself; 17.4 is what the rest of the pipeline needs
   # (CoreDeviceProxy over LocalDevVPN, and the Rust core's minos), and an older
   # iPhone gets there by importing a pairing file made on a computer.
   deploymentTarget:
     iOS: "17.4"
   createIntermediateGroups: true
+  # ios-app/AppIcon.icon (Icon Composer, iOS 26 Liquid Glass) is one file to
+  # Xcode, not a folder to walk; scripts/patch-xcodeproj.sh sets its type.
+  fileTypes:
+    icon:
+      file: true
+      buildPhase: resources
 
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.9.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     TARGETED_DEVICE_FAMILY: "1,2"
     # aws-lc-rs / idevice are arm64-only here; drop x86_64 sim slice.
@@ -25,7 +31,7 @@ settings:
     DEVELOPMENT_TEAM: ""
 
 targets:
-  SideInstaller:
+  iLoaderX:
     type: application
     platform: iOS
     sources:
@@ -33,41 +39,46 @@ targets:
     dependencies:
       - framework: SideInstallerFFI.xcframework
         embed: false
-      # Embedded as PlugIns/SideInstallerLiveActivity.appex.
-      - target: SideInstallerLiveActivity
+      # Embedded as PlugIns/iLoaderXLiveActivity.appex.
+      - target: iLoaderXLiveActivity
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.frizzle.sideinstaller
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.iloaderx
         INFOPLIST_FILE: ios-app/Info.plist
+        # Primary icon: AppIcon.icon on iOS 26+, AppIcon.appiconset below it.
+        # Alternate: the iOS 6 one, picked in Settings › App Icon.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-iOS6
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         # idevice's static lib pulls in C++ symbols (aws-lc); link libc++.
         OTHER_LDFLAGS: "-lc++"
         GENERATE_INFOPLIST_FILE: NO
-    # `xcodebuild test -scheme SideInstaller` runs SideInstallerTests too. A
+    # `xcodebuild test -scheme iLoaderX` runs iLoaderXTests too. A
     # build or archive of the scheme still builds the app alone.
     scheme:
       testTargets:
-        - SideInstallerTests
+        - iLoaderXTests
 
   # Unit tests (Swift Testing), run inside the app on a simulator, so they can
-  # reach its internal types with `@testable import SideInstaller`.
+  # reach its internal types with `@testable import iLoaderX`.
   # scripts/check-ios.sh builds and runs them, as the pull-request workflow does.
-  SideInstallerTests:
+  iLoaderXTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: ios-tests
     dependencies:
-      - target: SideInstaller
+      - target: iLoaderX
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.frizzle.sideinstaller.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.iloaderx.tests
         GENERATE_INFOPLIST_FILE: YES
 
   # Draws the pairing Live Activity: the code Settings asks for, in the Dynamic
   # Island and on the Lock Screen. A Live Activity's views have to live in a
   # widget extension; the app starts and updates it (PairingLiveActivity.swift).
   # Also draws an install's progress below iOS 26 (InstallActivity.swift).
-  SideInstallerLiveActivity:
+  iLoaderXLiveActivity:
     type: app-extension
     platform: iOS
     sources:
@@ -79,7 +90,7 @@ targets:
       base:
         # Has to stay the app's identifier plus a suffix, or iOS refuses to
         # install the app. Change both together.
-        PRODUCT_BUNDLE_IDENTIFIER: com.frizzle.sideinstaller.LiveActivity
+        PRODUCT_BUNDLE_IDENTIFIER: com.iamgasgass.iloaderx.LiveActivity
         INFOPLIST_FILE: ios-live-activity/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES

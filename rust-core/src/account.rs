@@ -285,7 +285,7 @@ pub unsafe fn apple_signin(
     let apple_id = opt(apple_id, "");
     let password = opt(password, "");
     let anisette_url = opt(anisette_url, "https://ani.sidestore.io");
-    let machine_name = opt(machine_name, "SideInstaller");
+    let machine_name = opt(machine_name, "iLoader X");
     let storage_dir = opt(storage_dir, ".");
     let wanted = opt(team_id, "").trim().to_string();
     let twofa = make_2fa(twofa_cb, TwoFaCtx(ctx));

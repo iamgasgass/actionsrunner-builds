@@ -10,17 +10,17 @@ import UIKit
 /// On iOS 26 and later the run is a `BGContinuedProcessingTask`: iOS keeps the
 /// app running in the background for it and shows its progress in a Live
 /// Activity of its own, which can also stop it. Below 26, or when iOS turns the
-/// task down, SideInstaller's own Live Activity (`InstallActivityAttributes`)
+/// task down, iLoader X's own Live Activity (`InstallActivityAttributes`)
 /// shows the progress instead, and the run has the half minute or so of
 /// background time any app gets. When that's up, the activity says so, and the
-/// install goes on once SideInstaller is open again.
+/// install goes on once iLoader X is open again.
 ///
 /// When the run needs the user (a 2FA code, the App IDs a custom IPA costs, the
-/// tunnel, Wi-Fi, a Trust prompt) or stops on an error, SideInstaller's activity
+/// tunnel, Wi-Fi, a Trust prompt) or stops on an error, iLoader X's activity
 /// turns to that, and alerts, which opens the Dynamic Island on it. On iOS 26
 /// and later the background task's own UI can only take a title and a subtitle,
 /// so they say it there; and since iOS lets an app start a Live Activity only
-/// until it has left the foreground, SideInstaller's goes up next to the task's
+/// until it has left the foreground, iLoader X's goes up next to the task's
 /// when the user leaves the app while the run needs them, and comes down once
 /// it doesn't.
 ///
@@ -67,7 +67,7 @@ final class InstallActivity {
     /// the user is back.
     private var stoppedTaskHold: Task<Void, Never>?
 
-    /// SideInstaller's own Live Activity.
+    /// iLoader X's own Live Activity.
     private var activity: LiveActivity?
     /// True when it's up only while the run needs the user, next to the
     /// background task's, which shows the progress.
@@ -226,7 +226,7 @@ final class InstallActivity {
         beginGrace()
         if paused {
             paused = false
-            Engine.shared.log("Back in SideInstaller — the install carries on.")
+            Engine.shared.log("Back in iLoader X — the install carries on.")
         }
         // In front, the app's popups say what the run needs.
         if activityOnlyForNeeds { endActivity() }
@@ -235,7 +235,7 @@ final class InstallActivity {
     }
 
     /// The last moment iOS lets the app start a Live Activity. When the run
-    /// needs the user and the background task has the progress, SideInstaller's
+    /// needs the user and the background task has the progress, iLoader X's
     /// own goes up for the need.
     private func leavingForeground() {
         guard running, task != nil, activity == nil else { return }
@@ -249,12 +249,12 @@ final class InstallActivity {
         let progress = engine.overallProgress
         if paused {
             return State(stage: .paused, title: L("Paused"),
-                         detail: L("Open SideInstaller to finish the install."),
+                         detail: L("Open iLoader X to finish the install."),
                          symbol: "pause.fill", progress: progress)
         }
         if let need = currentNeed() {
             return State(stage: .waiting, title: need.title, detail: need.detail,
-                         action: L("Tap to return to SideInstaller."), symbol: need.symbol,
+                         action: L("Tap to return to iLoader X."), symbol: need.symbol,
                          progress: progress)
         }
         // Between two steps, the next one.
@@ -284,7 +284,7 @@ final class InstallActivity {
         }
         if engine.teamQuestion != nil {
             return (L("Which Team?"),
-                    L("Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs."),
+                    L("Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs."),
                     "person.2.fill")
         }
         if let cost = engine.appIDCost {
@@ -305,13 +305,13 @@ final class InstallActivity {
 
     private func installedState() -> State {
         State(stage: .installed, title: L("Installed"),
-              detail: L("Tap to return to SideInstaller."), symbol: "checkmark", progress: 1)
+              detail: L("Tap to return to iLoader X."), symbol: "checkmark", progress: 1)
     }
 
     private func stoppedState() -> State {
         let engine = Engine.shared
         return State(stage: .stopped, title: L("Install stopped"),
-                     detail: engine.lastError ?? "", action: L("Tap to return to SideInstaller."),
+                     detail: engine.lastError ?? "", action: L("Tap to return to iLoader X."),
                      symbol: "exclamationmark.triangle.fill", progress: engine.overallProgress)
     }
 
@@ -389,7 +389,7 @@ final class InstallActivity {
             return
         }
         paused = true
-        Engine.shared.log("Out of background time — the install goes on once SideInstaller is open again.")
+        Engine.shared.log("Out of background time — the install goes on once iLoader X is open again.")
         show(currentState())
         // Handed back once the activity has it, but within a second whatever
         // is still queued: iOS ends an app that keeps the time past its end.
@@ -481,7 +481,7 @@ final class InstallActivity {
         task.progress.totalUnitCount = 1000
         taskShows = nil
         show(currentState())
-        Engine.shared.log("Background task: running — the install carries on if you leave SideInstaller.")
+        Engine.shared.log("Background task: running — the install carries on if you leave iLoader X.")
     }
 
     /// iOS took the task back: the user stopped it from its Live Activity, or
@@ -496,7 +496,7 @@ final class InstallActivity {
         guard running else { return }
         if UIApplication.shared.applicationState == .active {
             // In front, the run doesn't need it.
-            Engine.shared.log("Background task: iOS ended it — the install carries on while SideInstaller is open.")
+            Engine.shared.log("Background task: iOS ended it — the install carries on while iLoader X is open.")
         } else {
             // There's no telling the two apart, and either way the run can't go
             // on in the background.
@@ -511,7 +511,7 @@ final class InstallActivity {
     @available(iOS 26.0, *)
     private func holdStopped(_ task: BGContinuedProcessingTask, _ state: State) {
         task.updateTitle(state.title, subtitle: state.detail)
-        Engine.shared.log("Background task: the install stopped — saying so until you're back in SideInstaller.")
+        Engine.shared.log("Background task: the install stopped — saying so until you're back in iLoader X.")
         stoppedTaskHold = Task { [weak self] in
             try? await Task.sleep(for: Self.stoppedHold)
             guard !Task.isCancelled else { return }
@@ -546,22 +546,22 @@ final class InstallActivity {
         if taskID == task.identifier { taskID = nil }
     }
 
-    // MARK: SideInstaller's own Live Activity
+    // MARK: iLoader X's own Live Activity
 
-    /// Starts SideInstaller's activity on `state`: for the whole run when it
+    /// Starts iLoader X's activity on `state`: for the whole run when it
     /// stands in for the background task, or only while the run needs the user.
     /// The app has to be in front, or just leaving it.
     private func startActivity(_ state: State, onlyForNeeds: Bool) {
         let engine = Engine.shared
         guard PairingLiveActivity.hasExtension else {
             if !onlyForNeeds {
-                engine.log("Install Live Activity: not in this build — the install runs while SideInstaller is open.")
+                engine.log("Install Live Activity: not in this build — the install runs while iLoader X is open.")
             }
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             if !onlyForNeeds {
-                engine.log("Install Live Activity: not started — Live Activities are off for SideInstaller in Settings.")
+                engine.log("Install Live Activity: not started — Live Activities are off for iLoader X in Settings.")
             }
             return
         }

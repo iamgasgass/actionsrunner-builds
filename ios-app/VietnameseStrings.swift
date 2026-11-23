@@ -29,14 +29,14 @@ let vietnameseStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "Bạn sẽ cần một tệp ghép nối",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "iPhone này chạy iOS %@. Chỉ iOS %@ mới tự ghép nối được, nên bạn phải tạo tệp ghép nối trên máy tính — bằng jitterbugpair hoặc pymobiledevice3 — rồi nhập vào ứng dụng. SideInstaller sẽ hướng dẫn bạn từng bước.",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "iPhone này chạy iOS %@. Chỉ iOS %@ mới tự ghép nối được, nên bạn phải tạo tệp ghép nối trên máy tính — bằng jitterbugpair hoặc pymobiledevice3 — rồi nhập vào ứng dụng. iLoader X sẽ hướng dẫn bạn từng bước.",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "Cập nhật lên iOS %@",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "iPhone này có thể chạy iOS %@. Trên phiên bản đó, SideInstaller hoạt động mà không cần máy tính: iPhone tự ghép nối, nên không phải tạo tệp ghép nối. Cập nhật trong Cài đặt › Cài đặt chung › Cập nhật phần mềm.",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "iPhone này có thể chạy iOS %@. Trên phiên bản đó, iLoader X hoạt động mà không cần máy tính: iPhone tự ghép nối, nên không phải tạo tệp ghép nối. Cập nhật trong Cài đặt › Cài đặt chung › Cập nhật phần mềm.",
     "OK": "OK",
 
     // MARK: - Account setup & Settings › Account
@@ -56,15 +56,15 @@ let vietnameseStrings: [String: String] = [
     "In use": "Đang dùng",
     "Edit": "Sửa",
     "Remove": "Xóa",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "Chưa lưu Apple ID nào. Thêm một tài khoản và SideInstaller sẽ dùng nó cho mọi lần đăng nhập.",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "Chưa lưu Apple ID nào. Thêm một tài khoản và iLoader X sẽ dùng nó cho mọi lần đăng nhập.",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "Được lưu trong keychain của iPhone này và chỉ gửi cho Apple khi đăng nhập. Vuốt một hàng để sửa mật khẩu hoặc xóa.",
     "Remove this Apple ID?": "Xóa Apple ID này?",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "“%@” và mật khẩu đã lưu sẽ bị xóa khỏi iPhone này. Tài khoản Apple của bạn không thay đổi.",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "Keychain của iPhone này từ chối lưu mật khẩu (lỗi %d), nên mật khẩu chỉ được giữ đến khi thoát SideInstaller.",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "Keychain của iPhone này từ chối lưu mật khẩu (lỗi %d), nên mật khẩu chỉ được giữ đến khi thoát iLoader X.",
     "No Apple ID saved. Add one in Settings › Account.":
         "Chưa lưu Apple ID nào. Hãy thêm một tài khoản trong Cài đặt › Tài khoản.",
 
@@ -131,8 +131,8 @@ let vietnameseStrings: [String: String] = [
     "Tunnel connected": "Đã kết nối đường hầm",
     "Tunnel off": "Đường hầm đã tắt",
     "Update available": "Đã có bản cập nhật",
-    "SideInstaller %@ is available — you're on %@.":
-        "Đã có SideInstaller %@ — bạn đang dùng bản %@.",
+    "iLoader X %@ is available — you're on %@.":
+        "Đã có iLoader X %@ — bạn đang dùng bản %@.",
     "Get the latest version": "Tải phiên bản mới nhất",
     "From the website": "Từ trang web",
     "Sign it with your Apple ID": "Ký bằng Apple ID của bạn",
@@ -147,12 +147,12 @@ let vietnameseStrings: [String: String] = [
     "Replace": "Thay",
     "or": "hoặc",
     "Paste a download link": "Dán liên kết tải xuống",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller nhận ra đây là %@ và thiết lập nó y như bản tự tải về.",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X nhận ra đây là %@ và thiết lập nó y như bản tự tải về.",
     "Downloading… %d%%": "Đang tải… %d%%",
     "iOS %@ required": "Yêu cầu iOS %@",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "iPhone này đang chạy iOS %@, SideInstaller không thể cài đặt trên phiên bản đó. Cập nhật lên iOS %@ trở lên trong Cài đặt › Cài đặt chung › Cập nhật phần mềm.",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "iPhone này đang chạy iOS %@, iLoader X không thể cài đặt trên phiên bản đó. Cập nhật lên iOS %@ trở lên trong Cài đặt › Cài đặt chung › Cập nhật phần mềm.",
     "Wi-Fi required": "Yêu cầu Wi-Fi",
     "Pairing code": "Mã ghép nối",
     "Type this into the prompt in Settings.":
@@ -263,8 +263,8 @@ let vietnameseStrings: [String: String] = [
     "failed: empty pairing file": "lỗi: tệp ghép nối rỗng",
     "failed: %@": "lỗi: %@",
     "Pairing is already in progress.": "Quá trình ghép nối đang diễn ra.",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "Quyền Mạng cục bộ đang tắt. Bật quyền này trong Cài đặt › SideInstaller › Mạng cục bộ rồi thử lại.",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "Quyền Mạng cục bộ đang tắt. Bật quyền này trong Cài đặt › iLoader X › Mạng cục bộ rồi thử lại.",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "Quá trình ghép nối tạo ra một tệp rỗng. Kiểm tra xem bạn đã chấp nhận yêu cầu ghép nối chưa, rồi thử lại.",
 
@@ -289,11 +289,11 @@ let vietnameseStrings: [String: String] = [
     "This certificate has no serial number, so it can't be revoked.":
         "Chứng chỉ này không có số sê-ri nên không thể thu hồi.",
 
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
     "This certificate has no serial number, so it can't be exported.":
         "Chứng chỉ này không có số sê-ri nên không thể xuất.",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "Chỉ có thể xuất chứng chỉ mà SideInstaller dùng để ký: khóa riêng của mọi chứng chỉ khác nằm trên thiết bị đã yêu cầu nó từ Apple.",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "Chỉ có thể xuất chứng chỉ mà iLoader X dùng để ký: khóa riêng của mọi chứng chỉ khác nằm trên thiết bị đã yêu cầu nó từ Apple.",
     "Couldn't export the certificate: %@": "Không thể xuất chứng chỉ: %@",
     "Export certificate": "Xuất chứng chỉ",
     "Password (optional)": "Mật khẩu (không bắt buộc)",
@@ -301,37 +301,37 @@ let vietnameseStrings: [String: String] = [
     "Exporting": "Đang xuất",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "Lưu chứng chỉ này và khóa riêng của nó thành tệp .p12, để một ứng dụng ký khác hoặc máy tính ký bằng nó. Hãy chọn mật khẩu (bạn sẽ cần nó để nhập tệp) hoặc để trống: các ứng dụng ký nhập được tệp không có mật khẩu, nhưng máy Mac thì không. Đừng đưa tệp cho ai.",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller chỉ có thể xuất chứng chỉ mà nó dùng để ký, và không chứng chỉ nào ở đây là nó: khóa riêng của một chứng chỉ nằm trên thiết bị đã yêu cầu nó từ Apple.",
-    "SideInstaller signs with this one": "SideInstaller ký bằng chứng chỉ này",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X chỉ có thể xuất chứng chỉ mà nó dùng để ký, và không chứng chỉ nào ở đây là nó: khóa riêng của một chứng chỉ nằm trên thiết bị đã yêu cầu nó từ Apple.",
+    "iLoader X signs with this one": "iLoader X ký bằng chứng chỉ này",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "Dùng chứng chỉ của SideStore",
     "Checking the certificate": "Đang kiểm tra chứng chỉ",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore sẽ mở ra và gửi lại chứng chỉ của nó. Sau đó SideInstaller cũng ký bằng chứng chỉ này, nên với Apple ID miễn phí, không ứng dụng nào phải thu hồi chứng chỉ của ứng dụng kia.",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple sẽ không cấp chứng chỉ ký thứ hai cho Apple ID này. Nếu chứng chỉ sẵn có do SideStore tạo, SideInstaller cũng có thể ký bằng nó mà không thu hồi gì cả. Thu hồi nó cũng giúp quá trình cài đặt tiếp tục — nhưng không thể hoàn tác.",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "Nếu chứng chỉ đó do SideStore tạo, hãy chạm “Dùng chứng chỉ của SideStore” ở trên: SideInstaller cũng ký bằng chứng chỉ đó, và không có gì bị thu hồi.",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "Từ giờ SideInstaller ký bằng “%@”. Không có gì bị thu hồi, nên các ứng dụng đã được ký bằng chứng chỉ này vẫn hoạt động.",
-    "SideInstaller already signs with “%@”.": "SideInstaller đã ký bằng “%@” rồi.",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore sẽ mở ra và gửi lại chứng chỉ của nó. Sau đó iLoader X cũng ký bằng chứng chỉ này, nên với Apple ID miễn phí, không ứng dụng nào phải thu hồi chứng chỉ của ứng dụng kia.",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple sẽ không cấp chứng chỉ ký thứ hai cho Apple ID này. Nếu chứng chỉ sẵn có do SideStore tạo, iLoader X cũng có thể ký bằng nó mà không thu hồi gì cả. Thu hồi nó cũng giúp quá trình cài đặt tiếp tục — nhưng không thể hoàn tác.",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "Nếu chứng chỉ đó do SideStore tạo, hãy chạm “Dùng chứng chỉ của SideStore” ở trên: iLoader X cũng ký bằng chứng chỉ đó, và không có gì bị thu hồi.",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "Từ giờ iLoader X ký bằng “%@”. Không có gì bị thu hồi, nên các ứng dụng đã được ký bằng chứng chỉ này vẫn hoạt động.",
+    "iLoader X already signs with “%@”.": "iLoader X đã ký bằng “%@” rồi.",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "Chứng chỉ đó không thuộc Apple ID này: nó đã bị thu hồi, hoặc thuộc một Apple ID khác (có thể SideStore đang đăng nhập bằng Apple ID khác). Không có gì bị thay đổi.",
     "Couldn't use that certificate: %@": "Không thể dùng chứng chỉ đó: %@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "SideStore chưa được cài trên iPhone này, nên không có chứng chỉ nào để lấy.",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "Trong LiveContainer, SideStore không thể gửi lại chứng chỉ cho SideInstaller, và LiveContainer cũng chưa có chứng chỉ nào. Trong Settings của LiveContainer, chạm vào “Import Certificate From SideStore” (hãy đăng nhập SideStore trước nếu nó chưa có chứng chỉ), rồi thử lại tại đây.",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "Trong LiveContainer, SideStore không thể gửi lại chứng chỉ cho iLoader X, và LiveContainer cũng chưa có chứng chỉ nào. Trong Settings của LiveContainer, chạm vào “Import Certificate From SideStore” (hãy đăng nhập SideStore trước nếu nó chưa có chứng chỉ), rồi thử lại tại đây.",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "Chứng chỉ mà LiveContainer giữ cho SideStore không thuộc Apple ID này: nó đã bị thu hồi, hoặc thuộc một Apple ID khác. Không có gì bị thay đổi. Nếu từ đó SideStore đã tạo chứng chỉ mới, hãy chạm vào “Refresh Certificate from SideStore” trong Settings của LiveContainer, rồi thử lại tại đây.",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller lấy chứng chỉ của SideStore từ LiveContainer và cũng ký bằng chứng chỉ này, nên với Apple ID miễn phí, không ứng dụng nào phải thu hồi chứng chỉ của ứng dụng kia.",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X lấy chứng chỉ của SideStore từ LiveContainer và cũng ký bằng chứng chỉ này, nên với Apple ID miễn phí, không ứng dụng nào phải thu hồi chứng chỉ của ứng dụng kia.",
     "Sign with this certificate?": "Ký bằng chứng chỉ này?",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "Một liên kết đã gửi cho SideInstaller một chứng chỉ ký. Chỉ dùng nếu chính bạn đã yêu cầu: từ giờ SideInstaller sẽ ký ứng dụng bằng chứng chỉ này thay cho chứng chỉ của nó. Chứng chỉ chỉ được dùng nếu là một trong các chứng chỉ của Apple ID của bạn.",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "Một liên kết đã gửi cho iLoader X một chứng chỉ ký. Chỉ dùng nếu chính bạn đã yêu cầu: từ giờ iLoader X sẽ ký ứng dụng bằng chứng chỉ này thay cho chứng chỉ của nó. Chứng chỉ chỉ được dùng nếu là một trong các chứng chỉ của Apple ID của bạn.",
     "Use it": "Dùng",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "Liên kết đó lẽ ra chứa một chứng chỉ ký, nhưng không đọc được nội dung.",
@@ -438,8 +438,8 @@ let vietnameseStrings: [String: String] = [
     "%d App ID": "%d App ID",
     "%d App IDs": "%d App ID",
     "No App IDs": "Không có App ID",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "Apple ID này chưa đăng ký ứng dụng nào. Hãy cài một ứng dụng bằng SideInstaller rồi quay lại.",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "Apple ID này chưa đăng ký ứng dụng nào. Hãy cài một ứng dụng bằng iLoader X rồi quay lại.",
     "Memory and performance": "Bộ nhớ và hiệu năng",
     "Other free capabilities": "Các khả năng miễn phí khác",
     "Recommended": "Khuyến nghị",
@@ -457,8 +457,8 @@ let vietnameseStrings: [String: String] = [
     "Reading the device": "Đang đọc thiết bị",
 
     // Refresh all: signing the installed apps again.
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "iOS %@ không được hỗ trợ — SideInstaller cần iOS %@ trở lên.",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "iOS %@ không được hỗ trợ — iLoader X cần iOS %@ trở lên.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple không cấp chứng chỉ ký cho Apple ID này: nó báo rằng đã có một chứng chỉ (lỗi 7460). Trong Công cụ › Chứng chỉ, hãy dùng chứng chỉ của SideStore hoặc thu hồi chứng chỉ đó, rồi gia hạn lại.",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -486,10 +486,10 @@ let vietnameseStrings: [String: String] = [
     "Waiting": "Đang chờ",
     "In progress": "Đang chạy",
     "Failed": "Thất bại",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "%d ứng dụng ở đây không có tệp IPA trong SideInstaller nên không thể gia hạn từ trang này. Hãy gia hạn trong ứng dụng đã cài nó, hoặc nhập tệp .ipa của nó trước.",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "%d ứng dụng ở đây không có tệp IPA trong SideInstaller nên không thể gia hạn từ trang này. Hãy gia hạn trong ứng dụng đã cài chúng, hoặc nhập các tệp .ipa của chúng trước.",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "%d ứng dụng ở đây không có tệp IPA trong iLoader X nên không thể gia hạn từ trang này. Hãy gia hạn trong ứng dụng đã cài nó, hoặc nhập tệp .ipa của nó trước.",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "%d ứng dụng ở đây không có tệp IPA trong iLoader X nên không thể gia hạn từ trang này. Hãy gia hạn trong ứng dụng đã cài chúng, hoặc nhập các tệp .ipa của chúng trước.",
     "%d app": "%d ứng dụng",
     "%d apps": "%d ứng dụng",
     "%d app needs refreshing": "%d ứng dụng cần gia hạn",
@@ -534,9 +534,9 @@ let vietnameseStrings: [String: String] = [
         "Wi-Fi đang tắt. Cả hai iPhone phải cùng một mạng Wi-Fi thì mới hoạt động.",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "Bản tải về không phải là tệp IPA. Có thể GitHub đang trả về trang lỗi, hãy thử lại sau một phút.",
-    "Couldn't download the latest SideInstaller release: %@":
-        "Không tải được bản phát hành SideInstaller mới nhất: %@",
-    "No SideInstaller IPA downloaded.": "Chưa tải IPA của SideInstaller.",
+    "Couldn't download the latest iLoader X release: %@":
+        "Không tải được bản phát hành iLoader X mới nhất: %@",
+    "No iLoader X IPA downloaded.": "Chưa tải IPA của iLoader X.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). One has to be revoked first. Use the Certificates tool if this is the Apple ID saved in Settings › Account, or developer.apple.com signed in as it otherwise.":
         "Apple không cấp chứng chỉ ký cho Apple ID này: nó báo rằng đã có một chứng chỉ (lỗi 7460). Phải thu hồi bớt một chứng chỉ trước: bằng công cụ Chứng chỉ nếu đây là Apple ID đã lưu trong Cài đặt › Tài khoản, còn không thì vào developer.apple.com và đăng nhập bằng tài khoản đó.",
     "Apple wouldn't register their iPhone with this Apple ID's developer team, so it won't issue a provisioning profile. %@":
@@ -565,14 +565,14 @@ let vietnameseStrings: [String: String] = [
         "Nhập mã hiển thị tại đây vào hộp thoại trên iPhone của họ.",
     "Type this into the prompt on their iPhone.":
         "Nhập mã này vào hộp thoại trên iPhone của họ.",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller đang đợi một iPhone ghép nối với nó, từ thẻ Cài ứng dụng, trang Ghép nối, hoặc một lần thử trước ở đây. Hãy hoàn tất lần ghép nối đó, hoặc đóng rồi mở lại SideInstaller, sau đó thử lại.",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X đang đợi một iPhone ghép nối với nó, từ thẻ Cài ứng dụng, trang Ghép nối, hoặc một lần thử trước ở đây. Hãy hoàn tất lần ghép nối đó, hoặc đóng rồi mở lại iLoader X, sau đó thử lại.",
     "Pairing with their iPhone didn't finish: %@":
         "Ghép nối với iPhone của họ chưa hoàn tất: %@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "iPhone của họ ở %@ đã từ chối kết nối. Máy chỉ chấp nhận khi bật Chế độ nhà phát triển, và iOS yêu cầu xác nhận lại sau mỗi lần khởi động lại: trên iPhone của họ, hãy bật trong Cài đặt › Quyền riêng tư & Bảo mật › Chế độ nhà phát triển rồi thử lại.",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Không kết nối được tới iPhone của họ ở %@. Hãy kiểm tra xem hai iPhone có cùng một mạng Wi-Fi không, và Mạng cục bộ đã được bật cho SideInstaller trong Cài đặt của iPhone này chưa. Mạng khách và mạng công cộng thường ngăn các thiết bị kết nối với nhau.",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Không kết nối được tới iPhone của họ ở %@. Hãy kiểm tra xem hai iPhone có cùng một mạng Wi-Fi không, và Mạng cục bộ đã được bật cho iLoader X trong Cài đặt của iPhone này chưa. Mạng khách và mạng công cộng thường ngăn các thiết bị kết nối với nhau.",
     "The link to their iPhone didn't come up: %@":
         "Không mở được kết nối tới iPhone của họ: %@",
     "%d%% downloaded": "Đã tải %d%%",
@@ -658,7 +658,7 @@ let vietnameseStrings: [String: String] = [
     "Start LocalDevVPN when needed": "Khởi động LocalDevVPN khi cần",
     "Start LocalDevVPN now": "Khởi động LocalDevVPN ngay",
     "LocalDevVPN isn't installed. Get it from the App Store, and this can start it for you.":
-        "Chưa cài LocalDevVPN. Hãy tải từ App Store, rồi SideInstaller có thể khởi động giúp bạn.",
+        "Chưa cài LocalDevVPN. Hãy tải từ App Store, rồi iLoader X có thể khởi động giúp bạn.",
 
     "Downloaded IPAs": "Tệp IPA đã tải",
     "%@ used": "Đã dùng %@",
@@ -679,10 +679,10 @@ let vietnameseStrings: [String: String] = [
     "Starts with %@": "Bắt đầu với %@",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "Chế độ Tự động bắt đầu với máy chủ đã đăng nhập thành công gần nhất, sau đó thử các máy chủ khác, ưu tiên những máy chủ có khả năng hoạt động cao nhất.",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
-        "Chỉ máy chủ này được thử. Nếu nó lỗi, đăng nhập cũng thất bại: chọn Tự động để SideInstaller thử các máy chủ khác.",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "Chỉ máy chủ đã chọn trong Cài đặt › Máy chủ Anisette được thử. Chọn Tự động ở đó để SideInstaller thử các máy chủ khác khi một máy chủ lỗi.",
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
+        "Chỉ máy chủ này được thử. Nếu nó lỗi, đăng nhập cũng thất bại: chọn Tự động để iLoader X thử các máy chủ khác.",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "Chỉ máy chủ đã chọn trong Cài đặt › Máy chủ Anisette được thử. Chọn Tự động ở đó để iLoader X thử các máy chủ khác khi một máy chủ lỗi.",
     "Device IP": "IP thiết bị",
     "Advanced": "Nâng cao",
     "Clear": "Xóa hết",
@@ -759,28 +759,28 @@ let vietnameseStrings: [String: String] = [
         "Đăng nhập Apple ID thất bại trên %@. Lỗi: %@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "Đăng nhập Apple ID thất bại trên %@. Lỗi qua %@: %@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Máy chủ đăng nhập của Apple đã từ chối yêu cầu (HTTP 503). Lỗi không phải do mật khẩu hay máy chủ anisette, nên thử thêm máy chủ khác cũng không giúp được. Hãy thử lại sau hoặc cập nhật SideInstaller.",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Máy chủ đăng nhập của Apple đã từ chối yêu cầu (HTTP 503). Lỗi không phải do mật khẩu hay máy chủ anisette, nên thử thêm máy chủ khác cũng không giúp được. Hãy thử lại sau hoặc cập nhật iLoader X.",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "“%@” tạo dữ liệu anisette bằng thư viện Android của Apple, và giờ Apple từ chối hoàn tất đăng nhập qua các máy chủ đó (lỗi -80046), sau khi bạn nhập mật khẩu và mã. Trong Cài đặt › Máy chủ Anisette, hãy chọn Tự động hoặc một máy chủ Mac như “SideStore (New)”.",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple đã từ chối hoàn tất đăng nhập (lỗi -80046), kể cả qua máy chủ anisette Mac, loại mà Apple vẫn chấp nhận. Hãy thử lại sau hoặc kiểm tra bản cập nhật SideInstaller.",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple đã từ chối hoàn tất đăng nhập (lỗi -80046), kể cả qua máy chủ anisette Mac, loại mà Apple vẫn chấp nhận. Hãy thử lại sau hoặc kiểm tra bản cập nhật iLoader X.",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple đã từ chối hoàn tất đăng nhập qua “%@” (lỗi -80046). Giờ Apple chỉ chấp nhận đăng nhập qua các máy chủ anisette dùng thư viện macOS của Apple: trong Cài đặt › Máy chủ Anisette, hãy chọn Tự động hoặc một máy chủ Mac như “SideStore (New)”.",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple không gửi mã qua tin nhắn hoặc cuộc gọi cho lần đăng nhập này, nên mã đã được gửi đến thiết bị Apple của bạn.",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple chưa xác nhận đã gửi mã đến thiết bị Apple của bạn. Nếu đã nhận được mã, hãy nhập; nếu chưa, hãy thử cách khác.",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "SideInstaller không kết nối được tới máy chủ đăng nhập của Apple (gsa.apple.com), dù iPhone này vẫn có kết nối internet. Có thứ gì đó đang chặn nó: tường lửa, bộ lọc DNS hoặc trình chặn quảng cáo, giới hạn nội dung trong Thời gian sử dụng, hoặc một ứng dụng VPN khác. Hãy tắt nó hoặc thử mạng khác, rồi thử lại.",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller không kết nối được tới Apple: Dữ liệu di động đang bị tắt cho ứng dụng này. Hãy bật SideInstaller trong Cài đặt › Di động, hoặc kết nối Wi-Fi có internet, rồi thử lại.",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller không kết nối được tới Apple: iOS không cho phép nó dùng Wi-Fi. Vào Cài đặt › Ứng dụng › SideInstaller › Dữ liệu không dây, chọn WLAN & Dữ liệu di động, rồi thử lại.",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller không kết nối được tới Apple: một VPN được đặt để chuyển toàn bộ lưu lượng đang bị ngắt kết nối, nên iOS đang giữ lại lưu lượng. Hãy kết nối lại, hoặc tắt kill switch hay Kết nối theo yêu cầu của nó, rồi thử lại.",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller không kết nối được tới Apple: iPhone này không có kết nối internet. Hãy kết nối Wi-Fi hoặc bật dữ liệu di động, rồi thử lại.",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "iLoader X không kết nối được tới máy chủ đăng nhập của Apple (gsa.apple.com), dù iPhone này vẫn có kết nối internet. Có thứ gì đó đang chặn nó: tường lửa, bộ lọc DNS hoặc trình chặn quảng cáo, giới hạn nội dung trong Thời gian sử dụng, hoặc một ứng dụng VPN khác. Hãy tắt nó hoặc thử mạng khác, rồi thử lại.",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X không kết nối được tới Apple: Dữ liệu di động đang bị tắt cho ứng dụng này. Hãy bật iLoader X trong Cài đặt › Di động, hoặc kết nối Wi-Fi có internet, rồi thử lại.",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X không kết nối được tới Apple: iOS không cho phép nó dùng Wi-Fi. Vào Cài đặt › Ứng dụng › iLoader X › Dữ liệu không dây, chọn WLAN & Dữ liệu di động, rồi thử lại.",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X không kết nối được tới Apple: một VPN được đặt để chuyển toàn bộ lưu lượng đang bị ngắt kết nối, nên iOS đang giữ lại lưu lượng. Hãy kết nối lại, hoặc tắt kill switch hay Kết nối theo yêu cầu của nó, rồi thử lại.",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X không kết nối được tới Apple: iPhone này không có kết nối internet. Hãy kết nối Wi-Fi hoặc bật dữ liệu di động, rồi thử lại.",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "Apple đang tạm thời giới hạn việc đăng nhập cho Apple ID hoặc mạng này (HTTP 429). Thử máy chủ khác cũng không giúp được, và mỗi lần thử có thể kéo dài thời gian chờ, nên hãy đợi một lúc rồi mới đăng nhập lại.",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -813,16 +813,16 @@ let vietnameseStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "Chưa nhập IPA nào. Hãy chạm “Nhập .ipa” và chọn một tệp.",
     "Couldn't import %@: %@": "Không thể nhập %@: %@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "SideInstaller không tải được liên kết đó. Hãy dán đầy đủ địa chỉ https:// mà tệp .ipa được tải về.",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "iLoader X không tải được liên kết đó. Hãy dán đầy đủ địa chỉ https:// mà tệp .ipa được tải về.",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "Liên kết đó không trả về IPA. Nó phải tải thẳng tệp về — một trang chỉ dẫn tới tệp .ipa, hoặc bắt đăng nhập trước, sẽ về đây dưới dạng trang web.",
     "Couldn't download that link: %@": "Không tải được liên kết đó: %@",
     "there's nothing to download for a custom IPA — import one first":
         "không có gì để tải cho IPA tùy chọn — hãy nhập một tệp trước",
     "your app": "ứng dụng của bạn",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "Apple sẽ không cấp chứng chỉ ký cho Apple ID này: Apple báo rằng đã có một chứng chỉ, hoặc một yêu cầu vẫn đang chờ xử lý (lỗi 7460). SideInstaller không dùng lại được chứng chỉ sẵn có nên đã dừng lại thay vì thay thế nó. Xem các bước ở trên.",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "Apple sẽ không cấp chứng chỉ ký cho Apple ID này: Apple báo rằng đã có một chứng chỉ, hoặc một yêu cầu vẫn đang chờ xử lý (lỗi 7460). iLoader X không dùng lại được chứng chỉ sẵn có nên đã dừng lại thay vì thay thế nó. Xem các bước ở trên.",
     " (UDID %@)": " (UDID %@)",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "Không thể đăng ký iPhone này%@ vào nhóm phát triển của Apple ID, nên Apple sẽ không cấp hồ sơ cấp phép. %@ — xem các bước ở trên.",
@@ -837,53 +837,53 @@ let vietnameseStrings: [String: String] = [
     "Import an .ipa first": "Hãy nhập một .ipa trước",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "Chạm “Nhập .ipa” ở trên và chọn tệp — tệp có thể nằm ở bất kỳ đâu mà app Tệp truy cập được, kể cả iCloud Drive hay ổ USB.",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "Hoặc dán liên kết tải trực tiếp ngay dưới nút đó, SideInstaller sẽ tự tải tệp .ipa về.",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "Hoặc mở ứng dụng Tệp, chạm giữ tệp .ipa, chọn Chia sẻ rồi chọn SideInstaller — tệp sẽ được chuyển sang mà không cần trình chọn tệp.",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "Hoặc chép tệp vào Tệp › Trên iPhone của tôi › SideInstaller — SideInstaller cũng tìm thấy ở đó.",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "Hoặc dán liên kết tải trực tiếp ngay dưới nút đó, iLoader X sẽ tự tải tệp .ipa về.",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "Hoặc mở ứng dụng Tệp, chạm giữ tệp .ipa, chọn Chia sẻ rồi chọn iLoader X — tệp sẽ được chuyển sang mà không cần trình chọn tệp.",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "Hoặc chép tệp vào Tệp › Trên iPhone của tôi › iLoader X — iLoader X cũng tìm thấy ở đó.",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "Đây là lối đi ở những nơi GitHub bị chặn: tải IPA trên bất kỳ thiết bị nào, mang sang đây rồi cài đặt.",
     "Bring the .ipa yourself": "Tự mang tệp .ipa đến",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "Không thể tải %@ khi kho mã của nó trên GitHub đang ngoại tuyến. Các ứng dụng khác vẫn cài được như bình thường.",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "Để vẫn cài được, hãy lấy tệp .ipa của nó từ một nguồn bạn tin cậy, đặt tên là %@ rồi chép vào Tệp › Trên iPhone của tôi › SideInstaller.",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "Sau đó chạm vào Cài ứng dụng lần nữa — SideInstaller sẽ dùng tệp của bạn thay vì tải về.",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "Để vẫn cài được, hãy lấy tệp .ipa của nó từ một nguồn bạn tin cậy, đặt tên là %@ rồi chép vào Tệp › Trên iPhone của tôi › iLoader X.",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "Sau đó chạm vào Cài ứng dụng lần nữa — iLoader X sẽ dùng tệp của bạn thay vì tải về.",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "Nếu bạn vào GitHub qua một ứng dụng VPN hoặc proxy, hãy tắt LocalDevVPN rồi bật ứng dụng đó: iOS chỉ chạy một VPN tại một thời điểm.",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "Chạm vào “Lấy tệp .ipa” bên dưới và lưu tệp, hoặc tải tệp trên thiết bị khác rồi chuyển sang đây.",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "Quay lại SideInstaller, chọn IPA tùy chọn trong mục Cài ứng dụng, chạm vào “Nhập .ipa” rồi chọn tệp. SideInstaller nhận ra %@ và thiết lập nó y như bản tự tải về.",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "Quay lại iLoader X, chọn IPA tùy chọn trong mục Cài ứng dụng, chạm vào “Nhập .ipa” rồi chọn tệp. iLoader X nhận ra %@ và thiết lập nó y như bản tự tải về.",
     "Turn LocalDevVPN back on, then tap Install.":
         "Bật lại LocalDevVPN, rồi chạm vào Cài ứng dụng.",
     "Get the .ipa": "Lấy tệp .ipa",
     "Pair this iPhone in Settings": "Ghép nối iPhone này trong Cài đặt",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "Mở ứng dụng Cài đặt, rồi vào Quyền riêng tư & Bảo mật › Chế độ nhà phát triển.",
-    "Tap “Pair with SideInstaller”.": "Chạm vào “Ghép nối với SideInstaller”.",
+    "Tap “Pair with iLoader X”.": "Chạm vào “Ghép nối với iLoader X”.",
     "Enter your iPhone’s passcode if it asks for it.": "Nhập mật mã iPhone của bạn nếu được hỏi.",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "Quay lại SideInstaller, xem mã mà ứng dụng hiển thị, rồi nhập đúng mã đó vào hộp thoại trong Cài đặt.",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "Nhập mã hiện ở đầu màn hình vào hộp thoại trong Cài đặt. Nếu không thấy mã, hãy quay lại SideInstaller để xem.",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "Hãy cho phép thông báo khi SideInstaller hỏi: mã ghép nối sẽ đến với bạn trong Cài đặt bằng cách đó.",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "Quay lại iLoader X, xem mã mà ứng dụng hiển thị, rồi nhập đúng mã đó vào hộp thoại trong Cài đặt.",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "Nhập mã hiện ở đầu màn hình vào hộp thoại trong Cài đặt. Nếu không thấy mã, hãy quay lại iLoader X để xem.",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "Hãy cho phép thông báo khi iLoader X hỏi: mã ghép nối sẽ đến với bạn trong Cài đặt bằng cách đó.",
 
     // The pairing Live Activity
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "Quyền riêng tư & Bảo mật › Chế độ nhà phát triển › Ghép nối với SideInstaller",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "Quyền riêng tư & Bảo mật › Chế độ nhà phát triển › Ghép nối với iLoader X",
     "Paired": "Đã ghép nối",
-    "Tap to return to SideInstaller.": "Chạm để quay lại SideInstaller.",
+    "Tap to return to iLoader X.": "Chạm để quay lại iLoader X.",
 
     // The install's progress outside the app
     "Installing %@": "Đang cài đặt %@",
     "Paused": "Đã tạm dừng",
-    "Open SideInstaller to finish the install.":
-        "Mở SideInstaller để hoàn tất cài đặt.",
+    "Open iLoader X to finish the install.":
+        "Mở iLoader X để hoàn tất cài đặt.",
     "Check the App IDs it needs, then tap Install.":
         "Kiểm tra các App ID cần dùng, rồi chạm vào Cài ứng dụng.",
     "Tap Trust": "Chạm vào Tin cậy",
@@ -893,8 +893,8 @@ let vietnameseStrings: [String: String] = [
     "A signing certificate already exists": "Đã có một chứng chỉ ký",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple trả về lỗi 7460: Apple ID này đã có chứng chỉ phát triển iOS, hoặc một yêu cầu vẫn đang chờ xử lý.",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller không dùng lại được chứng chỉ đó. Điều này xảy ra khi chứng chỉ được cấp ở nơi khác — AltStore, SideStore, Sideloadly hoặc Xcode trên một thiết bị khác — nên khoá riêng tư cần thiết không có trên iPhone này.",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X không dùng lại được chứng chỉ đó. Điều này xảy ra khi chứng chỉ được cấp ở nơi khác — AltStore, SideStore, Sideloadly hoặc Xcode trên một thiết bị khác — nên khoá riêng tư cần thiết không có trên iPhone này.",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "Dùng “Thu hồi và thử lại” ở trên, hoặc mở Chứng chỉ trong thẻ Công cụ, chạm “Tải danh sách chứng chỉ” rồi thu hồi ở đó.",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -911,8 +911,8 @@ let vietnameseStrings: [String: String] = [
         "Apple đã khóa Apple Account này vì lý do bảo mật, thường là sau quá nhiều lần thử đăng nhập. Mọi lần đăng nhập đều thất bại cho đến khi tài khoản được mở khóa, nên lúc này chạm vào Cài ứng dụng lần nữa chưa có tác dụng.",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "Mở iForgot, nhập email của Apple Account này và làm theo các bước của Apple để mở khóa và đặt lại mật khẩu.",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "Quay lại SideInstaller, mở Cài đặt › Tài khoản, vuốt sang trái trên Apple ID này, chạm vào Sửa rồi nhập mật khẩu mới.",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "Quay lại iLoader X, mở Cài đặt › Tài khoản, vuốt sang trái trên Apple ID này, chạm vào Sửa rồi nhập mật khẩu mới.",
     "Then tap Install again.": "Sau đó chạm vào Cài ứng dụng lần nữa.",
     "Open iForgot": "Mở iForgot",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -923,8 +923,8 @@ let vietnameseStrings: [String: String] = [
         "iPhone này đã có ba ứng dụng ký bằng Apple ID miễn phí, mức tối đa iOS cho phép, kể cả ứng dụng đã hết hạn. Hãy xóa một ứng dụng rồi thử lại.",
     "This Apple Account can't sign apps":
         "Apple Account này không thể ký ứng dụng",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "Apple chỉ cho người lớn dùng dịch vụ dành cho nhà phát triển mà SideInstaller dùng để ký ứng dụng, và Apple cho biết Apple Account này thuộc về người chưa đủ tuổi (lỗi 1102).",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "Apple chỉ cho người lớn dùng dịch vụ dành cho nhà phát triển mà iLoader X dùng để ký ứng dụng, và Apple cho biết Apple Account này thuộc về người chưa đủ tuổi (lỗi 1102).",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "Hãy đăng nhập bằng Apple Account của một người lớn: mở Cài đặt › Tài khoản và thêm tài khoản đó vào.",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -938,8 +938,8 @@ let vietnameseStrings: [String: String] = [
     "Open Apple Account":
         "Mở Apple Account",
     "No App IDs left this week": "Đã hết App ID trong tuần này",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "Mỗi ứng dụng mà SideInstaller ký đều cần một App ID, và các tiện ích mở rộng của nó dùng chung App ID đó. Apple ID miễn phí chỉ đăng ký được 10 App ID mỗi tuần, và mỗi App ID được tính trong 7 ngày.",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "Mỗi ứng dụng mà iLoader X ký đều cần một App ID, và các tiện ích mở rộng của nó dùng chung App ID đó. Apple ID miễn phí chỉ đăng ký được 10 App ID mỗi tuần, và mỗi App ID được tính trong 7 ngày.",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "Không thể xóa chúng sớm hơn. Hãy đợi một số hết hạn, rồi chạm vào Cài ứng dụng lần nữa.",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -994,8 +994,8 @@ let vietnameseStrings: [String: String] = [
         "Apple ID của bạn đã đạt giới hạn số thiết bị đăng ký. Tài khoản miễn phí chỉ đăng ký được một số ít thiết bị mỗi năm và không thể gỡ thiết bị cũ cho đến khi năm đăng ký được đặt lại.",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "Cách đơn giản nhất: điền một Apple ID khác (hoặc tài khoản dự phòng) vào các ô ở trên, rồi chạm vào Cài đặt lần nữa.",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller không thể tự động thêm iPhone này vào nhóm phát triển của Apple ID. Chạm vào Cài đặt lần nữa thường sẽ được — dịch vụ nhà phát triển của Apple đôi khi tạm thời không hoạt động.",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X không thể tự động thêm iPhone này vào nhóm phát triển của Apple ID. Chạm vào Cài đặt lần nữa thường sẽ được — dịch vụ nhà phát triển của Apple đôi khi tạm thời không hoạt động.",
     "If it keeps failing, add the device by hand. Its UDID is:":
         "Nếu vẫn lỗi, hãy thêm thiết bị thủ công. UDID của thiết bị là:",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
@@ -1032,17 +1032,17 @@ let vietnameseStrings: [String: String] = [
         "iPhone này đã ngắt kết nối ngay khi nó vừa mở. Từ iOS 26.4, nó làm vậy với các tệp ghép nối lockdown, như tệp này, khi chúng đi qua LocalDevVPN, nên tạo một tệp mới cùng loại cũng không giúp được gì. Tệp ghép nối “Remote pairing” vẫn dùng được: trên máy tính, mở idevice_pair, chọn “Remote pairing”, bấm “Create”, rồi “Save to file…”, và nhập tệp đó trong “Tệp ghép nối”.",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "iPhone này đã ngắt kết nối: từ iOS 26.4, nó làm vậy với các tệp ghép nối lockdown như tệp này khi chúng đi qua LocalDevVPN. Xem các bước ở trên.",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "Việc ghép nối iPhone này cần đến nó: SideInstaller quảng bá chính mình trên mạng nội bộ để Cài đặt tìm thấy.",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "Hãy kết nối vào một mạng Wi-Fi. Việc ghép nối iPhone này cần đến nó — SideInstaller phải tìm thấy được trên mạng nội bộ.",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "Việc ghép nối iPhone này cần đến nó: iLoader X quảng bá chính mình trên mạng nội bộ để Cài đặt tìm thấy.",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "Hãy kết nối vào một mạng Wi-Fi. Việc ghép nối iPhone này cần đến nó — iLoader X phải tìm thấy được trên mạng nội bộ.",
 
     // MARK: - About
 
     "About": "Giới thiệu",
     "Version %@ (%@)": "Phiên bản %@ (%@)",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller cài SideStore và LiveContainer thẳng vào iPhone của bạn, không cần đến máy tính.",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X cài SideStore và LiveContainer thẳng vào iPhone của bạn, không cần đến máy tính.",
 
     "Links": "Liên kết",
     "Source code": "Mã nguồn",
@@ -1051,8 +1051,8 @@ let vietnameseStrings: [String: String] = [
     "Donation wallets for Bitcoin, Ethereum and Solana.":
         "Ví nhận ủng hộ cho Bitcoin, Ethereum và Solana.",
     "Crypto donations": "Ủng hộ bằng tiền mã hóa",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "Việc ủng hộ hoàn toàn là tự nguyện. Khoản ủng hộ không dùng để mua gì, không mở khóa tính năng nào và bạn không nhận lại gì cả; đó chỉ là một cách để cảm ơn nếu SideInstaller đã giúp ích cho bạn.",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "Việc ủng hộ hoàn toàn là tự nguyện. Khoản ủng hộ không dùng để mua gì, không mở khóa tính năng nào và bạn không nhận lại gì cả; đó chỉ là một cách để cảm ơn nếu iLoader X đã giúp ích cho bạn.",
     "Coin": "Đồng tiền",
     "Network: %@": "Mạng: %@",
     "QR code for the %@ address": "Mã QR của địa chỉ %@",
@@ -1061,8 +1061,8 @@ let vietnameseStrings: [String: String] = [
         "Chỉ gửi mỗi đồng tiền qua đúng mạng được ghi. Tiền mã hóa gửi qua mạng khác sẽ không thể khôi phục.",
 
     "Special thanks": "Lời cảm ơn đặc biệt",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "Vì idevice, thư viện mà SideInstaller dùng để giao tiếp với iPhone của bạn. Không có nó thì mọi thứ này đều không tồn tại.",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "Vì idevice, thư viện mà iLoader X dùng để giao tiếp với iPhone của bạn. Không có nó thì mọi thứ này đều không tồn tại.",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "Vì đã hỗ trợ và phát hiện những lỗi sau đó được sửa.",
     "For the Japanese translation.": "Vì bản dịch tiếng Nhật.",
@@ -1096,12 +1096,12 @@ let vietnameseStrings: [String: String] = [
     "%@ needs iOS %d or later. This iPhone runs iOS %@.":
         "%@ cần iOS %d trở lên. iPhone này đang chạy iOS %@.",
     "Open Madeira from your Home Screen.": "Mở Madeira từ Màn hình chính.",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "Trong phần thiết lập của nó, ở mục “Set up JIT”, chọn “In-app with pairing file”: SideInstaller đã đặt sẵn tệp ở đó, nên hãy chạm vào “Continue”.",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "Trong phần thiết lập của nó, ở mục “Set up JIT”, chọn “In-app with pairing file”: iLoader X đã đặt sẵn tệp ở đó, nên hãy chạm vào “Continue”.",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "Trong phần thiết lập của nó, ở mục “Set up JIT”, chọn cách iPhone này có JIT.",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "Từ giờ Madeira tự gia hạn chữ ký của mình, khi nó đang mở và LocalDevVPN đang kết nối. SideInstaller đã cấp cho nó một phiên đăng nhập để làm việc đó: một token cho dịch vụ nhà phát triển của Apple, không phải mật khẩu của bạn. Madeira có thể xoá nó trong Settings › Signing.",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "Từ giờ Madeira tự gia hạn chữ ký của mình, khi nó đang mở và LocalDevVPN đang kết nối. iLoader X đã cấp cho nó một phiên đăng nhập để làm việc đó: một token cho dịch vụ nhà phát triển của Apple, không phải mật khẩu của bạn. Madeira có thể xoá nó trong Settings › Signing.",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "Chữ ký của nó có hiệu lực 7 ngày. Trước khi hết hạn, hãy gia hạn tại đây trong Công cụ › Ứng dụng sideload.",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1130,16 +1130,16 @@ let vietnameseStrings: [String: String] = [
 
     "Install from a link?": "Cài đặt từ liên kết?",
     "Download and install": "Tải xuống và cài đặt",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller sẽ tải .ipa này xuống, ký bằng Apple ID của bạn rồi cài đặt. Chỉ tiếp tục nếu bạn tin nguồn của liên kết.",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X sẽ tải .ipa này xuống, ký bằng Apple ID của bạn rồi cài đặt. Chỉ tiếp tục nếu bạn tin nguồn của liên kết.",
     "It replaces %@, the custom .ipa you have now.": "Nó sẽ thay %@, IPA tùy chọn bạn đang có.",
     "Use SideStore's pairing file?": "Dùng tệp ghép nối của SideStore?",
     "Import this pairing file?": "Nhập tệp ghép nối này?",
     "Import": "Nhập",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore đã gửi lại tệp ghép nối nó đang có. SideInstaller sẽ dùng tệp này để kết nối với iPhone này.",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "Một liên kết đã gửi cho SideInstaller một tệp ghép nối. Chỉ nhập nếu chính bạn đã yêu cầu: SideInstaller sẽ dùng tệp này để kết nối với iPhone này.",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore đã gửi lại tệp ghép nối nó đang có. iLoader X sẽ dùng tệp này để kết nối với iPhone này.",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "Một liên kết đã gửi cho iLoader X một tệp ghép nối. Chỉ nhập nếu chính bạn đã yêu cầu: iLoader X sẽ dùng tệp này để kết nối với iPhone này.",
     "It replaces %@.": "Nó sẽ thay %@.",
     "It replaces the pairing file in use now.": "Nó sẽ thay tệp ghép nối đang dùng.",
     "Get it from SideStore": "Lấy từ SideStore",
@@ -1147,14 +1147,14 @@ let vietnameseStrings: [String: String] = [
         "SideStore sẽ mở ra và gửi lại tệp ghép nối nó đang có.",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "SideStore chưa được cài trên iPhone này, nên không có tệp ghép nối nào để lấy.",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "SideInstaller sẽ lấy tệp ghép nối mà SideStore tích hợp trong LiveContainer đang có.",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "Đây là tệp ghép nối mà SideStore tích hợp trong LiveContainer đang có. SideInstaller sẽ dùng tệp này để kết nối với iPhone này.",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "Trong Chế độ Đa nhiệm của LiveContainer, SideInstaller không mở được các tệp của SideStore tích hợp. Hãy mở SideInstaller trong LiveContainer mà không dùng Chế độ Đa nhiệm rồi thử lại, hoặc chạm “Nhập tệp ghép nối” và chọn tệp máy tính đã tạo.",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "Trong LiveContainer, SideStore không gửi lại được tệp ghép nối cho SideInstaller, và SideStore tích hợp trong LiveContainer cũng không có tệp nào SideInstaller dùng được. Hãy chạm “Nhập tệp ghép nối” và chọn tệp máy tính đã tạo, hoặc nhập một tệp vào SideStore trước, rồi quay lại đây thử lại.",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "iLoader X sẽ lấy tệp ghép nối mà SideStore tích hợp trong LiveContainer đang có.",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "Đây là tệp ghép nối mà SideStore tích hợp trong LiveContainer đang có. iLoader X sẽ dùng tệp này để kết nối với iPhone này.",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "Trong Chế độ Đa nhiệm của LiveContainer, iLoader X không mở được các tệp của SideStore tích hợp. Hãy mở iLoader X trong LiveContainer mà không dùng Chế độ Đa nhiệm rồi thử lại, hoặc chạm “Nhập tệp ghép nối” và chọn tệp máy tính đã tạo.",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "Trong LiveContainer, SideStore không gửi lại được tệp ghép nối cho iLoader X, và SideStore tích hợp trong LiveContainer cũng không có tệp nào iLoader X dùng được. Hãy chạm “Nhập tệp ghép nối” và chọn tệp máy tính đã tạo, hoặc nhập một tệp vào SideStore trước, rồi quay lại đây thử lại.",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "Liên kết cài đặt đó không chứa .ipa nào. Nó cần ?url= theo sau là địa chỉ https:// để tải .ipa.",
     "That link was meant to carry a pairing file, but what it holds can't be read.":
@@ -1199,39 +1199,39 @@ let vietnameseStrings: [String: String] = [
     "Look again": "Tìm lại",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "Không có nhật ký sự cố nào của SideStore, LiveContainer hoặc Madeira trong %d ngày qua.",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "iOS chuyển các sự cố của chính SideInstaller cho ứng dụng vào lần mở tiếp theo. Nhật ký sự cố của SideStore, LiveContainer và Madeira được đọc từ iPhone này qua LocalDevVPN.",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iOS chuyển các sự cố của chính iLoader X cho ứng dụng vào lần mở tiếp theo. Nhật ký sự cố của SideStore, LiveContainer và Madeira được đọc từ iPhone này qua LocalDevVPN.",
     "Open a GitHub issue": "Mở issue trên GitHub",
     "Share the report": "Chia sẻ báo cáo",
     "Preview the report": "Xem trước báo cáo",
     "Report": "Báo cáo",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "Issue mở ra với nội dung đã điền sẵn. Khi nhật ký quá dài để điền, SideInstaller sẽ sao chép nó để bạn dán vào cuối issue. Toàn bộ báo cáo cũng được lưu trong %@.",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "Issue mở ra với nội dung đã điền sẵn. Khi nhật ký quá dài để điền, iLoader X sẽ sao chép nó để bạn dán vào cuối issue. Toàn bộ báo cáo cũng được lưu trong %@.",
     "Files › On My iPhone": "Tệp › Trên iPhone của tôi",
     "Copy the full log": "Sao chép toàn bộ nhật ký",
     "Paste the log into the issue": "Dán nhật ký vào issue",
     "Open GitHub": "Mở GitHub",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "Nhật ký đầy đủ quá dài để điền sẵn, nên SideInstaller đã sao chép nó. Trên GitHub, chạm vào cuối văn bản, chọn Dán, rồi gửi issue.",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "Nhật ký đầy đủ quá dài để điền sẵn, nên iLoader X đã sao chép nó. Trên GitHub, chạm vào cuối văn bản, chọn Dán, rồi gửi issue.",
     "Describe the problem above first.": "Hãy mô tả sự cố ở trên trước.",
     "Couldn't save the report: %@": "Không thể lưu báo cáo: %@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?":
-        "Bạn đã tải SideInstaller từ sideinstaller.net phải không?",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller là mã nguồn mở, nên bất kỳ ai cũng có thể phát hành một bản đã chỉnh sửa để đánh cắp Apple ID được nhập vào. Chỉ sideinstaller.net là chính thức.",
-    "Yes, from sideinstaller.net":
-        "Có, từ sideinstaller.net",
+    "Did you download iLoader X from github.com/iamgasgass?":
+        "Bạn đã tải iLoader X từ github.com/iamgasgass phải không?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X là mã nguồn mở, nên bất kỳ ai cũng có thể phát hành một bản đã chỉnh sửa để đánh cắp Apple ID được nhập vào. Chỉ github.com/iamgasgass là chính thức.",
+    "Yes, from github.com/iamgasgass":
+        "Có, từ github.com/iamgasgass",
     "No, or I'm not sure":
         "Không, hoặc tôi không chắc",
     "Don't sign in with this copy":
         "Đừng đăng nhập bằng bản này",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "Các bản tải từ nơi khác ngoài sideinstaller.net không chính thức và có thể đã bị chỉnh sửa để đánh cắp Apple ID của bạn. Hãy xoá bản này, cài SideInstaller từ sideinstaller.net rồi đăng nhập ở đó.",
-    "Open sideinstaller.net":
-        "Mở sideinstaller.net",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "Các bản tải từ nơi khác ngoài github.com/iamgasgass không chính thức và có thể đã bị chỉnh sửa để đánh cắp Apple ID của bạn. Hãy xoá bản này, cài iLoader X từ github.com/iamgasgass rồi đăng nhập ở đó.",
+    "Open github.com/iamgasgass":
+        "Mở github.com/iamgasgass",
     "Back":
         "Quay lại",
     "I understand the risks":
@@ -1241,10 +1241,10 @@ let vietnameseStrings: [String: String] = [
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "Nếu bản này đã bị chỉnh sửa, nó có thể gửi Apple ID và mật khẩu của bạn cho người khác. Chỉ tiếp tục nếu bạn tin tưởng nguồn tải.",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Không kết nối được tới iPhone của họ ở %@. Hãy kiểm tra địa chỉ (Cài đặt › Wi-Fi › ⓘ trên iPhone của họ), hai iPhone có cùng một mạng Wi-Fi không, và Mạng cục bộ đã được bật cho SideInstaller trong Cài đặt của iPhone này chưa. Mạng khách và mạng công cộng thường ngăn các thiết bị kết nối với nhau.",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Không kết nối được tới iPhone của họ ở %@. Hãy kiểm tra địa chỉ (Cài đặt › Wi-Fi › ⓘ trên iPhone của họ), hai iPhone có cùng một mạng Wi-Fi không, và Mạng cục bộ đã được bật cho iLoader X trong Cài đặt của iPhone này chưa. Mạng khách và mạng công cộng thường ngăn các thiết bị kết nối với nhau.",
     "Their iPhone": "iPhone của họ",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "Họ đã chạm “Không tin cậy” trên iPhone của họ. Hãy bắt đầu lại và nhờ họ chạm Tin cậy.",
@@ -1260,19 +1260,19 @@ let vietnameseStrings: [String: String] = [
         "“%@” không phải là địa chỉ IPv4. Nó phải có dạng 192.168.1.42.",
     "Do you have the device's IP?": "Bạn có địa chỉ IP của thiết bị không?",
     "Optional": "Không bắt buộc",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller yêu cầu iPhone của họ ghép nối trực tiếp. Cần thiết với iOS dưới 27.",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X yêu cầu iPhone của họ ghép nối trực tiếp. Cần thiết với iOS dưới 27.",
     "Their iPhone pairs from its own Settings, which needs iOS 27.":
         "iPhone của họ tự ghép nối từ Cài đặt của máy, việc này cần iOS 27.",
     "IP address": "Địa chỉ IP",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "iPhone của họ đang chạy iOS %@. Từ iOS 26.4 trở đi, SideInstaller không dùng được kiểu ghép nối mà iPhone của họ cấp qua Wi-Fi, nên cần tệp ghép nối tạo trên máy tính.",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "Tải LocalDevVPN từ App Store và kết nối: SideInstaller hoạt động thông qua nó.",
-    "Open SideInstaller. Its pairing file is already in place.":
-        "Mở SideInstaller. Tệp ghép nối đã có sẵn trong đó.",
-    "Open SideInstaller and import a pairing file made on a computer.":
-        "Mở SideInstaller và nhập tệp ghép nối tạo trên máy tính.",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "iPhone của họ đang chạy iOS %@. Từ iOS 26.4 trở đi, iLoader X không dùng được kiểu ghép nối mà iPhone của họ cấp qua Wi-Fi, nên cần tệp ghép nối tạo trên máy tính.",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "Tải LocalDevVPN từ App Store và kết nối: iLoader X hoạt động thông qua nó.",
+    "Open iLoader X. Its pairing file is already in place.":
+        "Mở iLoader X. Tệp ghép nối đã có sẵn trong đó.",
+    "Open iLoader X and import a pairing file made on a computer.":
+        "Mở iLoader X và nhập tệp ghép nối tạo trên máy tính.",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ là địa chỉ mà chính chiếc iPhone này đang dùng. Side by Side cài lên iPhone của người khác, nên hãy dùng địa chỉ của họ. Để cài lên máy này, hãy dùng tab Cài ứng dụng.",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1306,19 +1306,27 @@ let vietnameseStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "Apple Account này thuộc %d nhóm nhà phát triển. Hãy chọn nhóm dùng để ký.",
     "Which Team?": "Nhóm nào?",
-    "Signed this copy of SideInstaller": "Đã ký bản SideInstaller này",
+    "Signed this copy of iLoader X": "Đã ký bản iLoader X này",
     "A free team's apps last 7 days; a paid team's last a year.":
         "Ứng dụng do nhóm miễn phí ký dùng được 7 ngày; do nhóm trả phí ký dùng được một năm.",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "Ứng dụng đã cài bằng nhóm khác sẽ không bị thay thế: ký bằng nhóm này sẽ cài thêm một bản thứ hai.",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller sẽ nhớ lựa chọn này cho Apple ID. Để chọn lại, mở Cài đặt › Tài khoản, vuốt sang trái trên Apple ID đó rồi chạm vào Nhóm.",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X sẽ nhớ lựa chọn này cho Apple ID. Để chọn lại, mở Cài đặt › Tài khoản, vuốt sang trái trên Apple ID đó rồi chạm vào Nhóm.",
     "No developer team was picked, so the sign-in stopped.":
         "Chưa chọn nhóm nhà phát triển nào nên đã dừng đăng nhập.",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "Apple Account của bạn thuộc nhiều nhóm nhà phát triển. Hãy mở SideInstaller và chọn nhóm dùng để ký.",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "Apple Account của bạn thuộc nhiều nhóm nhà phát triển. Hãy mở iLoader X và chọn nhóm dùng để ký.",
     "Pick the team again?": "Chọn lại nhóm?",
     "Pick Again": "Chọn lại",
     "The next sign-in with “%@” asks which developer team signs.":
         "Lần đăng nhập tiếp theo bằng “%@” sẽ hỏi ký bằng nhóm nhà phát triển nào.",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X là một bản fork của nó, với tên, bundle ID và biểu tượng riêng.",
+    "App Icon":
+        "Biểu tượng ứng dụng",
+    "Couldn't change the icon: %@":
+        "Không thể đổi biểu tượng: %@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "Mỗi biểu tượng có phiên bản Tối và Phủ màu, iOS dùng chúng theo giao diện Màn hình chính.",
 ]

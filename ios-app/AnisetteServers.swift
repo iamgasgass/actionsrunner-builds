@@ -73,7 +73,7 @@ extension AnisetteServer {
     /// Fetch the live list, throwing so the caller can keep the bundled one.
     static func fetchList() async throws -> [AnisetteServer] {
         var req = URLRequest(url: listURL)
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         let (data, _) = try await URLSession.shared.data(for: req)
         let servers = try JSONDecoder().decode(ServerList.self, from: data).servers.map(relabeled)
         return servers + extras.filter { extra in
@@ -186,7 +186,7 @@ extension AnisetteServer {
     /// own, for its saved token; isideload doesn't log in through it
     /// (`AppleRefusals` then skips the rest of its kind). The macOS servers are
     /// what iLoader, xtool and SideStore's users sign in through now, and
-    /// SideInstaller reports a newer Mac through them; the Windows servers
+    /// iLoader X reports a newer Mac through them; the Windows servers
     /// come after, since jkcoxson's and StikStore's moved to the macOS library
     /// and win.ani.sidestore.io, the one left, was down on 2026-10-23.
     ///

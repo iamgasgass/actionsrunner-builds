@@ -57,6 +57,7 @@ struct SettingsView: View {
             Form {
                 accountSection
                 languageSection
+                AppIconSection()
                 soundsSection
                 tunnelSection
                 developerModeSection
@@ -149,7 +150,7 @@ struct SettingsView: View {
                     }
             }
             if accounts.accounts.isEmpty {
-                Text(L("No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in."))
+                Text(L("No Apple ID saved yet. Add one and iLoader X will use it for every sign-in."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -438,7 +439,7 @@ struct SettingsView: View {
         } footer: {
             Text(engine.anisetteAuto
                  ? L("Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.")
-                 : L("Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others."))
+                 : L("Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others."))
         }
     }
 

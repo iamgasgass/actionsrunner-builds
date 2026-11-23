@@ -174,7 +174,7 @@ struct PairingFileKind: Hashable {
 /// The pairing file given to other apps: RPPairing and lockdown records merged
 /// into one plist.
 ///
-/// SideInstaller's tunnel and StikDebug (sideloaded) use the RPPairing keys
+/// iLoader X's tunnel and StikDebug (sideloaded) use the RPPairing keys
 /// (`public_key`, `private_key`, `identifier`, `alt_irk`). minimuxer (SideStore,
 /// LiveContainer) and Feather use the lockdown record (HostID, SystemBUID,
 /// certificates and keys, escrow bag, UDID).
@@ -383,7 +383,7 @@ enum AltStorePairingHandoff {
 ///
 /// Madeira refreshes itself the way SideStore does: it asks Apple for a new
 /// provisioning profile and installs it over its pairing. It never asks for an
-/// Apple ID, though. SideInstaller leaves it the developer-portal token this
+/// Apple ID, though. iLoader X leaves it the developer-portal token this
 /// sign-in got and the anisette identity the token was issued to, with no
 /// password: what SideStore keeps for the same purpose. Apple states an expiry
 /// for the token; once it has passed, or the Apple ID's password changes, a new
@@ -561,7 +561,7 @@ enum SideStorePairingHandoff {
 }
 
 /// The pairing file LiveContainer's built-in SideStore keeps, which “Get it
-/// from SideStore” imports while SideInstaller runs inside LiveContainer.
+/// from SideStore” imports while iLoader X runs inside LiveContainer.
 ///
 /// Asking SideStore can't work there. iOS opens only the URL schemes in
 /// LiveContainer's Info.plist, which has no `sideinstaller`, so the link
@@ -570,20 +570,20 @@ enum SideStorePairingHandoff {
 /// doesn't handle itself, and its `open-url` forwarding wants the whole link
 /// base64-encoded, which SideStore's reply can't produce.
 ///
-/// SideInstaller runs in LiveContainer's own process, though, and the built-in
+/// iLoader X runs in LiveContainer's own process, though, and the built-in
 /// SideStore's home is the `SideStore` folder in LiveContainer's Documents
 /// (`SideStoreHome.liveContainer`), so its files are read where they lie. The
 /// SideStore that LiveContainer carries keeps one file per protocol, as
 /// SideStore's nightlies do (`SideStorePairingHandoff`); its builds before
 /// those kept one legacy file. The records found go into one file, as in
-/// SideInstaller's own pairing file.
+/// iLoader X's own pairing file.
 enum LiveContainerSideStorePairing {
 
     /// What looking for the built-in SideStore's pairing file came to.
     enum Outcome {
         /// A pairing file to import, and the files it was made from.
         case found(LinkedPairingFile, from: [String])
-        /// SideInstaller runs in a LiveContainer Multitask Mode window: an app
+        /// iLoader X runs in a LiveContainer Multitask Mode window: an app
         /// extension, which isn't let into LiveContainer's Documents.
         case unreachable
         /// No pairing file to be had.
@@ -672,7 +672,7 @@ enum LiveContainerSideStorePairing {
     }
 
     /// `lockdown`'s lockdown record and `remote`'s RPPairing record in one
-    /// plist, as `CompositePairingFile` merges SideInstaller's own. Each file's
+    /// plist, as `CompositePairingFile` merges iLoader X's own. Each file's
     /// other record is left out, so nothing comes from another pairing.
     private static func merge(lockdown: Data, remote: Data) throws -> Data {
         let remoteKeys = SideStorePairingHandoff.remoteKeys
@@ -707,7 +707,7 @@ enum LiveContainerSideStorePairing {
     private enum Read {
         case file(Data)
         case missing
-        /// The sandbox keeps SideInstaller out.
+        /// The sandbox keeps iLoader X out.
         case denied
         /// There, but not to be read as a pairing file: why, for the log.
         case unusable(String)
@@ -743,7 +743,7 @@ enum LiveContainerSideStorePairing {
     }
 }
 
-/// The anisette settings SideStore signs in with, set when SideInstaller
+/// The anisette settings SideStore signs in with, set when iLoader X
 /// installs it.
 ///
 /// SideStore starts on its own on-device anisette and on ani.sidestore.io,
@@ -761,7 +761,7 @@ enum SideStoreAnisetteHandoff {
     /// picked isn't on it.
     static let server = "https://new.ani.sidestore.io"
     /// SideStore's default headers (AnisetteKit's `defaultClientInfo` and
-    /// `defaultUserAgent`): a current Mac, which SideInstaller reports through
+    /// `defaultUserAgent`): a current Mac, which iLoader X reports through
     /// the macOS-ADI servers too.
     static let clientInfo = "<MacBookPro18,3> <macOS;26.6;25F84> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
     static let userAgent = "AuthKit/1 (Macintosh; OS X 26.6) (com.apple.akd/1.0)"

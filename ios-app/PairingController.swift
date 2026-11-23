@@ -24,7 +24,7 @@ final class PairingController {
 
     static let shared = PairingController()
 
-    private let hostName = "SideInstaller"
+    private let hostName = "iLoader X"
     private let hostModel = "Mac17,7"   // device sees a Mac-like pairing host
     private let bindAddress = "0.0.0.0"
 
@@ -33,17 +33,17 @@ final class PairingController {
     ///
     /// Files paired before `peerHostIdentifier` existed have an identifier
     /// derived from this name. A different name keeps that record on their
-    /// iPhone apart from the one their own SideInstaller pairs itself with. With
+    /// iPhone apart from the one their own iLoader X pairs itself with. With
     /// the same name, pairing them again would replace that record, and the
-    /// pairing files their SideInstaller put into SideStore and the rest would
+    /// pairing files their iLoader X put into SideStore and the rest would
     /// stop working. Never change or localize it: records already on other
     /// iPhones were paired under it.
-    nonisolated static let peerHostName = "SideInstaller (Side by Side)"
+    nonisolated static let peerHostName = "iLoader X (Side by Side)"
 
     /// The identifier a new Side by Side pairing file gets, made once per
     /// install.
     ///
-    /// Derived from `peerHostName`, it would be the same on every SideInstaller,
+    /// Derived from `peerHostName`, it would be the same on every iLoader X,
     /// and their iPhone keeps one record per identifier: someone else pairing it
     /// from their own iPhone would replace this one's record, and the pairing
     /// remembered here would stop working. iLoader 2.3.5 gives each host its own
@@ -104,7 +104,7 @@ final class PairingController {
             case .busy:
                 return L("Pairing is already in progress.")
             case .localNetworkDenied:
-                return L("Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.")
+                return L("Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.")
             case .zeroBytes:
                 return L("Pairing produced an empty file. Make sure you approved the pairing request, then try again.")
             case let .failed(message):
@@ -252,7 +252,7 @@ final class PairingController {
 
         Task {
             guard await localNetwork.request() else {
-                engine.log("RPPairing: Local Network permission DENIED. Enable it in Settings › SideInstaller › Local Network, then retry.")
+                engine.log("RPPairing: Local Network permission DENIED. Enable it in Settings › iLoader X › Local Network, then retry.")
                 if run.isThisDevice { engine.pairingStatus = L("Local Network denied") }
                 end(run)
                 resolve(run, .failure(PairingError.localNetworkDenied))
@@ -446,7 +446,7 @@ final class PairingController {
             peerPIN(pin)
             return
         }
-        engine.log("RPPairing: PIN = \(pin) — confirm it on this device (Settings → Developer Mode → Pair with SideInstaller).")
+        engine.log("RPPairing: PIN = \(pin) — confirm it on this device (Settings → Developer Mode → Pair with iLoader X).")
         engine.pairingStatus = L("enter PIN %@ in Settings", pin)
         // Displayed as a PIN card in the UI, and over Settings.
         engine.pairingPIN = pin

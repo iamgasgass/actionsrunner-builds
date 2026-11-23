@@ -1,6 +1,6 @@
 #!/bin/bash
-# Builds SideInstaller for the iOS simulator and runs its unit tests
-# (SideInstallerTests, ios-tests/), as the pull-request workflow does: the Rust
+# Builds iLoader X for the iOS simulator and runs its unit tests
+# (iLoaderXTests, ios-tests/), as the pull-request workflow does: the Rust
 # library's simulator slice, an Xcode project generated from project.yml, then
 # `xcodebuild test` on a simulator.
 #
@@ -11,7 +11,7 @@
 #
 # For a clean clone or worktree, like scripts/build-ipa.sh: the Xcode project is
 # generated into the checkout, so one that already has its own
-# SideInstaller.xcodeproj is refused rather than overwritten (one this script
+# iLoaderX.xcodeproj is refused rather than overwritten (one this script
 # generated is generated again). Nothing is signed.
 #
 # Config, all overridable by env:
@@ -19,7 +19,7 @@
 #                  the newest iOS runtime)
 #   DERIVED_DATA   Xcode build folder (default: build/DerivedData-sim)
 #   RESULT_BUNDLE  test results, for Xcode's Test navigator (default:
-#                  build/SideInstallerTests.xcresult)
+#                  build/iLoaderXTests.xcresult)
 #   REBUILD_RUST   1 = rebuild SideInstallerFFI.xcframework even when one with
 #                  a simulator slice is there
 set -euo pipefail
@@ -28,7 +28,7 @@ if [ "${RUNNER_DEBUG:-}" = 1 ]; then set -x; fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="${DERIVED_DATA:-$ROOT/build/DerivedData-sim}"
-RESULT_BUNDLE="${RESULT_BUNDLE:-$ROOT/build/SideInstallerTests.xcresult}"
+RESULT_BUNDLE="${RESULT_BUNDLE:-$ROOT/build/iLoaderXTests.xcresult}"
 REBUILD_RUST="${REBUILD_RUST:-0}"
 SIMULATOR_ID="${SIMULATOR_ID:-}"
 
@@ -38,9 +38,9 @@ case "$RESULT_BUNDLE" in /*) ;; *) RESULT_BUNDLE="$PWD/$RESULT_BUNDLE" ;; esac
 cd "$ROOT"
 
 # Left in a project this script generated, so the next run may replace it.
-MARKER=SideInstaller.xcodeproj/.generated-by-check-ios
-if [ -e SideInstaller.xcodeproj ] && [ ! -e "$MARKER" ]; then
-  die "this checkout already has a SideInstaller.xcodeproj, which generating one would overwrite. Run this in a clean clone or worktree."
+MARKER=iLoaderX.xcodeproj/.generated-by-check-ios
+if [ -e iLoaderX.xcodeproj ] && [ ! -e "$MARKER" ]; then
+  die "this checkout already has a iLoaderX.xcodeproj, which generating one would overwrite. Run this in a clean clone or worktree."
 fi
 
 # shellcheck disable=SC1091
@@ -68,8 +68,9 @@ fi
 [ -d SideInstallerFFI.xcframework/ios-arm64-simulator ] || die "no simulator slice in SideInstallerFFI.xcframework"
 
 # --- Xcode project ------------------------------------------------------------
-echo "==> Generating SideInstaller.xcodeproj from project.yml"
+echo "==> Generating iLoaderX.xcodeproj from project.yml"
 xcodegen generate --spec project.yml --quiet
+bash scripts/patch-xcodeproj.sh iLoaderX.xcodeproj
 touch "$MARKER"
 
 # --- Simulator ----------------------------------------------------------------
@@ -95,14 +96,14 @@ fi
 [ -n "$SIMULATOR_ID" ] || die "no iPhone simulator available (xcrun simctl list devices available)"
 
 # --- Build and test -----------------------------------------------------------
-echo "==> Building SideInstaller for the simulator and running SideInstallerTests"
+echo "==> Building iLoader X for the simulator and running iLoaderXTests"
 # A precompiled module of an older Rust header fails the build.
 find "$DERIVED_DATA" -name 'SideInstallerFFI-*.pcm' -delete 2>/dev/null || true
 rm -rf "$RESULT_BUNDLE"
 mkdir -p "$(dirname "$RESULT_BUNDLE")"
 rc=0
 xcodebuild test \
-  -project SideInstaller.xcodeproj -scheme SideInstaller -configuration Debug \
+  -project iLoaderX.xcodeproj -scheme iLoaderX -configuration Debug \
   -destination "id=$SIMULATOR_ID" -derivedDataPath "$DERIVED_DATA" \
   -resultBundlePath "$RESULT_BUNDLE" -quiet \
   CODE_SIGNING_ALLOWED=NO || rc=$?
@@ -124,6 +125,6 @@ for f in summary.get("testFailures", []):
         print("::error title=%s::%s" % (name, text.replace("%", "%25").replace("\n", "%0A")))
 ' || true
 fi
-[ "$rc" = 0 ] || die "the simulator build or SideInstallerTests failed (xcodebuild exit $rc; results in $RESULT_BUNDLE)"
+[ "$rc" = 0 ] || die "the simulator build or iLoaderXTests failed (xcodebuild exit $rc; results in $RESULT_BUNDLE)"
 
-echo "==> Done: the simulator build and SideInstallerTests passed ($RESULT_BUNDLE)"
+echo "==> Done: the simulator build and iLoaderXTests passed ($RESULT_BUNDLE)"

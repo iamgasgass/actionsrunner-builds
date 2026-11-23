@@ -158,7 +158,7 @@ enum InstallSource: String, CaseIterable, Identifiable {
     /// Madeira publishes no nightly release: its nightly is the build CI makes
     /// of every push to main. Its releases are the stable channel; the newest
     /// (0.1.3) predates the self-refresh (willfaust/Madeira#264, merged 28
-    /// October 2026) that SideInstaller hands its sign-in to.
+    /// October 2026) that iLoader X hands its sign-in to.
     func actionsBuild(_ channel: ReleaseChannel) -> ActionsBuild? {
         switch (self, channel) {
         case (.madeira, .nightly):
@@ -210,7 +210,7 @@ enum InstallSource: String, CaseIterable, Identifiable {
     }
 
     /// The oldest iOS the build runs on, when that is newer than what
-    /// SideInstaller itself installs on. Madeira's JIT helper needs iOS 26.
+    /// iLoader X itself installs on. Madeira's JIT helper needs iOS 26.
     /// AltStore's source says which iOS each version needs, and the download
     /// takes the newest that runs on the iPhone.
     var minimumOSMajorVersion: Int? {
@@ -795,7 +795,7 @@ enum SideStoreDownloader {
         guard let page = URL(string: "https://github.com/\(repo)") else { return false }
         var req = URLRequest(url: page, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         req.httpMethod = "HEAD"
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         guard let (_, response) = try? await URLSession.shared.data(for: req),
               let http = response as? HTTPURLResponse else { return false }
         return !(200...299).contains(http.statusCode) && http.statusCode != 429 && retryAfter(http) == nil
@@ -830,7 +830,7 @@ enum SideStoreDownloader {
         }
         guard IPALibrary.sha256(of: fetched.file) == mirror.sha256 else {
             try? FileManager.default.removeItem(at: fetched.file)
-            log("⚠️ \(mirror.assetName) on \(mirror.repo) isn't the file SideInstaller accepts from there (SHA-256 \(mirror.sha256)) — it has been replaced, so it isn't installed.")
+            log("⚠️ \(mirror.assetName) on \(mirror.repo) isn't the file iLoader X accepts from there (SHA-256 \(mirror.sha256)) — it has been replaced, so it isn't installed.")
             throw DownloadError.repoUnavailable(repo)
         }
         log("\(mirror.assetName) is the file expected from there (SHA-256 \(mirror.sha256.prefix(12))…).")
@@ -887,7 +887,7 @@ enum SideStoreDownloader {
         }
         var req = URLRequest(url: page, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         req.httpMethod = "HEAD"
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         // The recorder keeps the request a HEAD through the redirect.
         let (_, response) = try await perform {
             try await URLSession.shared.data(for: req, delegate: ReleaseTagRecorder())
@@ -966,7 +966,7 @@ enum SideStoreDownloader {
 
         var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
         req.httpMethod = "HEAD"
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         let redirects = ReleaseTagRecorder()
         guard let result = try? await URLSession.shared.data(for: req, delegate: redirects),
               let http = result.1 as? HTTPURLResponse, http.statusCode == 200,
@@ -1011,7 +1011,7 @@ enum SideStoreDownloader {
                             named name: String,
                             progress: @escaping (Double) -> Void) async throws -> URL {
         var req = URLRequest(url: url)
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
 
         let staging = FileManager.default.temporaryDirectory
             .appendingPathComponent("ipa-link-\(UUID().uuidString)", isDirectory: true)
@@ -1057,7 +1057,7 @@ enum SideStoreDownloader {
         guard let api = source.releaseAPI(channel) else { throw DownloadError.notDownloadable }
         var req = URLRequest(url: api)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await perform(log: log) { try await URLSession.shared.data(for: req) }
         // A repo with no `nightly` tag answers 404: a missing channel, not a status.
@@ -1150,7 +1150,7 @@ enum SideStoreDownloader {
         else { throw DownloadError.badURL }
         var req = URLRequest(url: api)
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await perform { try await URLSession.shared.data(for: req) }
         if (response as? HTTPURLResponse)?.statusCode == 404 {
@@ -1191,7 +1191,7 @@ enum SideStoreDownloader {
     private static func listedVersions(of source: InstallSource, in feed: AltSourceFeed,
                                        runningOn os: OperatingSystemVersion) async throws -> [ReleaseVersion] {
         var req = URLRequest(url: feed.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 20)
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         let answer: (Data, URLResponse)
         do {
             answer = try await perform { try await URLSession.shared.data(for: req) }
@@ -1678,7 +1678,7 @@ private final class ResumingDownload: NSObject, URLSessionDataDelegate, @uncheck
     private func ranged(_ request: URLRequest) -> URLRequest {
         var request = request
         request.timeoutInterval = timeout
-        request.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        request.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         guard written > 0 else { return request }
         request.setValue("bytes=\(written)-", forHTTPHeaderField: "Range")
         // A weak ETag can't be used here; the date can.
@@ -2072,7 +2072,7 @@ extension IPALibrary {
                        version: dict["CFBundleShortVersionString"] as? String)
     }
 
-    /// The build of SideInstaller's own that the IPA at `url` is, told by its
+    /// The build of iLoader X's own that the IPA at `url` is, told by its
     /// bundle ID rather than its filename: SideStore, LiveContainer carrying
     /// SideStore, Madeira, or AltStore. A custom IPA that is one of them is set
     /// up just like that build's download. Nil for any other app, for

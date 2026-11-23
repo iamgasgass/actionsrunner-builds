@@ -40,7 +40,7 @@ struct SideInstallerApp: App {
                         .task { await updateChecker.check() }
                         .transition(.opacity)
                 } else {
-                    // The terms, the sideinstaller.net question and the Apple
+                    // The terms, the github.com/iamgasgass question and the Apple
                     // ID, a page each; the pages move among themselves.
                     SetupView()
                         .environmentObject(localizer)

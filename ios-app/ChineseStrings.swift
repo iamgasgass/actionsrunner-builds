@@ -29,14 +29,14 @@ let chineseStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "你需要一个配对文件",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "本机运行 iOS %@。只有 iOS %@ 能与自身配对，因此你需要在电脑上用 jitterbugpair 或 pymobiledevice3 生成配对文件，再导入到 App 中。SideInstaller 会逐步引导你。",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "本机运行 iOS %@。只有 iOS %@ 能与自身配对，因此你需要在电脑上用 jitterbugpair 或 pymobiledevice3 生成配对文件，再导入到 App 中。iLoader X 会逐步引导你。",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "更新到 iOS %@",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "此 iPhone 可以运行 iOS %@。在该版本上，SideInstaller 无需电脑即可使用：iPhone 会与自身配对，因此无需生成配对文件。请在 设置 › 通用 › 软件更新 中更新。",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "此 iPhone 可以运行 iOS %@。在该版本上，iLoader X 无需电脑即可使用：iPhone 会与自身配对，因此无需生成配对文件。请在 设置 › 通用 › 软件更新 中更新。",
     "OK": "好",
 
     // MARK: - Account setup & Settings › Account
@@ -56,15 +56,15 @@ let chineseStrings: [String: String] = [
     "In use": "使用中",
     "Edit": "编辑",
     "Remove": "移除",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "尚未保存 Apple ID。添加一个后，SideInstaller 每次登录都会使用它。",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "尚未保存 Apple ID。添加一个后，iLoader X 每次登录都会使用它。",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "保存在本机的钥匙串中，仅在登录时发送给 Apple。左滑某一行可修改其密码或将其移除。",
     "Remove this Apple ID?": "移除此 Apple ID？",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "“%@”及其保存的密码将从本机删除。你的 Apple 账户不会有任何变化。",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "本机钥匙串拒绝保存该密码（错误 %d），因此密码只会保留到 SideInstaller 退出为止。",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "本机钥匙串拒绝保存该密码（错误 %d），因此密码只会保留到 iLoader X 退出为止。",
     "No Apple ID saved. Add one in Settings › Account.": "尚未保存 Apple ID。请在“设置 › 账户”中添加一个。",
 
     "Add your Apple ID": "添加你的 Apple ID",
@@ -129,8 +129,8 @@ let chineseStrings: [String: String] = [
     "Tunnel connected": "隧道已连接",
     "Tunnel off": "隧道已关闭",
     "Update available": "有可用更新",
-    "SideInstaller %@ is available — you're on %@.":
-        "SideInstaller %@ 已发布 —— 你当前使用的是 %@。",
+    "iLoader X %@ is available — you're on %@.":
+        "iLoader X %@ 已发布 —— 你当前使用的是 %@。",
     "Get the latest version": "获取最新版本",
     "From the website": "从网站安装",
     "Sign it with your Apple ID": "用你的 Apple ID 签名",
@@ -145,12 +145,12 @@ let chineseStrings: [String: String] = [
     "Replace": "更换",
     "or": "或",
     "Paste a download link": "粘贴下载链接",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller 识别出这是 %@，会像它自己下载的版本一样完成设置。",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X 识别出这是 %@，会像它自己下载的版本一样完成设置。",
     "Downloading… %d%%": "正在下载… %d%%",
     "iOS %@ required": "需要 iOS %@",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "此 iPhone 运行的是 iOS %@，SideInstaller 无法在该版本上安装。请在 设置 › 通用 › 软件更新 中更新到 iOS %@ 或更高版本。",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "此 iPhone 运行的是 iOS %@，iLoader X 无法在该版本上安装。请在 设置 › 通用 › 软件更新 中更新到 iOS %@ 或更高版本。",
     "Wi-Fi required": "需要 Wi-Fi",
     "Pairing code": "配对码",
     "Type this into the prompt in Settings.":
@@ -258,8 +258,8 @@ let chineseStrings: [String: String] = [
     "failed: empty pairing file": "失败：配对文件为空",
     "failed: %@": "失败：%@",
     "Pairing is already in progress.": "配对已在进行中。",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "本地网络权限已关闭。请在 设置 › SideInstaller › 本地网络 中开启，然后重试。",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "本地网络权限已关闭。请在 设置 › iLoader X › 本地网络 中开启，然后重试。",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "配对生成了一个空文件。请确认你已同意配对请求，然后重试。",
 
@@ -284,10 +284,10 @@ let chineseStrings: [String: String] = [
     "This certificate has no serial number, so it can't be revoked.":
         "此证书没有序列号，因此无法吊销。",
 
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
     "This certificate has no serial number, so it can't be exported.": "此证书没有序列号，因此无法导出。",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "只能导出 SideInstaller 用来签名的证书：其他证书的私钥只保存在向 Apple 申请它的设备上。",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "只能导出 iLoader X 用来签名的证书：其他证书的私钥只保存在向 Apple 申请它的设备上。",
     "Couldn't export the certificate: %@": "无法导出证书：%@",
     "Export certificate": "导出证书",
     "Password (optional)": "密码（可选）",
@@ -295,37 +295,37 @@ let chineseStrings: [String: String] = [
     "Exporting": "正在导出",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "将此证书及其私钥存为 .p12 文件，供其他签名 App 或电脑签名使用。可以为它设置密码（导入文件时需要输入），也可以留空：签名 App 无需密码即可导入，但 Mac 不行。请勿将文件交给他人。",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller 只能导出它用来签名的证书，而这里没有：证书的私钥只保存在向 Apple 申请它的设备上。",
-    "SideInstaller signs with this one": "SideInstaller 用此证书签名",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X 只能导出它用来签名的证书，而这里没有：证书的私钥只保存在向 Apple 申请它的设备上。",
+    "iLoader X signs with this one": "iLoader X 用此证书签名",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "使用 SideStore 的证书",
     "Checking the certificate": "正在检查证书",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore 会打开并发回它的证书。之后 SideInstaller 也用它签名，这样在免费 Apple ID 上两个 App 都不必吊销对方的证书。",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple 不会为此 Apple ID 签发第二个签名证书。如果已有的证书是 SideStore 创建的，SideInstaller 也可以用它签名，无需吊销任何证书。吊销它同样可以让安装继续——但此操作无法撤回。",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "如果它是 SideStore 创建的，请点按上方的“使用 SideStore 的证书”：SideInstaller 也会用它签名，不会吊销任何证书。",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "从现在起 SideInstaller 使用“%@”签名。没有吊销任何证书，因此已用它签名的 App 会继续正常运行。",
-    "SideInstaller already signs with “%@”.": "SideInstaller 已经在使用“%@”签名。",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore 会打开并发回它的证书。之后 iLoader X 也用它签名，这样在免费 Apple ID 上两个 App 都不必吊销对方的证书。",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple 不会为此 Apple ID 签发第二个签名证书。如果已有的证书是 SideStore 创建的，iLoader X 也可以用它签名，无需吊销任何证书。吊销它同样可以让安装继续——但此操作无法撤回。",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "如果它是 SideStore 创建的，请点按上方的“使用 SideStore 的证书”：iLoader X 也会用它签名，不会吊销任何证书。",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "从现在起 iLoader X 使用“%@”签名。没有吊销任何证书，因此已用它签名的 App 会继续正常运行。",
+    "iLoader X already signs with “%@”.": "iLoader X 已经在使用“%@”签名。",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "该证书不属于此 Apple ID：它已被吊销，或属于另一个 Apple ID（SideStore 可能登录了其他 Apple ID）。未做任何更改。",
     "Couldn't use that certificate: %@": "无法使用该证书：%@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "这台 iPhone 上没有安装 SideStore，因此无法从中获取证书。",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "在 LiveContainer 中，SideStore 无法把证书发回 SideInstaller，而 LiveContainer 里也还没有证书。请在 LiveContainer 的 Settings 中轻点“Import Certificate From SideStore”（如果 SideStore 还没有证书，请先登录 SideStore），然后回到这里重试。",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "在 LiveContainer 中，SideStore 无法把证书发回 iLoader X，而 LiveContainer 里也还没有证书。请在 LiveContainer 的 Settings 中轻点“Import Certificate From SideStore”（如果 SideStore 还没有证书，请先登录 SideStore），然后回到这里重试。",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "LiveContainer 为 SideStore 保存的证书不属于此 Apple ID：它已被吊销，或属于另一个 Apple ID。未做任何更改。如果 SideStore 之后生成了新证书，请在 LiveContainer 的 Settings 中轻点“Refresh Certificate from SideStore”，然后回到这里重试。",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller 会从 LiveContainer 取得 SideStore 的证书，并也用它签名，这样在免费 Apple ID 上两个 App 都不必吊销对方的证书。",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X 会从 LiveContainer 取得 SideStore 的证书，并也用它签名，这样在免费 Apple ID 上两个 App 都不必吊销对方的证书。",
     "Sign with this certificate?": "使用此证书签名？",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "某个链接向 SideInstaller 发送了签名证书。只有在你主动请求时才使用：从现在起 SideInstaller 将用它代替自己的证书为 App 签名。只有当它是你 Apple ID 的证书时才会被使用。",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "某个链接向 iLoader X 发送了签名证书。只有在你主动请求时才使用：从现在起 iLoader X 将用它代替自己的证书为 App 签名。只有当它是你 Apple ID 的证书时才会被使用。",
     "Use it": "使用",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "该链接本应包含签名证书，但其内容无法读取。",
@@ -423,8 +423,8 @@ let chineseStrings: [String: String] = [
     "%d App ID": "%d 个 App ID",
     "%d App IDs": "%d 个 App ID",
     "No App IDs": "没有 App ID",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "此 Apple ID 还没有注册任何应用。请先用 SideInstaller 安装一个，然后再回来。",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "此 Apple ID 还没有注册任何应用。请先用 iLoader X 安装一个，然后再回来。",
     "Memory and performance": "内存与性能",
     "Other free capabilities": "其他免费能力",
     "Beta": "测试版",
@@ -442,8 +442,8 @@ let chineseStrings: [String: String] = [
     "Reading the device": "正在读取设备",
 
     // Refresh all: signing the installed apps again.
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "不支持 iOS %@：SideInstaller 需要 iOS %@ 或更高版本。",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "不支持 iOS %@：iLoader X 需要 iOS %@ 或更高版本。",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple 不会为此 Apple ID 签发签名证书：它报告已经存在一个（错误 7460）。请在“工具 › 证书”中使用 SideStore 的证书或吊销该证书，然后重新续签。",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -470,10 +470,10 @@ let chineseStrings: [String: String] = [
     "Waiting": "等待中",
     "In progress": "进行中",
     "Failed": "失败",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "这里有 %d 个应用在 SideInstaller 中没有对应的 IPA，因此无法从本页续签。请在安装它的应用里续签，或先导入它的 .ipa。",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "这里有 %d 个应用在 SideInstaller 中没有对应的 IPA，因此无法从本页续签。请在安装它们的应用里续签，或先导入它们的 .ipa。",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "这里有 %d 个应用在 iLoader X 中没有对应的 IPA，因此无法从本页续签。请在安装它的应用里续签，或先导入它的 .ipa。",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "这里有 %d 个应用在 iLoader X 中没有对应的 IPA，因此无法从本页续签。请在安装它们的应用里续签，或先导入它们的 .ipa。",
     "%d app": "%d 个应用",
     "%d apps": "%d 个应用",
     "%d app needs refreshing": "%d 个应用需要续签",
@@ -517,9 +517,9 @@ let chineseStrings: [String: String] = [
         "无线局域网已关闭。两台 iPhone 必须连接同一个 Wi-Fi 网络才能使用。",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "下载到的发行版不是 IPA 文件。GitHub 可能返回了错误页面，请过一分钟再试。",
-    "Couldn't download the latest SideInstaller release: %@":
-        "无法下载最新的 SideInstaller 发行版：%@",
-    "No SideInstaller IPA downloaded.": "尚未下载 SideInstaller 的 IPA。",
+    "Couldn't download the latest iLoader X release: %@":
+        "无法下载最新的 iLoader X 发行版：%@",
+    "No iLoader X IPA downloaded.": "尚未下载 iLoader X 的 IPA。",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). One has to be revoked first. Use the Certificates tool if this is the Apple ID saved in Settings › Account, or developer.apple.com signed in as it otherwise.":
         "Apple 不会为此 Apple ID 签发签名证书：它报告已经存在一个（错误 7460）。必须先吊销一个：如果这就是“设置 › 账户”中保存的 Apple ID，可用“证书”工具；否则请用该账户登录 developer.apple.com 吊销。",
     "Apple wouldn't register their iPhone with this Apple ID's developer team, so it won't issue a provisioning profile. %@":
@@ -547,14 +547,14 @@ let chineseStrings: [String: String] = [
         "把这里显示的验证码输入到对方 iPhone 上的提示框内。",
     "Type this into the prompt on their iPhone.":
         "将它输入到对方 iPhone 上的提示框内。",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller 已在等待某台 iPhone 与它配对，来自“安装”标签页、“配对”页面，或这里之前的一次尝试。请先完成那次配对，或关闭后重新打开 SideInstaller，然后重试。",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X 已在等待某台 iPhone 与它配对，来自“安装”标签页、“配对”页面，或这里之前的一次尝试。请先完成那次配对，或关闭后重新打开 iLoader X，然后重试。",
     "Pairing with their iPhone didn't finish: %@":
         "与对方 iPhone 的配对未完成：%@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "对方位于 %@ 的 iPhone 拒绝了连接。只有开启开发者模式时它才接受连接，而且每次重启后 iOS 都会要求再次确认：请在对方 iPhone 的 设置 › 隐私与安全性 › 开发者模式 中打开它，然后重试。",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "无法连接到位于 %@ 的对方 iPhone。请确认两台 iPhone 连接的是同一个 Wi-Fi 网络，并确认已在这台 iPhone 的 设置 中为 SideInstaller 打开本地网络。访客网络和公共网络通常会阻止设备之间互相连接。",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "无法连接到位于 %@ 的对方 iPhone。请确认两台 iPhone 连接的是同一个 Wi-Fi 网络，并确认已在这台 iPhone 的 设置 中为 iLoader X 打开本地网络。访客网络和公共网络通常会阻止设备之间互相连接。",
     "The link to their iPhone didn't come up: %@":
         "未能建立与对方 iPhone 的连接：%@",
     "%d%% downloaded": "已下载 %d%%",
@@ -635,7 +635,7 @@ let chineseStrings: [String: String] = [
     "Start LocalDevVPN when needed": "需要时打开 LocalDevVPN",
     "Start LocalDevVPN now": "立即启动 LocalDevVPN",
     "LocalDevVPN isn't installed. Get it from the App Store, and this can start it for you.":
-        "未安装 LocalDevVPN。请从 App Store 获取，SideInstaller 就能为你启动它。",
+        "未安装 LocalDevVPN。请从 App Store 获取，iLoader X 就能为你启动它。",
 
     "Downloaded IPAs": "已下载的 IPA",
     "%@ used": "已用 %@",
@@ -656,10 +656,10 @@ let chineseStrings: [String: String] = [
     "Starts with %@": "从 %@ 开始",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "“自动”会先使用上次成功登录的服务器，然后按成功可能性从高到低尝试其他服务器。",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
-        "只会尝试这个服务器。它失败时登录也会失败：选择“自动”，让 SideInstaller 尝试其他服务器。",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "只尝试了在“设置 › Anisette 服务器”中选择的服务器。在那里选择“自动”，SideInstaller 就会在一个服务器失败时尝试其他服务器。",
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
+        "只会尝试这个服务器。它失败时登录也会失败：选择“自动”，让 iLoader X 尝试其他服务器。",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "只尝试了在“设置 › Anisette 服务器”中选择的服务器。在那里选择“自动”，iLoader X 就会在一个服务器失败时尝试其他服务器。",
     "Device IP": "设备 IP",
     "Advanced": "高级",
     "Clear": "清除",
@@ -734,28 +734,28 @@ let chineseStrings: [String: String] = [
         "在 %@ 上登录 Apple ID 失败。错误：%@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "在 %@ 上登录 Apple ID 失败。经由 %@ 的错误：%@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Apple 登录服务器拒绝了请求（HTTP 503）。这不是你的密码或 anisette 服务器的问题，换用其他服务器也无济于事。请稍后重试，或更新 SideInstaller。",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Apple 登录服务器拒绝了请求（HTTP 503）。这不是你的密码或 anisette 服务器的问题，换用其他服务器也无济于事。请稍后重试，或更新 iLoader X。",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "“%@”使用 Apple 的 Android 库生成 anisette 数据，而 Apple 现在会在你输入密码和验证码之后，拒绝完成通过这类服务器的登录（错误 -80046）。请在“设置 › Anisette 服务器”中选择“自动”，或选择 Mac 服务器，例如“SideStore (New)”。",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple 拒绝完成登录（错误 -80046），即使通过的是它此前仍接受的 Mac anisette 服务器。请稍后重试，或检查 SideInstaller 是否有更新。",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple 拒绝完成登录（错误 -80046），即使通过的是它此前仍接受的 Mac anisette 服务器。请稍后重试，或检查 iLoader X 是否有更新。",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple 拒绝完成通过“%@”的登录（错误 -80046）。它现在只接受通过使用其 macOS 库的 anisette 服务器登录：请在“设置 › Anisette 服务器”中选择“自动”，或选择 Mac 服务器，例如“SideStore (New)”。",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple 不会为此次登录通过短信或电话发送验证码，因此已将验证码发送到你的 Apple 设备。",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple 未确认已向你的 Apple 设备发送验证码。如果收到了，请输入；如果没有，请换一种方式。",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "SideInstaller 无法连接 Apple 登录服务器（gsa.apple.com），但这台 iPhone 已连接互联网。有东西在拦截它：防火墙、DNS 过滤或广告拦截工具、屏幕使用时间的内容限制，或其他 VPN App。请将其关闭或换一个网络，然后重试。",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller 无法连接 Apple：它的蜂窝数据已被关闭。请在 设置 › 蜂窝网络 中打开 SideInstaller，或连接可以上网的无线局域网，然后重试。",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller 无法连接 Apple：iOS 不允许它使用无线局域网。请在 设置 › App › SideInstaller › 无线数据 中选择“无线局域网与蜂窝网络”，然后重试。",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller 无法连接 Apple：一个设为承载所有流量的 VPN 已断开，因此 iOS 暂停了网络流量。请重新连接它，或关闭它的断网保护（kill switch）或按需连接，然后重试。",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller 无法连接 Apple：这台 iPhone 没有连接互联网。请连接无线局域网或打开蜂窝数据，然后重试。",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "iLoader X 无法连接 Apple 登录服务器（gsa.apple.com），但这台 iPhone 已连接互联网。有东西在拦截它：防火墙、DNS 过滤或广告拦截工具、屏幕使用时间的内容限制，或其他 VPN App。请将其关闭或换一个网络，然后重试。",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X 无法连接 Apple：它的蜂窝数据已被关闭。请在 设置 › 蜂窝网络 中打开 iLoader X，或连接可以上网的无线局域网，然后重试。",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X 无法连接 Apple：iOS 不允许它使用无线局域网。请在 设置 › App › iLoader X › 无线数据 中选择“无线局域网与蜂窝网络”，然后重试。",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X 无法连接 Apple：一个设为承载所有流量的 VPN 已断开，因此 iOS 暂停了网络流量。请重新连接它，或关闭它的断网保护（kill switch）或按需连接，然后重试。",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X 无法连接 Apple：这台 iPhone 没有连接互联网。请连接无线局域网或打开蜂窝数据，然后重试。",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "Apple 正在暂时限制此 Apple ID 或此网络的登录（HTTP 429）。换用其他服务器无济于事，每次尝试还可能延长等待时间，请过一段时间再登录。",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -788,16 +788,16 @@ let chineseStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "还没有导入任何 IPA。请轻点“导入 .ipa”并选择一个文件。",
     "Couldn't import %@: %@": "无法导入 %@：%@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "SideInstaller 无法下载该链接。请粘贴 .ipa 的完整 https:// 下载地址。",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "iLoader X 无法下载该链接。请粘贴 .ipa 的完整 https:// 下载地址。",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "该链接返回的不是 IPA。它必须直接下载文件——只是指向 .ipa 的网页，或先要求登录的网页，到这里都只是一个网页。",
     "Couldn't download that link: %@": "无法下载该链接：%@",
     "there's nothing to download for a custom IPA — import one first":
         "自定义 IPA 没有可下载的内容 —— 请先导入一个文件",
     "your app": "你的应用",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "Apple 不会为此 Apple ID 签发签名证书：它报告已经存在一个证书，或者仍有一个申请在处理中（错误 7460）。SideInstaller 无法复用已有的证书，因此停止了操作，而不是替换它。请参见上面的步骤。",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "Apple 不会为此 Apple ID 签发签名证书：它报告已经存在一个证书，或者仍有一个申请在处理中（错误 7460）。iLoader X 无法复用已有的证书，因此停止了操作，而不是替换它。请参见上面的步骤。",
     " (UDID %@)": " (UDID %@)",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "无法将此 iPhone%@ 注册到你 Apple ID 的开发者团队，因此 Apple 不会签发描述文件。%@ —— 请参见上面的步骤。",
@@ -811,52 +811,52 @@ let chineseStrings: [String: String] = [
     "Import an .ipa first": "请先导入一个 .ipa",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "轻点上方的“导入 .ipa”并选择文件 —— 文件可以放在“文件”App 能访问的任何位置，包括 iCloud 云盘或 U 盘。",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "或者在该按钮下方粘贴直接下载链接，SideInstaller 会自己把 .ipa 取回来。",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "或者打开“文件”App，长按该 .ipa，点按“共享”并选择 SideInstaller——这样文件不经过选择器就能交过来。",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "也可以把它复制到 文件 › 我的 iPhone › SideInstaller，SideInstaller 同样能找到。",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "或者在该按钮下方粘贴直接下载链接，iLoader X 会自己把 .ipa 取回来。",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "或者打开“文件”App，长按该 .ipa，点按“共享”并选择 iLoader X——这样文件不经过选择器就能交过来。",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "也可以把它复制到 文件 › 我的 iPhone › iLoader X，iLoader X 同样能找到。",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "在 GitHub 被封锁的地区，这就是可行的办法：在任何设备上取得 IPA，带过来，然后在这里安装。",
     "Bring the .ipa yourself": "自行提供 .ipa",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "%@ 的 GitHub 代码仓库下线期间无法下载。其他 App 仍可照常安装。",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "如果仍想安装，请从你信任的来源取得它的 .ipa，命名为 %@，然后复制到 文件 › 我的 iPhone › SideInstaller。",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "然后再次轻点“安装”—— SideInstaller 会使用你的文件，而不再下载。",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "如果仍想安装，请从你信任的来源取得它的 .ipa，命名为 %@，然后复制到 文件 › 我的 iPhone › iLoader X。",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "然后再次轻点“安装”—— iLoader X 会使用你的文件，而不再下载。",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "如果你需要通过 VPN 或代理 App 才能访问 GitHub，请关闭 LocalDevVPN，再打开那个 App：iOS 一次只能运行一个 VPN。",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "轻点下方的“获取 .ipa”并保存文件，或者在另一台设备上下载后再传到这台 iPhone。",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "回到 SideInstaller，在“安装”下选择“自定义 .ipa”，轻点“导入 .ipa”并选取该文件。SideInstaller 会识别出 %@，并像它自己下载的版本一样完成设置。",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "回到 iLoader X，在“安装”下选择“自定义 .ipa”，轻点“导入 .ipa”并选取该文件。iLoader X 会识别出 %@，并像它自己下载的版本一样完成设置。",
     "Turn LocalDevVPN back on, then tap Install.": "重新打开 LocalDevVPN，然后轻点“安装”。",
     "Get the .ipa": "获取 .ipa",
     "Pair this iPhone in Settings": "在 设置 中配对此 iPhone",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "打开 设置 应用，然后进入 隐私与安全性 › 开发者模式。",
-    "Tap “Pair with SideInstaller”.": "轻点“与 SideInstaller 配对”。",
+    "Tap “Pair with iLoader X”.": "轻点“与 iLoader X 配对”。",
     "Enter your iPhone’s passcode if it asks for it.": "如果系统要求，请输入你的 iPhone 密码。",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "回到 SideInstaller，查看它显示给你的验证码，然后把相同的验证码输入到 设置 中的提示框内。",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "将屏幕顶部显示的验证码输入到 设置 中的提示框内。如果没有显示，请回到 SideInstaller 查看。",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "当 SideInstaller 询问时，请允许通知：配对码会通过通知显示在 设置 中。",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "回到 iLoader X，查看它显示给你的验证码，然后把相同的验证码输入到 设置 中的提示框内。",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "将屏幕顶部显示的验证码输入到 设置 中的提示框内。如果没有显示，请回到 iLoader X 查看。",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "当 iLoader X 询问时，请允许通知：配对码会通过通知显示在 设置 中。",
 
     // The pairing Live Activity
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "隐私与安全性 › 开发者模式 › 与 SideInstaller 配对",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "隐私与安全性 › 开发者模式 › 与 iLoader X 配对",
     "Paired": "已配对",
-    "Tap to return to SideInstaller.": "轻点以返回 SideInstaller。",
+    "Tap to return to iLoader X.": "轻点以返回 iLoader X。",
 
     // The install's progress outside the app
     "Installing %@": "正在安装 %@",
     "Paused": "已暂停",
-    "Open SideInstaller to finish the install.":
-        "打开 SideInstaller 以完成安装。",
+    "Open iLoader X to finish the install.":
+        "打开 iLoader X 以完成安装。",
     "Check the App IDs it needs, then tap Install.":
         "查看所需的 App ID，然后轻点“安装”。",
     "Tap Trust": "轻点“信任”",
@@ -866,8 +866,8 @@ let chineseStrings: [String: String] = [
     "A signing certificate already exists": "已存在签名证书",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple 返回错误 7460：此 Apple ID 已有一个 iOS 开发证书，或者有一个申请仍在处理中。",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller 无法复用它。当证书是在别处签发时就会这样——另一台设备上的 AltStore、SideStore、Sideloadly 或 Xcode——所需的私钥并不在这台 iPhone 上。",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X 无法复用它。当证书是在别处签发时就会这样——另一台设备上的 AltStore、SideStore、Sideloadly 或 Xcode——所需的私钥并不在这台 iPhone 上。",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "使用上方的“吊销并重试”，或在“工具”标签页中打开“证书”，点按“加载证书”，在那里吊销它。",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -884,8 +884,8 @@ let chineseStrings: [String: String] = [
         "出于安全原因，Apple 已锁定此 Apple 账户，通常是因为登录尝试次数过多。在解锁之前每次登录都会失败，所以现在再次轻点“安装”也没有用。",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "打开 iForgot，输入此 Apple 账户的电子邮件，然后按照 Apple 的步骤解锁并重设密码。",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "回到 SideInstaller，打开“设置 › 账户”，在此 Apple ID 上向左轻扫，轻点“编辑”，然后输入新密码。",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "回到 iLoader X，打开“设置 › 账户”，在此 Apple ID 上向左轻扫，轻点“编辑”，然后输入新密码。",
     "Then tap Install again.": "然后再次轻点“安装”。",
     "Open iForgot": "打开 iForgot",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -895,8 +895,8 @@ let chineseStrings: [String: String] = [
     "This iPhone already has three apps signed with a free Apple ID, the most iOS allows, counting expired ones. Delete one of them, then try again.":
         "此 iPhone 上已有三个用免费 Apple ID 签名的 App，这是 iOS 允许的上限，已过期的也算在内。删除其中一个后再试一次。",
     "This Apple Account can't sign apps": "此 Apple 账户无法签名 App",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "Apple 只允许成年人使用 SideInstaller 用来签名 App 的开发者服务，而它显示此 Apple 账户属于未成年人（错误 1102）。",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "Apple 只允许成年人使用 iLoader X 用来签名 App 的开发者服务，而它显示此 Apple 账户属于未成年人（错误 1102）。",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "请改用成年人的 Apple 账户登录：打开“设置 › 账户”并在那里添加。",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -910,8 +910,8 @@ let chineseStrings: [String: String] = [
     "Open Apple Account":
         "打开 Apple 账户",
     "No App IDs left this week": "本周已没有可用的 App ID",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "SideInstaller 签名的每个 App 都需要一个 App ID，其扩展共用这个 App ID。免费 Apple ID 每周可注册 10 个，每个会占用 7 天。",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "iLoader X 签名的每个 App 都需要一个 App ID，其扩展共用这个 App ID。免费 Apple ID 每周可注册 10 个，每个会占用 7 天。",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "它们无法提前删除。等一些过期后，再次轻点“安装”。",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -966,8 +966,8 @@ let chineseStrings: [String: String] = [
         "你的 Apple ID 已达到注册设备数量的上限。免费账户每年只能注册少量设备，并且在年度重置之前无法移除旧设备。",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "最简单的解决办法：在上面的输入框中填入另一个（或备用的）Apple ID，然后再次轻点“安装”。",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller 无法自动将此 iPhone 添加到你 Apple ID 的开发者团队。再次轻点“安装”通常就能成功 —— Apple 的开发者服务有时会短暂不可用。",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X 无法自动将此 iPhone 添加到你 Apple ID 的开发者团队。再次轻点“安装”通常就能成功 —— Apple 的开发者服务有时会短暂不可用。",
     "If it keeps failing, add the device by hand. Its UDID is:":
         "如果一直失败，请手动添加该设备。它的 UDID 是：",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
@@ -1004,17 +1004,17 @@ let chineseStrings: [String: String] = [
         "这台 iPhone 在连接刚建立时就把它断开了。从 iOS 26.4 起，通过 LocalDevVPN 连接的 lockdown 配对文件（比如这个）都会被这样断开，所以重新生成一个同类文件也没用。“Remote pairing”配对文件仍然可用：在电脑上打开 idevice_pair，选择“Remote pairing”，点击“Create”，再点击“Save to file…”，然后在“配对文件”中导入这个文件。",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "这台 iPhone 断开了连接：从 iOS 26.4 起，通过 LocalDevVPN 连接的 lockdown 配对文件（比如这个）都会被这样断开。请参见上面的步骤。",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "配对这台 iPhone 需要它：SideInstaller 会在本地网络上广播自己，供“设置”发现。",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "请连接到 Wi-Fi 网络。配对这台 iPhone 需要它——SideInstaller 必须能在本地网络上被找到。",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "配对这台 iPhone 需要它：iLoader X 会在本地网络上广播自己，供“设置”发现。",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "请连接到 Wi-Fi 网络。配对这台 iPhone 需要它——iLoader X 必须能在本地网络上被找到。",
 
     // MARK: - About
 
     "About": "关于",
     "Version %@ (%@)": "版本 %@ (%@)",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller 直接把 SideStore 和 LiveContainer 装到你的 iPhone 上，全程不需要电脑。",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X 直接把 SideStore 和 LiveContainer 装到你的 iPhone 上，全程不需要电脑。",
 
     "Links": "链接",
     "Source code": "源代码",
@@ -1022,8 +1022,8 @@ let chineseStrings: [String: String] = [
     "Crypto": "加密货币",
     "Donation wallets for Bitcoin, Ethereum and Solana.": "比特币、以太坊和 Solana 的捐赠钱包。",
     "Crypto donations": "加密货币捐赠",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "捐赠完全自愿。捐赠不会购买任何东西，不会解锁任何功能，也不会带来任何回报；这只是在 SideInstaller 帮到你时表达感谢的一种方式。",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "捐赠完全自愿。捐赠不会购买任何东西，不会解锁任何功能，也不会带来任何回报；这只是在 iLoader X 帮到你时表达感谢的一种方式。",
     "Coin": "币种",
     "Network: %@": "网络：%@",
     "QR code for the %@ address": "%@ 地址的二维码",
@@ -1032,8 +1032,8 @@ let chineseStrings: [String: String] = [
         "每种币请只通过所示网络发送。通过其他网络发送的加密货币将无法找回。",
 
     "Special thanks": "特别感谢",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "感谢 idevice——SideInstaller 正是通过这个库与你的 iPhone 通信的。没有它，这一切都不会存在。",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "感谢 idevice——iLoader X 正是通过这个库与你的 iPhone 通信的。没有它，这一切都不会存在。",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "感谢一路以来的支持，以及发现了那些因此得到修复的问题。",
     "For the Japanese translation.": "感谢提供日语翻译。",
@@ -1065,12 +1065,12 @@ let chineseStrings: [String: String] = [
 
     "%@ needs iOS %d or later. This iPhone runs iOS %@.": "%@ 需要 iOS %d 或更高版本。这台 iPhone 运行的是 iOS %@。",
     "Open Madeira from your Home Screen.": "从主屏幕打开 Madeira。",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "在它的设置流程中，在“Set up JIT”下选择“In-app with pairing file”：SideInstaller 已经把文件放进去了，轻点“Continue”即可。",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "在它的设置流程中，在“Set up JIT”下选择“In-app with pairing file”：iLoader X 已经把文件放进去了，轻点“Continue”即可。",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "在它的设置流程中，在“Set up JIT”下选择这台 iPhone 获得 JIT 的方式。",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "从现在起，只要 Madeira 处于打开状态且 LocalDevVPN 已连接，它就会自行续签。为此 SideInstaller 给了它一个登录凭据：用于 Apple 开发者服务的令牌，而不是你的密码。可以在 Madeira 的 Settings › Signing 中将其移除。",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "从现在起，只要 Madeira 处于打开状态且 LocalDevVPN 已连接，它就会自行续签。为此 iLoader X 给了它一个登录凭据：用于 Apple 开发者服务的令牌，而不是你的密码。可以在 Madeira 的 Settings › Signing 中将其移除。",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "它的签名有效期为 7 天。到期前，请在这里的“工具 › 侧载应用”中续签。",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1098,30 +1098,30 @@ let chineseStrings: [String: String] = [
 
     "Install from a link?": "从链接安装？",
     "Download and install": "下载并安装",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller 将下载此 .ipa，用你的 Apple ID 签名后安装。只有在你信任该链接来源时才继续。",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X 将下载此 .ipa，用你的 Apple ID 签名后安装。只有在你信任该链接来源时才继续。",
     "It replaces %@, the custom .ipa you have now.": "它会替换你当前的自定义 .ipa %@。",
     "Use SideStore's pairing file?": "使用 SideStore 的配对文件？",
     "Import this pairing file?": "导入此配对文件？",
     "Import": "导入",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore 已发回它现有的配对文件。SideInstaller 将用它连接这台 iPhone。",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "某个链接向 SideInstaller 发送了配对文件。只有在你主动请求时才导入：SideInstaller 将用它连接这台 iPhone。",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore 已发回它现有的配对文件。iLoader X 将用它连接这台 iPhone。",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "某个链接向 iLoader X 发送了配对文件。只有在你主动请求时才导入：iLoader X 将用它连接这台 iPhone。",
     "It replaces %@.": "它会替换 %@。",
     "It replaces the pairing file in use now.": "它会替换当前使用的配对文件。",
     "Get it from SideStore": "从 SideStore 获取",
     "SideStore opens and sends back the pairing file it has.": "SideStore 会打开并发回它现有的配对文件。",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "这台 iPhone 上没有安装 SideStore，因此无法从中获取配对文件。",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "SideInstaller 会读取 LiveContainer 内置 SideStore 现有的配对文件。",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "这是 LiveContainer 内置 SideStore 现有的配对文件。SideInstaller 将用它连接这台 iPhone。",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "在 LiveContainer 的多任务模式下，SideInstaller 无法打开内置 SideStore 的文件。请在 LiveContainer 中不使用多任务模式打开 SideInstaller，然后重试；或者点按“导入配对文件”，选择电脑生成的文件。",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "在 LiveContainer 中，SideStore 无法把配对文件发回给 SideInstaller，而 LiveContainer 内置的 SideStore 也没有 SideInstaller 能用的配对文件。请点按“导入配对文件”，选择电脑生成的文件；或者先把配对文件导入 SideStore，然后回到这里重试。",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "iLoader X 会读取 LiveContainer 内置 SideStore 现有的配对文件。",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "这是 LiveContainer 内置 SideStore 现有的配对文件。iLoader X 将用它连接这台 iPhone。",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "在 LiveContainer 的多任务模式下，iLoader X 无法打开内置 SideStore 的文件。请在 LiveContainer 中不使用多任务模式打开 iLoader X，然后重试；或者点按“导入配对文件”，选择电脑生成的文件。",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "在 LiveContainer 中，SideStore 无法把配对文件发回给 iLoader X，而 LiveContainer 内置的 SideStore 也没有 iLoader X 能用的配对文件。请点按“导入配对文件”，选择电脑生成的文件；或者先把配对文件导入 SideStore，然后回到这里重试。",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "该安装链接中没有 .ipa。它需要 ?url= 后跟下载 .ipa 的 https:// 地址。",
     "That link was meant to carry a pairing file, but what it holds can't be read.": "该链接本应包含配对文件，但其内容无法读取。",
@@ -1164,39 +1164,39 @@ let chineseStrings: [String: String] = [
     "Look again": "重新查找",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "最近 %d 天内没有 SideStore、LiveContainer 或 Madeira 的崩溃日志。",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "SideInstaller 自身的崩溃会在下次打开时由 iOS 交给它。SideStore、LiveContainer 和 Madeira 的崩溃日志通过 LocalDevVPN 从此 iPhone 读取。",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iLoader X 自身的崩溃会在下次打开时由 iOS 交给它。SideStore、LiveContainer 和 Madeira 的崩溃日志通过 LocalDevVPN 从此 iPhone 读取。",
     "Open a GitHub issue": "在 GitHub 上新建 Issue",
     "Share the report": "分享报告",
     "Preview the report": "预览报告",
     "Report": "报告",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "Issue 会自动填好。如果日志太长、无法自动填入，SideInstaller 会把它复制下来，供你粘贴到 Issue 末尾。完整报告也保存在 %@。",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "Issue 会自动填好。如果日志太长、无法自动填入，iLoader X 会把它复制下来，供你粘贴到 Issue 末尾。完整报告也保存在 %@。",
     "Files › On My iPhone": "“文件” › 我的 iPhone",
     "Copy the full log": "复制完整日志",
     "Paste the log into the issue": "把日志粘贴到 Issue 中",
     "Open GitHub": "打开 GitHub",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "完整日志太长，无法自动填入，所以 SideInstaller 已将其复制。在 GitHub 上轻点文本末尾，选择“粘贴”，然后提交 Issue。",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "完整日志太长，无法自动填入，所以 iLoader X 已将其复制。在 GitHub 上轻点文本末尾，选择“粘贴”，然后提交 Issue。",
     "Describe the problem above first.": "请先在上方描述问题。",
     "Couldn't save the report: %@": "无法保存报告：%@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?":
-        "你是从 sideinstaller.net 下载的 SideInstaller 吗？",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller 是开源的，任何人都可以发布经过修改、会窃取所输入 Apple ID 的副本。只有 sideinstaller.net 是官方来源。",
-    "Yes, from sideinstaller.net":
-        "是，来自 sideinstaller.net",
+    "Did you download iLoader X from github.com/iamgasgass?":
+        "你是从 github.com/iamgasgass 下载的 iLoader X 吗？",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X 是开源的，任何人都可以发布经过修改、会窃取所输入 Apple ID 的副本。只有 github.com/iamgasgass 是官方来源。",
+    "Yes, from github.com/iamgasgass":
+        "是，来自 github.com/iamgasgass",
     "No, or I'm not sure":
         "不是，或不确定",
     "Don't sign in with this copy":
         "请勿用此副本登录",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "来自 sideinstaller.net 以外的副本均非官方，可能已被修改以窃取你的 Apple ID。请删除此副本，从 sideinstaller.net 安装 SideInstaller，然后在那里登录。",
-    "Open sideinstaller.net":
-        "打开 sideinstaller.net",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "来自 github.com/iamgasgass 以外的副本均非官方，可能已被修改以窃取你的 Apple ID。请删除此副本，从 github.com/iamgasgass 安装 iLoader X，然后在那里登录。",
+    "Open github.com/iamgasgass":
+        "打开 github.com/iamgasgass",
     "Back":
         "返回",
     "I understand the risks":
@@ -1206,10 +1206,10 @@ let chineseStrings: [String: String] = [
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "如果此副本被修改过，它可能会把你的 Apple ID 和密码发送给他人。只有在你信任其来源时才继续。",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "无法连接到位于 %@ 的对方 iPhone。请检查地址（在对方 iPhone 的 设置 › 无线局域网 › ⓘ 中），确认两台 iPhone 连接的是同一个 Wi-Fi 网络，并确认已在这台 iPhone 的 设置 中为 SideInstaller 打开本地网络。访客网络和公共网络通常会阻止设备之间互相连接。",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "无法连接到位于 %@ 的对方 iPhone。请检查地址（在对方 iPhone 的 设置 › 无线局域网 › ⓘ 中），确认两台 iPhone 连接的是同一个 Wi-Fi 网络，并确认已在这台 iPhone 的 设置 中为 iLoader X 打开本地网络。访客网络和公共网络通常会阻止设备之间互相连接。",
     "Their iPhone": "对方的 iPhone",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "对方在 iPhone 上轻点了“不信任”。请重新开始，并让对方轻点“信任”。",
@@ -1223,16 +1223,16 @@ let chineseStrings: [String: String] = [
     "“%@” isn't an IPv4 address. It should look like 192.168.1.42.": "“%@”不是 IPv4 地址。它应该形如 192.168.1.42。",
     "Do you have the device's IP?": "你知道对方设备的 IP 地址吗？",
     "Optional": "可选",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller 直接请求对方的 iPhone 配对。iOS 27 以下需要这样做。",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X 直接请求对方的 iPhone 配对。iOS 27 以下需要这样做。",
     "Their iPhone pairs from its own Settings, which needs iOS 27.": "对方的 iPhone 在自己的 设置 中配对，这需要 iOS 27。",
     "IP address": "IP 地址",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "对方的 iPhone 运行 iOS %@。从 iOS 26.4 起，SideInstaller 无法使用对方 iPhone 通过 Wi-Fi 给出的配对，所以需要用电脑制作的配对文件。",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "从 App Store 获取 LocalDevVPN 并连接：SideInstaller 要通过它工作。",
-    "Open SideInstaller. Its pairing file is already in place.": "打开 SideInstaller。它的配对文件已经放好了。",
-    "Open SideInstaller and import a pairing file made on a computer.": "打开 SideInstaller，导入用电脑制作的配对文件。",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "对方的 iPhone 运行 iOS %@。从 iOS 26.4 起，iLoader X 无法使用对方 iPhone 通过 Wi-Fi 给出的配对，所以需要用电脑制作的配对文件。",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "从 App Store 获取 LocalDevVPN 并连接：iLoader X 要通过它工作。",
+    "Open iLoader X. Its pairing file is already in place.": "打开 iLoader X。它的配对文件已经放好了。",
+    "Open iLoader X and import a pairing file made on a computer.": "打开 iLoader X，导入用电脑制作的配对文件。",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ 是这台 iPhone 自己的地址。Side by Side 用于安装到别人的 iPhone 上，请填对方的地址。要安装到这台设备，请使用“安装”标签页。",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1266,16 +1266,24 @@ let chineseStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "此 Apple 账户属于 %d 个开发团队。请选择用来签名的团队。",
     "Which Team?": "哪个团队？",
-    "Signed this copy of SideInstaller": "签名了这份 SideInstaller",
+    "Signed this copy of iLoader X": "签名了这份 iLoader X",
     "A free team's apps last 7 days; a paid team's last a year.": "免费团队签名的应用可用 7 天；付费团队签名的可用一年。",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "用其他团队安装的应用不会被替换：用此团队签名会另外安装一个副本。",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller 会为此 Apple ID 记住这个选择。如需重新选择，请打开“设置 › 账户”，在该 Apple ID 上向左轻扫，然后轻点“团队”。",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X 会为此 Apple ID 记住这个选择。如需重新选择，请打开“设置 › 账户”，在该 Apple ID 上向左轻扫，然后轻点“团队”。",
     "No developer team was picked, so the sign-in stopped.": "未选择开发团队，因此登录已停止。",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "你的 Apple 账户属于多个开发团队。请打开 SideInstaller，选择用来签名的团队。",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "你的 Apple 账户属于多个开发团队。请打开 iLoader X，选择用来签名的团队。",
     "Pick the team again?": "重新选择团队？",
     "Pick Again": "重新选择",
     "The next sign-in with “%@” asks which developer team signs.": "下次用“%@”登录时，会询问用哪个开发团队签名。",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X 是它的分支，拥有自己的名称、Bundle ID 和图标。",
+    "App Icon":
+        "App 图标",
+    "Couldn't change the icon: %@":
+        "无法更改图标：%@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "每个图标都有深色和着色版本，iOS 会根据主屏幕的外观使用它们。",
 ]

@@ -49,7 +49,7 @@ struct DeveloperTeam: Codable, Hashable, Identifiable {
     }
 
     /// The team a question starts on: the one that signed this copy of
-    /// SideInstaller when it's one of `teams`, so a copy siboot installed with
+    /// iLoader X when it's one of `teams`, so a copy siboot installed with
     /// another team than Apple's first keeps renewing itself in place;
     /// otherwise Apple's first, the team that signed before teams could be
     /// picked.
@@ -59,7 +59,7 @@ struct DeveloperTeam: Codable, Hashable, Identifiable {
     }
 }
 
-/// The team that signed this copy of SideInstaller, read from its embedded
+/// The team that signed this copy of iLoader X, read from its embedded
 /// provisioning profile. Its bundle ID ends in that team's ID, so only that
 /// team can refresh it in place.
 enum InstalledSigner {
@@ -168,7 +168,7 @@ struct TeamSheet: View {
                 Text(team.label)
                     .font(.subheadline.weight(isSelected ? .medium : .regular))
                 if team.teamId == InstalledSigner.teamID {
-                    Text(L("Signed this copy of SideInstaller"))
+                    Text(L("Signed this copy of iLoader X"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -189,7 +189,7 @@ struct TeamSheet: View {
         var text = L("A free team's apps last 7 days; a paid team's last a year.")
             + " " + L("An app installed with another team isn't replaced: signing it with this one installs a second copy.")
         if question.remembers {
-            text += " " + L("SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.")
+            text += " " + L("iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.")
         }
         return text
     }

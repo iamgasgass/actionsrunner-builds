@@ -30,14 +30,14 @@ let koreanStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "페어링 파일이 필요합니다",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "이 iPhone의 iOS 버전은 %@입니다. 자기 자신과 페어링할 수 있는 것은 iOS %@ 이상뿐이라서, 컴퓨터에서 jitterbugpair나 pymobiledevice3로 페어링 파일을 만들어 앱으로 가져와야 합니다. 방법은 SideInstaller가 안내해 드립니다.",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "이 iPhone의 iOS 버전은 %@입니다. 자기 자신과 페어링할 수 있는 것은 iOS %@ 이상뿐이라서, 컴퓨터에서 jitterbugpair나 pymobiledevice3로 페어링 파일을 만들어 앱으로 가져와야 합니다. 방법은 iLoader X가 안내해 드립니다.",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "iOS %@로 업데이트하세요",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "이 iPhone은 iOS %@ 업데이트를 받을 수 있습니다. 업데이트하면 iPhone이 자기 자신과 페어링하므로 컴퓨터 없이 SideInstaller를 사용할 수 있고, 페어링 파일을 만들 필요도 없습니다. 설정 › 일반 › 소프트웨어 업데이트에서 업데이트하세요.",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "이 iPhone은 iOS %@ 업데이트를 받을 수 있습니다. 업데이트하면 iPhone이 자기 자신과 페어링하므로 컴퓨터 없이 iLoader X를 사용할 수 있고, 페어링 파일을 만들 필요도 없습니다. 설정 › 일반 › 소프트웨어 업데이트에서 업데이트하세요.",
     "OK": "확인",
 
     // MARK: - Account setup & Settings › Account
@@ -57,15 +57,15 @@ let koreanStrings: [String: String] = [
     "In use": "사용 중",
     "Edit": "편집",
     "Remove": "삭제",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "저장된 Apple ID가 없습니다. 하나 추가하면 SideInstaller가 로그인할 때마다 사용합니다.",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "저장된 Apple ID가 없습니다. 하나 추가하면 iLoader X가 로그인할 때마다 사용합니다.",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "이 iPhone의 키체인에 저장되며, 로그인할 때 Apple에만 전송됩니다. 행을 살짝 밀면 암호를 수정하거나 삭제할 수 있습니다.",
     "Remove this Apple ID?": "이 Apple ID를 삭제하시겠습니까?",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "“%@” 및 저장된 암호가 이 iPhone에서 삭제됩니다. Apple 계정에는 아무 영향이 없습니다.",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "이 iPhone의 키체인이 암호 저장을 거부했습니다(오류 %d). SideInstaller를 종료하기 전까지만 보관됩니다.",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "이 iPhone의 키체인이 암호 저장을 거부했습니다(오류 %d). iLoader X를 종료하기 전까지만 보관됩니다.",
     "No Apple ID saved. Add one in Settings › Account.": "저장된 Apple ID가 없습니다. 설정 › 계정에서 추가하세요.",
 
     "Add your Apple ID": "Apple ID 추가하기",
@@ -130,8 +130,8 @@ let koreanStrings: [String: String] = [
     "Tunnel connected": "터널 연결됨",
     "Tunnel off": "터널 꺼짐",
     "Update available": "업데이트 가능",
-    "SideInstaller %@ is available — you're on %@.":
-        "SideInstaller %@ 버전을 사용할 수 있습니다. 현재 버전은 %@입니다.",
+    "iLoader X %@ is available — you're on %@.":
+        "iLoader X %@ 버전을 사용할 수 있습니다. 현재 버전은 %@입니다.",
     "Get the latest version": "최신 버전 받기",
     "From the website": "웹사이트에서 받기",
     "Sign it with your Apple ID": "내 Apple ID로 서명",
@@ -146,12 +146,12 @@ let koreanStrings: [String: String] = [
     "Replace": "교체",
     "or": "또는",
     "Paste a download link": "다운로드 링크 붙여넣기",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller가 이 파일을 %@(으)로 인식하여 직접 다운로드한 경우와 똑같이 설정합니다.",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X가 이 파일을 %@(으)로 인식하여 직접 다운로드한 경우와 똑같이 설정합니다.",
     "Downloading… %d%%": "다운로드 중… %d%%",
     "iOS %@ required": "iOS %@ 필요",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "이 iPhone의 iOS 버전은 %@이므로 SideInstaller로 설치할 수 없습니다. 설정 › 일반 › 소프트웨어 업데이트에서 iOS %@ 이상으로 업데이트하세요.",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "이 iPhone의 iOS 버전은 %@이므로 iLoader X로 설치할 수 없습니다. 설정 › 일반 › 소프트웨어 업데이트에서 iOS %@ 이상으로 업데이트하세요.",
     "Wi-Fi required": "Wi-Fi 필요",
     "Pairing code": "페어링 코드",
     "Type this into the prompt in Settings.":
@@ -259,8 +259,8 @@ let koreanStrings: [String: String] = [
     "failed: empty pairing file": "실패: 페어링 파일이 비어 있음",
     "failed: %@": "실패: %@",
     "Pairing is already in progress.": "이미 페어링이 진행 중입니다.",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "로컬 네트워크 권한이 꺼져 있습니다. 설정 › SideInstaller › 로컬 네트워크에서 켠 뒤 다시 시도하세요.",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "로컬 네트워크 권한이 꺼져 있습니다. 설정 › iLoader X › 로컬 네트워크에서 켠 뒤 다시 시도하세요.",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "페어링 결과 파일이 비어 있습니다. 페어링 요청을 승인했는지 확인한 뒤 다시 시도하세요.",
 
@@ -285,11 +285,11 @@ let koreanStrings: [String: String] = [
     "This certificate has no serial number, so it can't be revoked.":
         "이 인증서에는 일련번호가 없어서 폐기할 수 없습니다.",
 
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
     "This certificate has no serial number, so it can't be exported.":
         "이 인증서에는 일련번호가 없어서 내보낼 수 없습니다.",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "SideInstaller가 서명에 사용하는 인증서만 내보낼 수 있습니다. 다른 인증서의 개인 키는 Apple에 인증서를 요청한 기기에만 남아 있습니다.",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "iLoader X가 서명에 사용하는 인증서만 내보낼 수 있습니다. 다른 인증서의 개인 키는 Apple에 인증서를 요청한 기기에만 남아 있습니다.",
     "Couldn't export the certificate: %@": "인증서를 내보내지 못했습니다: %@",
     "Export certificate": "인증서 내보내기",
     "Password (optional)": "암호(선택)",
@@ -297,37 +297,37 @@ let koreanStrings: [String: String] = [
     "Exporting": "내보내는 중",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "이 인증서와 개인 키를 .p12 파일로 저장합니다. 다른 서명 앱이나 컴퓨터에서 서명할 때 사용할 수 있습니다. 암호를 정하면 파일을 가져올 때 필요합니다. 비워 두어도 서명 앱은 가져올 수 있지만 Mac은 가져올 수 없습니다. 파일은 본인만 보관하세요.",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller는 서명에 사용하는 인증서만 내보낼 수 있는데, 이 목록에는 해당하는 인증서가 없습니다. 인증서의 개인 키는 Apple에 인증서를 요청한 기기에만 남아 있기 때문입니다.",
-    "SideInstaller signs with this one": "SideInstaller가 이 인증서로 서명합니다",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X는 서명에 사용하는 인증서만 내보낼 수 있는데, 이 목록에는 해당하는 인증서가 없습니다. 인증서의 개인 키는 Apple에 인증서를 요청한 기기에만 남아 있기 때문입니다.",
+    "iLoader X signs with this one": "iLoader X가 이 인증서로 서명합니다",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "SideStore의 인증서 사용",
     "Checking the certificate": "인증서 확인 중",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore가 열리고 자신의 인증서를 돌려보냅니다. 그러면 SideInstaller도 같은 인증서로 서명하므로, 무료 Apple ID에서도 두 앱이 서로의 인증서를 폐기할 필요가 없습니다.",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple은 이 Apple ID에 서명 인증서를 2개 발급하지 않습니다. 이미 있는 인증서를 SideStore가 만들었다면 SideInstaller도 그 인증서로 서명할 수 있으며, 아무것도 폐기되지 않습니다. 그 인증서를 폐기해도 설치를 계속할 수 있지만, 이 작업은 되돌릴 수 없습니다.",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "SideStore가 만든 인증서라면 위의 “SideStore의 인증서 사용”을 탭하세요. SideInstaller도 그 인증서로 서명하며, 아무것도 폐기되지 않습니다.",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "이제부터 SideInstaller는 “%@” 인증서로 서명합니다. 폐기된 것은 없으므로 이 인증서로 이미 서명한 앱은 계속 작동합니다.",
-    "SideInstaller already signs with “%@”.": "SideInstaller는 이미 “%@” 인증서로 서명하고 있습니다.",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore가 열리고 자신의 인증서를 돌려보냅니다. 그러면 iLoader X도 같은 인증서로 서명하므로, 무료 Apple ID에서도 두 앱이 서로의 인증서를 폐기할 필요가 없습니다.",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple은 이 Apple ID에 서명 인증서를 2개 발급하지 않습니다. 이미 있는 인증서를 SideStore가 만들었다면 iLoader X도 그 인증서로 서명할 수 있으며, 아무것도 폐기되지 않습니다. 그 인증서를 폐기해도 설치를 계속할 수 있지만, 이 작업은 되돌릴 수 없습니다.",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "SideStore가 만든 인증서라면 위의 “SideStore의 인증서 사용”을 탭하세요. iLoader X도 그 인증서로 서명하며, 아무것도 폐기되지 않습니다.",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "이제부터 iLoader X는 “%@” 인증서로 서명합니다. 폐기된 것은 없으므로 이 인증서로 이미 서명한 앱은 계속 작동합니다.",
+    "iLoader X already signs with “%@”.": "iLoader X는 이미 “%@” 인증서로 서명하고 있습니다.",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "이 Apple ID의 인증서가 아닙니다. 이미 폐기되었거나 다른 Apple ID의 인증서입니다(SideStore에 다른 Apple ID로 로그인되어 있을 수 있습니다). 변경된 것은 없습니다.",
     "Couldn't use that certificate: %@": "해당 인증서를 사용하지 못했습니다: %@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "이 iPhone에 SideStore가 설치되어 있지 않아서 가져올 인증서가 없습니다.",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "LiveContainer 안에서는 SideStore가 인증서를 SideInstaller로 돌려보낼 수 없고, LiveContainer에도 아직 인증서가 없습니다. LiveContainer의 설정에서 “Import Certificate From SideStore”를 탭한 다음(SideStore에 인증서가 없다면 먼저 SideStore에 로그인하세요) 여기서 다시 시도하세요.",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "LiveContainer 안에서는 SideStore가 인증서를 iLoader X로 돌려보낼 수 없고, LiveContainer에도 아직 인증서가 없습니다. LiveContainer의 설정에서 “Import Certificate From SideStore”를 탭한 다음(SideStore에 인증서가 없다면 먼저 SideStore에 로그인하세요) 여기서 다시 시도하세요.",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "LiveContainer가 SideStore용으로 보관한 인증서는 이 Apple ID의 인증서가 아닙니다. 이미 폐기되었거나 다른 Apple ID의 인증서입니다. 변경된 것은 없습니다. 그 사이 SideStore가 새 인증서를 만들었다면 LiveContainer의 설정에서 “Refresh Certificate from SideStore”를 탭한 다음 여기서 다시 시도하세요.",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller가 LiveContainer에서 SideStore의 인증서를 가져와 같은 인증서로 서명하므로, 무료 Apple ID에서도 두 앱이 서로의 인증서를 폐기할 필요가 없습니다.",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X가 LiveContainer에서 SideStore의 인증서를 가져와 같은 인증서로 서명하므로, 무료 Apple ID에서도 두 앱이 서로의 인증서를 폐기할 필요가 없습니다.",
     "Sign with this certificate?": "이 인증서로 서명하시겠습니까?",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "링크를 통해 SideInstaller에 서명 인증서가 전달되었습니다. 직접 요청한 경우에만 사용하세요. 사용하면 SideInstaller가 자체 인증서 대신 이 인증서로 앱에 서명합니다. 내 Apple ID의 인증서 중 하나인 경우에만 사용됩니다.",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "링크를 통해 iLoader X에 서명 인증서가 전달되었습니다. 직접 요청한 경우에만 사용하세요. 사용하면 iLoader X가 자체 인증서 대신 이 인증서로 앱에 서명합니다. 내 Apple ID의 인증서 중 하나인 경우에만 사용됩니다.",
     "Use it": "사용",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "이 링크는 서명 인증서를 전달하려는 것이었지만, 담긴 내용을 읽을 수 없습니다.",
@@ -426,8 +426,8 @@ let koreanStrings: [String: String] = [
     "%d App ID": "App ID %d개",
     "%d App IDs": "App ID %d개",
     "No App IDs": "App ID 없음",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "이 Apple ID로 등록된 앱이 아직 없습니다. 먼저 SideInstaller로 앱을 설치한 뒤 다시 확인하세요.",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "이 Apple ID로 등록된 앱이 아직 없습니다. 먼저 iLoader X로 앱을 설치한 뒤 다시 확인하세요.",
     "Memory and performance": "메모리 및 성능",
     "Other free capabilities": "기타 무료 기능",
     "Beta": "베타",
@@ -445,8 +445,8 @@ let koreanStrings: [String: String] = [
     "Reading the device": "기기를 읽는 중",
 
     // Refresh all: signing the installed apps again.
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "iOS %@ 버전은 지원되지 않습니다. SideInstaller는 iOS %@ 이상이 필요합니다.",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "iOS %@ 버전은 지원되지 않습니다. iLoader X는 iOS %@ 이상이 필요합니다.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple이 이 Apple ID에 서명 인증서를 발급하지 않습니다. 이미 인증서가 있다고 응답했습니다(오류 7460). 도구 › 인증서에서 SideStore의 인증서를 사용하거나 기존 인증서를 폐기한 뒤 다시 갱신하세요.",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -473,10 +473,10 @@ let koreanStrings: [String: String] = [
     "Waiting": "대기 중",
     "In progress": "진행 중",
     "Failed": "실패",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "이 목록의 앱 %d개는 SideInstaller에 IPA가 없어 이 화면에서 갱신할 수 없습니다. 해당 앱을 설치한 도구에서 갱신하거나, 먼저 .ipa를 가져오세요.",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "이 목록의 앱 %d개는 SideInstaller에 IPA가 없어 이 화면에서 갱신할 수 없습니다. 해당 앱을 설치한 도구에서 갱신하거나, 먼저 .ipa를 가져오세요.",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "이 목록의 앱 %d개는 iLoader X에 IPA가 없어 이 화면에서 갱신할 수 없습니다. 해당 앱을 설치한 도구에서 갱신하거나, 먼저 .ipa를 가져오세요.",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "이 목록의 앱 %d개는 iLoader X에 IPA가 없어 이 화면에서 갱신할 수 없습니다. 해당 앱을 설치한 도구에서 갱신하거나, 먼저 .ipa를 가져오세요.",
     "%d app": "앱 %d개",
     "%d apps": "앱 %d개",
     "%d app needs refreshing": "앱 %d개 갱신 필요",
@@ -596,10 +596,10 @@ let koreanStrings: [String: String] = [
     "Starts with %@": "%@부터 시작",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "자동은 마지막으로 로그인에 성공한 서버부터 시작해서, 작동할 가능성이 높은 순서대로 나머지 서버를 시도합니다.",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
-        "이 서버만 시도합니다. 실패하면 로그인도 실패하므로, 자동을 선택해 SideInstaller가 다른 서버를 시도하게 하세요.",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "설정 › Anisette 서버에서 선택한 서버만 시도했습니다. 그곳에서 자동을 선택하면 실패했을 때 SideInstaller가 다른 서버를 시도합니다.",
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
+        "이 서버만 시도합니다. 실패하면 로그인도 실패하므로, 자동을 선택해 iLoader X가 다른 서버를 시도하게 하세요.",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "설정 › Anisette 서버에서 선택한 서버만 시도했습니다. 그곳에서 자동을 선택하면 실패했을 때 iLoader X가 다른 서버를 시도합니다.",
     "Device IP": "기기 IP",
     "Advanced": "고급",
     "Clear": "지우기",
@@ -676,28 +676,28 @@ let koreanStrings: [String: String] = [
         "%@에서 Apple ID 로그인에 실패했습니다. 오류: %@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "%@에서 Apple ID 로그인에 실패했습니다. %@ 경유 오류: %@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Apple 로그인 서버가 요청을 거부했습니다(HTTP 503). 암호나 Anisette 서버 문제가 아니므로 다른 서버를 시도해도 소용없습니다. 나중에 다시 시도하거나 SideInstaller를 업데이트하세요.",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Apple 로그인 서버가 요청을 거부했습니다(HTTP 503). 암호나 Anisette 서버 문제가 아니므로 다른 서버를 시도해도 소용없습니다. 나중에 다시 시도하거나 iLoader X를 업데이트하세요.",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "“%@”은(는) Apple의 Android 라이브러리로 anisette 데이터를 만들며, 이제 Apple은 암호와 코드를 입력한 뒤 이러한 서버를 통한 로그인 완료를 거부합니다(오류 -80046). 설정 › Anisette 서버에서 자동 또는 “SideStore (New)” 같은 Mac 서버를 선택하세요.",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple이 로그인 완료를 거부했습니다(오류 -80046). 지금까지 허용하던 Mac anisette 서버를 통해서도 마찬가지였습니다. 나중에 다시 시도하거나 SideInstaller 업데이트가 있는지 확인하세요.",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple이 로그인 완료를 거부했습니다(오류 -80046). 지금까지 허용하던 Mac anisette 서버를 통해서도 마찬가지였습니다. 나중에 다시 시도하거나 iLoader X 업데이트가 있는지 확인하세요.",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple이 “%@”을(를) 통한 로그인 완료를 거부했습니다(오류 -80046). 이제 Apple은 macOS 라이브러리를 사용하는 anisette 서버를 통한 로그인만 허용합니다. 설정 › Anisette 서버에서 자동 또는 “SideStore (New)” 같은 Mac 서버를 선택하세요.",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple이 이 로그인에는 문자나 전화로 코드를 보내지 않으므로, 코드를 Apple 기기로 보냈습니다.",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple이 Apple 기기로 코드를 보냈는지 확인해 주지 않았습니다. 코드를 받았다면 입력하고, 받지 못했다면 다른 방법을 시도하세요.",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "이 iPhone이 인터넷에 연결되어 있는데도 SideInstaller가 Apple 로그인 서버(gsa.apple.com)에 연결할 수 없습니다. 방화벽, DNS 필터나 광고 차단기, 스크린 타임 콘텐츠 제한, 다른 VPN 앱 등이 접속을 막고 있습니다. 해당 기능을 끄거나 다른 네트워크를 사용한 뒤 다시 시도하세요.",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller가 Apple에 연결할 수 없습니다. SideInstaller의 셀룰러 데이터가 꺼져 있습니다. 설정 › 셀룰러에서 SideInstaller를 켜거나, 인터넷이 되는 Wi-Fi에 연결한 뒤 다시 시도하세요.",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller가 Apple에 연결할 수 없습니다. iOS가 Wi-Fi 사용을 허용하지 않고 있습니다. 설정 › 앱 › SideInstaller › 무선 데이터에서 “WLAN 및 셀룰러 데이터”를 선택한 뒤 다시 시도하세요.",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller가 Apple에 연결할 수 없습니다. 모든 트래픽을 전달하도록 설정된 VPN의 연결이 끊겨서 iOS가 트래픽을 막고 있습니다. VPN을 다시 연결하거나 킬 스위치 또는 주문형 연결을 끈 뒤 다시 시도하세요.",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller가 Apple에 연결할 수 없습니다. 이 iPhone이 인터넷에 연결되어 있지 않습니다. Wi-Fi에 연결하거나 셀룰러 데이터를 켠 뒤 다시 시도하세요.",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "이 iPhone이 인터넷에 연결되어 있는데도 iLoader X가 Apple 로그인 서버(gsa.apple.com)에 연결할 수 없습니다. 방화벽, DNS 필터나 광고 차단기, 스크린 타임 콘텐츠 제한, 다른 VPN 앱 등이 접속을 막고 있습니다. 해당 기능을 끄거나 다른 네트워크를 사용한 뒤 다시 시도하세요.",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X가 Apple에 연결할 수 없습니다. iLoader X의 셀룰러 데이터가 꺼져 있습니다. 설정 › 셀룰러에서 iLoader X를 켜거나, 인터넷이 되는 Wi-Fi에 연결한 뒤 다시 시도하세요.",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X가 Apple에 연결할 수 없습니다. iOS가 Wi-Fi 사용을 허용하지 않고 있습니다. 설정 › 앱 › iLoader X › 무선 데이터에서 “WLAN 및 셀룰러 데이터”를 선택한 뒤 다시 시도하세요.",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X가 Apple에 연결할 수 없습니다. 모든 트래픽을 전달하도록 설정된 VPN의 연결이 끊겨서 iOS가 트래픽을 막고 있습니다. VPN을 다시 연결하거나 킬 스위치 또는 주문형 연결을 끈 뒤 다시 시도하세요.",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X가 Apple에 연결할 수 없습니다. 이 iPhone이 인터넷에 연결되어 있지 않습니다. Wi-Fi에 연결하거나 셀룰러 데이터를 켠 뒤 다시 시도하세요.",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "이 Apple ID 또는 네트워크의 로그인을 Apple이 일시적으로 제한하고 있습니다(HTTP 429). 다른 서버를 시도해도 소용없고, 시도할 때마다 대기 시간이 늘어날 수 있으니 한동안 기다렸다가 다시 로그인하세요.",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -730,16 +730,16 @@ let koreanStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "가져온 IPA가 아직 없습니다. “.ipa 가져오기”를 탭하고 파일을 선택하세요.",
     "Couldn't import %@: %@": "%@ 파일을 가져오지 못했습니다: %@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "SideInstaller가 다운로드할 수 있는 링크가 아닙니다. .ipa를 내려받는 https:// 주소 전체를 붙여넣으세요.",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "iLoader X가 다운로드할 수 있는 링크가 아닙니다. .ipa를 내려받는 https:// 주소 전체를 붙여넣으세요.",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "그 링크가 IPA를 돌려주지 않았습니다. 파일 자체를 내려받는 링크여야 합니다. .ipa로 연결만 해 주는 페이지나 먼저 로그인을 요구하는 페이지는 웹 페이지로 전달됩니다.",
     "Couldn't download that link: %@": "그 링크를 다운로드하지 못했습니다: %@",
     "there's nothing to download for a custom IPA — import one first":
         "사용자 지정 IPA는 내려받을 항목이 없습니다. 먼저 IPA를 가져오세요.",
     "your app": "내 앱",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "이 Apple ID로는 서명 인증서를 발급받을 수 없습니다. Apple이 이미 인증서가 있거나 발급 요청이 아직 처리 중이라고 응답했습니다(오류 7460). SideInstaller는 기존 인증서를 재사용하지 못했고, 교체하는 대신 작업을 중단했습니다. 위의 안내를 참고하세요.",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "이 Apple ID로는 서명 인증서를 발급받을 수 없습니다. Apple이 이미 인증서가 있거나 발급 요청이 아직 처리 중이라고 응답했습니다(오류 7460). iLoader X는 기존 인증서를 재사용하지 못했고, 교체하는 대신 작업을 중단했습니다. 위의 안내를 참고하세요.",
     " (UDID %@)": " (UDID %@)",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "이 기기%@를 Apple ID의 개발자 팀에 등록하지 못해서 Apple이 프로비저닝 프로파일을 발급하지 않습니다. %@ — 위의 단계를 참고하세요.",
@@ -753,53 +753,53 @@ let koreanStrings: [String: String] = [
     "Import an .ipa first": "먼저 .ipa 가져오기",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "위의 “.ipa 가져오기”를 탭하고 파일을 선택하세요. 파일 앱에서 접근할 수 있는 곳이면 iCloud Drive나 USB 드라이브에 있어도 됩니다.",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "또는 그 버튼 아래에 다운로드 링크를 붙여넣으면 SideInstaller가 .ipa를 직접 받아옵니다.",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "또는 파일 앱에서 .ipa를 길게 누르고 공유를 탭한 뒤 SideInstaller를 선택하세요. 선택 창 없이 파일이 바로 전달됩니다.",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "또는 파일 › 나의 iPhone › SideInstaller에 복사해 두세요. SideInstaller가 그곳의 파일도 찾습니다.",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "또는 그 버튼 아래에 다운로드 링크를 붙여넣으면 iLoader X가 .ipa를 직접 받아옵니다.",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "또는 파일 앱에서 .ipa를 길게 누르고 공유를 탭한 뒤 iLoader X를 선택하세요. 선택 창 없이 파일이 바로 전달됩니다.",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "또는 파일 › 나의 iPhone › iLoader X에 복사해 두세요. iLoader X가 그곳의 파일도 찾습니다.",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "GitHub이 차단된 곳에서는 이 방법을 쓰세요. 다른 기기에서 IPA를 받아 옮겨 와서 여기서 설치하면 됩니다.",
     "Bring the .ipa yourself": ".ipa를 직접 준비하세요",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "GitHub 저장소가 오프라인이라 %@ 앱은 다운로드할 수 없습니다. 다른 앱은 평소처럼 설치할 수 있습니다.",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "그래도 설치하려면 신뢰할 수 있는 곳에서 .ipa를 구해 이름을 %@(으)로 바꾸고, 파일 › 나의 iPhone › SideInstaller에 복사하세요.",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "그런 다음 설치를 다시 탭하세요. SideInstaller가 다운로드하는 대신 그 파일을 사용합니다.",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "그래도 설치하려면 신뢰할 수 있는 곳에서 .ipa를 구해 이름을 %@(으)로 바꾸고, 파일 › 나의 iPhone › iLoader X에 복사하세요.",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "그런 다음 설치를 다시 탭하세요. iLoader X가 다운로드하는 대신 그 파일을 사용합니다.",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "VPN이나 프록시 앱을 통해 GitHub에 접속한다면 LocalDevVPN을 끄고 그 앱을 켜세요. iOS는 한 번에 VPN을 하나만 실행합니다.",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "아래의 “.ipa 받기”를 탭하고 파일을 저장하거나, 다른 기기에서 다운로드한 다음 이쪽으로 옮기세요.",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "SideInstaller로 돌아와 설치에서 “사용자 지정 .ipa”를 선택하고 “.ipa 가져오기”를 탭한 다음 파일을 고르세요. SideInstaller가 %@을(를) 인식하여 직접 다운로드한 경우와 똑같이 설정합니다.",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "iLoader X로 돌아와 설치에서 “사용자 지정 .ipa”를 선택하고 “.ipa 가져오기”를 탭한 다음 파일을 고르세요. iLoader X가 %@을(를) 인식하여 직접 다운로드한 경우와 똑같이 설정합니다.",
     "Turn LocalDevVPN back on, then tap Install.":
         "LocalDevVPN을 다시 켠 다음 설치를 탭하세요.",
     "Get the .ipa": ".ipa 받기",
     "Pair this iPhone in Settings": "설정에서 이 iPhone 페어링",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "설정 앱을 열고 개인정보 보호 및 보안 › 개발자 모드로 이동하세요.",
-    "Tap “Pair with SideInstaller”.": "“SideInstaller와 페어링”을 탭하세요.",
+    "Tap “Pair with iLoader X”.": "“iLoader X와 페어링”을 탭하세요.",
     "Enter your iPhone’s passcode if it asks for it.": "iPhone 암호를 요청하면 입력하세요.",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "SideInstaller로 돌아와 표시되는 코드를 확인한 뒤, 설정의 입력창에 같은 코드를 입력하세요.",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "화면 맨 위에 나타나는 코드를 설정의 입력창에 입력하세요. 코드가 보이지 않으면 SideInstaller로 돌아와 확인하세요.",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "SideInstaller가 알림 허용을 요청하면 허용하세요. 그래야 설정에서 페어링 코드를 받을 수 있습니다.",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "iLoader X로 돌아와 표시되는 코드를 확인한 뒤, 설정의 입력창에 같은 코드를 입력하세요.",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "화면 맨 위에 나타나는 코드를 설정의 입력창에 입력하세요. 코드가 보이지 않으면 iLoader X로 돌아와 확인하세요.",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "iLoader X가 알림 허용을 요청하면 허용하세요. 그래야 설정에서 페어링 코드를 받을 수 있습니다.",
 
     // The pairing Live Activity
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "개인정보 보호 및 보안 › 개발자 모드 › SideInstaller와 페어링",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "개인정보 보호 및 보안 › 개발자 모드 › iLoader X와 페어링",
     "Paired": "페어링됨",
-    "Tap to return to SideInstaller.": "탭하면 SideInstaller로 돌아갑니다.",
+    "Tap to return to iLoader X.": "탭하면 iLoader X로 돌아갑니다.",
 
     // The install's progress outside the app
     "Installing %@": "%@ 설치 중",
     "Paused": "일시 중지됨",
-    "Open SideInstaller to finish the install.":
-        "SideInstaller를 열어 설치를 마치세요.",
+    "Open iLoader X to finish the install.":
+        "iLoader X를 열어 설치를 마치세요.",
     "Check the App IDs it needs, then tap Install.":
         "필요한 App ID를 확인한 뒤 설치를 탭하세요.",
     "Tap Trust": "신뢰 탭",
@@ -809,8 +809,8 @@ let koreanStrings: [String: String] = [
     "A signing certificate already exists": "서명 인증서가 이미 있습니다",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple이 오류 7460으로 응답했습니다. 이 Apple ID에 iOS 개발용 인증서가 이미 있거나, 발급 요청이 아직 처리 중입니다.",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller가 그 인증서를 재사용하지 못했습니다. AltStore, SideStore, Sideloadly, 또는 다른 기기의 Xcode처럼 다른 곳에서 발급된 인증서라서, 필요한 개인 키가 이 iPhone에 없을 때 생기는 문제입니다.",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X가 그 인증서를 재사용하지 못했습니다. AltStore, SideStore, Sideloadly, 또는 다른 기기의 Xcode처럼 다른 곳에서 발급된 인증서라서, 필요한 개인 키가 이 iPhone에 없을 때 생기는 문제입니다.",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "위의 “폐기 후 재시도”를 사용하거나, 도구 탭의 인증서를 열어 “인증서 불러오기”를 탭한 뒤 거기서 폐기하세요.",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -827,8 +827,8 @@ let koreanStrings: [String: String] = [
         "보안상의 이유로 Apple이 이 Apple 계정을 잠갔습니다. 로그인 시도가 너무 많았을 때 흔히 생깁니다. 잠금이 풀릴 때까지 모든 로그인이 실패하므로, 지금은 설치를 다시 탭해도 소용없습니다.",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "iForgot을 열어 이 Apple 계정의 이메일을 입력하고, Apple의 안내에 따라 잠금을 풀고 암호를 재설정하세요.",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "SideInstaller로 돌아와 설정 › 계정에서 이 Apple ID를 왼쪽으로 밀고, 편집을 탭한 뒤 새 암호를 입력하세요.",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "iLoader X로 돌아와 설정 › 계정에서 이 Apple ID를 왼쪽으로 밀고, 편집을 탭한 뒤 새 암호를 입력하세요.",
     "Then tap Install again.": "그런 다음 설치를 다시 탭하세요.",
     "Open iForgot": "iForgot 열기",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -838,8 +838,8 @@ let koreanStrings: [String: String] = [
     "This iPhone already has three apps signed with a free Apple ID, the most iOS allows, counting expired ones. Delete one of them, then try again.":
         "이 iPhone에는 무료 Apple ID로 서명한 앱이 이미 세 개 있습니다. 만료된 앱을 포함해 iOS가 허용하는 최대 개수입니다. 하나를 삭제한 뒤 다시 시도하세요.",
     "This Apple Account can't sign apps": "이 Apple 계정으로는 앱에 서명할 수 없습니다",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "SideInstaller가 앱 서명에 쓰는 개발자 서비스는 Apple이 성인에게만 허용합니다. 이 Apple 계정은 미성년자의 계정으로 확인되었습니다(오류 1102).",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "iLoader X가 앱 서명에 쓰는 개발자 서비스는 Apple이 성인에게만 허용합니다. 이 Apple 계정은 미성년자의 계정으로 확인되었습니다(오류 1102).",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "성인의 Apple 계정으로 로그인하세요. 설정 › 계정을 열어 거기에 추가하면 됩니다.",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -853,8 +853,8 @@ let koreanStrings: [String: String] = [
     "Open Apple Account":
         "Apple 계정 열기",
     "No App IDs left this week": "이번 주에는 남은 App ID가 없습니다",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "SideInstaller가 서명하는 모든 앱에는 App ID가 필요하며, 앱의 확장 기능은 이 App ID를 함께 사용합니다. 무료 Apple ID는 일주일에 10개를 등록할 수 있고, 등록한 App ID는 각각 7일 동안 개수에 포함됩니다.",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "iLoader X가 서명하는 모든 앱에는 App ID가 필요하며, 앱의 확장 기능은 이 App ID를 함께 사용합니다. 무료 Apple ID는 일주일에 10개를 등록할 수 있고, 등록한 App ID는 각각 7일 동안 개수에 포함됩니다.",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "그보다 일찍 삭제할 수는 없습니다. 일부가 만료될 때까지 기다린 뒤 설치를 다시 탭하세요.",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -909,8 +909,8 @@ let koreanStrings: [String: String] = [
         "Apple ID가 등록 가능한 기기 수 한도에 도달했습니다. 무료 계정은 1년에 몇 대만 등록할 수 있고, 연도가 바뀌기 전에는 이전 기기를 제거할 수 없습니다.",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "가장 쉬운 해결 방법: 위의 입력란에 다른(또는 여분의) Apple ID를 입력한 뒤 설치를 다시 탭하세요.",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller가 이 iPhone을 Apple ID의 개발자 팀에 자동으로 추가하지 못했습니다. 설치를 다시 탭하면 해결되는 경우가 많습니다. Apple의 개발자 서비스가 잠시 응답하지 않을 때가 있습니다.",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X가 이 iPhone을 Apple ID의 개발자 팀에 자동으로 추가하지 못했습니다. 설치를 다시 탭하면 해결되는 경우가 많습니다. Apple의 개발자 서비스가 잠시 응답하지 않을 때가 있습니다.",
     "If it keeps failing, add the device by hand. Its UDID is:":
         "계속 실패하면 기기를 직접 추가하세요. 이 기기의 UDID는 다음과 같습니다:",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
@@ -947,10 +947,10 @@ let koreanStrings: [String: String] = [
         "이 iPhone이 연결이 열리자마자 끊었습니다. iOS 26.4부터는 이 파일 같은 lockdown 방식 페어링 파일이 LocalDevVPN을 통해 들어오면 이렇게 동작하므로, 같은 방식으로 새로 만들어도 소용없습니다. 원격 페어링 파일은 계속 사용할 수 있습니다. 컴퓨터에서 idevice_pair를 열고 “Remote pairing”을 선택한 뒤 “Create”를 클릭하고 “Save to file…”을 클릭하세요. 그런 다음 “페어링 파일”에서 그 파일을 가져오세요.",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "이 iPhone이 연결을 끊었습니다. iOS 26.4부터는 이 파일 같은 lockdown 방식 페어링 파일이 LocalDevVPN을 통해 들어오면 이렇게 동작합니다. 위의 단계를 참고하세요.",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "이 iPhone을 페어링하려면 필요합니다. 설정이 찾을 수 있도록 SideInstaller가 로컬 네트워크에 자신을 알립니다.",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "Wi-Fi 네트워크에 연결하세요. 이 iPhone을 페어링하려면 필요합니다. SideInstaller가 로컬 네트워크에서 발견될 수 있어야 합니다.",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "이 iPhone을 페어링하려면 필요합니다. 설정이 찾을 수 있도록 iLoader X가 로컬 네트워크에 자신을 알립니다.",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "Wi-Fi 네트워크에 연결하세요. 이 iPhone을 페어링하려면 필요합니다. iLoader X가 로컬 네트워크에서 발견될 수 있어야 합니다.",
 
     // MARK: - Side by Side tool
 
@@ -970,10 +970,10 @@ let koreanStrings: [String: String] = [
     "Clear their details": "상대방 정보 지우기",
     "This iPhone is still paired with theirs. Clearing forgets it.":
         "이 iPhone은 아직 상대방 iPhone과 페어링되어 있습니다. 지우면 해당 정보가 삭제됩니다.",
-    "Couldn't download the latest SideInstaller release: %@": "최신 SideInstaller 릴리즈를 다운로드하지 못했습니다: %@",
+    "Couldn't download the latest iLoader X release: %@": "최신 iLoader X 릴리즈를 다운로드하지 못했습니다: %@",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "다운로드한 릴리즈가 IPA가 아닙니다. GitHub이 오류 페이지를 돌려줬을 수 있으니 잠시 후 다시 시도하세요.",
-    "No SideInstaller IPA downloaded.": "다운로드한 SideInstaller IPA가 없습니다.",
+    "No iLoader X IPA downloaded.": "다운로드한 iLoader X IPA가 없습니다.",
     "Start the install": "설치 시작",
     "Install on their iPhone": "상대방 iPhone에 설치",
     "%d%% downloaded": "%d%% 다운로드됨",
@@ -1000,14 +1000,14 @@ let koreanStrings: [String: String] = [
         "여기에 나타나는 코드를 상대방 iPhone의 입력창에 입력하세요.",
     "Type this into the prompt on their iPhone.":
         "이 코드를 상대방 iPhone의 입력창에 입력하세요.",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller가 이미 페어링할 iPhone을 기다리고 있습니다. 설치 탭, 페어링 화면 또는 이전 시도에서 시작된 것입니다. 그 페어링을 마치거나 SideInstaller를 닫았다가 다시 연 뒤 시도하세요.",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X가 이미 페어링할 iPhone을 기다리고 있습니다. 설치 탭, 페어링 화면 또는 이전 시도에서 시작된 것입니다. 그 페어링을 마치거나 iLoader X를 닫았다가 다시 연 뒤 시도하세요.",
     "Pairing with their iPhone didn't finish: %@":
         "상대방 iPhone과의 페어링이 끝나지 않았습니다: %@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "%@에 있는 상대방 iPhone이 연결을 거부했습니다. 개발자 모드가 켜져 있을 때만 연결을 받으며, iOS는 재시동할 때마다 개발자 모드를 다시 확인하라고 요청합니다. 상대방 iPhone에서 설정 › 개인정보 보호 및 보안 › 개발자 모드를 켠 뒤 다시 시도하세요.",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "%@에 있는 상대방 iPhone에 연결할 수 없습니다. 두 iPhone이 같은 Wi-Fi 네트워크에 있는지, 이 iPhone의 설정에서 SideInstaller의 로컬 네트워크가 켜져 있는지 확인하세요. 게스트 네트워크나 공용 네트워크는 기기끼리 연결되지 않는 경우가 많습니다.",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "%@에 있는 상대방 iPhone에 연결할 수 없습니다. 두 iPhone이 같은 Wi-Fi 네트워크에 있는지, 이 iPhone의 설정에서 iLoader X의 로컬 네트워크가 켜져 있는지 확인하세요. 게스트 네트워크나 공용 네트워크는 기기끼리 연결되지 않는 경우가 많습니다.",
     "The link to their iPhone didn't come up: %@":
         "상대방 iPhone과의 연결이 만들어지지 않았습니다: %@",
     "On their iPhone: Settings › General › VPN & Device Management.":
@@ -1019,8 +1019,8 @@ let koreanStrings: [String: String] = [
 
     "About": "정보",
     "Version %@ (%@)": "버전 %@ (%@)",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller는 PC 없이 SideStore와 LiveContainer를 iPhone에 바로 설치해 줍니다.",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X는 PC 없이 SideStore와 LiveContainer를 iPhone에 바로 설치해 줍니다.",
 
     "Links": "링크",
     "Source code": "소스 코드",
@@ -1029,8 +1029,8 @@ let koreanStrings: [String: String] = [
     "Donation wallets for Bitcoin, Ethereum and Solana.":
         "Bitcoin, Ethereum, Solana 기부 지갑입니다.",
     "Crypto donations": "암호화폐 기부",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "기부는 전적으로 자발적입니다. 기부한다고 기능이 추가로 열리거나 보상이 주어지지는 않으며, SideInstaller가 도움이 되었다면 고마움을 전하는 방법일 뿐입니다.",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "기부는 전적으로 자발적입니다. 기부한다고 기능이 추가로 열리거나 보상이 주어지지는 않으며, iLoader X가 도움이 되었다면 고마움을 전하는 방법일 뿐입니다.",
     "Coin": "코인",
     "Network: %@": "네트워크: %@",
     "QR code for the %@ address": "%@ 주소의 QR 코드",
@@ -1039,8 +1039,8 @@ let koreanStrings: [String: String] = [
         "각 코인은 표시된 네트워크로만 보내세요. 다른 네트워크로 보낸 암호화폐는 복구할 수 없습니다.",
 
     "Special thanks": "특별한 감사",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "SideInstaller가 iPhone과 통신하는 데 쓰는 라이브러리 idevice에 감사드립니다. 이게 없었다면 이 앱도 없었을 것입니다.",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "iLoader X가 iPhone과 통신하는 데 쓰는 라이브러리 idevice에 감사드립니다. 이게 없었다면 이 앱도 없었을 것입니다.",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "응원해 주시고, 버그를 찾아내 고칠 수 있게 도와주셔서 감사합니다.",
     "For the Japanese translation.": "일본어 번역에 감사드립니다.",
@@ -1056,7 +1056,7 @@ let koreanStrings: [String: String] = [
     "The code signer isideload uses for each app. By Dadoum, LGPL-2.1.":
         "isideload가 각 앱에 사용하는 코드 서명 도구입니다. Dadoum 개발, LGPL-2.1 라이선스.",
     "The sideloading app this installs for you.":
-        "SideInstaller가 대신 설치해 주는 사이드로딩 앱입니다.",
+        "iLoader X가 대신 설치해 주는 사이드로딩 앱입니다.",
     "Runs sideloaded apps without spending an app slot on each one.":
         "앱마다 앱 슬롯을 쓰지 않고 사이드로드한 앱을 실행합니다.",
     "The developer disk image location spoofing mounts. Mirrored by doronz88.":
@@ -1072,12 +1072,12 @@ let koreanStrings: [String: String] = [
 
     "%@ needs iOS %d or later. This iPhone runs iOS %@.": "%@ 앱은 iOS %d 이상이 필요합니다. 이 iPhone의 iOS 버전은 %@입니다.",
     "Open Madeira from your Home Screen.": "홈 화면에서 Madeira를 여세요.",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "설정 화면의 “Set up JIT”에서 “In-app with pairing file”을 선택하세요. SideInstaller가 이미 파일을 넣어 두었으니 “Continue”를 탭하면 됩니다.",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "설정 화면의 “Set up JIT”에서 “In-app with pairing file”을 선택하세요. iLoader X가 이미 파일을 넣어 두었으니 “Continue”를 탭하면 됩니다.",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "설정 화면의 “Set up JIT”에서 이 iPhone이 JIT를 얻는 방법을 선택하세요.",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "이제부터 Madeira는 앱이 열려 있고 LocalDevVPN이 연결되어 있을 때 스스로 서명을 갱신합니다. 이를 위해 SideInstaller가 로그인 정보를 전달했습니다. 암호가 아니라 Apple 개발자 서비스용 토큰입니다. Madeira의 설정 › Signing에서 삭제할 수 있습니다.",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "이제부터 Madeira는 앱이 열려 있고 LocalDevVPN이 연결되어 있을 때 스스로 서명을 갱신합니다. 이를 위해 iLoader X가 로그인 정보를 전달했습니다. 암호가 아니라 Apple 개발자 서비스용 토큰입니다. Madeira의 설정 › Signing에서 삭제할 수 있습니다.",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "서명은 7일 동안 유지됩니다. 만료되기 전에 도구 › 사이드로드한 앱에서 갱신하세요.",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1105,30 +1105,30 @@ let koreanStrings: [String: String] = [
 
     "Install from a link?": "링크에서 설치하시겠습니까?",
     "Download and install": "다운로드 및 설치",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller가 이 .ipa를 다운로드한 뒤 Apple ID로 서명하여 설치합니다. 링크의 출처를 신뢰하는 경우에만 진행하세요.",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X가 이 .ipa를 다운로드한 뒤 Apple ID로 서명하여 설치합니다. 링크의 출처를 신뢰하는 경우에만 진행하세요.",
     "It replaces %@, the custom .ipa you have now.": "현재 사용 중인 사용자 지정 .ipa인 %@ 파일을 대체합니다.",
     "Use SideStore's pairing file?": "SideStore의 페어링 파일을 사용하시겠습니까?",
     "Import this pairing file?": "이 페어링 파일을 가져오시겠습니까?",
     "Import": "가져오기",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore가 보유한 페어링 파일을 돌려보냈습니다. SideInstaller가 이 파일로 이 iPhone에 연결합니다.",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "링크를 통해 SideInstaller에 페어링 파일이 전달되었습니다. 직접 요청한 경우에만 가져오세요. SideInstaller가 이 파일로 이 iPhone에 연결합니다.",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore가 보유한 페어링 파일을 돌려보냈습니다. iLoader X가 이 파일로 이 iPhone에 연결합니다.",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "링크를 통해 iLoader X에 페어링 파일이 전달되었습니다. 직접 요청한 경우에만 가져오세요. iLoader X가 이 파일로 이 iPhone에 연결합니다.",
     "It replaces %@.": "%@ 파일을 대체합니다.",
     "It replaces the pairing file in use now.": "현재 사용 중인 페어링 파일을 대체합니다.",
     "Get it from SideStore": "SideStore에서 가져오기",
     "SideStore opens and sends back the pairing file it has.": "SideStore가 열리고 보유한 페어링 파일을 돌려보냅니다.",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "이 iPhone에 SideStore가 설치되어 있지 않아서 가져올 페어링 파일이 없습니다.",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "SideInstaller가 LiveContainer 내장 SideStore가 보유한 페어링 파일을 가져옵니다.",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "LiveContainer 내장 SideStore가 보유한 페어링 파일입니다. SideInstaller가 이 파일로 이 iPhone에 연결합니다.",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "LiveContainer의 멀티태스킹 모드에서는 SideInstaller가 내장 SideStore의 파일을 열 수 없습니다. 멀티태스킹 모드를 쓰지 않고 LiveContainer에서 SideInstaller를 연 다음 다시 시도하거나, “페어링 파일 가져오기”를 탭하고 컴퓨터에서 만든 파일을 선택하세요.",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "LiveContainer 안에서는 SideStore가 페어링 파일을 SideInstaller로 돌려보낼 수 없고, LiveContainer 내장 SideStore에도 SideInstaller가 쓸 수 있는 페어링 파일이 없습니다. “페어링 파일 가져오기”를 탭하고 컴퓨터에서 만든 파일을 선택하거나, 먼저 SideStore에 페어링 파일을 가져온 다음 여기서 다시 시도하세요.",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "iLoader X가 LiveContainer 내장 SideStore가 보유한 페어링 파일을 가져옵니다.",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "LiveContainer 내장 SideStore가 보유한 페어링 파일입니다. iLoader X가 이 파일로 이 iPhone에 연결합니다.",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "LiveContainer의 멀티태스킹 모드에서는 iLoader X가 내장 SideStore의 파일을 열 수 없습니다. 멀티태스킹 모드를 쓰지 않고 LiveContainer에서 iLoader X를 연 다음 다시 시도하거나, “페어링 파일 가져오기”를 탭하고 컴퓨터에서 만든 파일을 선택하세요.",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "LiveContainer 안에서는 SideStore가 페어링 파일을 iLoader X로 돌려보낼 수 없고, LiveContainer 내장 SideStore에도 iLoader X가 쓸 수 있는 페어링 파일이 없습니다. “페어링 파일 가져오기”를 탭하고 컴퓨터에서 만든 파일을 선택하거나, 먼저 SideStore에 페어링 파일을 가져온 다음 여기서 다시 시도하세요.",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "이 설치 링크에는 .ipa가 없습니다. ?url= 뒤에 .ipa를 내려받을 https:// 주소가 있어야 합니다.",
     "That link was meant to carry a pairing file, but what it holds can't be read.":
@@ -1172,39 +1172,39 @@ let koreanStrings: [String: String] = [
     "Look again": "다시 찾기",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "최근 %d일 동안 SideStore, LiveContainer, Madeira의 충돌 로그가 없습니다.",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "SideInstaller 자체의 충돌 정보는 iOS가 다음에 앱을 열 때 전달해 줍니다. SideStore, LiveContainer, Madeira의 충돌 로그는 LocalDevVPN을 통해 이 iPhone에서 읽어 옵니다.",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iLoader X 자체의 충돌 정보는 iOS가 다음에 앱을 열 때 전달해 줍니다. SideStore, LiveContainer, Madeira의 충돌 로그는 LocalDevVPN을 통해 이 iPhone에서 읽어 옵니다.",
     "Open a GitHub issue": "GitHub 이슈 열기",
     "Share the report": "보고서 공유",
     "Preview the report": "보고서 미리 보기",
     "Report": "보고서",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "이슈는 내용이 채워진 채로 열립니다. 로그가 너무 길어 채울 수 없으면 SideInstaller가 로그를 복사해 두니 이슈 끝에 붙여 넣으세요. 전체 보고서는 %@에도 저장됩니다.",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "이슈는 내용이 채워진 채로 열립니다. 로그가 너무 길어 채울 수 없으면 iLoader X가 로그를 복사해 두니 이슈 끝에 붙여 넣으세요. 전체 보고서는 %@에도 저장됩니다.",
     "Files › On My iPhone": "파일 › 나의 iPhone",
     "Copy the full log": "전체 로그 복사",
     "Paste the log into the issue": "로그를 이슈에 붙여 넣으세요",
     "Open GitHub": "GitHub 열기",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "전체 로그가 너무 길어 자동으로 채울 수 없어서 SideInstaller가 복사해 두었습니다. GitHub에서 텍스트 끝을 탭하고 붙여넣기를 선택한 뒤 이슈를 제출하세요.",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "전체 로그가 너무 길어 자동으로 채울 수 없어서 iLoader X가 복사해 두었습니다. GitHub에서 텍스트 끝을 탭하고 붙여넣기를 선택한 뒤 이슈를 제출하세요.",
     "Describe the problem above first.": "먼저 위에 문제를 설명해 주세요.",
     "Couldn't save the report: %@": "보고서를 저장하지 못했습니다: %@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?":
-        "sideinstaller.net에서 SideInstaller를 받으셨습니까?",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller는 오픈 소스이므로 누구나 입력한 Apple ID를 훔치도록 수정한 복사본을 배포할 수 있습니다. 공식 사이트는 sideinstaller.net뿐입니다.",
-    "Yes, from sideinstaller.net":
-        "예, sideinstaller.net에서 받았습니다",
+    "Did you download iLoader X from github.com/iamgasgass?":
+        "github.com/iamgasgass에서 iLoader X를 받으셨습니까?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X는 오픈 소스이므로 누구나 입력한 Apple ID를 훔치도록 수정한 복사본을 배포할 수 있습니다. 공식 사이트는 github.com/iamgasgass뿐입니다.",
+    "Yes, from github.com/iamgasgass":
+        "예, github.com/iamgasgass에서 받았습니다",
     "No, or I'm not sure":
         "아니요, 또는 잘 모르겠습니다",
     "Don't sign in with this copy":
         "이 복사본으로 로그인하지 마세요",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "sideinstaller.net이 아닌 곳에서 받은 복사본은 비공식이며 Apple ID를 훔치도록 변경되었을 수 있습니다. 이 앱을 삭제하고 sideinstaller.net에서 SideInstaller를 설치한 뒤 그곳에서 로그인하세요.",
-    "Open sideinstaller.net":
-        "sideinstaller.net 열기",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "github.com/iamgasgass이 아닌 곳에서 받은 복사본은 비공식이며 Apple ID를 훔치도록 변경되었을 수 있습니다. 이 앱을 삭제하고 github.com/iamgasgass에서 iLoader X를 설치한 뒤 그곳에서 로그인하세요.",
+    "Open github.com/iamgasgass":
+        "github.com/iamgasgass 열기",
     "Back":
         "뒤로",
     "I understand the risks":
@@ -1214,10 +1214,10 @@ let koreanStrings: [String: String] = [
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "이 복사본이 변경되었다면 Apple ID와 암호를 다른 사람에게 보낼 수 있습니다. 출처를 신뢰하는 경우에만 계속하세요.",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "%@에 있는 상대방 iPhone에 연결할 수 없습니다. 주소(상대방 iPhone의 설정 › Wi-Fi › ⓘ)가 맞는지, 두 iPhone이 같은 Wi-Fi 네트워크에 있는지, 이 iPhone의 설정에서 SideInstaller의 로컬 네트워크가 켜져 있는지 확인하세요. 게스트 네트워크나 공용 네트워크는 기기끼리 연결되지 않는 경우가 많습니다.",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "%@에 있는 상대방 iPhone에 연결할 수 없습니다. 주소(상대방 iPhone의 설정 › Wi-Fi › ⓘ)가 맞는지, 두 iPhone이 같은 Wi-Fi 네트워크에 있는지, 이 iPhone의 설정에서 iLoader X의 로컬 네트워크가 켜져 있는지 확인하세요. 게스트 네트워크나 공용 네트워크는 기기끼리 연결되지 않는 경우가 많습니다.",
     "Their iPhone": "상대방 iPhone",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "상대방이 iPhone에서 “신뢰 안 함”을 탭했습니다. 처음부터 다시 시작하고, 신뢰를 탭하도록 해 주세요.",
@@ -1233,18 +1233,18 @@ let koreanStrings: [String: String] = [
         "“%@” 값은 IPv4 주소가 아닙니다. 192.168.1.42 같은 형태여야 합니다.",
     "Do you have the device's IP?": "기기의 IP 주소를 알고 있나요?",
     "Optional": "선택 사항",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller가 상대방 iPhone에 직접 페어링을 요청합니다. iOS 27 미만에서는 필요합니다.",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X가 상대방 iPhone에 직접 페어링을 요청합니다. iOS 27 미만에서는 필요합니다.",
     "Their iPhone pairs from its own Settings, which needs iOS 27.":
         "상대방 iPhone이 자체 설정에서 페어링하며, iOS 27이 필요합니다.",
     "IP address": "IP 주소",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "상대방 iPhone은 iOS %@입니다. iOS 26.4부터는 상대방 iPhone이 Wi-Fi로 주는 페어링을 SideInstaller에서 쓸 수 없으므로, 컴퓨터로 만든 페어링 파일이 필요합니다.",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "App Store에서 LocalDevVPN을 받아 연결하세요. SideInstaller는 이를 통해 작동합니다.",
-    "Open SideInstaller. Its pairing file is already in place.": "SideInstaller를 여세요. 페어링 파일은 이미 들어 있습니다.",
-    "Open SideInstaller and import a pairing file made on a computer.":
-        "SideInstaller를 열고 컴퓨터로 만든 페어링 파일을 가져오세요.",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "상대방 iPhone은 iOS %@입니다. iOS 26.4부터는 상대방 iPhone이 Wi-Fi로 주는 페어링을 iLoader X에서 쓸 수 없으므로, 컴퓨터로 만든 페어링 파일이 필요합니다.",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "App Store에서 LocalDevVPN을 받아 연결하세요. iLoader X는 이를 통해 작동합니다.",
+    "Open iLoader X. Its pairing file is already in place.": "iLoader X를 여세요. 페어링 파일은 이미 들어 있습니다.",
+    "Open iLoader X and import a pairing file made on a computer.":
+        "iLoader X를 열고 컴퓨터로 만든 페어링 파일을 가져오세요.",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ 주소는 이 iPhone이 이미 가지고 있는 주소입니다. Side by Side는 다른 사람의 iPhone에 설치하는 기능이니 상대방 주소를 입력하세요. 이 iPhone에 설치하려면 설치 탭을 사용하세요.",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1278,17 +1278,25 @@ let koreanStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "이 Apple 계정은 %d개의 개발자 팀에 속해 있습니다. 서명할 팀을 고르세요.",
     "Which Team?": "어느 팀?",
-    "Signed this copy of SideInstaller": "이 SideInstaller를 서명한 팀",
+    "Signed this copy of iLoader X": "이 iLoader X를 서명한 팀",
     "A free team's apps last 7 days; a paid team's last a year.":
         "무료 팀이 서명한 앱은 7일, 유료 팀이 서명한 앱은 1년 동안 쓸 수 있습니다.",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "다른 팀으로 설치한 앱은 대체되지 않습니다. 이 팀으로 서명하면 사본이 하나 더 설치됩니다.",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller가 이 Apple ID에서 고른 팀을 기억합니다. 다시 고르려면 설정 › 계정에서 해당 Apple ID를 왼쪽으로 밀고 팀을 탭하세요.",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X가 이 Apple ID에서 고른 팀을 기억합니다. 다시 고르려면 설정 › 계정에서 해당 Apple ID를 왼쪽으로 밀고 팀을 탭하세요.",
     "No developer team was picked, so the sign-in stopped.": "개발자 팀을 고르지 않아 로그인을 중단했습니다.",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "Apple 계정이 여러 개발자 팀에 속해 있습니다. SideInstaller를 열고 서명할 팀을 고르세요.",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "Apple 계정이 여러 개발자 팀에 속해 있습니다. iLoader X를 열고 서명할 팀을 고르세요.",
     "Pick the team again?": "팀을 다시 고를까요?",
     "Pick Again": "다시 고르기",
     "The next sign-in with “%@” asks which developer team signs.": "다음에 “%@”(으)로 로그인할 때 서명할 개발자 팀을 묻습니다.",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X는 이를 포크한 앱으로, 고유한 이름, 번들 ID, 아이콘을 사용합니다.",
+    "App Icon":
+        "앱 아이콘",
+    "Couldn't change the icon: %@":
+        "아이콘을 변경할 수 없습니다: %@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "각 아이콘에는 다크 및 색조 버전이 있으며, iOS가 홈 화면 모양에 따라 사용합니다.",
 ]

@@ -84,7 +84,7 @@ final class PairingNotification: PairingCodeSurface {
         guard Self.isFallback, pairing else { return }
         pairing = false
         if paired, UIApplication.shared.applicationState != .active {
-            post(title: L("Paired"), subtitle: "", body: L("Tap to return to SideInstaller."))
+            post(title: L("Paired"), subtitle: "", body: L("Tap to return to iLoader X."))
         } else {
             clear()
         }

@@ -248,7 +248,7 @@ enum NetworkStatus {
         }
     }
 
-    private static let probeQueue = DispatchQueue(label: "sideinstaller.tunnel-probe",
+    private static let probeQueue = DispatchQueue(label: "iloaderx.tunnel-probe",
                                                   qos: .utility)
 
     /// TEST-NET-3 (RFC 5737), reserved for documentation: no VPN app routes it
@@ -331,13 +331,13 @@ enum NetworkStatus {
 
     /// This app's internet path as iOS sees it now. It's evaluated per app, so
     /// it shows what fails every request without the request saying why:
-    /// Cellular Data or Wireless Data switched off for SideInstaller, or a VPN
+    /// Cellular Data or Wireless Data switched off for iLoader X, or a VPN
     /// holding traffic back while it's down.
     static func internetPath() async -> NWPath {
         let monitor = NWPathMonitor()
         let (paths, continuation) = AsyncStream.makeStream(of: NWPath.self)
         monitor.pathUpdateHandler = { continuation.yield($0) }
-        monitor.start(queue: DispatchQueue(label: "sideinstaller.internet-path"))
+        monitor.start(queue: DispatchQueue(label: "iloaderx.internet-path"))
         defer {
             monitor.cancel()
             continuation.finish()

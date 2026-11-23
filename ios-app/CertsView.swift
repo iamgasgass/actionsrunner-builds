@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Lists and revokes the Apple ID's development certificates (e.g. to fix error
-/// 7460), exports the one SideInstaller signs with, or signs with SideStore's
+/// 7460), exports the one iLoader X signs with, or signs with SideStore's
 /// instead. Pushed from Tools (relies on its `NavigationStack`).
 struct CertsView: View {
     /// Observed so labels redraw when the language changes.
@@ -109,8 +109,8 @@ struct CertsView: View {
         PanelCard {
             VStack(alignment: .leading, spacing: 12) {
                 Text(Engine.runsInLiveContainer
-                     ? L("SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.")
-                     : L("SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's."))
+                     ? L("iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.")
+                     : L("SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's."))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -152,7 +152,7 @@ struct CertsView: View {
                 }
                 .cascadeItem(3)
                 if manager.hasLoaded && !manager.certs.contains(where: \.isSigning) {
-                    Text(L("SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it."))
+                    Text(L("iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -200,7 +200,7 @@ struct CertsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         if cert.isSigning {
-                            Label(L("SideInstaller signs with this one"), systemImage: "checkmark.seal")
+                            Label(L("iLoader X signs with this one"), systemImage: "checkmark.seal")
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(Theme.positive)
                         }

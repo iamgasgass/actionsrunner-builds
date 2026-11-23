@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build an unsigned SideInstaller IPA from any branch, with the bundle id the
+# Build an unsigned iLoader X IPA from any branch, with the bundle id the
 # public IPA uses, for signers that take any bundle id (Feather and the like).
 #
 #   scripts/export-ipa.sh            pick a branch from a list
 #   scripts/export-ipa.sh <branch>   export that branch (or any tag / commit)
 #
-# It then asks where the IPA goes: the Desktop, as SideInstaller.ipa (replacing
+# It then asks where the IPA goes: the Desktop, as iLoaderX.ipa (replacing
 # the one there), or the folder it was run from, named with version, branch and
 # commit. When done, the IPA is selected in Finder.
 #
@@ -19,7 +19,7 @@
 # Nothing is signed and nothing is sent to Apple.
 #
 # Config, all overridable by env:
-#   BUNDLE_ID   bundle id of the exported app (default: com.frizzlem.sideinstaller)
+#   BUNDLE_ID   bundle id of the exported app (default: com.iamgasgass.iloaderx)
 #   OUTPUT_DIR  skip the question and save there, named as in the run folder
 #   REVEAL      1 = select the .ipa in Finder when done, 0 = don't (default: 1)
 #   XCODEPROJ   Xcode project to copy in, instead of picking one as above
@@ -29,7 +29,7 @@
 #               iPhone Duo shows full screen)
 set -euo pipefail
 
-BUNDLE_ID="${BUNDLE_ID:-com.frizzlem.sideinstaller}"
+BUNDLE_ID="${BUNDLE_ID:-com.iamgasgass.iloaderx}"
 OUTPUT_DIR="${OUTPUT_DIR:-}"
 REVEAL="${REVEAL:-1}"
 CACHE_DIR="${CACHE_DIR:-$HOME/Library/Caches/SideInstallerExport}"
@@ -61,7 +61,7 @@ plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$2" 2>/dev/null; }
 sdk="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || true)"
 [ -n "$sdk" ] || die "this Xcode has no iOS SDK"
 [ "$(printf '%s\n' "$MIN_IOS_SDK" "$sdk" | sort -V | head -1)" = "$MIN_IOS_SDK" ] ||
-  die "this Xcode has the iOS $sdk SDK; SideInstaller needs the iOS $MIN_IOS_SDK SDK or later (Xcode $MIN_IOS_SDK+), or the iPhone Duo shows it in a window instead of full screen"
+  die "this Xcode has the iOS $sdk SDK; iLoader X needs the iOS $MIN_IOS_SDK SDK or later (Xcode $MIN_IOS_SDK+), or the iPhone Duo shows it in a window instead of full screen"
 
 HERE="$PWD"
 cd "$ROOT"
@@ -103,12 +103,12 @@ if [ -n "$OUTPUT_DIR" ]; then
   out_name=""
 else
   echo "Save the IPA to:"
-  echo "  1) Desktop, as SideInstaller.ipa (replaces the one there)"
+  echo "  1) Desktop, as iLoaderX.ipa (replaces the one there)"
   echo "  2) this folder: $HERE"
   printf 'Where? [1] '
   read -r where
   case "${where:-1}" in
-    1) out_dir="$HOME/Desktop" out_name="SideInstaller.ipa" ;;
+    1) out_dir="$HOME/Desktop" out_name="iLoaderX.ipa" ;;
     2) out_dir="$HERE" out_name="" ;;
     *) die "not 1 or 2: $where" ;;
   esac
@@ -170,18 +170,18 @@ project_mismatches() {
 if [ -n "${XCODEPROJ:-}" ]; then
   project="$XCODEPROJ"
 else
-  project="$ROOT/SideInstaller.xcodeproj"
+  project="$ROOT/iLoaderX.xcodeproj"
   if [ -n "$(project_mismatches "$project/project.pbxproj")" ] && [ -n "$checkout" ] &&
-    [ -f "$checkout/SideInstaller.xcodeproj/project.pbxproj" ] &&
-    [ -z "$(project_mismatches "$checkout/SideInstaller.xcodeproj/project.pbxproj")" ]; then
-    project="$checkout/SideInstaller.xcodeproj"
+    [ -f "$checkout/iLoaderX.xcodeproj/project.pbxproj" ] &&
+    [ -z "$(project_mismatches "$checkout/iLoaderX.xcodeproj/project.pbxproj")" ]; then
+    project="$checkout/iLoaderX.xcodeproj"
   fi
 fi
 [ -f "$project/project.pbxproj" ] || die "no Xcode project at $project"
 echo "    Xcode project: $project"
-rm -rf "$SRC/SideInstaller.xcodeproj"
-cp -R "$project" "$SRC/SideInstaller.xcodeproj"
-pbx="$SRC/SideInstaller.xcodeproj/project.pbxproj"
+rm -rf "$SRC/iLoaderX.xcodeproj"
+cp -R "$project" "$SRC/iLoaderX.xcodeproj"
+pbx="$SRC/iLoaderX.xcodeproj/project.pbxproj"
 # The app's id is the shortest one; extension ids start with it.
 app_id="$(grep -oE 'PRODUCT_BUNDLE_IDENTIFIER = [^;]+;' "$pbx" | sed -E 's/.* = "?([^";]+)"?;/\1/' |
   awk '{ print length, $0 }' | sort -n | head -1 | cut -d' ' -f2-)"
@@ -209,17 +209,17 @@ touch "$FFI_CACHE/$ffi_key"
 cp -R "$FFI_CACHE/$ffi_key/SideInstallerFFI.xcframework" "$SRC/"
 
 # --- App ----------------------------------------------------------------------
-echo "==> Building SideInstaller (Release, unsigned)"
+echo "==> Building iLoader X (Release, unsigned)"
 # A precompiled module of the previous export's Rust header fails the build.
 find "$DERIVED" -name 'SideInstallerFFI-*.pcm' -delete 2>/dev/null || true
 xcodebuild build \
-  -project "$SRC/SideInstaller.xcodeproj" -scheme SideInstaller -configuration Release \
+  -project "$SRC/iLoaderX.xcodeproj" -scheme iLoaderX -configuration Release \
   -destination 'generic/platform=iOS' -derivedDataPath "$DERIVED" \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
   >>"$LOG" 2>&1 || build_failed "Xcode build failed"
 
-app="$DERIVED/Build/Products/Release-iphoneos/SideInstaller.app"
-[ -d "$app" ] || die "no SideInstaller.app in $DERIVED/Build/Products/Release-iphoneos"
+app="$DERIVED/Build/Products/Release-iphoneos/iLoaderX.app"
+[ -d "$app" ] || die "no iLoaderX.app in $DERIVED/Build/Products/Release-iphoneos"
 got="$(plist CFBundleIdentifier "$app/Info.plist")"
 [ "$got" = "$BUNDLE_ID" ] || die "the built app's bundle id is $got, not $BUNDLE_ID"
 for ext in "$app"/PlugIns/*.appex "$app"/Extensions/*.appex; do
@@ -233,7 +233,7 @@ version="$(plist CFBundleShortVersionString "$app/Info.plist")"
 stage="$CACHE_DIR/stage"
 rm -rf "$stage"
 mkdir -p "$stage/Payload" "$out_dir"
-ditto "$app" "$stage/Payload/SideInstaller.app"
+ditto "$app" "$stage/Payload/iLoaderX.app"
 find "$stage" -name .DS_Store -delete
 out="$out_dir/${out_name:-SideInstaller-$version-$(printf '%s' "$ref" | tr '/' '-')-$short.ipa}"
 rm -f "$out" # zip would add to an existing archive instead of replacing it

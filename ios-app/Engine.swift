@@ -100,7 +100,7 @@ enum EngineError: LocalizedError {
         case .appLimit:
             return L("This iPhone already has three apps signed with a free Apple ID, the most iOS allows, counting expired ones. Delete one of them, then try again.")
         case .certExists:
-            return L("Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.")
+            return L("Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.")
         case let .deviceRegistration(udid, raw):
             let tail = udid.isEmpty ? "" : L(" (UDID %@)", udid)
             return L("Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.",
@@ -313,8 +313,8 @@ final class Engine {
         return value != 0
     }
 
-    /// True when SideInstaller runs as a LiveContainer guest. iOS then applies
-    /// LiveContainer's Info.plist to the process, not SideInstaller's.
+    /// True when iLoader X runs as a LiveContainer guest. iOS then applies
+    /// LiveContainer's Info.plist to the process, not iLoader X's.
     static var runsInLiveContainer: Bool { getenv("LC_HOME_PATH") != nil }
 
     /// False from iOS 26.4 on, where lockdownd hangs up on a connection that
@@ -453,7 +453,7 @@ final class Engine {
     @ObservationIgnored private var fullTunnelProbe: (key: String, task: Task<NetworkStatus.ProbeResult, Never>)?
 
     /// The build installed, or being installed: the one picked, or the build
-    /// of SideInstaller's own that a custom IPA turned out to be, which is set
+    /// of iLoader X's own that a custom IPA turned out to be, which is set
     /// up just like that build's download.
     private var installedBuild: InstallSource {
         let source = downloadedSource ?? installSource
@@ -491,10 +491,10 @@ final class Engine {
 
     // Long-lived device link over the loopback tunnel, serialized on deviceQueue.
     let connection = DeviceConnection()
-    private let deviceQueue = DispatchQueue(label: "sideinstaller.device")
+    private let deviceQueue = DispatchQueue(label: "iloaderx.device")
 
     // Apple ID sign-in and signing (isideload), serialized on signQueue.
-    private let signQueue = DispatchQueue(label: "sideinstaller.sign")
+    private let signQueue = DispatchQueue(label: "iloaderx.sign")
     @ObservationIgnored private var signSession: OpaquePointer?          // SignSession*
     /// Team ID of the signed-in account, parsed from the sign-in summary. Only
     /// apps signed by this team can be refreshed in place.
@@ -505,7 +505,7 @@ final class Engine {
     private var downloadedSource: InstallSource?
     private var downloadedChannel: ReleaseChannel?
     private var downloadedVersion: String?
-    /// For a custom IPA, the build of SideInstaller's own it is, if it is one
+    /// For a custom IPA, the build of iLoader X's own it is, if it is one
     /// (`IPALibrary.knownSource`).
     private var recognizedSource: InstallSource?
     var signedAppPath: String?
@@ -513,7 +513,7 @@ final class Engine {
     private(set) var signedDisplayName: String?
     /// Filename of the IPA imported for `InstallSource.custom`, if any.
     private(set) var customIPAName: String?
-    /// The build of SideInstaller's own that the imported IPA is, if it is one.
+    /// The build of iLoader X's own that the imported IPA is, if it is one.
     private(set) var customIPABuild: InstallSource?
     /// True while a picked IPA is being copied in.
     private(set) var isImportingIPA = false
@@ -552,7 +552,7 @@ final class Engine {
 
     private init() {
         installLogging()
-        log("SideInstaller ready.")
+        log("iLoader X ready.")
         // Self-test of the Rust tracing -> FFI callback -> console path.
         ping()
         // Show the tunnel/Wi-Fi status on launch, then keep it live.
@@ -658,7 +658,7 @@ final class Engine {
         guard !isRunning else { return }
         // Nothing downstream works on an older iOS.
         guard osSupported else {
-            log("⛔️ iOS \(osVersionText) isn't supported — SideInstaller needs iOS \(Engine.minimumTunnelOSText) or later.")
+            log("⛔️ iOS \(osVersionText) isn't supported — iLoader X needs iOS \(Engine.minimumTunnelOSText) or later.")
             return
         }
         // Below iOS 27 this iPhone can't pair with itself, so the run needs a
@@ -736,7 +736,7 @@ final class Engine {
                 try await download()
                 // Signing registers App IDs, which a free Apple ID has few of,
                 // so an imported IPA waits for the go-ahead first, unless it's
-                // one of SideInstaller's own builds, installed like its download.
+                // one of iLoader X's own builds, installed like its download.
                 if installedBuild == .custom {
                     try await confirmAppIDCost()
                 }
@@ -971,7 +971,7 @@ final class Engine {
         await ensureLocalNetworkForImportedPairing()
 
         // Pairing is settled, so sign in while the link opens. Not sooner: Apple
-        // sends its own 2FA alert to this iPhone before SideInstaller is asked
+        // sends its own 2FA alert to this iPhone before iLoader X is asked
         // for the code, and it would land on the user typing the pairing code.
         startBackgroundSignIn()
 
@@ -1043,7 +1043,7 @@ final class Engine {
         if await localNetwork.request(timeout: 8) {
             log("Local Network OK.")
         } else {
-            log("⚠️ Local Network didn't confirm. If the link won't open, turn it on in Settings › SideInstaller › Local Network.")
+            log("⚠️ Local Network didn't confirm. If the link won't open, turn it on in Settings › iLoader X › Local Network.")
         }
     }
 
@@ -1343,7 +1343,7 @@ final class Engine {
         var error: UnsafeMutablePointer<CChar>?
         // 1 = save and reuse the developer session, so repeat sign-ins skip
         // Apple authentication until the token expires.
-        let rc = si_apple_signin(id, pw, ani, "SideInstaller", dir, 1, team ?? "",
+        let rc = si_apple_signin(id, pw, ani, "iLoader X", dir, 1, team ?? "",
                                  appleSignInTwoFactorCallback, appleSignInTeamCallback, ticket.context,
                                  &session, &summary, &error)
         if rc == 0 {
@@ -1417,7 +1417,7 @@ final class Engine {
         let error = failures.shown?.error ?? "no anisette servers configured"
         guard anisetteAuto else {
             return L("Apple ID sign-in failed on %@. Error: %@", anisetteName(for: anisetteURL), error)
-                + " " + L("Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.")
+                + " " + L("Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.")
         }
         guard let shown = failures.shown, failures.tried > 1 else {
             return L("Apple ID sign-in failed on %@. Error: %@", L("the anisette server"), error)
@@ -1484,7 +1484,7 @@ final class Engine {
 
     /// What the user sees when Apple's sign-in server refuses the request itself.
     static var appleServiceRefusalMessage: String {
-        L("Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.")
+        L("Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.")
     }
 
     /// Detects an HTTP 503 from gsa.apple.com. Apple rejects the request before
@@ -1532,7 +1532,7 @@ final class Engine {
     /// server of another kind is left.
     func appleTokenRefusalMessage(through server: String) -> String {
         if AnisetteServer.library(of: server, in: anisetteServers) == .mac {
-            return L("Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.")
+            return L("Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.")
         }
         return L("Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.",
                  anisetteName(for: server))
@@ -1568,17 +1568,17 @@ final class Engine {
                                         failures: Int) -> String? {
         guard !satisfied else {
             guard failures >= 2 else { return nil }
-            return L("SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.")
+            return L("iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.")
         }
         switch reason {
         case .cellularDenied:
-            return L("SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.")
+            return L("iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.")
         case .wifiDenied:
-            return L("SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.")
+            return L("iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.")
         case .vpnInactive:
-            return L("SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.")
+            return L("iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.")
         default:
-            return L("SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.")
+            return L("iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.")
         }
     }
 
@@ -1785,7 +1785,7 @@ final class Engine {
         adopt(entry.url, source: source, channel: channel)
         log("Using your own \(entry.url.lastPathComponent) — skipping the download.")
         if let known = recognizedSource {
-            log("\(entry.url.lastPathComponent) is \(known.displayName): it's set up the same way as SideInstaller's own download.")
+            log("\(entry.url.lastPathComponent) is \(known.displayName): it's set up the same way as iLoader X's own download.")
         }
         setStep(.download, .done)
     }
@@ -1828,7 +1828,7 @@ final class Engine {
     func importCustomIPA(fromLink text: String) async -> Bool {
         guard !isImportingIPA else { return false }
         guard let url = Self.downloadLink(text) else {
-            lastError = ErrorHelp.explained(L("That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from."))
+            lastError = ErrorHelp.explained(L("That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from."))
             log("⛔️ Import: \(lastError ?? "")")
             return false
         }
@@ -1923,7 +1923,7 @@ final class Engine {
     }
 
     /// Shows the custom import at `url`, or none, on the Install tab: its name,
-    /// and the build of SideInstaller's own it is.
+    /// and the build of iLoader X's own it is.
     private func showCustomImport(_ url: URL?) {
         customIPAName = url?.lastPathComponent
         customIPABuild = url.flatMap(IPALibrary.knownSource(ofIPAAt:))
@@ -1940,14 +1940,14 @@ final class Engine {
             return
         }
         if (error as? SideStoreDownloader.DownloadError)?.isRepoUnavailable == true {
-            log("\(source.displayName)'s repository is gone from GitHub. Have its IPA from somewhere else? Save it as \(wanted) in Files › On My iPhone › SideInstaller, then tap Install again.")
+            log("\(source.displayName)'s repository is gone from GitHub. Have its IPA from somewhere else? Save it as \(wanted) in Files › On My iPhone › iLoader X, then tap Install again.")
             return
         }
         guard (error as? SideStoreDownloader.DownloadError)?.manualSideloadHelps ?? true else { return }
-        log("Can't reach \(source.feed?.name ?? "GitHub")? Download \(source.displayName) on another device or through a proxy, then import it under Custom .ipa (it's recognized and set up the same way), or rename it to \(wanted) and copy it into Files › On My iPhone › SideInstaller. Then tap Install again.")
+        log("Can't reach \(source.feed?.name ?? "GitHub")? Download \(source.displayName) on another device or through a proxy, then import it under Custom .ipa (it's recognized and set up the same way), or rename it to \(wanted) and copy it into Files › On My iPhone › iLoader X. Then tap Install again.")
     }
 
-    /// Where to get the build in a browser when SideInstaller can't download
+    /// Where to get the build in a browser when iLoader X can't download
     /// it: the file itself when it has a fixed link, otherwise the releases page.
     /// None for a build from an AltStore source: the card it's for is about
     /// reaching GitHub.
@@ -2871,7 +2871,7 @@ final class Engine {
 
     /// Makes sure the tunnel is up for something about to use it. With “Start
     /// LocalDevVPN when needed” on and no tunnel, hands over to LocalDevVPN and
-    /// waits for the tunnel once SideInstaller is back. Returns whether it's up.
+    /// waits for the tunnel once iLoader X is back. Returns whether it's up.
     @MainActor
     func tunnelUp() async -> Bool {
         // A full-tunnel VPN that loops Device IP back is already the tunnel, so
@@ -2884,7 +2884,7 @@ final class Engine {
         if !handingOver {
             guard await startLocalDevVPN() else { return false }
         }
-        // Only time back in SideInstaller counts, so a while spent in
+        // Only time back in iLoader X counts, so a while spent in
         // LocalDevVPN (its VPN permission prompt, say) doesn't use up the wait.
         var waited = 0.0
         while waited < 15 {
@@ -3092,7 +3092,7 @@ final class Engine {
     // `sideinstaller://install?url=`, `sideinstaller://pairingFile?data=` and
     // `sideinstaller://certificate?data=` (see `DeepLink`). Each puts up a popup
     // first; only its yes acts. SideStore's certificate, sent back because
-    // SideInstaller asked for it, is the exception: SideStore has just asked
+    // iLoader X asked for it, is the exception: SideStore has just asked
     // whether to export it.
 
     /// How long after asking SideStore a pairing file counts as its reply.
@@ -3178,7 +3178,7 @@ final class Engine {
     }
 
     /// True when “Use SideStore's certificate” has somewhere to get it: SideStore
-    /// is on this iPhone, or SideInstaller runs inside LiveContainer, which
+    /// is on this iPhone, or iLoader X runs inside LiveContainer, which
     /// keeps SideStore's certificate itself (`LiveContainerCertificate`).
     var canUseSideStoreCertificate: Bool {
         Self.runsInLiveContainer || sideStoreInstalled
@@ -3190,13 +3190,13 @@ final class Engine {
         mayBeInstalled(scheme: "livecontainer")
     }
 
-    /// Bumped each time SideInstaller comes back to the front. Apps installed
+    /// Bumped each time iLoader X comes back to the front. Apps installed
     /// or deleted meanwhile aren't observed, so what looks them up reads this
     /// first, and the views showing it redraw then.
     private(set) var foregroundVisits = 0
 
     /// True unless the app opening `scheme://` links is known to be missing,
-    /// read again each time SideInstaller is back in front.
+    /// read again each time iLoader X is back in front.
     private func mayBeInstalled(scheme: String) -> Bool {
         _ = foregroundVisits
         return Self.appPresence(scheme: scheme) != .missing
@@ -3314,17 +3314,17 @@ final class Engine {
     @MainActor
     private func offerBuiltInSideStorePairing() {
         lastError = nil
-        log("Pairing import: inside LiveContainer, SideStore can't send its pairing file back, so SideInstaller reads the one LiveContainer's built-in SideStore keeps.")
+        log("Pairing import: inside LiveContainer, SideStore can't send its pairing file back, so iLoader X reads the one LiveContainer's built-in SideStore keeps.")
         switch LiveContainerSideStorePairing.find(log: { self.log($0) }) {
         case let .found(file, from: names):
             let link = DeepLink.pairingFile(file)
             pendingLink = link
             log("Pairing import: \(link.logDescription), from \(names.joined(separator: " + ")). Waiting for the go-ahead.")
         case .unreachable:
-            lastError = ErrorHelp.explained(L("In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made."))
+            lastError = ErrorHelp.explained(L("In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made."))
             log("⛔️ Pairing import: \(lastError ?? "")")
         case .notFound:
-            lastError = ErrorHelp.explained(L("Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here."))
+            lastError = ErrorHelp.explained(L("Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here."))
             log("⛔️ Pairing import: \(lastError ?? "")")
         }
     }
@@ -3557,7 +3557,7 @@ final class Engine {
     @MainActor
     func prepareRefresh() async throws {
         guard osSupported else {
-            throw EngineError.message(L("iOS %@ isn't supported — SideInstaller needs iOS %@ or later.",
+            throw EngineError.message(L("iOS %@ isn't supported — iLoader X needs iOS %@ or later.",
                                         osVersionText, Engine.minimumTunnelOSText))
         }
         guard !normalizedAppleID.isEmpty, !applePassword.isEmpty else {
@@ -3790,7 +3790,7 @@ final class Engine {
 
     /// Returns the path of the pairing file to write into other apps.
     ///
-    /// SideInstaller pairs via RPPairing, but minimuxer (SideStore, LiveContainer)
+    /// iLoader X pairs via RPPairing, but minimuxer (SideStore, LiveContainer)
     /// and Feather need a classic lockdown record. This creates one over the open
     /// tunnel and merges both records into one file, as iLoader does. From iOS
     /// 26.4 on the RPPairing file goes alone: no app can use a lockdown record
@@ -4078,7 +4078,7 @@ enum Guides {
             systemImage: "wifi",
             steps: [
                 L("Open Settings › Wi-Fi and join a network."),
-                L("Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find."),
+                L("Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find."),
                 L("Then come back here — this continues automatically."),
             ],
             actionLabel: nil, actionURLString: nil)
@@ -4123,7 +4123,7 @@ enum Guides {
             steps: [
                 L("Apple has locked this Apple Account for security reasons, often after too many sign-in attempts. Every sign-in fails until it's unlocked, so tapping Install again won't help yet."),
                 L("Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password."),
-                L("Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password."),
+                L("Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password."),
                 L("Then tap Install again."),
             ],
             actionLabel: L("Open iForgot"),
@@ -4137,7 +4137,7 @@ enum Guides {
             title: L("This Apple Account can't sign apps"),
             systemImage: "person.crop.circle.badge.exclamationmark",
             steps: [
-                L("Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102)."),
+                L("Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102)."),
                 L("Sign in with an adult's Apple Account instead: open Settings › Account and add it there."),
                 L("Then tap Install again."),
             ],
@@ -4165,7 +4165,7 @@ enum Guides {
             title: L("No App IDs left this week"),
             systemImage: "number.circle",
             steps: [
-                L("Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days."),
+                L("Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days."),
                 L("They can't be deleted sooner. Wait until some expire, then tap Install again."),
                 L("Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again."),
             ],
@@ -4204,9 +4204,9 @@ enum Guides {
             systemImage: "square.and.arrow.down.on.square",
             steps: [
                 L("Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive."),
-                L("Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself."),
-                L("Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker."),
-                L("Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it."),
+                L("Or paste a direct download link under that button, and iLoader X fetches the .ipa itself."),
+                L("Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker."),
+                L("Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it."),
                 L("This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here."),
             ],
             actionLabel: nil, actionURLString: nil)
@@ -4221,9 +4221,9 @@ enum Guides {
             steps: [
                 L("%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.",
                   source.displayName),
-                L("To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.",
+                L("To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.",
                   fileName),
-                L("Then tap Install again — SideInstaller uses your file instead of downloading one."),
+                L("Then tap Install again — iLoader X uses your file instead of downloading one."),
             ],
             actionLabel: nil, actionURLString: nil)
     }
@@ -4232,7 +4232,7 @@ enum Guides {
     /// reached from here: blocked, filtered or cut off. Where a VPN app is the
     /// way to GitHub, it can't carry the download, since LocalDevVPN holds the
     /// one VPN iOS runs. A copy fetched another way goes in as a custom IPA,
-    /// which SideInstaller recognizes and sets up like its own download.
+    /// which iLoader X recognizes and sets up like its own download.
     static func githubUnreachable(source: InstallSource, link: URL) -> Guide {
         Guide(
             title: L("Bring the .ipa yourself"),
@@ -4240,7 +4240,7 @@ enum Guides {
             steps: [
                 L("If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time."),
                 L("Tap “Get the .ipa” below and save the file, or download it on another device and bring it over."),
-                L("Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.",
+                L("Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.",
                   source.displayName),
                 L("Turn LocalDevVPN back on, then tap Install."),
             ],
@@ -4253,15 +4253,15 @@ enum Guides {
         let codeOverSettings = PairingLiveActivity.isAvailable || PairingNotification.mayShow
         var steps = [
             L("Open the Settings app, then go to Privacy & Security › Developer Mode."),
-            L("Tap “Pair with SideInstaller”."),
+            L("Tap “Pair with iLoader X”."),
             L("Enter your iPhone’s passcode if it asks for it."),
             codeOverSettings
-                ? L("Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.")
-                : L("Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings."),
+                ? L("Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.")
+                : L("Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings."),
         ]
         // The system's prompt gives no reason, and comes up with these steps.
         if PairingNotification.willAsk {
-            steps.insert(L("Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings."), at: 0)
+            steps.insert(L("Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings."), at: 0)
         }
         return Guide(
             title: L("Pair this iPhone in Settings"),
@@ -4334,9 +4334,9 @@ enum Guides {
             systemImage: "exclamationmark.shield",
             steps: [
                 L("Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending."),
-                L("SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone."),
+                L("iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone."),
                 sideStoreCertificate
-                    ? L("If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.")
+                    ? L("If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.")
                     : nil,
                 L("Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there."),
                 L("Revoking is permanent: every app already signed with that certificate stops launching, on every device."),
@@ -4353,7 +4353,7 @@ enum Guides {
             steps.append(L("Your Apple ID has hit its limit of registered devices. Free accounts can only register a handful of devices per year and can't remove old ones until the year resets."))
             steps.append(L("Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again."))
         } else {
-            steps.append(L("SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable."))
+            steps.append(L("iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable."))
         }
         if !udid.isEmpty {
             steps.append(L("If it keeps failing, add the device by hand. Its UDID is:"))
@@ -4389,10 +4389,10 @@ enum Guides {
         var guide = trust(appName: MadeiraPairingHandoff.appName)
         guide.steps[guide.steps.count - 1] = L("Open Madeira from your Home Screen.")
         guide.steps.append(handoff.pairing
-            ? L("In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.")
+            ? L("In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.")
             : L("In its setup, under “Set up JIT”, pick how this iPhone gets JIT."))
         guide.steps.append(handoff.signIn
-            ? L("Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.")
+            ? L("Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.")
             : L("Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps."))
         return guide
     }

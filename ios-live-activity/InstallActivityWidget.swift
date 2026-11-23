@@ -3,7 +3,7 @@ import SwiftUI
 import WidgetKit
 
 /// Draws `InstallActivityAttributes`: an install's step and percentage in the
-/// Dynamic Island and on the Lock Screen while SideInstaller is in the
+/// Dynamic Island and on the Lock Screen while iLoader X is in the
 /// background, or, in orange, what the install needs from the user, or, in
 /// red, why it stopped.
 ///

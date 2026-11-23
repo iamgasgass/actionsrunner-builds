@@ -1,5 +1,5 @@
 import Testing
-@testable import SideInstaller
+@testable import iLoaderX
 
 // Every value below is made up. The shapes are the ones the log prints: Rust's
 // `{:?}` and `{:#?}`, idevice's plist printer, and the app's own lines.

@@ -40,7 +40,7 @@ final class LocalNetworkAuthorization {
             params.includePeerToPeer = true
 
             let listener = try? NWListener(using: params)
-            listener?.service = NWListener.Service(name: "SideInstallerProbe", type: probeType)
+            listener?.service = NWListener.Service(name: "iLoaderXProbe", type: probeType)
             listener?.newConnectionHandler = { $0.cancel() }
             listener?.stateUpdateHandler = { [weak self] state in
                 if case .failed = state {

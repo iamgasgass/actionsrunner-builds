@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// SideStore's certificate as LiveContainer holds it, for “Use SideStore's
-/// certificate” while SideInstaller runs inside LiveContainer (issue #95).
+/// certificate” while iLoader X runs inside LiveContainer (issue #95).
 ///
 /// Asking SideStore can't work there. iOS opens only the URL schemes in
 /// LiveContainer's Info.plist, which has no `sideinstaller`, so the link
@@ -11,7 +11,7 @@ import Security
 /// doesn't handle itself, and its `open-url` forwarding wants the whole link
 /// base64-encoded, which SideStore's callback template can't produce.
 ///
-/// SideInstaller runs in LiveContainer's own process, though, so it reads the
+/// iLoader X runs in LiveContainer's own process, though, so it reads the
 /// certificate where LiveContainer's Settings read it:
 /// - the built-in SideStore's Keychain entry (LiveContainer + SideStore): the
 ///   certificate SideStore signs with now;

@@ -59,7 +59,7 @@ SAME_IN_EVERY_LANGUAGE = {
     "Anisette",
     "Discord",
     "LocalDevVPN",
-    "SideInstaller",
+    "iLoader X",
     "Wi-Fi",
     "iOS",
 }

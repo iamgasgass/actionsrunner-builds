@@ -13,7 +13,7 @@ struct DevCert: Identifiable, Decodable, Equatable {
     let status: String
     /// RFC3339 expiry (e.g. `2027-01-01T00:00:00Z`), or "" if Apple omitted it.
     let expiration: String
-    /// True for the certificate SideInstaller signs with.
+    /// True for the certificate iLoader X signs with.
     let signing: Bool?
 
     enum CodingKeys: String, CodingKey {
@@ -53,12 +53,12 @@ struct DevCert: Identifiable, Decodable, Equatable {
         return date < Date()
     }
 
-    /// The certificate SideInstaller signs with: the only one whose private key
+    /// The certificate iLoader X signs with: the only one whose private key
     /// is on this iPhone, so the only one it can export.
     var isSigning: Bool { signing == true }
 }
 
-/// What `si_cert_import` reports: the team's certificate SideInstaller now signs
+/// What `si_cert_import` reports: the team's certificate iLoader X now signs
 /// with, and whether that took a new key.
 private struct CertImportResult: Decodable {
     let certificate: DevCert
@@ -94,7 +94,7 @@ final class CertManager: ObservableObject {
     @Published private(set) var isImporting = false
 
     private var session: OpaquePointer?            // CertSession*
-    private let queue = DispatchQueue(label: "sideinstaller.certs")
+    private let queue = DispatchQueue(label: "iloaderx.certs")
 
     private var engine: Engine { Engine.shared }
 
@@ -199,7 +199,7 @@ final class CertManager: ObservableObject {
         }
     }
 
-    /// Writes the certificate SideInstaller signs with and its private key to a
+    /// Writes the certificate iLoader X signs with and its private key to a
     /// .p12 file protected by `password`, then hands the file to `share`. The
     /// file is alone in a temporary folder, for `share` to delete when done. An
     /// empty `password` makes a file that signing apps import without one, but
@@ -281,10 +281,10 @@ final class CertManager: ObservableObject {
     /// (issue #95, see `LiveContainerCertificate`).
     @MainActor
     private func importFromLiveContainer(retryInstall: Bool) {
-        engine.log("Certificates: inside LiveContainer, SideStore can't send its certificate back, so SideInstaller reads the one LiveContainer holds.")
+        engine.log("Certificates: inside LiveContainer, SideStore can't send its certificate back, so iLoader X reads the one LiveContainer holds.")
         let found = LiveContainerCertificate.find { engine.log($0) }
         guard !found.isEmpty else {
-            lastError = ErrorHelp.explained(L("Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here."))
+            lastError = ErrorHelp.explained(L("Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here."))
             engine.log("⛔️ Certificates: \(lastError ?? "")")
             return
         }
@@ -296,7 +296,7 @@ final class CertManager: ObservableObject {
 
     /// Signs with the certificate a link brought from now on, once the Apple
     /// ID's own certificates include it: its key becomes the one isideload
-    /// signs with, so SideInstaller stops asking Apple for a certificate of its
+    /// signs with, so iLoader X stops asking Apple for a certificate of its
     /// own (error 7460 on a free account) and revoking SideStore's.
     @MainActor
     func importCertificate(_ request: CertificateImport) {
@@ -336,7 +336,7 @@ final class CertManager: ObservableObject {
                 let name = result.certificate.machineLabel ?? result.certificate.displayName
                 engine.log(result.replacedKey
                     ? "Certificates: signing with \(name) (\(result.certificate.serialNumber)) from now on; nothing was revoked."
-                    : "Certificates: \(name) is the certificate SideInstaller signs with already.")
+                    : "Certificates: \(name) is the certificate iLoader X signs with already.")
                 if let list = try? await onQueue({ try self.performList() }) {
                     certs = list
                     hasLoaded = true
@@ -346,8 +346,8 @@ final class CertManager: ObservableObject {
                     engine.runOneClick()
                 } else {
                     lastSuccess = result.replacedKey
-                        ? L("SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.", name)
-                        : L("SideInstaller already signs with “%@”.", name)
+                        ? L("iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.", name)
+                        : L("iLoader X already signs with “%@”.", name)
                 }
             } catch {
                 lastError = error is ImportNotOnTeam ? notOnTeam : short(error)
@@ -522,7 +522,7 @@ final class CertManager: ObservableObject {
         var newSession: OpaquePointer?
         var summary: UnsafeMutablePointer<CChar>?
         var error: UnsafeMutablePointer<CChar>?
-        let rc = si_cert_signin(id, pw, ani, "SideInstaller", dir, team ?? "",
+        let rc = si_cert_signin(id, pw, ani, "iLoader X", dir, team ?? "",
                                 appleSignInTwoFactorCallback, appleSignInTeamCallback, ticket.context,
                                 &newSession, &summary, &error)
         if rc == 0 {
@@ -571,7 +571,7 @@ final class CertManager: ObservableObject {
         }
     }
 
-    /// Error 3 from `si_cert_export`: not the certificate SideInstaller signs with.
+    /// Error 3 from `si_cert_export`: not the certificate iLoader X signs with.
     private static let exportNotSigning: Int32 = 3
 
     private func performExport(serial: String, password: String, to file: URL) throws {
@@ -583,7 +583,7 @@ final class CertManager: ObservableObject {
         error.map { si_string_free($0) }
         engine.log("Certificate export: \(msg)")
         if rc == Self.exportNotSigning {
-            throw EngineError.message(L("Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it."))
+            throw EngineError.message(L("Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it."))
         }
         throw EngineError.message(L("Couldn't export the certificate: %@", msg))
     }

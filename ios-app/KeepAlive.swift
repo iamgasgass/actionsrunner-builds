@@ -109,7 +109,7 @@ final class KeepAlive: NSObject {
                       self.audioRunning, !self.interrupted, !self.isPlaying else { return }
                 if self.restart(after: cause) { return }
             }
-            self?.log("Keep-alive: silent audio didn't restart after \(cause). It tries again when SideInstaller is opened.")
+            self?.log("Keep-alive: silent audio didn't restart after \(cause). It tries again when iLoader X is opened.")
         }
     }
 
@@ -196,7 +196,7 @@ final class KeepAlive: NSObject {
         // the app comes back.
         observe(UIApplication.didBecomeActiveNotification) { me, _ in
             me.interrupted = false
-            me.resume(after: "SideInstaller was opened again")
+            me.resume(after: "iLoader X was opened again")
         }
     }
 

@@ -789,15 +789,15 @@ struct AppsView: View {
         }
     }
 
-    /// Note explaining that apps without an IPA in SideInstaller can't be
+    /// Note explaining that apps without an IPA in iLoader X can't be
     /// refreshed.
     @ViewBuilder
     private var refreshNote: some View {
         if manager.hasLoaded && manager.unrefreshable > 0 && !manager.entries.isEmpty {
             Text(manager.unrefreshable == 1
-                 ? L("%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.",
+                 ? L("%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.",
                      manager.unrefreshable)
-                 : L("%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.",
+                 : L("%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.",
                      manager.unrefreshable))
                 .font(.caption)
                 .foregroundStyle(Theme.muted)

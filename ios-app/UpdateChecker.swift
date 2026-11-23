@@ -7,15 +7,16 @@ import Foundation
 @MainActor
 final class UpdateChecker: ObservableObject {
 
-    /// The newest published, non-prerelease release; its `tag_name` is e.g. "v1.5.3".
+    /// iLoader X's rolling release on the fork's repository. Its tag stays
+    /// `iloaderx-latest`; the version is in its title, e.g. "iLoader X 2.1.1".
     static let latestReleaseAPIURL =
-        "https://api.github.com/repos/FrizzleM/SideInstaller/releases/latest"
+        "https://api.github.com/repos/iamgasgass/actionsrunner-builds/releases/tags/iloaderx-latest"
     /// The install page the banner offers first, which carries the OTA links.
-    static let installPageURL = "https://sideinstaller.net/"
+    static let installPageURL = "https://github.com/iamgasgass/actionsrunner-builds/releases/tag/iloaderx-latest"
     /// The latest release's unsigned IPA, for the banner's other two ways:
     /// signed with the Apple ID's certificate, or installed in LiveContainer.
     static let releaseIPAURL =
-        "https://github.com/FrizzleM/SideInstaller/releases/latest/download/SideInstaller.ipa"
+        "https://github.com/iamgasgass/actionsrunner-builds/releases/download/iloaderx-latest/iLoaderX.ipa"
 
     /// The newest version GitHub advertises, once fetched.
     @Published private(set) var latestVersion: String?
@@ -28,6 +29,7 @@ final class UpdateChecker: ObservableObject {
 
     private struct Release: Decodable {
         let tag_name: String
+        let name: String?
     }
 
     /// Fetch the latest release's tag and reveal the banner if it's newer.
@@ -35,13 +37,14 @@ final class UpdateChecker: ObservableObject {
         guard let url = URL(string: Self.latestReleaseAPIURL) else { return }
         var req = URLRequest(url: url)
         req.cachePolicy = .reloadIgnoringLocalCacheData
-        req.setValue("SideInstaller", forHTTPHeaderField: "User-Agent")
+        req.setValue("iLoaderX", forHTTPHeaderField: "User-Agent")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let release = try? JSONDecoder().decode(Release.self, from: data),
-              let latest = Self.version(fromTag: release.tag_name) else { return }
+              let latest = Self.version(fromTitle: release.name ?? "")
+                ?? Self.version(fromTag: release.tag_name) else { return }
 
         latestVersion = latest
         showBanner = Self.isNewer(latest, than: currentVersion)
@@ -52,6 +55,14 @@ final class UpdateChecker: ObservableObject {
         var v = tag.trimmingCharacters(in: .whitespacesAndNewlines)
         if v.first == "v" || v.first == "V" { v.removeFirst() }
         return v.isEmpty ? nil : v
+    }
+
+    /// "iLoader X 2.1.1" → "2.1.1": the last word of the release title, if it
+    /// starts with a digit. Nil otherwise.
+    static func version(fromTitle title: String) -> String? {
+        guard let last = title.split(separator: " ").last.map(String.init),
+              let v = version(fromTag: last), v.first?.isNumber == true else { return nil }
+        return v
     }
 
     /// Close the banner for this launch.

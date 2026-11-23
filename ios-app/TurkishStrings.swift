@@ -28,14 +28,14 @@ let turkishStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "Bir eşleme dosyasına ihtiyacın olacak",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "Bu iPhone iOS %@ çalıştırıyor. Yalnızca iOS %@ kendi kendine eşlenebilir, bu yüzden bilgisayarda — jitterbugpair veya pymobiledevice3 ile — bir eşleme dosyası oluşturup uygulamaya içe aktarman gerekir. SideInstaller adım adım gösterir.",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "Bu iPhone iOS %@ çalıştırıyor. Yalnızca iOS %@ kendi kendine eşlenebilir, bu yüzden bilgisayarda — jitterbugpair veya pymobiledevice3 ile — bir eşleme dosyası oluşturup uygulamaya içe aktarman gerekir. iLoader X adım adım gösterir.",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "iOS %@ sürümüne güncelle",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "Bu iPhone iOS %@ çalıştırabilir; bu sürümde SideInstaller bilgisayarsız çalışır: iPhone kendi kendine eşlenir, böylece eşleme dosyası oluşturman gerekmez. Ayarlar › Genel › Yazılım Güncelleme'den güncelle.",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "Bu iPhone iOS %@ çalıştırabilir; bu sürümde iLoader X bilgisayarsız çalışır: iPhone kendi kendine eşlenir, böylece eşleme dosyası oluşturman gerekmez. Ayarlar › Genel › Yazılım Güncelleme'den güncelle.",
     "OK": "Tamam",
 
     // MARK: - Account setup & Settings › Account
@@ -54,15 +54,15 @@ let turkishStrings: [String: String] = [
     "In use": "Kullanımda",
     "Edit": "Düzenle",
     "Remove": "Kaldır",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "Henüz kayıtlı Apple kimliği yok. Bir tane ekle; SideInstaller her oturum açışında onu kullanır.",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "Henüz kayıtlı Apple kimliği yok. Bir tane ekle; iLoader X her oturum açışında onu kullanır.",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "Bu iPhone'un anahtar zincirinde saklanır ve yalnızca oturum açılırken Apple'a gönderilir. Parolasını düzenlemek veya silmek için bir satırı kaydır.",
     "Remove this Apple ID?": "Bu Apple kimliği kaldırılsın mı?",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "“%@” ve kayıtlı parolası bu iPhone'dan silinecek. Apple hesabında bir şey değişmez.",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "Bu iPhone'un anahtar zinciri parolayı saklamayı reddetti (hata %d), bu yüzden yalnızca SideInstaller kapanana kadar tutulur.",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "Bu iPhone'un anahtar zinciri parolayı saklamayı reddetti (hata %d), bu yüzden yalnızca iLoader X kapanana kadar tutulur.",
     "No Apple ID saved. Add one in Settings › Account.":
         "Kayıtlı Apple kimliği yok. Ayarlar › Hesap bölümünden bir tane ekle.",
     "Add your Apple ID": "Apple kimliğini ekle",
@@ -107,7 +107,7 @@ let turkishStrings: [String: String] = [
     "Tunnel connected": "Tünel bağlı",
     "Tunnel off": "Tünel kapalı",
     "Update available": "Güncelleme mevcut",
-    "SideInstaller %@ is available — you're on %@.": "SideInstaller %@ mevcut — sen %@ sürümündesin.",
+    "iLoader X %@ is available — you're on %@.": "iLoader X %@ mevcut — sen %@ sürümündesin.",
     "Get the latest version": "En son sürümü al",
     "From the website": "Web sitesinden",
     "Sign it with your Apple ID": "Apple kimliğinle imzala",
@@ -122,12 +122,12 @@ let turkishStrings: [String: String] = [
     "Replace": "Değiştir",
     "or": "veya",
     "Paste a download link": "Bir indirme bağlantısı yapıştır",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller bunu %@ olarak tanır ve kendi indirmesi gibi kurar.",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X bunu %@ olarak tanır ve kendi indirmesi gibi kurar.",
     "Downloading… %d%%": "İndiriliyor… %%%d",
     "iOS %@ required": "iOS %@ gerekli",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "Bu iPhone iOS %@ çalıştırıyor; SideInstaller buna yükleme yapamaz. Ayarlar › Genel › Yazılım Güncelleme'den iOS %@ veya sonrasına güncelle.",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "Bu iPhone iOS %@ çalıştırıyor; iLoader X buna yükleme yapamaz. Ayarlar › Genel › Yazılım Güncelleme'den iOS %@ veya sonrasına güncelle.",
     "Wi-Fi required": "Wi-Fi gerekli",
     "Pairing code": "Eşleme kodu",
     "Type this into the prompt in Settings.": "Bunu Ayarlar'daki istem alanına yaz.",
@@ -231,8 +231,8 @@ let turkishStrings: [String: String] = [
     "failed: empty pairing file": "başarısız: boş eşleme dosyası",
     "failed: %@": "başarısız: %@",
     "Pairing is already in progress.": "Eşleme zaten sürüyor.",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "Yerel Ağ izni kapalı. Ayarlar › SideInstaller › Yerel Ağ'dan aç, sonra yeniden dene.",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "Yerel Ağ izni kapalı. Ayarlar › iLoader X › Yerel Ağ'dan aç, sonra yeniden dene.",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "Eşleme boş bir dosya üretti. Eşleme isteğini onayladığından emin ol, sonra yeniden dene.",
 
@@ -256,12 +256,12 @@ let turkishStrings: [String: String] = [
     "Unnamed certificate": "Adsız sertifika",
     "This certificate has no serial number, so it can't be revoked.":
         "Bu sertifikanın seri numarası yok, bu yüzden iptal edilemez.",
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
 
     "This certificate has no serial number, so it can't be exported.":
         "Bu sertifikanın seri numarası yok, bu yüzden dışa aktarılamaz.",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "Yalnızca SideInstaller'ın imzaladığı sertifika dışa aktarılabilir: diğerlerinin özel anahtarı, Apple'dan onu isteyen cihazda kalır.",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "Yalnızca iLoader X'ın imzaladığı sertifika dışa aktarılabilir: diğerlerinin özel anahtarı, Apple'dan onu isteyen cihazda kalır.",
     "Couldn't export the certificate: %@": "Sertifika dışa aktarılamadı: %@",
     "Export certificate": "Sertifikayı dışa aktar",
     "Password (optional)": "Parola (isteğe bağlı)",
@@ -269,37 +269,37 @@ let turkishStrings: [String: String] = [
     "Exporting": "Dışa aktarılıyor",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "Bu sertifikayı ve özel anahtarını .p12 dosyası olarak kaydeder; başka bir imzalama uygulaması veya bilgisayar bununla imzalayabilir. Dosyayı içe aktarmak için gerekecek bir parola seç veya boş bırak: imzalama uygulamaları parolasız içe aktarır, Mac ise aktarmaz. Dosyayı kendine sakla.",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller yalnızca imzaladığı sertifikayı dışa aktarabilir ve bunların hiçbiri o değil: bir sertifikanın özel anahtarı, Apple'dan onu isteyen cihazda kalır.",
-    "SideInstaller signs with this one": "SideInstaller bununla imzalıyor",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X yalnızca imzaladığı sertifikayı dışa aktarabilir ve bunların hiçbiri o değil: bir sertifikanın özel anahtarı, Apple'dan onu isteyen cihazda kalır.",
+    "iLoader X signs with this one": "iLoader X bununla imzalıyor",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "SideStore'un sertifikasını kullan",
     "Checking the certificate": "Sertifika kontrol ediliyor",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore açılır ve sertifikasını geri gönderir. SideInstaller da onunla imzalar; böylece ücretsiz bir Apple kimliğinde iki uygulama birbirinin sertifikasını iptal etmek zorunda kalmaz.",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple bu Apple kimliği için ikinci bir imzalama sertifikası vermez. SideStore elindeki sertifikayı oluşturduysa SideInstaller de onunla imzalayabilir ve hiçbir şey iptal edilmez. İptal etmek yüklemenin sürmesini de sağlar — ama geri alınamaz.",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "SideStore oluşturduysa yukarıda “SideStore'un sertifikasını kullan”a dokun: SideInstaller de onunla imzalar ve hiçbir şey iptal edilmez.",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "SideInstaller bundan sonra “%@” ile imzalıyor. Hiçbir şey iptal edilmedi, bu yüzden zaten bununla imzalanmış uygulamalar çalışmaya devam eder.",
-    "SideInstaller already signs with “%@”.": "SideInstaller zaten “%@” ile imzalıyor.",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore açılır ve sertifikasını geri gönderir. iLoader X da onunla imzalar; böylece ücretsiz bir Apple kimliğinde iki uygulama birbirinin sertifikasını iptal etmek zorunda kalmaz.",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple bu Apple kimliği için ikinci bir imzalama sertifikası vermez. SideStore elindeki sertifikayı oluşturduysa iLoader X de onunla imzalayabilir ve hiçbir şey iptal edilmez. İptal etmek yüklemenin sürmesini de sağlar — ama geri alınamaz.",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "SideStore oluşturduysa yukarıda “SideStore'un sertifikasını kullan”a dokun: iLoader X de onunla imzalar ve hiçbir şey iptal edilmez.",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "iLoader X bundan sonra “%@” ile imzalıyor. Hiçbir şey iptal edilmedi, bu yüzden zaten bununla imzalanmış uygulamalar çalışmaya devam eder.",
+    "iLoader X already signs with “%@”.": "iLoader X zaten “%@” ile imzalıyor.",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "Bu sertifika bu Apple kimliğine ait değil: iptal edilmiş veya başka bir Apple kimliğine ait (SideStore farklı bir hesapla oturum açmış olabilir). Hiçbir şey değişmedi.",
     "Couldn't use that certificate: %@": "Bu sertifika kullanılamadı: %@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "Bu iPhone'da SideStore yüklü değil, bu yüzden ondan alınacak sertifika yok.",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "LiveContainer içinde SideStore sertifikasını SideInstaller'a geri gönderemez ve LiveContainer henüz bir tane tutmuyor. LiveContainer'ın Ayarlar sekmesinde “Sertifikayı SideStore'dan içe aktar”a dokun (sertifikası yoksa önce SideStore'da oturum aç), sonra burada yeniden dene.",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "LiveContainer içinde SideStore sertifikasını iLoader X'a geri gönderemez ve LiveContainer henüz bir tane tutmuyor. LiveContainer'ın Ayarlar sekmesinde “Sertifikayı SideStore'dan içe aktar”a dokun (sertifikası yoksa önce SideStore'da oturum aç), sonra burada yeniden dene.",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "LiveContainer'ın SideStore için tuttuğu sertifika bu Apple kimliğine ait değil: iptal edilmiş veya başka bir Apple kimliğine ait. Hiçbir şey değiştirilmedi. SideStore o zamandan beri yeni bir tane oluşturduysa LiveContainer'ın Ayarlar sekmesinde “Sertifikayı SideStore'dan yenile”ye dokun, sonra burada yeniden dene.",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller, SideStore'un sertifikasını LiveContainer'dan alır ve onunla da imzalar; böylece ücretsiz bir Apple kimliğinde iki uygulama birbirininkini iptal etmek zorunda kalmaz.",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X, SideStore'un sertifikasını LiveContainer'dan alır ve onunla da imzalar; böylece ücretsiz bir Apple kimliğinde iki uygulama birbirininkini iptal etmek zorunda kalmaz.",
     "Sign with this certificate?": "Bu sertifika ile imzalansın mı?",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "Bir bağlantı SideInstaller'a bir imzalama sertifikası gönderdi. Yalnızca sen istediysen kullan: SideInstaller bundan sonra kendi sertifikası yerine bununla uygulamaları imzalayacak. Yalnızca Apple kimliğinin sertifikalarından biri ise kullanılır.",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "Bir bağlantı iLoader X'a bir imzalama sertifikası gönderdi. Yalnızca sen istediysen kullan: iLoader X bundan sonra kendi sertifikası yerine bununla uygulamaları imzalayacak. Yalnızca Apple kimliğinin sertifikalarından biri ise kullanılır.",
     "Use it": "Kullan",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "Bu bağlantı bir imzalama sertifikası taşıyacaktı, ancak içeriği okunamıyor.",
@@ -400,8 +400,8 @@ let turkishStrings: [String: String] = [
     "%d App ID": "%d App ID",
     "%d App IDs": "%d App ID",
     "No App IDs": "App ID yok",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "Bu Apple kimliği henüz hiç uygulama kaydetmemiş. Önce SideInstaller ile bir şey yükle, sonra dön.",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "Bu Apple kimliği henüz hiç uygulama kaydetmemiş. Önce iLoader X ile bir şey yükle, sonra dön.",
     "Memory and performance": "Bellek ve performans",
     "Other free capabilities": "Diğer ücretsiz yetenekler",
     "Beta": "Beta",
@@ -419,8 +419,8 @@ let turkishStrings: [String: String] = [
     "Reading the device": "Cihaz okunuyor",
     // Refresh all: signing the installed apps again.
 
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "iOS %@ desteklenmiyor — SideInstaller iOS %@ veya sonrasını ister.",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "iOS %@ desteklenmiyor — iLoader X iOS %@ veya sonrasını ister.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple bu Apple kimliği için imzalama sertifikası vermiyor: zaten bir tane olduğunu bildiriyor (hata 7460). Araçlar › Sertifikalar altında SideStore'un sertifikasını kullan veya onu iptal et, sonra yeniden yenile.",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -447,10 +447,10 @@ let turkishStrings: [String: String] = [
     "Waiting": "Bekliyor",
     "In progress": "Devam ediyor",
     "Failed": "Başarısız",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "Buradaki %d uygulamanın SideInstaller'da IPA'sı yok, bu yüzden bu sayfadan yenilenemez. Onu yükleyen uygulamada yenile veya önce .ipa dosyasını içe aktar.",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "Buradaki %d uygulamanın SideInstaller'da IPA'sı yok, bu yüzden bu sayfadan yenilenemez. Onları yükleyen uygulamada yenile veya önce .ipa dosyalarını içe aktar.",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "Buradaki %d uygulamanın iLoader X'da IPA'sı yok, bu yüzden bu sayfadan yenilenemez. Onu yükleyen uygulamada yenile veya önce .ipa dosyasını içe aktar.",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "Buradaki %d uygulamanın iLoader X'da IPA'sı yok, bu yüzden bu sayfadan yenilenemez. Onları yükleyen uygulamada yenile veya önce .ipa dosyalarını içe aktar.",
     "%d app": "%d uygulama",
     "%d apps": "%d uygulama",
     "%d app needs refreshing": "%d uygulamanın yenilenmesi gerekiyor",
@@ -487,7 +487,7 @@ let turkishStrings: [String: String] = [
     "Side by Side": "Side by Side",
     "Pair with their iPhone": "Diğer iPhone ile eşle",
     "Sign in to their Apple ID": "iPhone sahibinin Apple kimliğiyle oturum aç",
-    "Download SideInstaller": "SideInstaller'ı indir",
+    "Download iLoader X": "iLoader X'ı indir",
     "Install on their iPhone": "Diğer iPhone'a yükle",
     "The iPhone that paired was this one. Pair from their iPhone's Settings instead. To install on this iPhone, use the Install tab.":
         "Eşlenen iPhone bu iPhone'du. Bunun yerine diğer iPhone'un Ayarlar'ından eşle. Bu iPhone'a yüklemek için Yükle sekmesini kullan.",
@@ -496,8 +496,8 @@ let turkishStrings: [String: String] = [
         "Wi-Fi kapalı. Bunun çalışması için her iki iPhone'un da aynı Wi-Fi ağında olması gerekir.",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "İndirilen sürüm bir IPA değildi. GitHub bir hata sayfası döndürüyor olabilir, bir dakika sonra yeniden dene.",
-    "Couldn't download the latest SideInstaller release: %@": "En son SideInstaller sürümü indirilemedi: %@",
-    "No SideInstaller IPA downloaded.": "SideInstaller IPA indirilmedi.",
+    "Couldn't download the latest iLoader X release: %@": "En son iLoader X sürümü indirilemedi: %@",
+    "No iLoader X IPA downloaded.": "iLoader X IPA indirilmedi.",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). One has to be revoked first. Use the Certificates tool if this is the Apple ID saved in Settings › Account, or developer.apple.com signed in as it otherwise.":
         "Apple bu Apple kimliği için imzalama sertifikası vermiyor: zaten bir tane olduğunu bildiriyor (hata 7460). Önce birinin iptal edilmesi gerekir. Bu Ayarlar › Hesap'ta kayıtlı Apple kimliğiyse Sertifikalar aracıyla; değilse developer.apple.com'da o hesapla oturum açarak.",
     "Apple wouldn't register their iPhone with this Apple ID's developer team, so it won't issue a provisioning profile. %@":
@@ -506,8 +506,8 @@ let turkishStrings: [String: String] = [
     "The link to their iPhone dropped. Start again.": "Diğer iPhone ile bağlantı koptu. Yeniden başla.",
     "Set up someone else's iPhone": "Başkasının iPhone'unu kur",
     "Same Wi-Fi network": "Aynı Wi-Fi ağı",
-    "Their iPhone needs iOS %@ — SideInstaller pairs itself once it's installed, and nothing older can.":
-        "Diğer iPhone'da iOS %@ gerekir — SideInstaller yüklendikten sonra kendini eşler, daha eski bir sürüm bunu yapamaz.",
+    "Their iPhone needs iOS %@ — iLoader X pairs itself once it's installed, and nothing older can.":
+        "Diğer iPhone'da iOS %@ gerekir — iLoader X yüklendikten sonra kendini eşler, daha eski bir sürüm bunu yapamaz.",
     "Apple ID to sign with": "İmzalamak için Apple kimliği",
     "Tip: Use the iPhone/iPad owner's Apple account credentials": "İpucu: iPhone/iPad sahibinin Apple hesap bilgilerini kullan",
     "Use my saved Apple ID instead": "Bunun yerine kayıtlı Apple kimliğimi kullan",
@@ -524,13 +524,13 @@ let turkishStrings: [String: String] = [
     "Type the code that appears here into the prompt on their iPhone.":
         "Burada görünen kodu diğer iPhone'daki istem alanına yaz.",
     "Type this into the prompt on their iPhone.": "Bunu diğer iPhone'daki istem alanına yaz.",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller zaten bir iPhone'un eşlenmesini bekliyor: Yükle sekmesinden, Eşleme sayfasından veya buradaki önceki bir denemeden. O eşlemeyi bitir veya SideInstaller'ı kapatıp aç, sonra yeniden dene.",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X zaten bir iPhone'un eşlenmesini bekliyor: Yükle sekmesinden, Eşleme sayfasından veya buradaki önceki bir denemeden. O eşlemeyi bitir veya iLoader X'ı kapatıp aç, sonra yeniden dene.",
     "Pairing with their iPhone didn't finish: %@": "Diğer iPhone ile eşleme tamamlanmadı: %@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "%@ adresindeki diğer iPhone bağlantıyı reddetti. Yalnızca Geliştirici Modu açıkken bağlantı kabul eder ve iOS her yeniden başlatmadan sonra Geliştirici Modu'nu yeniden onaylatır: diğer iPhone'da Ayarlar › Gizlilik ve Güvenlik › Geliştirici Modu'ndan aç, sonra yeniden dene.",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Diğer iPhone'a %@ adresinden ulaşılamadı. İki iPhone'un aynı Wi-Fi ağında olduğunu ve bu iPhone'un Ayarlar'ında SideInstaller için Yerel Ağ'ın açık olduğunu kontrol et. Misafir ve genel ağlar cihazların birbirine ulaşmasını sıkça engeller.",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Diğer iPhone'a %@ adresinden ulaşılamadı. İki iPhone'un aynı Wi-Fi ağında olduğunu ve bu iPhone'un Ayarlar'ında iLoader X için Yerel Ağ'ın açık olduğunu kontrol et. Misafir ve genel ağlar cihazların birbirine ulaşmasını sıkça engeller.",
     "The link to their iPhone didn't come up: %@": "Diğer iPhone ile bağlantı kurulamadı: %@",
     "%d%% downloaded": "%%%d indirildi",
     "%d%% uploaded": "%%%d yüklendi",
@@ -588,10 +588,10 @@ let turkishStrings: [String: String] = [
     "Starts with %@": "%@ ile başlar",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "Otomatik, en son oturum açılan sunucuyla başlar, sonra diğerlerini dener; önce çalışması en olası olanları dener.",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
         "Yalnızca bu sunucu denenir. Başarısız olursa oturum açma da başarısız olur: diğerlerini denemesi için Otomatik'i seç.",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "Yalnızca Ayarlar › Anisette sunucusu'nda seçilen sunucu denendi. Biri başarısız olunca SideInstaller'ın diğerlerini denemesi için orada Otomatik'i seç.",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "Yalnızca Ayarlar › Anisette sunucusu'nda seçilen sunucu denendi. Biri başarısız olunca iLoader X'ın diğerlerini denemesi için orada Otomatik'i seç.",
     "Device IP": "Cihaz IP",
     "Advanced": "Gelişmiş",
     "Clear": "Temizle",
@@ -663,28 +663,28 @@ let turkishStrings: [String: String] = [
     "Apple ID sign-in failed on %@. Error: %@": "%@ üzerinde Apple kimliği oturum açma başarısız. Hata: %@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "%@ üzerinde Apple kimliği oturum açma başarısız. %@ üzerinden hata: %@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Apple'ın oturum açma sunucusu isteği reddetti (HTTP 503). Parolan veya anisette sunucusu değil; daha fazla sunucu denemek yardımcı olmaz. Daha sonra yeniden dene veya SideInstaller'ı güncelle.",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Apple'ın oturum açma sunucusu isteği reddetti (HTTP 503). Parolan veya anisette sunucusu değil; daha fazla sunucu denemek yardımcı olmaz. Daha sonra yeniden dene veya iLoader X'ı güncelle.",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "“%@” anisette verisini Apple'ın Android kütüphanesiyle üretir ve Apple artık bu sunucular üzerinden oturum açmayı tamamlamayı reddediyor (hata -80046), parola ve kodundan sonra. Ayarlar › Anisette sunucusu'nda Otomatik veya “SideStore (New)” gibi bir Mac sunucusu seç.",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple oturum açmayı tamamlamayı reddetti (hata -80046), hâlâ kabul ettiği türden bir Mac anisette sunucusu üzerinden bile. Daha sonra yeniden dene veya SideInstaller güncellemesi kontrol et.",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple oturum açmayı tamamlamayı reddetti (hata -80046), hâlâ kabul ettiği türden bir Mac anisette sunucusu üzerinden bile. Daha sonra yeniden dene veya iLoader X güncellemesi kontrol et.",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple, “%@” üzerinden oturum açmayı tamamlamayı reddetti (hata -80046). Artık yalnızca macOS kütüphanesindeki anisette sunucuları üzerinden oturum açmayı kabul ediyor: Ayarlar › Anisette sunucusu'nda Otomatik veya “SideStore (New)” gibi bir Mac sunucusu seç.",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple bu oturum açma için kodu mesaj veya aramayla göndermiyor; bu yüzden Apple cihazlarına gönderildi.",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple, Apple cihazlarına kod gönderdiğini doğrulamadı. Biri geldiyse gir; gelmediyse başka bir yol dene.",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "Bu iPhone internete bağlı olsa da SideInstaller Apple'ın oturum açma sunucusuna (gsa.apple.com) ulaşamıyor. Bir şey engelliyor: güvenlik duvarı, DNS filtresi veya reklam engelleyici, Ekran Süresi içerik kısıtlamaları veya başka bir VPN uygulaması. Kapat veya başka ağ dene, sonra yeniden dene.",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller Apple'a ulaşamıyor: Hücresel Veri kapalı. Ayarlar › Hücresel'de SideInstaller'ı aç veya interneti olan bir Wi-Fi ağına bağlan, sonra yeniden dene.",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller Apple'a ulaşamıyor: iOS Wi-Fi kullanmasına izin vermiyor. Ayarlar › Uygulamalar › SideInstaller › Kablosuz Veri'de WLAN ve Hücresel Veri'yi seç, sonra yeniden dene.",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller Apple'a ulaşamıyor: tüm trafiği taşıyan bir VPN bağlantısı kesik; iOS trafiği tutuyor. Yeniden bağlan veya kill switch / İstek Üzerine Bağlan'ı kapat, sonra yeniden dene.",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller Apple'a ulaşamıyor: bu iPhone'un internet bağlantısı yok. Wi-Fi'ye bağlan veya hücresel veriyi aç, sonra yeniden dene.",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "Bu iPhone internete bağlı olsa da iLoader X Apple'ın oturum açma sunucusuna (gsa.apple.com) ulaşamıyor. Bir şey engelliyor: güvenlik duvarı, DNS filtresi veya reklam engelleyici, Ekran Süresi içerik kısıtlamaları veya başka bir VPN uygulaması. Kapat veya başka ağ dene, sonra yeniden dene.",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X Apple'a ulaşamıyor: Hücresel Veri kapalı. Ayarlar › Hücresel'de iLoader X'ı aç veya interneti olan bir Wi-Fi ağına bağlan, sonra yeniden dene.",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X Apple'a ulaşamıyor: iOS Wi-Fi kullanmasına izin vermiyor. Ayarlar › Uygulamalar › iLoader X › Kablosuz Veri'de WLAN ve Hücresel Veri'yi seç, sonra yeniden dene.",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X Apple'a ulaşamıyor: tüm trafiği taşıyan bir VPN bağlantısı kesik; iOS trafiği tutuyor. Yeniden bağlan veya kill switch / İstek Üzerine Bağlan'ı kapat, sonra yeniden dene.",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X Apple'a ulaşamıyor: bu iPhone'un internet bağlantısı yok. Wi-Fi'ye bağlan veya hücresel veriyi aç, sonra yeniden dene.",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "Apple bu Apple kimliği veya ağ için oturum açmaları geçici olarak sınırlıyor (HTTP 429). Diğer sunucuları denemek yardımcı olmaz ve her deneme beklemeyi uzatabilir; yeniden oturum açmadan önce bir süre bekle.",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -712,16 +712,16 @@ let turkishStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "Henüz IPA içe aktarılmadı. “.ipa içe aktar”a dokun ve bir tane seç.",
     "Couldn't import %@: %@": "%@ içe aktarılamadı: %@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "Bu, SideInstaller'ın indirebileceği bir bağlantı değil. .ipa'nın indirildiği tam https:// adresini yapıştır.",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "Bu, iLoader X'ın indirebileceği bir bağlantı değil. .ipa'nın indirildiği tam https:// adresini yapıştır.",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "Bu bağlantı bir IPA döndürmedi. Dosyanın kendisini indirmesi gerekir — yalnızca .ipa'ya bağlantı veren ya da önce oturum açmanı isteyen bir sayfa buraya web sayfası olarak gelir.",
     "Couldn't download that link: %@": "Bu bağlantı indirilemedi: %@",
     "there's nothing to download for a custom IPA — import one first":
         "özel IPA için indirilecek bir şey yok — önce bir tane içe aktar",
     "your app": "uygulaman",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "Apple bu Apple kimliği için imzalama sertifikası vermiyor: zaten bir tane olduğunu veya isteğin hâlâ beklemede olduğunu bildiriyor (hata 7460). SideInstaller oradaki sertifikayı yeniden kullanamadı, bu yüzden değiştirmek yerine durdu. Yukarıdaki adımlara bak.",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "Apple bu Apple kimliği için imzalama sertifikası vermiyor: zaten bir tane olduğunu veya isteğin hâlâ beklemede olduğunu bildiriyor (hata 7460). iLoader X oradaki sertifikayı yeniden kullanamadı, bu yüzden değiştirmek yerine durdu. Yukarıdaki adımlara bak.",
     " (UDID %@)": " (UDID %@)",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "Bu iPhone%@ Apple kimliğinin geliştirici ekibine kaydedilemedi; Apple sağlama profili vermiyor. %@ — yukarıdaki adımlara bak.",
@@ -735,59 +735,59 @@ let turkishStrings: [String: String] = [
     "Import an .ipa first": "Önce bir .ipa içe aktar",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "Yukarıda “.ipa içe aktar”a dokun ve dosyayı seç — Dosyalar uygulamasının erişebildiği her yerde olabilir; iCloud Drive veya USB sürücü dahil.",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "Veya o düğmenin altında doğrudan indirme bağlantısı yapıştır; SideInstaller .ipa'yı kendisi alır.",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "Veya Dosyalar uygulamasını aç, .ipa'ya basılı tut, Paylaş'a dokun ve SideInstaller'ı seç — seçici olmadan dosyayı iletir.",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "Veya Dosyalar › iPhone'umda › SideInstaller'a kopyala; SideInstaller orada da bulur.",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "Veya o düğmenin altında doğrudan indirme bağlantısı yapıştır; iLoader X .ipa'yı kendisi alır.",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "Veya Dosyalar uygulamasını aç, .ipa'ya basılı tut, Paylaş'a dokun ve iLoader X'ı seç — seçici olmadan dosyayı iletir.",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "Veya Dosyalar › iPhone'umda › iLoader X'a kopyala; iLoader X orada da bulur.",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "GitHub'ın engellendiği yerlerde yol bu: IPA'yı herhangi bir cihazda indir, buraya getir ve buradan yükle.",
     "Bring the .ipa yourself": ".ipa'yı kendin getir",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "%@, GitHub deposu çevrimdışıyken indirilemez. Diğer uygulamalar her zamanki gibi yüklenir.",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "Yine de yüklemek için .ipa'sını güvendiğin bir yerden al, adını %@ koy ve Dosyalar › iPhone'umda › SideInstaller'a kopyala.",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "Sonra Yükle'ye yeniden dokun — SideInstaller indirmek yerine senin dosyanı kullanır.",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "Yine de yüklemek için .ipa'sını güvendiğin bir yerden al, adını %@ koy ve Dosyalar › iPhone'umda › iLoader X'a kopyala.",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "Sonra Yükle'ye yeniden dokun — iLoader X indirmek yerine senin dosyanı kullanır.",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "GitHub'a bir VPN veya proxy uygulamasıyla ulaşıyorsan LocalDevVPN'i kapat ve onu aç: iOS aynı anda yalnızca bir VPN çalıştırır.",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "Aşağıda “.ipa'yı al”a dokunup dosyayı kaydet veya başka cihazda indirip buraya getir.",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "SideInstaller'a dön, Yükle altında Özel .ipa'yı seç, “.ipa içe aktar”a dokun ve dosyayı seç. SideInstaller %@ olarak tanır ve kendi indirmesi gibi kurar.",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "iLoader X'a dön, Yükle altında Özel .ipa'yı seç, “.ipa içe aktar”a dokun ve dosyayı seç. iLoader X %@ olarak tanır ve kendi indirmesi gibi kurar.",
     "Turn LocalDevVPN back on, then tap Install.": "LocalDevVPN'i yeniden aç, sonra Yükle'ye dokun.",
     "Get the .ipa": ".ipa'yı al",
     "Pair this iPhone in Settings": "Bu iPhone'u Ayarlar'da eşle",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "Ayarlar uygulamasını aç, sonra Gizlilik ve Güvenlik › Geliştirici Modu'na git.",
-    "Tap “Pair with SideInstaller”.": "“SideInstaller ile eşle”ye dokun.",
+    "Tap “Pair with iLoader X”.": "“iLoader X ile eşle”ye dokun.",
     "Enter your iPhone’s passcode if it asks for it.": "Sorarsa iPhone'unun parolasını gir.",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "SideInstaller'a dön, gösterdiği kodu oku, sonra aynı kodu Ayarlar'daki istem alanına yaz.",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "Ekranın üstünde görünen kodu Ayarlar'daki istem alanına yaz. Hiçbiri görünmezse okumak için SideInstaller'a dön.",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "SideInstaller istediğinde bildirimlere izin ver: eşleme kodunun Ayarlar'da sana ulaşması böyle olur.",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "iLoader X'a dön, gösterdiği kodu oku, sonra aynı kodu Ayarlar'daki istem alanına yaz.",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "Ekranın üstünde görünen kodu Ayarlar'daki istem alanına yaz. Hiçbiri görünmezse okumak için iLoader X'a dön.",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "iLoader X istediğinde bildirimlere izin ver: eşleme kodunun Ayarlar'da sana ulaşması böyle olur.",
     // The pairing Live Activity
 
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "Gizlilik ve Güvenlik › Geliştirici Modu › SideInstaller ile eşle",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "Gizlilik ve Güvenlik › Geliştirici Modu › iLoader X ile eşle",
     "Paired": "Eşlendi",
-    "Tap to return to SideInstaller.": "SideInstaller'a dönmek için dokun.",
+    "Tap to return to iLoader X.": "iLoader X'a dönmek için dokun.",
     // The install's progress outside the app
 
     "Installing %@": "%@ yükleniyor",
     "Paused": "Duraklatıldı",
-    "Open SideInstaller to finish the install.": "Yüklemeyi bitirmek için SideInstaller'ı aç.",
+    "Open iLoader X to finish the install.": "Yüklemeyi bitirmek için iLoader X'ı aç.",
     "Check the App IDs it needs, then tap Install.": "İhtiyacı olan App ID'leri kontrol et, sonra Yükle'ye dokun.",
     "Tap Trust": "Güven'e dokun",
     "Unlock this iPhone and tap Trust when it asks.": "Bu iPhone'un kilidini aç ve sorduğunda Güven'e dokun.",
     "A signing certificate already exists": "Bir imzalama sertifikası zaten var",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple hata 7460 döndürdü: bu Apple kimliğinde zaten bir iOS geliştirici sertifikası var veya isteği hâlâ beklemede.",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller onu yeniden kullanamadı. Sertifika başka yerde verildiğinde olur — AltStore, SideStore, Sideloadly veya başka cihazdaki Xcode — bu yüzden gereken özel anahtar bu iPhone'da değil.",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X onu yeniden kullanamadı. Sertifika başka yerde verildiğinde olur — AltStore, SideStore, Sideloadly veya başka cihazdaki Xcode — bu yüzden gereken özel anahtar bu iPhone'da değil.",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "Yukarıda “İptal et ve yeniden dene”yi kullan veya Araçlar sekmesinde Sertifikalar'ı aç, “Sertifikaları yükle”ye dokun ve oradan iptal et.",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -804,8 +804,8 @@ let turkishStrings: [String: String] = [
         "Apple güvenlik nedeniyle bu Apple Hesabını kilitledi; genellikle çok fazla oturum açma denemesinden sonra. Kilit açılana kadar her oturum açma başarısız olur; şimdilik Yükle'ye yeniden dokunmak yardımcı olmaz.",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "iForgot'u aç, bu Apple Hesabının e-postasını gir ve kilidi açıp parolayı sıfırlamak için Apple'ın adımlarını izle.",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "SideInstaller'a dön, Ayarlar › Hesap'ı aç, bu Apple kimliğinde sola kaydır, Düzenle'ye dokun ve yeni parolayı gir.",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "iLoader X'a dön, Ayarlar › Hesap'ı aç, bu Apple kimliğinde sola kaydır, Düzenle'ye dokun ve yeni parolayı gir.",
     "Then tap Install again.": "Sonra Yükle'ye yeniden dokun.",
     "Open iForgot": "iForgot'u aç",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -815,8 +815,8 @@ let turkishStrings: [String: String] = [
     "This iPhone already has three apps signed with a free Apple ID, the most iOS allows, counting expired ones. Delete one of them, then try again.":
         "Bu iPhone'da ücretsiz Apple kimliğiyle imzalanmış üç uygulama var — iOS'un izin verdiği en fazla, süresi dolmuşlar dahil. Birini sil, sonra yeniden dene.",
     "This Apple Account can't sign apps": "Bu Apple Hesabı uygulama imzalayamaz",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "Apple, SideInstaller'ın uygulamaları imzaladığı geliştirici hizmetlerini yalnızca yetişkinlere açar ve bu Apple Hesabının daha genç birine ait olduğunu bildiriyor (hata 1102).",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "Apple, iLoader X'ın uygulamaları imzaladığı geliştirici hizmetlerini yalnızca yetişkinlere açar ve bu Apple Hesabının daha genç birine ait olduğunu bildiriyor (hata 1102).",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "Bunun yerine bir yetişkinin Apple Hesabıyla oturum aç: Ayarlar › Hesap'ı aç ve oraya ekle.",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -828,8 +828,8 @@ let turkishStrings: [String: String] = [
         "account.apple.com'da bu Apple Hesabıyla oturum aç ve Apple istediğinde e-posta adresini doğrula. Apple kodu veya bağlantıyı o adrese gönderir; spam klasörünü de kontrol et.",
     "Open Apple Account": "Apple Hesabını aç",
     "No App IDs left this week": "Bu hafta App ID kalmadı",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "SideInstaller'ın imzaladığı her uygulama bir App ID ister; uzantıları da onu paylaşır. Ücretsiz Apple kimliği haftada 10 tane kaydedebilir ve her biri 7 gün sayılır.",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "iLoader X'ın imzaladığı her uygulama bir App ID ister; uzantıları da onu paylaşır. Ücretsiz Apple kimliği haftada 10 tane kaydedebilir ve her biri 7 gün sayılır.",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "Daha erken silinemezler. Bazılarının süresi dolana kadar bekle, sonra Yükle'ye yeniden dokun.",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -882,8 +882,8 @@ let turkishStrings: [String: String] = [
         "Apple kimliğin kayıtlı cihaz sınırına ulaştı. Ücretsiz hesaplar yılda yalnızca birkaç cihaz kaydedebilir ve yıl sıfırlanana kadar eskileri kaldıramaz.",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "En kolay çözüm: yukarıdaki alanlara farklı (veya yedek) bir Apple kimliği yaz, sonra Yükle'ye yeniden dokun.",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller bu iPhone'u Apple kimliğinin geliştirici ekibine otomatik ekleyemedi. Yükle'ye yeniden dokunmak sıkça işe yarar — Apple'ın geliştirici hizmeti bazen kısa süre kullanılamaz.",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X bu iPhone'u Apple kimliğinin geliştirici ekibine otomatik ekleyemedi. Yükle'ye yeniden dokunmak sıkça işe yarar — Apple'ın geliştirici hizmeti bazen kısa süre kullanılamaz.",
     "If it keeps failing, add the device by hand. Its UDID is:": "Hata sürerse cihazı elle ekle. UDID'si:",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
         "Bunu Apple Developer portalındaki “Register a Device” formuna yapıştır (ücretli Apple Developer hesabı gerekir), sonra Yükle'ye yeniden dokun.",
@@ -914,25 +914,25 @@ let turkishStrings: [String: String] = [
         "Bu iPhone bağlantı açılır açılmaz kesti. iOS 26.4'ten beri LocalDevVPN üzerinden gelen lockdown eşleme dosyalarında (bunun gibi) bunu yapar; aynı türden yenisi yardımcı olmaz. Uzaktan eşleme dosyası hâlâ çalışır: bilgisayarda idevice_pair'i aç, “Remote pairing” seç, “Create” sonra “Save to file…”e tıkla ve dosyayı “Eşleme dosyası” altında içe aktar.",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "Bu iPhone bağlantıyı kesti: iOS 26.4'ten itibaren, bunun gibi lockdown eşleme dosyaları LocalDevVPN üzerinden geldiğinde bunu yapar. Yukarıdaki adımlara bak.",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "Bu iPhone'u eşlemek için gerekir: SideInstaller, Ayarlar'ın bulması için kendini yerel ağda duyurur.",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "Bir Wi-Fi ağına bağlan. Bu iPhone'u eşlemek için gerekir — SideInstaller yerel ağda bulunabilir olmalı.",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "Bu iPhone'u eşlemek için gerekir: iLoader X, Ayarlar'ın bulması için kendini yerel ağda duyurur.",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "Bir Wi-Fi ağına bağlan. Bu iPhone'u eşlemek için gerekir — iLoader X yerel ağda bulunabilir olmalı.",
 
     // MARK: - About
 
     "About": "Hakkında",
     "Version %@ (%@)": "Sürüm %@ (%@)",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller, bilgisayar olmadan SideStore ve LiveContainer'ı doğrudan iPhone'una yükler.",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X, bilgisayar olmadan SideStore ve LiveContainer'ı doğrudan iPhone'una yükler.",
     "Links": "Bağlantılar",
     "Source code": "Kaynak kodu",
     "Support the project": "Projeyi destekle",
     "Crypto": "Kripto",
     "Donation wallets for Bitcoin, Ethereum and Solana.": "Bitcoin, Ethereum ve Solana bağış cüzdanları.",
     "Crypto donations": "Kripto bağışları",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "Bağışlar tamamen isteğe bağlıdır. Bir şey satın almaz, özellik açmaz veya karşılığında bir şey vermez; SideInstaller yardımcı olduysa teşekkür etmenin bir yoludur.",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "Bağışlar tamamen isteğe bağlıdır. Bir şey satın almaz, özellik açmaz veya karşılığında bir şey vermez; iLoader X yardımcı olduysa teşekkür etmenin bir yoludur.",
     "Coin": "Kripto para",
     "Network: %@": "Ağ: %@",
     "QR code for the %@ address": "%@ adresi için QR kodu",
@@ -940,8 +940,8 @@ let turkishStrings: [String: String] = [
     "Send each coin only on the network shown. Crypto sent on another network can't be recovered.":
         "Her kripto parayı yalnızca gösterilen ağda gönder. Başka bir ağda gönderilen kripto para geri alınamaz.",
     "Special thanks": "Özel teşekkürler",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "idevice için — SideInstaller'ın iPhone'unla konuştuğu kütüphane. O olmadan bunların hiçbiri olmazdı.",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "idevice için — iLoader X'ın iPhone'unla konuştuğu kütüphane. O olmadan bunların hiçbiri olmazdı.",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "Destek için ve sayesinde düzeltilen hataları bulduğu için.",
     "For the Japanese translation.": "Japonca çeviri için.",
@@ -970,12 +970,12 @@ let turkishStrings: [String: String] = [
 
     "%@ needs iOS %d or later. This iPhone runs iOS %@.": "%@ için iOS %d veya sonrası gerekir. Bu iPhone iOS %@ çalıştırıyor.",
     "Open Madeira from your Home Screen.": "Madeira'yı Ana Ekran'dan aç.",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "Kurulumunda “Set up JIT” altında “In-app with pairing file” seç: SideInstaller dosyayı zaten oraya koydu, “Continue”e dokun.",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "Kurulumunda “Set up JIT” altında “In-app with pairing file” seç: iLoader X dosyayı zaten oraya koydu, “Continue”e dokun.",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "Kurulumunda “Set up JIT” altında bu iPhone'un JIT'i nasıl alacağını seç.",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "Madeira bundan sonra kendi imzasını yeniler; açıkken ve LocalDevVPN bağlıyken. SideInstaller bunun için bir oturum verdi: Apple'ın geliştirici hizmeti için jeton, parolan değil. Madeira Ayarlar › İmzalama altında bunu unutabilir.",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "Madeira bundan sonra kendi imzasını yeniler; açıkken ve LocalDevVPN bağlıyken. iLoader X bunun için bir oturum verdi: Apple'ın geliştirici hizmeti için jeton, parolan değil. Madeira Ayarlar › İmzalama altında bunu unutabilir.",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "İmzası 7 gün geçerli. Süre dolmadan burada, Araçlar › Yan yüklenen uygulamalar altında yenile.",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1003,30 +1003,30 @@ let turkishStrings: [String: String] = [
 
     "Install from a link?": "Bağlantıdan yüklensin mi?",
     "Download and install": "İndir ve yükle",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller bu .ipa'yı indirir, Apple kimliğinle imzalar ve yükler. Yalnızca bağlantının geldiği yere güveniyorsan devam et.",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X bu .ipa'yı indirir, Apple kimliğinle imzalar ve yükler. Yalnızca bağlantının geldiği yere güveniyorsan devam et.",
     "It replaces %@, the custom .ipa you have now.": "Şu anki özel .ipa'nın (%@) yerine geçer.",
     "Use SideStore's pairing file?": "SideStore'un eşleme dosyası kullanılsın mı?",
     "Import this pairing file?": "Bu eşleme dosyası içe aktarılsın mı?",
     "Import": "İçe aktar",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore elindeki eşleme dosyasını geri gönderdi. SideInstaller bu iPhone'a onunla bağlanacak.",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "Bir bağlantı SideInstaller'a eşleme dosyası gönderdi. Yalnızca sen istediysen içe aktar: SideInstaller bu iPhone'a onunla bağlanacak.",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore elindeki eşleme dosyasını geri gönderdi. iLoader X bu iPhone'a onunla bağlanacak.",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "Bir bağlantı iLoader X'a eşleme dosyası gönderdi. Yalnızca sen istediysen içe aktar: iLoader X bu iPhone'a onunla bağlanacak.",
     "It replaces %@.": "%@ yerine geçer.",
     "It replaces the pairing file in use now.": "Şu an kullanılan eşleme dosyasının yerine geçer.",
     "Get it from SideStore": "SideStore'dan al",
     "SideStore opens and sends back the pairing file it has.": "SideStore açılır ve elindeki eşleme dosyasını geri gönderir.",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "Bu iPhone'da SideStore yüklü değil, bu yüzden ondan alınacak eşleme dosyası yok.",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "SideInstaller, LiveContainer'ın yerleşik SideStore'undaki eşleme dosyasını alır.",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "Bu, LiveContainer'ın yerleşik SideStore'undaki eşleme dosyası. SideInstaller bu iPhone'a onunla bağlanacak.",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "LiveContainer'ın Çoklu Görev Modu'nda SideInstaller yerleşik SideStore dosyalarını açamaz. SideInstaller'ı LiveContainer'da Çoklu Görev Modu olmadan açıp yeniden dene, veya “Eşleme dosyasını içe aktar”a dokunup bilgisayarının oluşturduğu dosyayı seç.",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "LiveContainer içinde SideStore eşleme dosyasını SideInstaller'a geri gönderemez ve LiveContainer'ın yerleşik SideStore'unda SideInstaller'ın kullanabileceği bir dosya yok. “Eşleme dosyasını içe aktar”a dokunup bilgisayarının oluşturduğu dosyayı seç, veya önce SideStore'a bir tane içe aktarıp burada yeniden dene.",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "iLoader X, LiveContainer'ın yerleşik SideStore'undaki eşleme dosyasını alır.",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "Bu, LiveContainer'ın yerleşik SideStore'undaki eşleme dosyası. iLoader X bu iPhone'a onunla bağlanacak.",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "LiveContainer'ın Çoklu Görev Modu'nda iLoader X yerleşik SideStore dosyalarını açamaz. iLoader X'ı LiveContainer'da Çoklu Görev Modu olmadan açıp yeniden dene, veya “Eşleme dosyasını içe aktar”a dokunup bilgisayarının oluşturduğu dosyayı seç.",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "LiveContainer içinde SideStore eşleme dosyasını iLoader X'a geri gönderemez ve LiveContainer'ın yerleşik SideStore'unda iLoader X'ın kullanabileceği bir dosya yok. “Eşleme dosyasını içe aktar”a dokunup bilgisayarının oluşturduğu dosyayı seç, veya önce SideStore'a bir tane içe aktarıp burada yeniden dene.",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "Bu yükleme bağlantısında .ipa yok. ?url= ve ardından .ipa'nın indirildiği https:// adresi gerekir.",
     "That link was meant to carry a pairing file, but what it holds can't be read.":
@@ -1070,44 +1070,44 @@ let turkishStrings: [String: String] = [
     "Look again": "Yeniden ara",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "Son %d günde SideStore, LiveContainer veya Madeira'dan çökme günlüğü yok.",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "iOS, SideInstaller'ın kendi çökmelerini bir sonraki açılışta iletir. SideStore, LiveContainer ve Madeira çökme günlükleri LocalDevVPN üzerinden bu iPhone'dan okunur.",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iOS, iLoader X'ın kendi çökmelerini bir sonraki açılışta iletir. SideStore, LiveContainer ve Madeira çökme günlükleri LocalDevVPN üzerinden bu iPhone'dan okunur.",
     "Open a GitHub issue": "GitHub sorunu aç",
     "Share the report": "Raporu paylaş",
     "Preview the report": "Raporu önizle",
     "Report": "Rapor",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "Sorun doldurulmuş olarak açılır. Günlük bunun için çok uzunsa SideInstaller, sorunun sonuna yapıştırman için kopyalar. Tüm rapor ayrıca %@ konumuna kaydedilir.",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "Sorun doldurulmuş olarak açılır. Günlük bunun için çok uzunsa iLoader X, sorunun sonuna yapıştırman için kopyalar. Tüm rapor ayrıca %@ konumuna kaydedilir.",
     "Files › On My iPhone": "Dosyalar › iPhone'umda",
     "Copy the full log": "Tam günlüğü kopyala",
     "Paste the log into the issue": "Günlüğü soruna yapıştır",
     "Open GitHub": "GitHub'ı aç",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "Tam günlük doldurulamayacak kadar uzun, bu yüzden SideInstaller kopyaladı. GitHub'da metnin sonuna dokun, Yapıştır'ı seç, sonra sorunu gönder.",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "Tam günlük doldurulamayacak kadar uzun, bu yüzden iLoader X kopyaladı. GitHub'da metnin sonuna dokun, Yapıştır'ı seç, sonra sorunu gönder.",
     "Describe the problem above first.": "Önce yukarıda sorunu açıkla.",
     "Couldn't save the report: %@": "Rapor kaydedilemedi: %@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?": "SideInstaller'ı sideinstaller.net'ten mi indirdin?",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller açık kaynaklıdır, bu yüzden herkes içine yazılan Apple kimliğini çalan değiştirilmiş bir kopya yayınlayabilir. Yalnızca sideinstaller.net resmidir.",
-    "Yes, from sideinstaller.net": "Evet, sideinstaller.net'ten",
+    "Did you download iLoader X from github.com/iamgasgass?": "iLoader X'ı github.com/iamgasgass'ten mi indirdin?",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X açık kaynaklıdır, bu yüzden herkes içine yazılan Apple kimliğini çalan değiştirilmiş bir kopya yayınlayabilir. Yalnızca github.com/iamgasgass resmidir.",
+    "Yes, from github.com/iamgasgass": "Evet, github.com/iamgasgass'ten",
     "No, or I'm not sure": "Hayır veya emin değilim",
     "Don't sign in with this copy": "Bu kopya ile oturum açma",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "sideinstaller.net dışındaki her yerden gelen kopyalar resmi değildir ve Apple kimliğini çalmak için değiştirilmiş olabilir. Bunu sil, SideInstaller'ı sideinstaller.net'ten yükle ve orada oturum aç.",
-    "Open sideinstaller.net": "sideinstaller.net'i aç",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "github.com/iamgasgass dışındaki her yerden gelen kopyalar resmi değildir ve Apple kimliğini çalmak için değiştirilmiş olabilir. Bunu sil, iLoader X'ı github.com/iamgasgass'ten yükle ve orada oturum aç.",
+    "Open github.com/iamgasgass": "github.com/iamgasgass'i aç",
     "Back": "Geri",
     "I understand the risks": "Riskleri anlıyorum",
     "Use an unofficial copy?": "Resmi olmayan bir kopya kullanılsın mı?",
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "Bu kopya değiştirildiyse Apple kimliğini ve parolanı başkasına gönderebilir. Yalnızca geldiği yere güveniyorsan devam et.",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "Diğer iPhone'a %@ adresinden ulaşılamadı. Adresi (diğer iPhone'da Ayarlar › Wi-Fi › ⓘ), iki iPhone'un aynı Wi-Fi ağında olduğunu ve bu iPhone'un Ayarlar'ında SideInstaller için Yerel Ağ'ın açık olduğunu kontrol et. Misafir ve genel ağlar cihazların birbirine ulaşmasını sıkça engeller.",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "Diğer iPhone'a %@ adresinden ulaşılamadı. Adresi (diğer iPhone'da Ayarlar › Wi-Fi › ⓘ), iki iPhone'un aynı Wi-Fi ağında olduğunu ve bu iPhone'un Ayarlar'ında iLoader X için Yerel Ağ'ın açık olduğunu kontrol et. Misafir ve genel ağlar cihazların birbirine ulaşmasını sıkça engeller.",
     "Their iPhone": "Diğer iPhone",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "Diğer iPhone'da “Güvenme”ye dokunuldu. Yeniden başla ve bu kez Güven'e dokunulmasını iste.",
@@ -1124,19 +1124,19 @@ let turkishStrings: [String: String] = [
         "“%@” bir IPv4 adresi değil. 192.168.1.42 gibi görünmeli.",
     "Do you have the device's IP?": "Cihazın IP adresini biliyor musun?",
     "Optional": "İsteğe bağlı",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller diğer iPhone'dan doğrudan eşlenmesini ister. iOS 27'nin altında gerekir.",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X diğer iPhone'dan doğrudan eşlenmesini ister. iOS 27'nin altında gerekir.",
     "Their iPhone pairs from its own Settings, which needs iOS 27.":
         "Diğer iPhone kendi Ayarlar'ından eşlenir, bunun için iOS 27 gerekir.",
     "IP address": "IP adresi",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "Diğer iPhone iOS %@ kullanıyor. iOS 26.4'ten itibaren SideInstaller, diğer iPhone'un Wi-Fi üzerinden verdiği eşlemeyi kullanamaz, bu yüzden bilgisayarda yapılmış bir eşleme dosyası gerekir.",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "App Store'dan LocalDevVPN'i indir ve bağla: SideInstaller onun üzerinden çalışır.",
-    "Open SideInstaller. Its pairing file is already in place.":
-        "SideInstaller'ı aç. Eşleme dosyası zaten yerinde.",
-    "Open SideInstaller and import a pairing file made on a computer.":
-        "SideInstaller'ı aç ve bilgisayarda yapılmış bir eşleme dosyasını içe aktar.",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "Diğer iPhone iOS %@ kullanıyor. iOS 26.4'ten itibaren iLoader X, diğer iPhone'un Wi-Fi üzerinden verdiği eşlemeyi kullanamaz, bu yüzden bilgisayarda yapılmış bir eşleme dosyası gerekir.",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "App Store'dan LocalDevVPN'i indir ve bağla: iLoader X onun üzerinden çalışır.",
+    "Open iLoader X. Its pairing file is already in place.":
+        "iLoader X'ı aç. Eşleme dosyası zaten yerinde.",
+    "Open iLoader X and import a pairing file made on a computer.":
+        "iLoader X'ı aç ve bilgisayarda yapılmış bir eşleme dosyasını içe aktar.",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ bu iPhone'un zaten sahip olduğu bir adres. Side by Side başkasının iPhone'una yükler, o yüzden onunkini kullan. Buna yüklemek için Yükle sekmesini kullan.",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1170,19 +1170,27 @@ let turkishStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "Bu Apple Hesabı %d geliştirici ekibinde. İmzalayacak ekibi seç.",
     "Which Team?": "Hangi ekip?",
-    "Signed this copy of SideInstaller": "Bu SideInstaller kopyasını imzaladı",
+    "Signed this copy of iLoader X": "Bu iLoader X kopyasını imzaladı",
     "A free team's apps last 7 days; a paid team's last a year.":
         "Ücretsiz bir ekibin uygulamaları 7 gün, ücretli bir ekibinkiler bir yıl geçerlidir.",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "Başka bir ekiple yüklenen uygulama değiştirilmez: onu bu ekiple imzalamak ikinci bir kopya yükler.",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller bu Apple kimliği için seçimi hatırlar. Yeniden seçmek için Ayarlar › Hesap'ı aç, Apple kimliğinde sola kaydır ve Ekip'e dokun.",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X bu Apple kimliği için seçimi hatırlar. Yeniden seçmek için Ayarlar › Hesap'ı aç, Apple kimliğinde sola kaydır ve Ekip'e dokun.",
     "No developer team was picked, so the sign-in stopped.":
         "Hiçbir geliştirici ekibi seçilmedi, bu yüzden oturum açma durduruldu.",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "Apple Hesabın birden fazla geliştirici ekibinde. SideInstaller'ı aç ve imzalayacak ekibi seç.",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "Apple Hesabın birden fazla geliştirici ekibinde. iLoader X'ı aç ve imzalayacak ekibi seç.",
     "Pick the team again?": "Ekip yeniden seçilsin mi?",
     "Pick Again": "Yeniden seç",
     "The next sign-in with “%@” asks which developer team signs.":
         "“%@” ile bir sonraki oturum açmada hangi geliştirici ekibinin imzalayacağı sorulur.",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X bunun bir çatalıdır; kendi adı, paket kimliği ve simgesi vardır.",
+    "App Icon":
+        "Uygulama Simgesi",
+    "Couldn't change the icon: %@":
+        "Simge değiştirilemedi: %@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "Her simgenin Koyu ve Renklendirilmiş sürümleri vardır; iOS bunları Ana Ekran görünümüne göre kullanır.",
 ]

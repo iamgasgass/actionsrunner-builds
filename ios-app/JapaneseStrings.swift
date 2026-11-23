@@ -29,14 +29,14 @@ let japaneseStrings: [String: String] = [
     // Pre-iOS 27: the pairing file has to be imported
 
     "You'll need a pairing file": "ペアリングファイルが必要です",
-    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. SideInstaller walks you through it.":
-        "この iPhone は iOS %@ で動作しています。自分自身とペアリングできるのは iOS %@ 以降のみのため、パソコンで jitterbugpair または pymobiledevice3 を使ってペアリングファイルを作成し、アプリにインポートする必要があります。手順は SideInstaller が案内します。",
+    "This iPhone runs iOS %@. Only iOS %@ can pair with itself, so you'll have to make a pairing file on a computer — with jitterbugpair or pymobiledevice3 — and import it in the app. iLoader X walks you through it.":
+        "この iPhone は iOS %@ で動作しています。自分自身とペアリングできるのは iOS %@ 以降のみのため、パソコンで jitterbugpair または pymobiledevice3 を使ってペアリングファイルを作成し、アプリにインポートする必要があります。手順は iLoader X が案内します。",
 
     // iOS 27 runs on this iPhone: recommended at setup
 
     "Update to iOS %@": "iOS %@ にアップデート",
-    "This iPhone can run iOS %@, where SideInstaller works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
-        "この iPhone は iOS %@ にアップデートできます。アップデートすると iPhone が自分自身とペアリングするため、SideInstaller をパソコンなしで使え、ペアリングファイルを作成する必要もありません。「設定 › 一般 › ソフトウェア・アップデート」からアップデートしてください。",
+    "This iPhone can run iOS %@, where iLoader X works without a computer: the iPhone pairs with itself, so there's no pairing file to make. Update in Settings › General › Software Update.":
+        "この iPhone は iOS %@ にアップデートできます。アップデートすると iPhone が自分自身とペアリングするため、iLoader X をパソコンなしで使え、ペアリングファイルを作成する必要もありません。「設定 › 一般 › ソフトウェア・アップデート」からアップデートしてください。",
     "OK": "OK",
 
     // MARK: - Account setup & Settings › Account
@@ -56,15 +56,15 @@ let japaneseStrings: [String: String] = [
     "In use": "使用中",
     "Edit": "編集",
     "Remove": "削除",
-    "No Apple ID saved yet. Add one and SideInstaller will use it for every sign-in.":
-        "保存された Apple ID はまだありません。追加すると、SideInstaller はサインインのたびにそれを使用します。",
+    "No Apple ID saved yet. Add one and iLoader X will use it for every sign-in.":
+        "保存された Apple ID はまだありません。追加すると、iLoader X はサインインのたびにそれを使用します。",
     "Saved in this iPhone's keychain, and sent only to Apple when signing in. Swipe a row to edit its password or remove it.":
         "この iPhone のキーチェーンに保存され、サインイン時にのみ Apple に送信されます。行を左にスワイプするとパスワードの編集や削除ができます。",
     "Remove this Apple ID?": "この Apple ID を削除しますか？",
     "“%@” and its saved password will be deleted from this iPhone. Nothing changes on your Apple account.":
         "「%@」と保存されているパスワードがこの iPhone から削除されます。Apple アカウント自体には影響ありません。",
-    "This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.":
-        "この iPhone のキーチェーンがパスワードの保存を拒否したため（エラー %d）、SideInstaller を終了するまでの間だけ保持されます。",
+    "This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.":
+        "この iPhone のキーチェーンがパスワードの保存を拒否したため（エラー %d）、iLoader X を終了するまでの間だけ保持されます。",
     "No Apple ID saved. Add one in Settings › Account.": "保存された Apple ID がありません。「設定 › アカウント」で追加してください。",
 
     "Add your Apple ID": "Apple ID を追加",
@@ -129,8 +129,8 @@ let japaneseStrings: [String: String] = [
     "Tunnel connected": "トンネル接続済み",
     "Tunnel off": "トンネル未接続",
     "Update available": "アップデートがあります",
-    "SideInstaller %@ is available — you're on %@.":
-        "SideInstaller %@ が公開されています（現在お使いのバージョン：%@）。",
+    "iLoader X %@ is available — you're on %@.":
+        "iLoader X %@ が公開されています（現在お使いのバージョン：%@）。",
     "Get the latest version": "最新バージョンを取得",
     "From the website": "Web サイトから",
     "Sign it with your Apple ID": "Apple ID で署名",
@@ -145,12 +145,12 @@ let japaneseStrings: [String: String] = [
     "Replace": "置き換え",
     "or": "または",
     "Paste a download link": "ダウンロードリンクを貼り付け",
-    "SideInstaller recognizes this as %@ and sets it up just like its own download.":
-        "SideInstaller はこれを %@ と認識し、自分でダウンロードした場合と同じように設定します。",
+    "iLoader X recognizes this as %@ and sets it up just like its own download.":
+        "iLoader X はこれを %@ と認識し、自分でダウンロードした場合と同じように設定します。",
     "Downloading… %d%%": "ダウンロード中… %d%%",
     "iOS %@ required": "iOS %@ が必要です",
-    "This iPhone runs iOS %@, which SideInstaller can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
-        "この iPhone は iOS %@ で動作しており、SideInstaller ではインストールできません。「設定 › 一般 › ソフトウェア・アップデート」から iOS %@ 以降に更新してください。",
+    "This iPhone runs iOS %@, which iLoader X can't install on. Update to iOS %@ or later in Settings › General › Software Update.":
+        "この iPhone は iOS %@ で動作しており、iLoader X ではインストールできません。「設定 › 一般 › ソフトウェア・アップデート」から iOS %@ 以降に更新してください。",
     "Wi-Fi required": "Wi-Fi が必要です",
     "Pairing code": "ペアリングコード",
     "Type this into the prompt in Settings.":
@@ -258,8 +258,8 @@ let japaneseStrings: [String: String] = [
     "failed: empty pairing file": "失敗：ペアリングファイルが空です",
     "failed: %@": "失敗：%@",
     "Pairing is already in progress.": "ペアリングは既に進行中です。",
-    "Local Network permission is off. Enable it in Settings › SideInstaller › Local Network, then try again.":
-        "ローカルネットワークの許可がオフになっています。「設定 › SideInstaller › ローカルネットワーク」で有効にしてから、再度お試しください。",
+    "Local Network permission is off. Enable it in Settings › iLoader X › Local Network, then try again.":
+        "ローカルネットワークの許可がオフになっています。「設定 › iLoader X › ローカルネットワーク」で有効にしてから、再度お試しください。",
     "Pairing produced an empty file. Make sure you approved the pairing request, then try again.":
         "ペアリングの結果、空のファイルが生成されました。ペアリングの要求を承認したことを確認してから、再度お試しください。",
 
@@ -284,11 +284,11 @@ let japaneseStrings: [String: String] = [
     "This certificate has no serial number, so it can't be revoked.":
         "この証明書にはシリアル番号がないため、失効させることができません。",
 
-    // Export: the certificate SideInstaller signs with, as a .p12
+    // Export: the certificate iLoader X signs with, as a .p12
     "This certificate has no serial number, so it can't be exported.":
         "この証明書にはシリアル番号がないため、書き出せません。",
-    "Only the certificate SideInstaller signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
-        "書き出せるのは SideInstaller が署名に使っている証明書だけです。ほかの証明書の秘密鍵は、それを Apple に要求したデバイスにしかありません。",
+    "Only the certificate iLoader X signs with can be exported: the private key of any other stays on the device that asked Apple for it.":
+        "書き出せるのは iLoader X が署名に使っている証明書だけです。ほかの証明書の秘密鍵は、それを Apple に要求したデバイスにしかありません。",
     "Couldn't export the certificate: %@": "証明書を書き出せませんでした: %@",
     "Export certificate": "証明書を書き出す",
     "Password (optional)": "パスワード（任意）",
@@ -296,37 +296,37 @@ let japaneseStrings: [String: String] = [
     "Exporting": "書き出し中",
     "Saves this certificate and its private key as a .p12 file, for another signing app or a computer to sign with. Choose a password, which you'll need to import the file, or leave it empty: signing apps import it without one, but a Mac won't. Keep the file to yourself.":
         "この証明書と秘密鍵を .p12 ファイルとして保存し、ほかの署名アプリやコンピュータで署名に使えるようにします。パスワードを決めると、ファイルを読み込むときに必要になります。空欄のままでも署名アプリは読み込めますが、Mac では読み込めません。ファイルは誰にも渡さないでください。",
-    "SideInstaller can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
-        "SideInstaller が書き出せるのは署名に使っている証明書だけですが、この中にはありません。証明書の秘密鍵は、それを Apple に要求したデバイスにしかありません。",
-    "SideInstaller signs with this one": "SideInstaller はこの証明書で署名します",
+    "iLoader X can export only the certificate it signs with, and none of these is it: a certificate's private key stays on the device that asked Apple for it.":
+        "iLoader X が書き出せるのは署名に使っている証明書だけですが、この中にはありません。証明書の秘密鍵は、それを Apple に要求したデバイスにしかありません。",
+    "iLoader X signs with this one": "iLoader X はこの証明書で署名します",
 
     // MARK: - SideStore's certificate (sidestore://certificate)
 
     "Use SideStore's certificate": "SideStore の証明書を使う",
     "Checking the certificate": "証明書を確認中",
-    "SideStore opens and sends back its certificate. SideInstaller then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideStore が開き、証明書を送り返します。その後は SideInstaller もその証明書で署名するので、無料の Apple ID でもどちらのアプリも相手の証明書を失効させる必要がなくなります。",
-    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, SideInstaller can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
-        "Apple はこの Apple ID に 2 つ目の署名用証明書を発行しません。既存の証明書を SideStore が作成した場合は、SideInstaller もその証明書で署名でき、何も失効しません。失効させてもインストールを続行できますが、この操作は取り消せません。",
-    "If SideStore made it, tap “Use SideStore's certificate” above: SideInstaller signs with that one too, and nothing is revoked.":
-        "SideStore が作成した証明書なら、上の「SideStore の証明書を使う」をタップしてください。SideInstaller もその証明書で署名し、何も失効しません。",
-    "SideInstaller signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
-        "今後 SideInstaller は「%@」で署名します。何も失効していないため、この証明書で署名済みのアプリはそのまま使えます。",
-    "SideInstaller already signs with “%@”.": "SideInstaller はすでに「%@」で署名しています。",
+    "SideStore opens and sends back its certificate. iLoader X then signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "SideStore が開き、証明書を送り返します。その後は iLoader X もその証明書で署名するので、無料の Apple ID でもどちらのアプリも相手の証明書を失効させる必要がなくなります。",
+    "Apple won't issue a second signing certificate for this Apple ID. If SideStore made the one it has, iLoader X can sign with that one too, and nothing is revoked. Revoking it lets the install continue as well — but it can't be undone.":
+        "Apple はこの Apple ID に 2 つ目の署名用証明書を発行しません。既存の証明書を SideStore が作成した場合は、iLoader X もその証明書で署名でき、何も失効しません。失効させてもインストールを続行できますが、この操作は取り消せません。",
+    "If SideStore made it, tap “Use SideStore's certificate” above: iLoader X signs with that one too, and nothing is revoked.":
+        "SideStore が作成した証明書なら、上の「SideStore の証明書を使う」をタップしてください。iLoader X もその証明書で署名し、何も失効しません。",
+    "iLoader X signs with “%@” from now on. Nothing was revoked, so the apps already signed with it keep working.":
+        "今後 iLoader X は「%@」で署名します。何も失効していないため、この証明書で署名済みのアプリはそのまま使えます。",
+    "iLoader X already signs with “%@”.": "iLoader X はすでに「%@」で署名しています。",
     "That certificate isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID (SideStore may be signed in with a different one). Nothing was changed.":
         "この証明書はこの Apple ID のものではありません。失効しているか、別の Apple ID のものです（SideStore が別の Apple ID でサインインしている可能性があります）。何も変更されていません。",
     "Couldn't use that certificate: %@": "その証明書を使用できませんでした：%@",
     "SideStore isn't installed on this iPhone, so there's no certificate to get from it.":
         "この iPhone には SideStore がインストールされていないため、証明書を取得できません。",
-    "Inside LiveContainer, SideStore can't send its certificate back to SideInstaller, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
-        "LiveContainer 内では SideStore が証明書を SideInstaller に送り返せず、LiveContainer もまだ証明書を持っていません。LiveContainer の「Settings」で「Import Certificate From SideStore」をタップし（SideStore に証明書がない場合は先に SideStore にサインインしてください）、ここでもう一度お試しください。",
+    "Inside LiveContainer, SideStore can't send its certificate back to iLoader X, and LiveContainer doesn't hold one yet. In LiveContainer's Settings, tap “Import Certificate From SideStore” (sign in to SideStore first if it has no certificate), then try again here.":
+        "LiveContainer 内では SideStore が証明書を iLoader X に送り返せず、LiveContainer もまだ証明書を持っていません。LiveContainer の「Settings」で「Import Certificate From SideStore」をタップし（SideStore に証明書がない場合は先に SideStore にサインインしてください）、ここでもう一度お試しください。",
     "The certificate LiveContainer holds for SideStore isn't one of this Apple ID's: it has been revoked, or it belongs to another Apple ID. Nothing was changed. If SideStore has made a new one since, tap “Refresh Certificate from SideStore” in LiveContainer's Settings, then try again here.":
         "LiveContainer が SideStore 用に保持している証明書はこの Apple ID のものではありません。失効しているか、別の Apple ID のものです。何も変更されていません。その後 SideStore が新しい証明書を作成した場合は、LiveContainer の「Settings」で「Refresh Certificate from SideStore」をタップしてから、ここでもう一度お試しください。",
-    "SideInstaller takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
-        "SideInstaller は LiveContainer から SideStore の証明書を取得し、その証明書でも署名するので、無料の Apple ID でもどちらのアプリも相手の証明書を失効させる必要がなくなります。",
+    "iLoader X takes SideStore's certificate from LiveContainer and signs with it too, so on a free Apple ID neither app has to revoke the other's.":
+        "iLoader X は LiveContainer から SideStore の証明書を取得し、その証明書でも署名するので、無料の Apple ID でもどちらのアプリも相手の証明書を失効させる必要がなくなります。",
     "Sign with this certificate?": "この証明書で署名しますか？",
-    "A link sent SideInstaller a signing certificate. Only use it if you asked for one: SideInstaller will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
-        "リンクから SideInstaller に署名用証明書が送られてきました。自分で要求した場合のみ使ってください。今後 SideInstaller は自身の証明書の代わりにこの証明書でアプリに署名します。あなたの Apple ID の証明書である場合にのみ使用されます。",
+    "A link sent iLoader X a signing certificate. Only use it if you asked for one: iLoader X will sign apps with it from now on, in place of its own. It's used only if it's one of your Apple ID's certificates.":
+        "リンクから iLoader X に署名用証明書が送られてきました。自分で要求した場合のみ使ってください。今後 iLoader X は自身の証明書の代わりにこの証明書でアプリに署名します。あなたの Apple ID の証明書である場合にのみ使用されます。",
     "Use it": "使う",
     "That link was meant to carry a signing certificate, but what it holds can't be read.":
         "このリンクには署名用証明書が含まれているはずですが、内容を読み取れません。",
@@ -425,8 +425,8 @@ let japaneseStrings: [String: String] = [
     "%d App ID": "App ID %d 件",
     "%d App IDs": "App ID %d 件",
     "No App IDs": "App ID がありません",
-    "This Apple ID hasn't registered any apps yet. Install something with SideInstaller first, then come back.":
-        "この Apple ID にはまだ登録されたアプリがありません。先に SideInstaller で何かインストールしてから戻ってきてください。",
+    "This Apple ID hasn't registered any apps yet. Install something with iLoader X first, then come back.":
+        "この Apple ID にはまだ登録されたアプリがありません。先に iLoader X で何かインストールしてから戻ってきてください。",
     "Memory and performance": "メモリとパフォーマンス",
     "Other free capabilities": "その他の無料機能",
     "Beta": "ベータ",
@@ -444,8 +444,8 @@ let japaneseStrings: [String: String] = [
     "Reading the device": "デバイスを読み取り中",
 
     // Refresh all: signing the installed apps again.
-    "iOS %@ isn't supported — SideInstaller needs iOS %@ or later.":
-        "iOS %@ はサポートされていません。SideInstaller には iOS %@ 以降が必要です。",
+    "iOS %@ isn't supported — iLoader X needs iOS %@ or later.":
+        "iOS %@ はサポートされていません。iLoader X には iOS %@ 以降が必要です。",
     "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists (error 7460). Under Tools › Certificates, use SideStore's certificate or revoke that one, then refresh again.":
         "Apple はこの Apple ID に署名証明書を発行しません。すでに存在すると報告されています（エラー 7460）。「ツール › 証明書」で SideStore の証明書を使うか、その証明書を失効させてから、もう一度更新してください。",
     "An install is already running. Wait for it to finish, then refresh.":
@@ -472,10 +472,10 @@ let japaneseStrings: [String: String] = [
     "Waiting": "待機中",
     "In progress": "実行中",
     "Failed": "失敗",
-    "%d app here has no IPA in SideInstaller, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
-        "ここにある %d 個のアプリは SideInstaller に IPA がないため、このページからは更新できません。インストール元のアプリで更新するか、先に .ipa を読み込んでください。",
-    "%d apps here have no IPA in SideInstaller, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
-        "ここにある %d 個のアプリは SideInstaller に IPA がないため、このページからは更新できません。インストール元のアプリで更新するか、先に .ipa を読み込んでください。",
+    "%d app here has no IPA in iLoader X, so it can't be refreshed from this page. Refresh it in whatever installed it, or import its .ipa first.":
+        "ここにある %d 個のアプリは iLoader X に IPA がないため、このページからは更新できません。インストール元のアプリで更新するか、先に .ipa を読み込んでください。",
+    "%d apps here have no IPA in iLoader X, so they can't be refreshed from this page. Refresh them in whatever installed them, or import their .ipa first.":
+        "ここにある %d 個のアプリは iLoader X に IPA がないため、このページからは更新できません。インストール元のアプリで更新するか、先に .ipa を読み込んでください。",
     "%d app": "アプリ %d 個",
     "%d apps": "アプリ %d 個",
     "%d app needs refreshing": "%d 個のアプリに更新が必要です",
@@ -574,7 +574,7 @@ let japaneseStrings: [String: String] = [
     "Start LocalDevVPN when needed": "必要なときに LocalDevVPN を開始",
     "Start LocalDevVPN now": "今すぐ LocalDevVPN を開始",
     "LocalDevVPN isn't installed. Get it from the App Store, and this can start it for you.":
-        "LocalDevVPN がインストールされていません。App Store から入手すると、SideInstaller が起動できるようになります。",
+        "LocalDevVPN がインストールされていません。App Store から入手すると、iLoader X が起動できるようになります。",
 
     "Downloaded IPAs": "ダウンロード済みの IPA",
     "%@ used": "%@ を使用中",
@@ -595,10 +595,10 @@ let japaneseStrings: [String: String] = [
     "Starts with %@": "%@ から開始",
     "Auto starts with the server that signed in last, then tries the others, the ones most likely to work first.":
         "「自動」では、前回サインインできたサーバーから始め、次に他のサーバーを成功しやすい順に試します。",
-    "Only this server is tried. If it fails, so does sign-in: choose Auto to have SideInstaller try the others.":
-        "このサーバーだけを試します。失敗するとサインインも失敗します。「自動」を選ぶと、SideInstaller が他のサーバーも試します。",
-    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let SideInstaller try the others when one fails.":
-        "「設定 › Anisette サーバー」で選んだサーバーだけを試しました。そこで「自動」を選ぶと、1 つが失敗したときに SideInstaller が他のサーバーも試します。",
+    "Only this server is tried. If it fails, so does sign-in: choose Auto to have iLoader X try the others.":
+        "このサーバーだけを試します。失敗するとサインインも失敗します。「自動」を選ぶと、iLoader X が他のサーバーも試します。",
+    "Only the server picked in Settings › Anisette Server was tried. Choose Auto there to let iLoader X try the others when one fails.":
+        "「設定 › Anisette サーバー」で選んだサーバーだけを試しました。そこで「自動」を選ぶと、1 つが失敗したときに iLoader X が他のサーバーも試します。",
     "Device IP": "デバイス IP",
     "Advanced": "詳細設定",
     "Clear": "消去",
@@ -675,28 +675,28 @@ let japaneseStrings: [String: String] = [
         "%@ での Apple ID サインインに失敗しました。エラー：%@",
     "Apple ID sign-in failed on %@. Error via %@: %@":
         "%@ での Apple ID サインインに失敗しました。%@ 経由のエラー：%@",
-    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update SideInstaller.":
-        "Apple のサインインサーバーがリクエストを拒否しました（HTTP 503）。パスワードや anisette サーバーの問題ではないため、別のサーバーを試しても解決しません。しばらくしてから再度お試しいただくか、SideInstaller をアップデートしてください。",
+    "Apple's sign-in server refused the request (HTTP 503). It isn't your password or the anisette server, so trying more servers won't help. Try again later, or update iLoader X.":
+        "Apple のサインインサーバーがリクエストを拒否しました（HTTP 503）。パスワードや anisette サーバーの問題ではないため、別のサーバーを試しても解決しません。しばらくしてから再度お試しいただくか、iLoader X をアップデートしてください。",
     "“%@” makes its anisette data with Apple's Android library, and Apple now refuses to finish signing in through those servers (error -80046), after your password and code. In Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "「%@」は Apple の Android ライブラリで anisette データを作成しており、Apple は現在、パスワードとコードの入力後にこれらのサーバー経由のサインインの完了を拒否しています（エラー -80046）。「設定 › Anisette サーバー」で「自動」または「SideStore (New)」などの Mac サーバーを選んでください。",
-    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a SideInstaller update.":
-        "Apple がサインインの完了を拒否しました（エラー -80046）。これまで受け付けていた Mac の anisette サーバーを経由しても同じでした。しばらくしてから再度お試しいただくか、SideInstaller のアップデートを確認してください。",
+    "Apple refused to finish signing in (error -80046), even through a Mac anisette server, the kind it still accepted. Try again later, or check for a iLoader X update.":
+        "Apple がサインインの完了を拒否しました（エラー -80046）。これまで受け付けていた Mac の anisette サーバーを経由しても同じでした。しばらくしてから再度お試しいただくか、iLoader X のアップデートを確認してください。",
     "Apple refused to finish signing in through “%@” (error -80046). It now only accepts sign-ins through anisette servers on its macOS library: in Settings › Anisette Server, choose Auto or a Mac server such as “SideStore (New)”.":
         "Apple が「%@」経由のサインインの完了を拒否しました（エラー -80046）。現在は macOS ライブラリを使う anisette サーバー経由のサインインしか受け付けません。「設定 › Anisette サーバー」で「自動」または「SideStore (New)」などの Mac サーバーを選んでください。",
     "Apple won't send a code by text or call to this sign-in, so it was sent to your Apple devices.":
         "Apple はこのサインインに SMS や電話でコードを送らないため、Apple デバイスに送信しました。",
     "Apple didn't confirm sending a code to your Apple devices. If one arrived, enter it; if not, try another way.":
         "Apple は Apple デバイスへのコード送信を確認しませんでした。コードが届いた場合は入力し、届いていない場合は別の方法をお試しください。",
-    "SideInstaller can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
-        "この iPhone はインターネットに接続されていますが、SideInstaller は Apple のサインインサーバー（gsa.apple.com）に接続できません。ファイアウォール、DNS フィルタや広告ブロッカー、スクリーンタイムのコンテンツ制限、または別の VPN App が接続を妨げています。それをオフにするか別のネットワークを試してから、もう一度お試しください。",
-    "SideInstaller can't reach Apple: Cellular Data is turned off for it. Turn SideInstaller on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
-        "SideInstaller が Apple に接続できません。この App のモバイルデータ通信がオフになっています。「設定 › モバイル通信」で SideInstaller をオンにするか、インターネットに接続できる Wi-Fi に接続してから、もう一度お試しください。",
-    "SideInstaller can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › SideInstaller › Wireless Data, choose WLAN & Cellular Data, then try again.":
-        "SideInstaller が Apple に接続できません。iOS がこの App の Wi-Fi 使用を許可していません。「設定 › アプリ › SideInstaller › ワイヤレスデータ」で「WLAN とモバイルデータ通信」を選んでから、もう一度お試しください。",
-    "SideInstaller can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
-        "SideInstaller が Apple に接続できません。すべての通信を経由させる設定の VPN が切断されているため、iOS が通信を止めています。その VPN を再接続するか、キルスイッチやオンデマンド接続をオフにしてから、もう一度お試しください。",
-    "SideInstaller can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
-        "SideInstaller が Apple に接続できません。この iPhone はインターネットに接続されていません。Wi-Fi に接続するかモバイルデータ通信をオンにしてから、もう一度お試しください。",
+    "iLoader X can't reach Apple's sign-in server (gsa.apple.com), though this iPhone has an internet connection. Something is blocking it: a firewall, a DNS filter or ad blocker, Screen Time content restrictions, or another VPN app. Turn it off or try another network, then try again.":
+        "この iPhone はインターネットに接続されていますが、iLoader X は Apple のサインインサーバー（gsa.apple.com）に接続できません。ファイアウォール、DNS フィルタや広告ブロッカー、スクリーンタイムのコンテンツ制限、または別の VPN App が接続を妨げています。それをオフにするか別のネットワークを試してから、もう一度お試しください。",
+    "iLoader X can't reach Apple: Cellular Data is turned off for it. Turn iLoader X on in Settings › Cellular, or join a Wi-Fi network with internet access, then try again.":
+        "iLoader X が Apple に接続できません。この App のモバイルデータ通信がオフになっています。「設定 › モバイル通信」で iLoader X をオンにするか、インターネットに接続できる Wi-Fi に接続してから、もう一度お試しください。",
+    "iLoader X can't reach Apple: iOS isn't letting it use Wi-Fi. In Settings › Apps › iLoader X › Wireless Data, choose WLAN & Cellular Data, then try again.":
+        "iLoader X が Apple に接続できません。iOS がこの App の Wi-Fi 使用を許可していません。「設定 › アプリ › iLoader X › ワイヤレスデータ」で「WLAN とモバイルデータ通信」を選んでから、もう一度お試しください。",
+    "iLoader X can't reach Apple: a VPN set to carry all traffic is disconnected, so iOS is holding traffic back. Reconnect it, or turn off its kill switch or Connect On Demand, then try again.":
+        "iLoader X が Apple に接続できません。すべての通信を経由させる設定の VPN が切断されているため、iOS が通信を止めています。その VPN を再接続するか、キルスイッチやオンデマンド接続をオフにしてから、もう一度お試しください。",
+    "iLoader X can't reach Apple: this iPhone has no internet connection. Connect to Wi-Fi or turn on cellular data, then try again.":
+        "iLoader X が Apple に接続できません。この iPhone はインターネットに接続されていません。Wi-Fi に接続するかモバイルデータ通信をオンにしてから、もう一度お試しください。",
     "Apple is temporarily limiting sign-ins for this Apple ID or network (HTTP 429). Trying other servers won't help, and every attempt can extend the wait, so leave it a while before signing in again.":
         "Apple がこの Apple ID またはネットワークからのサインインを一時的に制限しています（HTTP 429）。別のサーバーを試しても解決せず、試すたびに待ち時間が延びる可能性があるため、しばらく時間をおいてから再度サインインしてください。",
     "If you're sure the password is right, Apple may be limiting sign-in attempts: wait a while before trying again.":
@@ -729,16 +729,16 @@ let japaneseStrings: [String: String] = [
     "No IPA imported yet. Tap “Import .ipa” and pick one.":
         "まだ IPA がインポートされていません。「.ipa をインポート」をタップして選択してください。",
     "Couldn't import %@: %@": "%@ をインポートできませんでした：%@",
-    "That isn't a link SideInstaller can download. Paste the whole https:// address the .ipa downloads from.":
-        "SideInstaller がダウンロードできるリンクではありません。.ipa のダウンロード元となる https:// で始まる完全なアドレスを貼り付けてください。",
+    "That isn't a link iLoader X can download. Paste the whole https:// address the .ipa downloads from.":
+        "iLoader X がダウンロードできるリンクではありません。.ipa のダウンロード元となる https:// で始まる完全なアドレスを貼り付けてください。",
     "That link didn't return an IPA. It has to download the file itself — a page that only links to the .ipa, or one that asks you to sign in first, arrives here as a web page.":
         "そのリンクは IPA を返しませんでした。ファイル自体を直接ダウンロードできるリンクである必要があります。.ipa へのリンクを掲載しているだけのページや、先にサインインを求めるページは、ここでは単なる Web ページとして扱われます。",
     "Couldn't download that link: %@": "そのリンクをダウンロードできませんでした：%@",
     "there's nothing to download for a custom IPA — import one first":
         "カスタム IPA にはダウンロードする内容がありません。先にインポートしてください",
     "your app": "お使いのアプリ",
-    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). SideInstaller couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
-        "Apple はこの Apple ID に署名用証明書を発行しません。既に証明書が存在するか、発行のリクエストが処理中であると報告されています（エラー 7460）。SideInstaller は既存の証明書を再利用できなかったため、それを置き換えずに処理を停止しました。上記の手順をご覧ください。",
+    "Apple won't issue a signing certificate for this Apple ID: it reports that one already exists, or that a request for one is still pending (error 7460). iLoader X couldn't reuse the certificate that's already there, so it stopped instead of replacing it. See the steps above.":
+        "Apple はこの Apple ID に署名用証明書を発行しません。既に証明書が存在するか、発行のリクエストが処理中であると報告されています（エラー 7460）。iLoader X は既存の証明書を再利用できなかったため、それを置き換えずに処理を停止しました。上記の手順をご覧ください。",
     " (UDID %@)": "（UDID %@）",
     "Couldn't register this iPhone%@ with your Apple ID's developer team, so Apple won't issue a provisioning profile. %@ — see the steps above.":
         "この iPhone%@ を Apple ID の Developer チームに登録できなかったため、Apple はプロビジョニングプロファイルを発行しません。%@ — 上記の手順をご覧ください。",
@@ -752,53 +752,53 @@ let japaneseStrings: [String: String] = [
     "Import an .ipa first": "先に .ipa をインポートしてください",
     "Tap “Import .ipa” above and pick the file — it can live anywhere the Files app can reach, including iCloud Drive or a USB drive.":
         "上の「.ipa をインポート」をタップしてファイルを選択してください。iCloud Drive や USB ドライブなど、「ファイル」アプリからアクセスできる場所であればどこでも構いません。",
-    "Or paste a direct download link under that button, and SideInstaller fetches the .ipa itself.":
-        "または、そのボタンの下にダウンロードリンクを直接貼り付ければ、SideInstaller が自動的に .ipa を取得します。",
-    "Or open the Files app, press and hold the .ipa, tap Share, and pick SideInstaller — that hands the file over without the picker.":
-        "または「ファイル」アプリを開き、.ipa を長押しして「共有」をタップし、SideInstaller を選択してください。ファイル選択画面を経由せずに渡せます。",
-    "Or copy it into Files › On My iPhone › SideInstaller, where SideInstaller also finds it.":
-        "あるいは「ファイル › このiPhone内 › SideInstaller」にコピーしておいても、SideInstaller が見つけられます。",
+    "Or paste a direct download link under that button, and iLoader X fetches the .ipa itself.":
+        "または、そのボタンの下にダウンロードリンクを直接貼り付ければ、iLoader X が自動的に .ipa を取得します。",
+    "Or open the Files app, press and hold the .ipa, tap Share, and pick iLoader X — that hands the file over without the picker.":
+        "または「ファイル」アプリを開き、.ipa を長押しして「共有」をタップし、iLoader X を選択してください。ファイル選択画面を経由せずに渡せます。",
+    "Or copy it into Files › On My iPhone › iLoader X, where iLoader X also finds it.":
+        "あるいは「ファイル › このiPhone内 › iLoader X」にコピーしておいても、iLoader X が見つけられます。",
     "This is the way in where GitHub is blocked: fetch the IPA on any device, bring it over, and install it here.":
         "GitHub がブロックされている環境では、この方法が有効です。別のデバイスで IPA を取得し、こちらに持ってきてインストールしてください。",
     "Bring the .ipa yourself": ".ipa を自分で用意する",
     "%@ can't be downloaded while its GitHub repository is offline. The other apps still install as usual.":
         "GitHub リポジトリがオフラインの間、%@ はダウンロードできません。ほかのアプリは通常どおりインストールできます。",
-    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › SideInstaller.":
-        "それでもインストールするには、信頼できる入手先から .ipa を入手し、名前を %@ にして「ファイル › このiPhone内 › SideInstaller」にコピーしてください。",
-    "Then tap Install again — SideInstaller uses your file instead of downloading one.":
-        "その後、もう一度「インストール」をタップしてください。SideInstaller はダウンロードの代わりにそのファイルを使います。",
+    "To install it anyway, get its .ipa from somewhere you trust, name it %@, and copy it into Files › On My iPhone › iLoader X.":
+        "それでもインストールするには、信頼できる入手先から .ipa を入手し、名前を %@ にして「ファイル › このiPhone内 › iLoader X」にコピーしてください。",
+    "Then tap Install again — iLoader X uses your file instead of downloading one.":
+        "その後、もう一度「インストール」をタップしてください。iLoader X はダウンロードの代わりにそのファイルを使います。",
     "If you reach GitHub through a VPN or proxy app, turn off LocalDevVPN and turn that one on: iOS runs only one VPN at a time.":
         "VPN やプロキシのアプリで GitHub に接続している場合は、LocalDevVPN をオフにしてそのアプリをオンにしてください。iOS では一度に 1 つの VPN しか動作しません。",
     "Tap “Get the .ipa” below and save the file, or download it on another device and bring it over.":
         "下の「.ipa を入手」をタップしてファイルを保存するか、別のデバイスでダウンロードしてこちらに移してください。",
-    "Back in SideInstaller, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. SideInstaller recognizes %@ and sets it up just like its own download.":
-        "SideInstaller に戻り、「インストール」で「カスタム .ipa」を選んでから「.ipa をインポート」をタップし、ファイルを選択してください。SideInstaller は %@ を認識し、自分でダウンロードした場合と同じように設定します。",
+    "Back in iLoader X, pick Custom .ipa under Install, tap “Import .ipa” and choose the file. iLoader X recognizes %@ and sets it up just like its own download.":
+        "iLoader X に戻り、「インストール」で「カスタム .ipa」を選んでから「.ipa をインポート」をタップし、ファイルを選択してください。iLoader X は %@ を認識し、自分でダウンロードした場合と同じように設定します。",
     "Turn LocalDevVPN back on, then tap Install.":
         "LocalDevVPN をもう一度オンにしてから、「インストール」をタップしてください。",
     "Get the .ipa": ".ipa を入手",
     "Pair this iPhone in Settings": "「設定」でこの iPhone をペアリング",
     "Open the Settings app, then go to Privacy & Security › Developer Mode.":
         "「設定」アプリを開き、「プライバシーとセキュリティ › デベロッパモード」に進んでください。",
-    "Tap “Pair with SideInstaller”.": "「SideInstaller とペアリング」をタップしてください。",
+    "Tap “Pair with iLoader X”.": "「iLoader X とペアリング」をタップしてください。",
     "Enter your iPhone’s passcode if it asks for it.": "パスコードの入力を求められた場合は、iPhone のパスコードを入力してください。",
-    "Come back to SideInstaller, read the code it shows you, then type that same code into the prompt in Settings.":
-        "SideInstaller に戻り、表示されているコードを確認したら、同じコードを「設定」のダイアログに入力してください。",
-    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to SideInstaller to read it.":
-        "画面上部に表示されるコードを「設定」のダイアログに入力してください。表示されない場合は、SideInstaller に戻ってコードを確認してください。",
-    "Allow notifications when SideInstaller asks: that's how the pairing code reaches you in Settings.":
-        "SideInstaller から求められたら通知を許可してください。ペアリングコードは通知で「設定」の上に表示されます。",
+    "Come back to iLoader X, read the code it shows you, then type that same code into the prompt in Settings.":
+        "iLoader X に戻り、表示されているコードを確認したら、同じコードを「設定」のダイアログに入力してください。",
+    "Type the code that appears at the top of the screen into the prompt in Settings. If none appears, come back to iLoader X to read it.":
+        "画面上部に表示されるコードを「設定」のダイアログに入力してください。表示されない場合は、iLoader X に戻ってコードを確認してください。",
+    "Allow notifications when iLoader X asks: that's how the pairing code reaches you in Settings.":
+        "iLoader X から求められたら通知を許可してください。ペアリングコードは通知で「設定」の上に表示されます。",
 
     // The pairing Live Activity
-    "Privacy & Security › Developer Mode › Pair with SideInstaller":
-        "プライバシーとセキュリティ › デベロッパモード › SideInstaller とペアリング",
+    "Privacy & Security › Developer Mode › Pair with iLoader X":
+        "プライバシーとセキュリティ › デベロッパモード › iLoader X とペアリング",
     "Paired": "ペアリング完了",
-    "Tap to return to SideInstaller.": "タップして SideInstaller に戻ります。",
+    "Tap to return to iLoader X.": "タップして iLoader X に戻ります。",
 
     // The install's progress outside the app
     "Installing %@": "%@ をインストール中",
     "Paused": "一時停止中",
-    "Open SideInstaller to finish the install.":
-        "インストールを完了するには SideInstaller を開いてください。",
+    "Open iLoader X to finish the install.":
+        "インストールを完了するには iLoader X を開いてください。",
     "Check the App IDs it needs, then tap Install.":
         "必要な App ID を確認してから「インストール」をタップしてください。",
     "Tap Trust": "「信頼」をタップ",
@@ -808,8 +808,8 @@ let japaneseStrings: [String: String] = [
     "A signing certificate already exists": "既に署名用証明書が存在します",
     "Apple returned error 7460: this Apple ID already has an iOS development certificate, or a request for one is still pending.":
         "Apple からエラー 7460 が返されました。この Apple ID には既に iOS 開発用証明書が存在するか、発行のリクエストが処理中です。",
-    "SideInstaller couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
-        "SideInstaller はその証明書を再利用できませんでした。これは、証明書が他の場所（別のデバイスの AltStore、SideStore、Sideloadly、Xcode など）で発行された場合に起こります。必要な秘密鍵がこの iPhone にないためです。",
+    "iLoader X couldn't reuse it. That happens when the certificate was issued somewhere else — AltStore, SideStore, Sideloadly or Xcode on another device — so the private key it needs isn't on this iPhone.":
+        "iLoader X はその証明書を再利用できませんでした。これは、証明書が他の場所（別のデバイスの AltStore、SideStore、Sideloadly、Xcode など）で発行された場合に起こります。必要な秘密鍵がこの iPhone にないためです。",
     "Use “Revoke and retry” above, or open Certificates in the Tools tab, tap “Load certificates”, and revoke it there.":
         "上の「失効させて再試行」を使うか、「ツール」タブの「証明書」を開いて「証明書を読み込む」をタップし、そこで失効させてください。",
     "Revoking is permanent: every app already signed with that certificate stops launching, on every device.":
@@ -826,8 +826,8 @@ let japaneseStrings: [String: String] = [
         "セキュリティ上の理由により、Apple はこの Apple アカウントをロックしました。多くの場合、サインインの試行回数が多すぎたことが原因です。ロックが解除されるまでサインインはすべて失敗するため、今「インストール」をもう一度タップしても解決しません。",
     "Open iForgot, enter this Apple Account's email, and follow Apple's steps to unlock it and reset its password.":
         "iForgot を開き、この Apple アカウントのメールアドレスを入力して、Apple の手順に従ってロックを解除し、パスワードをリセットしてください。",
-    "Back in SideInstaller, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
-        "SideInstaller に戻り、「設定 › アカウント」を開いて、この Apple ID を左にスワイプし、「編集」をタップして新しいパスワードを入力してください。",
+    "Back in iLoader X, open Settings › Account, swipe left on this Apple ID, tap Edit, and enter the new password.":
+        "iLoader X に戻り、「設定 › アカウント」を開いて、この Apple ID を左にスワイプし、「編集」をタップして新しいパスワードを入力してください。",
     "Then tap Install again.": "その後、もう一度「インストール」をタップしてください。",
     "Open iForgot": "iForgot を開く",
     "Apple won't let this Apple Account use developer services because of its owner's age (error 1102). Sign in with an adult's Apple Account instead.":
@@ -837,8 +837,8 @@ let japaneseStrings: [String: String] = [
     "This iPhone already has three apps signed with a free Apple ID, the most iOS allows, counting expired ones. Delete one of them, then try again.":
         "この iPhone には、無料の Apple ID で署名されたアプリがすでに iOS の上限である 3 つあります（期限切れのものも含みます）。いずれかを削除してから、もう一度お試しください。",
     "This Apple Account can't sign apps": "この Apple アカウントではアプリに署名できません",
-    "Apple only lets adults use the developer services SideInstaller signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
-        "SideInstaller がアプリの署名に使うデベロッパサービスを Apple は成人にしか許可しておらず、この Apple アカウントは未成年のものだと報告しています（エラー 1102）。",
+    "Apple only lets adults use the developer services iLoader X signs apps with, and it reports that this Apple Account belongs to someone younger (error 1102).":
+        "iLoader X がアプリの署名に使うデベロッパサービスを Apple は成人にしか許可しておらず、この Apple アカウントは未成年のものだと報告しています（エラー 1102）。",
     "Sign in with an adult's Apple Account instead: open Settings › Account and add it there.":
         "代わりに成人の Apple アカウントでサインインしてください：「設定 › アカウント」を開いて追加します。",
     "Apple won't let this Apple Account use developer services until its email address is verified (error 2160). Verify it at account.apple.com, then try again.":
@@ -852,8 +852,8 @@ let japaneseStrings: [String: String] = [
     "Open Apple Account":
         "Apple アカウントを開く",
     "No App IDs left this week": "今週使える App ID がありません",
-    "Every app SideInstaller signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
-        "SideInstaller が署名するアプリには、それぞれ App ID が必要です（拡張機能はアプリの App ID を共有します）。無料の Apple ID で登録できるのは週に 10 個までで、それぞれ 7 日間カウントされます。",
+    "Every app iLoader X signs needs an App ID, which its extensions share. A free Apple ID can register 10 a week, and each one counts for 7 days.":
+        "iLoader X が署名するアプリには、それぞれ App ID が必要です（拡張機能はアプリの App ID を共有します）。無料の Apple ID で登録できるのは週に 10 個までで、それぞれ 7 日間カウントされます。",
     "They can't be deleted sooner. Wait until some expire, then tap Install again.":
         "期限前に削除することはできません。いくつか期限切れになったら、もう一度「インストール」をタップしてください。",
     "Or sign in with a different (or spare) Apple ID in Settings › Account, then tap Install again.":
@@ -908,8 +908,8 @@ let japaneseStrings: [String: String] = [
         "この Apple ID は登録デバイス数の上限に達しています。無料アカウントでは年間に登録できるデバイス数がわずかで、年が切り替わるまで古いデバイスを削除することもできません。",
     "Easiest fix: put a different (or spare) Apple ID in the fields above, then tap Install again.":
         "最も簡単な解決方法は、上の入力欄に別の（もしくは予備の）Apple ID を入力し、もう一度「インストール」をタップすることです。",
-    "SideInstaller couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
-        "SideInstaller はこの iPhone を Apple ID の Developer チームに自動で追加できませんでした。もう一度「インストール」をタップすると成功することがよくあります。Apple の開発者向けサービスが一時的に利用できないことがあるためです。",
+    "iLoader X couldn't add this iPhone to your Apple ID's developer team automatically. Tapping Install again often works — Apple's developer service is sometimes briefly unavailable.":
+        "iLoader X はこの iPhone を Apple ID の Developer チームに自動で追加できませんでした。もう一度「インストール」をタップすると成功することがよくあります。Apple の開発者向けサービスが一時的に利用できないことがあるためです。",
     "If it keeps failing, add the device by hand. Its UDID is:":
         "それでも失敗する場合は、手動でデバイスを追加してください。UDID は次のとおりです：",
     "Paste that into the “Register a Device” form in the Apple Developer portal (this requires a paid Apple Developer account), then tap Install again.":
@@ -946,10 +946,10 @@ let japaneseStrings: [String: String] = [
         "この iPhone は、接続が開いた直後に切断しました。iOS 26.4 以降、LocalDevVPN を経由する lockdown 形式のペアリングファイル（このファイルなど）はこのように切断されるため、同じ形式のファイルを作り直しても解決しません。「Remote pairing」形式のペアリングファイルなら今でも使えます。パソコンで idevice_pair を開き、「Remote pairing」を選んで「Create」、続けて「Save to file…」をクリックし、そのファイルを「ペアリングファイル」からインポートしてください。",
     "This iPhone hung up on the connection: from iOS 26.4 on, it does that to lockdown pairing files like this one when they come through LocalDevVPN. See the steps above.":
         "この iPhone が接続を切断しました。iOS 26.4 以降、LocalDevVPN を経由する lockdown 形式のペアリングファイル（このファイルなど）はこのように切断されます。上記の手順をご覧ください。",
-    "Pairing this iPhone needs it: SideInstaller advertises itself on the local network for Settings to find.":
-        "この iPhone のペアリングには Wi-Fi が必要です。SideInstaller は「設定」アプリから見つけてもらうために、ローカルネットワーク上で自身をアドバタイズします。",
-    "Connect to a Wi-Fi network. Pairing this iPhone needs it — SideInstaller has to be findable on the local network.":
-        "Wi-Fi ネットワークに接続してください。この iPhone のペアリングには、SideInstaller がローカルネットワーク上で見つけられる状態である必要があります。",
+    "Pairing this iPhone needs it: iLoader X advertises itself on the local network for Settings to find.":
+        "この iPhone のペアリングには Wi-Fi が必要です。iLoader X は「設定」アプリから見つけてもらうために、ローカルネットワーク上で自身をアドバタイズします。",
+    "Connect to a Wi-Fi network. Pairing this iPhone needs it — iLoader X has to be findable on the local network.":
+        "Wi-Fi ネットワークに接続してください。この iPhone のペアリングには、iLoader X がローカルネットワーク上で見つけられる状態である必要があります。",
 
     // MARK: - Side by Side tool
 
@@ -969,10 +969,10 @@ let japaneseStrings: [String: String] = [
     "Clear their details": "入力した情報を消去",
     "This iPhone is still paired with theirs. Clearing forgets it.":
         "この iPhone はまだ相手の iPhone とペアリングされています。消去するとこのペアリングも削除されます。",
-    "Couldn't download the latest SideInstaller release: %@": "SideInstaller の最新リリースをダウンロードできませんでした：%@",
+    "Couldn't download the latest iLoader X release: %@": "iLoader X の最新リリースをダウンロードできませんでした：%@",
     "The release download wasn't an IPA. GitHub may be returning an error page, so try again in a minute.":
         "ダウンロードされたファイルが IPA ではありませんでした。GitHub がエラーページを返している可能性があります。しばらくしてからもう一度お試しください。",
-    "No SideInstaller IPA downloaded.": "SideInstaller の IPA がダウンロードされていません。",
+    "No iLoader X IPA downloaded.": "iLoader X の IPA がダウンロードされていません。",
     "Start the install": "インストールを開始",
     "Install on their iPhone": "相手の iPhone にインストール",
     "%d%% downloaded": "%d%% ダウンロード済み",
@@ -999,14 +999,14 @@ let japaneseStrings: [String: String] = [
         "ここに表示されるコードを、相手の iPhone のダイアログに入力してください。",
     "Type this into the prompt on their iPhone.":
         "この番号を相手の iPhone のダイアログに入力してください。",
-    "SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again.":
-        "SideInstaller はすでに iPhone とのペアリングを待っています（「インストール」タブ、「ペアリング」画面、またはここでの前回の試行によるもの）。そのペアリングを完了するか、SideInstaller を閉じて開き直してから、もう一度お試しください。",
+    "iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again.":
+        "iLoader X はすでに iPhone とのペアリングを待っています（「インストール」タブ、「ペアリング」画面、またはここでの前回の試行によるもの）。そのペアリングを完了するか、iLoader X を閉じて開き直してから、もう一度お試しください。",
     "Pairing with their iPhone didn't finish: %@":
         "相手の iPhone とのペアリングが完了しませんでした：%@",
     "Their iPhone at %@ refused the connection. It only accepts one while Developer Mode is on, and iOS asks to confirm Developer Mode again after every restart: on their iPhone, turn it on under Settings › Privacy & Security › Developer Mode, then try again.":
         "%@ の相手の iPhone が接続を拒否しました。デベロッパモードが有効なときだけ接続を受け付け、再起動のたびに iOS が確認を求めます。相手の iPhone で「設定 › プライバシーとセキュリティ › デベロッパモード」を有効にしてから、もう一度お試しください。",
-    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "%@ の相手の iPhone に接続できませんでした。両方の iPhone が同じ Wi-Fi ネットワークに接続されていること、この iPhone の「設定」で SideInstaller のローカルネットワークがオンになっていることを確認してください。ゲストネットワークや公共のネットワークでは、デバイス同士の通信が遮断されることがよくあります。",
+    "Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "%@ の相手の iPhone に接続できませんでした。両方の iPhone が同じ Wi-Fi ネットワークに接続されていること、この iPhone の「設定」で iLoader X のローカルネットワークがオンになっていることを確認してください。ゲストネットワークや公共のネットワークでは、デバイス同士の通信が遮断されることがよくあります。",
     "The link to their iPhone didn't come up: %@":
         "相手の iPhone との接続を確立できませんでした：%@",
     "On their iPhone: Settings › General › VPN & Device Management.":
@@ -1018,8 +1018,8 @@ let japaneseStrings: [String: String] = [
 
     "About": "このアプリについて",
     "Version %@ (%@)": "バージョン %@（%@）",
-    "SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
-        "SideInstaller は、パソコンを使わずに SideStore と LiveContainer を iPhone に直接インストールします。",
+    "iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved.":
+        "iLoader X は、パソコンを使わずに SideStore と LiveContainer を iPhone に直接インストールします。",
 
     "Links": "リンク",
     "Source code": "ソースコード",
@@ -1028,8 +1028,8 @@ let japaneseStrings: [String: String] = [
     "Donation wallets for Bitcoin, Ethereum and Solana.":
         "Bitcoin・Ethereum・Solana の寄付用ウォレット。",
     "Crypto donations": "暗号資産での寄付",
-    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you.":
-        "寄付は完全に任意です。何かを購入したり、機能が解放されたり、見返りがあったりするものではありません。SideInstaller が役に立ったときに感謝を伝えるための手段です。",
+    "Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you.":
+        "寄付は完全に任意です。何かを購入したり、機能が解放されたり、見返りがあったりするものではありません。iLoader X が役に立ったときに感謝を伝えるための手段です。",
     "Coin": "通貨",
     "Network: %@": "ネットワーク：%@",
     "QR code for the %@ address": "%@ アドレスの QR コード",
@@ -1038,8 +1038,8 @@ let japaneseStrings: [String: String] = [
         "各通貨は表示されたネットワークでのみ送金してください。別のネットワークで送金した暗号資産は取り戻せません。",
 
     "Special thanks": "特別な感謝",
-    "For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it.":
-        "idevice に感謝します。SideInstaller はこのライブラリを通じて iPhone と通信しています。これがなければ何も成り立ちません。",
+    "For idevice, the library iLoader X talks to your iPhone through. None of this exists without it.":
+        "idevice に感謝します。iLoader X はこのライブラリを通じて iPhone と通信しています。これがなければ何も成り立ちません。",
     "For the support, and for spotting the bugs that got fixed because of it.":
         "これまでのご支援と、そのおかげで発見・修正できたバグに感謝します。",
     "For the Japanese translation.": "日本語への翻訳に感謝します。",
@@ -1071,12 +1071,12 @@ let japaneseStrings: [String: String] = [
 
     "%@ needs iOS %d or later. This iPhone runs iOS %@.": "%@ には iOS %d 以降が必要です。この iPhone は iOS %@ です。",
     "Open Madeira from your Home Screen.": "ホーム画面から Madeira を開いてください。",
-    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: SideInstaller already put the file there, so tap “Continue”.":
-        "初期設定の「Set up JIT」で「In-app with pairing file」を選んでください。ファイルは SideInstaller がすでに入れてあるので、「Continue」をタップします。",
+    "In its setup, under “Set up JIT”, pick “In-app with pairing file”: iLoader X already put the file there, so tap “Continue”.":
+        "初期設定の「Set up JIT」で「In-app with pairing file」を選んでください。ファイルは iLoader X がすでに入れてあるので、「Continue」をタップします。",
     "In its setup, under “Set up JIT”, pick how this iPhone gets JIT.":
         "初期設定の「Set up JIT」で、この iPhone で JIT を使う方法を選んでください。",
-    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. SideInstaller gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
-        "今後は、Madeira を開いていて LocalDevVPN が接続されているときに、Madeira が自分で署名を更新します。そのために SideInstaller がサインイン情報を渡しました。Apple の開発者サービス用のトークンで、パスワードではありません。Madeira の Settings › Signing で削除できます。",
+    "Madeira renews its own signing from now on, when it's open and LocalDevVPN is connected. iLoader X gave it a sign-in for that: a token for Apple's developer service, not your password. Madeira can forget it under Settings › Signing.":
+        "今後は、Madeira を開いていて LocalDevVPN が接続されているときに、Madeira が自分で署名を更新します。そのために iLoader X がサインイン情報を渡しました。Apple の開発者サービス用のトークンで、パスワードではありません。Madeira の Settings › Signing で削除できます。",
     "Its signing lasts 7 days. Before they run out, refresh it here under Tools › Sideloaded apps.":
         "署名の有効期間は7日間です。期限が切れる前に、このアプリの「ツール › サイドロード済みアプリ」で更新してください。",
     "This pairing file has no RPPairing record, the only kind %@ reads.":
@@ -1104,30 +1104,30 @@ let japaneseStrings: [String: String] = [
 
     "Install from a link?": "リンクからインストールしますか？",
     "Download and install": "ダウンロードしてインストール",
-    "SideInstaller will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
-        "SideInstaller はこの .ipa をダウンロードし、あなたの Apple ID で署名してインストールします。リンクの出どころを信頼できる場合のみ続けてください。",
+    "iLoader X will download this .ipa, then sign it with your Apple ID and install it. Only go ahead if you trust where the link came from.":
+        "iLoader X はこの .ipa をダウンロードし、あなたの Apple ID で署名してインストールします。リンクの出どころを信頼できる場合のみ続けてください。",
     "It replaces %@, the custom .ipa you have now.": "現在のカスタム .ipa（%@）は置き換えられます。",
     "Use SideStore's pairing file?": "SideStore のペアリングファイルを使いますか？",
     "Import this pairing file?": "このペアリングファイルをインポートしますか？",
     "Import": "インポート",
-    "SideStore sent back the pairing file it has. SideInstaller will connect to this iPhone with it.":
-        "SideStore が保持しているペアリングファイルを送り返しました。SideInstaller はこれを使ってこの iPhone に接続します。",
-    "A link sent SideInstaller a pairing file. Only import it if you asked for one: SideInstaller will connect to this iPhone with it.":
-        "リンクから SideInstaller にペアリングファイルが送られてきました。自分で要求した場合のみインポートしてください。SideInstaller はこれを使ってこの iPhone に接続します。",
+    "SideStore sent back the pairing file it has. iLoader X will connect to this iPhone with it.":
+        "SideStore が保持しているペアリングファイルを送り返しました。iLoader X はこれを使ってこの iPhone に接続します。",
+    "A link sent iLoader X a pairing file. Only import it if you asked for one: iLoader X will connect to this iPhone with it.":
+        "リンクから iLoader X にペアリングファイルが送られてきました。自分で要求した場合のみインポートしてください。iLoader X はこれを使ってこの iPhone に接続します。",
     "It replaces %@.": "%@ は置き換えられます。",
     "It replaces the pairing file in use now.": "現在使用中のペアリングファイルは置き換えられます。",
     "Get it from SideStore": "SideStore から取得",
     "SideStore opens and sends back the pairing file it has.": "SideStore が開き、保持しているペアリングファイルを送り返します。",
     "SideStore isn't installed on this iPhone, so there's no pairing file to get from it.":
         "この iPhone には SideStore がインストールされていないため、ペアリングファイルを取得できません。",
-    "SideInstaller takes the pairing file LiveContainer's built-in SideStore has.":
-        "LiveContainer 内蔵の SideStore が保持しているペアリングファイルを、SideInstaller が読み込みます。",
-    "This is the pairing file LiveContainer's built-in SideStore has. SideInstaller will connect to this iPhone with it.":
-        "これは LiveContainer 内蔵の SideStore が保持しているペアリングファイルです。SideInstaller はこれを使ってこの iPhone に接続します。",
-    "In LiveContainer's Multitask Mode, SideInstaller can't open the built-in SideStore's files. Open SideInstaller in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
-        "LiveContainer のマルチタスクモードでは、SideInstaller は内蔵の SideStore のファイルを開けません。マルチタスクモードを使わずに LiveContainer で SideInstaller を開いてからもう一度試すか、「ペアリングファイルをインポート」をタップしてパソコンで作成したファイルを選択してください。",
-    "Inside LiveContainer, SideStore can't send its pairing file back to SideInstaller, and LiveContainer's built-in SideStore has none that SideInstaller can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
-        "LiveContainer の中では、SideStore はペアリングファイルを SideInstaller に送り返せません。また、LiveContainer 内蔵の SideStore には SideInstaller が使えるペアリングファイルがありません。「ペアリングファイルをインポート」をタップしてパソコンで作成したファイルを選択するか、先に SideStore にペアリングファイルをインポートしてから、ここでもう一度試してください。",
+    "iLoader X takes the pairing file LiveContainer's built-in SideStore has.":
+        "LiveContainer 内蔵の SideStore が保持しているペアリングファイルを、iLoader X が読み込みます。",
+    "This is the pairing file LiveContainer's built-in SideStore has. iLoader X will connect to this iPhone with it.":
+        "これは LiveContainer 内蔵の SideStore が保持しているペアリングファイルです。iLoader X はこれを使ってこの iPhone に接続します。",
+    "In LiveContainer's Multitask Mode, iLoader X can't open the built-in SideStore's files. Open iLoader X in LiveContainer without Multitask Mode, then try again, or tap “Import pairing file” and pick the file your computer made.":
+        "LiveContainer のマルチタスクモードでは、iLoader X は内蔵の SideStore のファイルを開けません。マルチタスクモードを使わずに LiveContainer で iLoader X を開いてからもう一度試すか、「ペアリングファイルをインポート」をタップしてパソコンで作成したファイルを選択してください。",
+    "Inside LiveContainer, SideStore can't send its pairing file back to iLoader X, and LiveContainer's built-in SideStore has none that iLoader X can use. Tap “Import pairing file” and pick the file your computer made, or import one into SideStore first, then try again here.":
+        "LiveContainer の中では、SideStore はペアリングファイルを iLoader X に送り返せません。また、LiveContainer 内蔵の SideStore には iLoader X が使えるペアリングファイルがありません。「ペアリングファイルをインポート」をタップしてパソコンで作成したファイルを選択するか、先に SideStore にペアリングファイルをインポートしてから、ここでもう一度試してください。",
     "That install link has no .ipa in it. It needs ?url= followed by the https:// address the .ipa downloads from.":
         "このインストールリンクには .ipa が含まれていません。?url= の後に .ipa のダウンロード元の https:// アドレスが必要です。",
     "That link was meant to carry a pairing file, but what it holds can't be read.":
@@ -1171,39 +1171,39 @@ let japaneseStrings: [String: String] = [
     "Look again": "もう一度探す",
     "No crash logs from SideStore, LiveContainer or Madeira in the last %d days.":
         "過去 %d 日間に SideStore、LiveContainer、Madeira のクラッシュログはありません。",
-    "iOS hands SideInstaller its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
-        "SideInstaller 自身のクラッシュは、次に開いたときに iOS から渡されます。SideStore、LiveContainer、Madeira のクラッシュログは LocalDevVPN 経由でこの iPhone から読み取ります。",
+    "iOS hands iLoader X its own crashes the next time it opens. Crash logs from SideStore, LiveContainer and Madeira are read from this iPhone through LocalDevVPN.":
+        "iLoader X 自身のクラッシュは、次に開いたときに iOS から渡されます。SideStore、LiveContainer、Madeira のクラッシュログは LocalDevVPN 経由でこの iPhone から読み取ります。",
     "Open a GitHub issue": "GitHub で Issue を作成",
     "Share the report": "レポートを共有",
     "Preview the report": "レポートをプレビュー",
     "Report": "レポート",
-    "The issue opens filled in. When the log is too long for that, SideInstaller copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
-        "Issue は入力済みの状態で開きます。ログが長すぎて入力しきれないときは SideInstaller がログをコピーするので、Issue の末尾に貼り付けてください。レポート全体は %@ にも保存されます。",
+    "The issue opens filled in. When the log is too long for that, iLoader X copies it for you to paste at the end of the issue. The whole report is also saved in %@.":
+        "Issue は入力済みの状態で開きます。ログが長すぎて入力しきれないときは iLoader X がログをコピーするので、Issue の末尾に貼り付けてください。レポート全体は %@ にも保存されます。",
     "Files › On My iPhone": "「ファイル」›「この iPhone 内」",
     "Copy the full log": "ログ全体をコピー",
     "Paste the log into the issue": "ログを Issue に貼り付けてください",
     "Open GitHub": "GitHub を開く",
-    "The full log is too long to fill in, so SideInstaller copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
-        "ログ全体が長すぎて自動で入力できないため、SideInstaller がコピーしました。GitHub でテキストの末尾をタップし、「ペースト」を選んでから Issue を送信してください。",
+    "The full log is too long to fill in, so iLoader X copied it. On GitHub, tap the end of the text, choose Paste, then submit the issue.":
+        "ログ全体が長すぎて自動で入力できないため、iLoader X がコピーしました。GitHub でテキストの末尾をタップし、「ペースト」を選んでから Issue を送信してください。",
     "Describe the problem above first.": "先に上で問題を説明してください。",
     "Couldn't save the report: %@": "レポートを保存できませんでした：%@",
 
     // MARK: - Official download check
 
-    "Did you download SideInstaller from sideinstaller.net?":
-        "SideInstaller を sideinstaller.net からダウンロードしましたか？",
-    "SideInstaller is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only sideinstaller.net is official.":
-        "SideInstaller はオープンソースのため、入力された Apple ID を盗むように改変したコピーを誰でも公開できます。公式は sideinstaller.net だけです。",
-    "Yes, from sideinstaller.net":
-        "はい、sideinstaller.net から",
+    "Did you download iLoader X from github.com/iamgasgass?":
+        "iLoader X を github.com/iamgasgass からダウンロードしましたか？",
+    "iLoader X is open source, so anyone can publish a modified copy that steals the Apple ID typed into it. Only github.com/iamgasgass is official.":
+        "iLoader X はオープンソースのため、入力された Apple ID を盗むように改変したコピーを誰でも公開できます。公式は github.com/iamgasgass だけです。",
+    "Yes, from github.com/iamgasgass":
+        "はい、github.com/iamgasgass から",
     "No, or I'm not sure":
         "いいえ、またはわからない",
     "Don't sign in with this copy":
         "このコピーではサインインしないでください",
-    "Copies from anywhere other than sideinstaller.net are unofficial and may have been changed to steal your Apple ID. Delete this one and install SideInstaller from sideinstaller.net, then sign in there.":
-        "sideinstaller.net 以外から入手したコピーは非公式で、Apple ID を盗むように改変されている可能性があります。このコピーを削除し、sideinstaller.net から SideInstaller をインストールしてからサインインしてください。",
-    "Open sideinstaller.net":
-        "sideinstaller.net を開く",
+    "Copies from anywhere other than github.com/iamgasgass are unofficial and may have been changed to steal your Apple ID. Delete this one and install iLoader X from github.com/iamgasgass, then sign in there.":
+        "github.com/iamgasgass 以外から入手したコピーは非公式で、Apple ID を盗むように改変されている可能性があります。このコピーを削除し、github.com/iamgasgass から iLoader X をインストールしてからサインインしてください。",
+    "Open github.com/iamgasgass":
+        "github.com/iamgasgass を開く",
     "Back":
         "戻る",
     "I understand the risks":
@@ -1213,10 +1213,10 @@ let japaneseStrings: [String: String] = [
     "If this copy was changed, it can send your Apple ID and password to someone else. Continue only if you trust where it came from.":
         "このコピーが改変されている場合、Apple ID とパスワードが第三者に送信される可能性があります。入手元を信頼できる場合のみ続行してください。",
 
-    // MARK: - Side by Side: their address, and the pairing file SideInstaller gets
+    // MARK: - Side by Side: their address, and the pairing file iLoader X gets
 
-    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
-        "%@ の相手の iPhone に接続できませんでした。アドレス（相手の iPhone の「設定」>「Wi-Fi」> ⓘ）、両方の iPhone が同じ Wi-Fi ネットワークに接続されていること、この iPhone の「設定」で SideInstaller のローカルネットワークがオンになっていることを確認してください。ゲストネットワークや公共のネットワークでは、デバイス同士の通信が遮断されることがよくあります。",
+    "Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.":
+        "%@ の相手の iPhone に接続できませんでした。アドレス（相手の iPhone の「設定」>「Wi-Fi」> ⓘ）、両方の iPhone が同じ Wi-Fi ネットワークに接続されていること、この iPhone の「設定」で iLoader X のローカルネットワークがオンになっていることを確認してください。ゲストネットワークや公共のネットワークでは、デバイス同士の通信が遮断されることがよくあります。",
     "Their iPhone": "相手の iPhone",
     "They tapped “Don't Trust” on their iPhone. Start again, and have them tap Trust.":
         "相手が iPhone で「信頼しない」をタップしました。最初からやり直し、「信頼」をタップしてもらってください。",
@@ -1232,18 +1232,18 @@ let japaneseStrings: [String: String] = [
         "「%@」は IPv4 アドレスではありません。192.168.1.42 のような形式で入力してください。",
     "Do you have the device's IP?": "相手のデバイスの IP アドレスはわかりますか？",
     "Optional": "任意",
-    "SideInstaller asks their iPhone to pair directly. Needed below iOS 27.":
-        "SideInstaller が相手の iPhone に直接ペアリングを求めます。iOS 27 より前では必要です。",
+    "iLoader X asks their iPhone to pair directly. Needed below iOS 27.":
+        "iLoader X が相手の iPhone に直接ペアリングを求めます。iOS 27 より前では必要です。",
     "Their iPhone pairs from its own Settings, which needs iOS 27.":
         "相手の iPhone が自分の「設定」からペアリングします。iOS 27 が必要です。",
     "IP address": "IP アドレス",
-    "Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
-        "相手の iPhone は iOS %@ です。iOS 26.4 以降では、相手の iPhone が Wi-Fi 経由で渡すペアリングを SideInstaller は使えないため、コンピュータで作ったペアリングファイルが必要です。",
-    "Get LocalDevVPN from the App Store and connect it: SideInstaller works through it.":
-        "App Store から LocalDevVPN を入手して接続します。SideInstaller はそれを通じて動作します。",
-    "Open SideInstaller. Its pairing file is already in place.": "SideInstaller を開きます。ペアリングファイルはすでに入っています。",
-    "Open SideInstaller and import a pairing file made on a computer.":
-        "SideInstaller を開き、コンピュータで作ったペアリングファイルを読み込みます。",
+    "Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.":
+        "相手の iPhone は iOS %@ です。iOS 26.4 以降では、相手の iPhone が Wi-Fi 経由で渡すペアリングを iLoader X は使えないため、コンピュータで作ったペアリングファイルが必要です。",
+    "Get LocalDevVPN from the App Store and connect it: iLoader X works through it.":
+        "App Store から LocalDevVPN を入手して接続します。iLoader X はそれを通じて動作します。",
+    "Open iLoader X. Its pairing file is already in place.": "iLoader X を開きます。ペアリングファイルはすでに入っています。",
+    "Open iLoader X and import a pairing file made on a computer.":
+        "iLoader X を開き、コンピュータで作ったペアリングファイルを読み込みます。",
     "%@ is an address this iPhone already holds. Side by Side installs onto someone else's iPhone, so use theirs. To install on this one, use the Install tab.":
         "%@ はこの iPhone 自身のアドレスです。Side by Side は他の人の iPhone にインストールするための機能なので、相手のアドレスを入力してください。この iPhone にインストールするには「インストール」タブを使用してください。",
     "Their iPhone runs iOS %@. From iOS 26.4 on, %@ can't use the pairing their iPhone gives over Wi-Fi. iOS 27 pairs from its own Settings instead, which works: update their iPhone, then try again and answer No when asked for its IP.":
@@ -1277,16 +1277,24 @@ let japaneseStrings: [String: String] = [
     "This Apple Account is on %d developer teams. Pick the one that signs.":
         "この Apple アカウントは %d 個の開発者チームに所属しています。署名に使うチームを選んでください。",
     "Which Team?": "どのチーム？",
-    "Signed this copy of SideInstaller": "この SideInstaller に署名したチーム",
+    "Signed this copy of iLoader X": "この iLoader X に署名したチーム",
     "A free team's apps last 7 days; a paid team's last a year.": "無料チームで署名したアプリは7日間、有料チームで署名したアプリは1年間使えます。",
     "An app installed with another team isn't replaced: signing it with this one installs a second copy.":
         "別のチームでインストールしたアプリは置き換えられません。このチームで署名すると、2つ目のコピーがインストールされます。",
-    "SideInstaller remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
-        "SideInstaller はこの Apple ID で選んだチームを記憶します。選び直すには、「設定 › アカウント」を開いて、その Apple ID を左にスワイプし、「チーム」をタップしてください。",
+    "iLoader X remembers the pick for this Apple ID. To pick again, open Settings › Account, swipe the Apple ID left and tap Team.":
+        "iLoader X はこの Apple ID で選んだチームを記憶します。選び直すには、「設定 › アカウント」を開いて、その Apple ID を左にスワイプし、「チーム」をタップしてください。",
     "No developer team was picked, so the sign-in stopped.": "開発者チームが選ばれなかったため、サインインを中止しました。",
-    "Your Apple Account is on more than one developer team. Open SideInstaller and pick the one that signs.":
-        "Apple アカウントが複数の開発者チームに所属しています。SideInstaller を開いて、署名に使うチームを選んでください。",
+    "Your Apple Account is on more than one developer team. Open iLoader X and pick the one that signs.":
+        "Apple アカウントが複数の開発者チームに所属しています。iLoader X を開いて、署名に使うチームを選んでください。",
     "Pick the team again?": "チームを選び直しますか？",
     "Pick Again": "選び直す",
     "The next sign-in with “%@” asks which developer team signs.": "次回「%@」でサインインするときに、署名に使う開発者チームを確認します。",
+    "iLoader X is a fork of it, with its own name, bundle ID and icon.":
+        "iLoader X はそのフォークで、独自の名前、バンドル ID、アイコンを持っています。",
+    "App Icon":
+        "Appアイコン",
+    "Couldn't change the icon: %@":
+        "アイコンを変更できませんでした: %@",
+    "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
+        "各アイコンにはダークと色合いのバージョンがあり、iOS がホーム画面の外観に合わせて使い分けます。",
 ]

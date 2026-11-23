@@ -36,7 +36,7 @@ struct AboutView: View {
     // MARK: Header
 
     private var header: some View {
-        BrandHeader(icon: "info.circle", image: "AppLogo", title: "SideInstaller",
+        BrandHeader(icon: "info.circle", image: "AppLogo", title: "iLoader X",
                     subtitle: L("an app by Frizzle")) {
             Text(versionText)
                 .font(.footnote.monospaced())
@@ -57,7 +57,7 @@ struct AboutView: View {
         PanelCard {
             VStack(alignment: .leading, spacing: 12) {
                 sectionTitle(L("About"), systemImage: "info.circle")
-                Text(L("SideInstaller installs SideStore and LiveContainer straight onto your iPhone, with no PC involved."))
+                Text(L("iLoader X installs SideStore and LiveContainer straight onto your iPhone, with no PC involved."))
                     .font(.subheadline)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -72,7 +72,12 @@ struct AboutView: View {
                 sectionTitle(L("Links"), systemImage: "link")
                 AboutRow(systemImage: "chevron.left.forwardslash.chevron.right",
                          title: L("Source code"),
-                         urlString: "https://github.com/FrizzleM/SideInstaller/tree/main")
+                         urlString: "https://github.com/iamgasgass/actionsrunner-builds/tree/claude/vigilant-shannon-rqdiof")
+                // Required by SideInstaller's licence (section 4): credit and link.
+                AboutRow(systemImage: "arrow.triangle.branch",
+                         title: "Based on SideInstaller by FrizzleM",
+                         detail: L("iLoader X is a fork of it, with its own name, bundle ID and icon."),
+                         urlString: "https://github.com/FrizzleM/SideInstaller")
                 AboutRow(systemImage: "exclamationmark.bubble",
                          title: L("Report a problem"),
                          detail: L("Opens a GitHub issue with this app's details, its log and crash logs."),
@@ -99,7 +104,7 @@ struct AboutView: View {
                 sectionTitle(L("Special thanks"), systemImage: "heart")
                 AboutRow(systemImage: "hammer",
                          title: "jkcoxson",
-                         detail: L("For idevice, the library SideInstaller talks to your iPhone through. None of this exists without it."),
+                         detail: L("For idevice, the library iLoader X talks to your iPhone through. None of this exists without it."),
                          urlString: "https://github.com/jkcoxson/idevice")
                 AboutRow(systemImage: "ladybug",
                          title: "Vexon",
@@ -264,7 +269,7 @@ private struct CryptoDonationsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    Text(L("Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if SideInstaller has helped you."))
+                    Text(L("Donations are entirely optional. They don't buy anything, unlock any feature or get you anything in return; they're just a way to say thanks if iLoader X has helped you."))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

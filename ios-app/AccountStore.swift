@@ -50,7 +50,7 @@ final class AccountStore: ObservableObject {
     private static let activeKey = "activeAppleAccountID"
     private static let teamsKey = "signingTeamByAppleID"
     /// Keychain service every saved password is filed under.
-    private static let service = "com.frizzle.SideInstaller.appleID"
+    private static let service = "com.iamgasgass.iloaderx.appleID"
     /// When a saved password can be read: while locked (after the first unlock
     /// since restart), since signing can run unattended, and on this iPhone
     /// only, so a backup can't carry it to another device.
@@ -238,7 +238,7 @@ final class AccountStore: ObservableObject {
     private func store(password: String, for id: UUID) {
         if let status = Self.keychainWrite(password, for: id) {
             volatilePasswords[id] = password
-            keychainWarning = L("This iPhone's keychain refused to store the password (error %d), so it's kept only until SideInstaller quits.", Int(status))
+            keychainWarning = L("This iPhone's keychain refused to store the password (error %d), so it's kept only until iLoader X quits.", Int(status))
         } else {
             volatilePasswords[id] = nil
             keychainWarning = nil

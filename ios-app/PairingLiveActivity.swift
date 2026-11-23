@@ -28,7 +28,7 @@ final class PairingLiveActivity: PairingCodeSurface {
     }()
 
     /// True when a pairing run will show its code over Settings: the extension
-    /// is there, and Live Activities are on for SideInstaller.
+    /// is there, and Live Activities are on for iLoader X.
     nonisolated static var isAvailable: Bool {
         hasExtension && ActivityAuthorizationInfo().areActivitiesEnabled
     }
@@ -59,7 +59,7 @@ final class PairingLiveActivity: PairingCodeSurface {
     func start() {
         guard Self.isAvailable else {
             // The popup in the app still shows the code.
-            Engine.shared.log("Live Activity: not started — Live Activities are off for SideInstaller in Settings.")
+            Engine.shared.log("Live Activity: not started — Live Activities are off for iLoader X in Settings.")
             return
         }
         enqueue { [self] in
@@ -142,13 +142,13 @@ final class PairingLiveActivity: PairingCodeSurface {
         switch stage {
         case .waiting:
             title = L("Pair in Settings")
-            detail = L("Privacy & Security › Developer Mode › Pair with SideInstaller")
+            detail = L("Privacy & Security › Developer Mode › Pair with iLoader X")
         case .code:
             title = L("Pairing code")
             detail = L("Type this into the prompt in Settings.")
         case .paired:
             title = L("Paired")
-            detail = L("Tap to return to SideInstaller.")
+            detail = L("Tap to return to iLoader X.")
         }
         return ActivityContent(state: ContentState(stage: stage, title: title, detail: detail),
                                staleDate: nil)

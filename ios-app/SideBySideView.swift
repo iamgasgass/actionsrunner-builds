@@ -6,7 +6,7 @@ import SideInstallerFFI
 // MARK: - What goes on their iPhone
 
 /// What Side by Side can put on another iPhone, the choice iLoader offers:
-/// SideInstaller itself, one of the two SideStore builds the Install tab sets
+/// iLoader X itself, one of the two SideStore builds the Install tab sets
 /// up, AltStore, or an IPA picked from Files.
 enum SideBySideApp: String, CaseIterable, Identifiable {
     case sideInstaller
@@ -26,7 +26,7 @@ enum SideBySideApp: String, CaseIterable, Identifiable {
 
     /// The Install tab's build, for the two SideStore builds and AltStore:
     /// downloaded from the same place, and handed the pairing file the same
-    /// way. Nil for SideInstaller, which comes from its own latest release and
+    /// way. Nil for iLoader X, which comes from its own latest release and
     /// is handed the pairing file as an imported one, and for a custom IPA.
     var source: InstallSource? {
         switch self {
@@ -41,22 +41,22 @@ enum SideBySideApp: String, CaseIterable, Identifiable {
     /// Full name, for titles and the log.
     var displayName: String {
         switch self {
-        case .sideInstaller: return "SideInstaller"
+        case .sideInstaller: return "iLoader X"
         case .custom:        return L("Custom .ipa")
-        default:             return source?.displayName ?? "SideInstaller"
+        default:             return source?.displayName ?? "iLoader X"
         }
     }
 
     /// What it's called on their Home Screen.
     var homeScreenName: String {
         switch self {
-        case .sideInstaller: return "SideInstaller"
+        case .sideInstaller: return "iLoader X"
         case .custom:        return L("Custom .ipa")
-        default:             return source?.pairingAppDisplayName ?? "SideInstaller"
+        default:             return source?.pairingAppDisplayName ?? "iLoader X"
         }
     }
 
-    /// What their iPhone needs for it. Each of SideInstaller's own works
+    /// What their iPhone needs for it. Each of iLoader X's own works
     /// through LocalDevVPN with the pairing file this iPhone hands it, on any
     /// iOS that pairing works on.
     var requirement: String {
@@ -65,7 +65,7 @@ enum SideBySideApp: String, CaseIterable, Identifiable {
 
     var requirementSymbol: String { "network" }
 
-    /// The app's own icon: SideInstaller's, and the official SideStore,
+    /// The app's own icon: iLoader X's, and the official SideStore,
     /// LiveContainer and AltStore icons from their repositories (AGPL-3.0),
     /// at 256 px.
     var image: String? {
@@ -122,7 +122,7 @@ enum SideBySideStep: Int, CaseIterable, Identifiable {
 
 // MARK: - Manager
 
-/// Installs SideInstaller, SideStore, LiveContainer + SideStore or an IPA
+/// Installs iLoader X, SideStore, LiveContainer + SideStore or an IPA
 /// picked from Files onto *another* iPhone on the same Wi-Fi network, one page
 /// at a time.
 ///
@@ -148,7 +148,7 @@ enum SideBySideStep: Int, CaseIterable, Identifiable {
 ///    from the same releases as on the Install tab.
 /// 3. **Set up**: the pair record goes into the app on their iPhone, as the
 ///    Install tab hands this iPhone's to SideStore, so it opens ready to use.
-///    SideInstaller gets it as an imported pairing file, which works below
+///    iLoader X gets it as an imported pairing file, which works below
 ///    iOS 27 too. Each pairing has an identity of its own on their iPhone, so
 ///    a later Side by Side pairing can't replace the record an app holds.
 ///
@@ -160,12 +160,12 @@ enum SideBySideStep: Int, CaseIterable, Identifiable {
 /// the app on their iPhone holds them.
 final class SideBySideManager: ObservableObject {
 
-    /// Unsigned IPA from SideInstaller's latest GitHub release.
+    /// Unsigned IPA from iLoader X's latest GitHub release.
     static let releaseIPA = URL(string:
-        "https://github.com/FrizzleM/SideInstaller/releases/latest/download/SideInstaller.ipa")!
+        "https://github.com/iamgasgass/actionsrunner-builds/releases/download/iloaderx-latest/iLoaderX.ipa")!
 
     /// What the release asset is called, and what the download is saved as.
-    static let ipaFileName = "SideInstaller.ipa"
+    static let ipaFileName = "iLoaderX.ipa"
 
     // MARK: Pages
 
@@ -230,25 +230,25 @@ final class SideBySideManager: ObservableObject {
         /// be read.
         let name: String
         let version: String?
-        /// The build of SideInstaller's own it is, set up just like that build;
+        /// The build of iLoader X's own it is, set up just like that build;
         /// nil for any other app, which gets no pairing file.
         let build: SideBySideApp?
     }
 
     /// The IPA picked for `.custom`. Kept until another is picked or
-    /// SideInstaller closes, like the choice of app; Clear keeps it too.
+    /// iLoader X closes, like the choice of app; Clear keeps it too.
     @Published private(set) var customIPA: CustomIPA?
     @Published private(set) var isImportingIPA = false
     /// Why the last pick didn't take.
     @Published private(set) var importError: String?
 
-    /// SideInstaller's bundle ID as released, which tells a picked IPA of it
+    /// iLoader X's bundle ID as released, which tells a picked IPA of it
     /// apart; a build signed earlier has `.<team ID>` after it.
-    static let sideInstallerBundleID = "com.frizzlem.sideinstaller"
+    static let sideInstallerBundleID = "com.iamgasgass.iloaderx"
 
     private static let appKey = "sideBySideApp"
     private static var savedApp: SideBySideApp {
-        // Not `.custom`: the IPA picked for it goes when SideInstaller closes.
+        // Not `.custom`: the IPA picked for it goes when iLoader X closes.
         UserDefaults.standard.string(forKey: appKey).flatMap(SideBySideApp.init(rawValue:))
             .flatMap { $0 == .custom ? nil : $0 } ?? .sideInstaller
     }
@@ -265,7 +265,7 @@ final class SideBySideManager: ObservableObject {
     /// What the current or last run installs, as it was when it started.
     @Published private(set) var runApp: SideBySideApp = .sideInstaller
     /// Its name: the picked IPA's for `.custom`.
-    @Published private(set) var runName = "SideInstaller"
+    @Published private(set) var runName = "iLoader X"
     /// The build the run sets up, which gets the pairing file: `runApp`, or
     /// the one a picked IPA is. Nil for any other app.
     @Published private(set) var runSetsUp: SideBySideApp? = .sideInstaller
@@ -286,7 +286,7 @@ final class SideBySideManager: ObservableObject {
     @Published private(set) var pairingPIN: String?
     /// True while their iPhone shows a Trust prompt that has been up a moment.
     @Published private(set) var waitingForTrust = false
-    /// Their iOS version, when SideInstaller went onto an iPhone that can't
+    /// Their iOS version, when iLoader X went onto an iPhone that can't
     /// use the pairing it gave, so none was handed over: a lockdown record on
     /// iOS 26.4 or later. It then needs a pairing file made on a computer.
     @Published private(set) var pairingLeftOutOn: String?
@@ -304,8 +304,8 @@ final class SideBySideManager: ObservableObject {
     /// This tool's own link, so a run here never disturbs the Install tab's
     /// connection to the loopback tunnel (or the other way round).
     private let connection = DeviceConnection()
-    private let deviceQueue = DispatchQueue(label: "sideinstaller.sidebyside.device")
-    private let signQueue = DispatchQueue(label: "sideinstaller.sidebyside.sign")
+    private let deviceQueue = DispatchQueue(label: "iloaderx.sidebyside.device")
+    private let signQueue = DispatchQueue(label: "iloaderx.sidebyside.sign")
 
     private var signSession: OpaquePointer?          // SignSession*
     /// The Apple ID `signSession` belongs to, so another one signs out.
@@ -347,10 +347,10 @@ final class SideBySideManager: ObservableObject {
     }
 
     init() {
-        // Left with someone's signing key in it if SideInstaller was closed
+        // Left with someone's signing key in it if iLoader X was closed
         // before a run ended.
         PrivateStore.forgetEarlierPeerSignIns()
-        // IPAs picked before SideInstaller last closed.
+        // IPAs picked before iLoader X last closed.
         try? FileManager.default.removeItem(at: Self.customIPAFolder)
     }
 
@@ -613,7 +613,7 @@ final class SideBySideManager: ObservableObject {
             } catch let error as CocoaError where error.code == .fileNoSuchFile {
                 // Already gone.
             } catch {
-                Engine.shared.log("⚠️ Side by Side: couldn't delete the temporary folder \(who) signed in from (\(error.localizedDescription)). SideInstaller deletes it the next time it opens.")
+                Engine.shared.log("⚠️ Side by Side: couldn't delete the temporary folder \(who) signed in from (\(error.localizedDescription)). iLoader X deletes it the next time it opens.")
             }
         }
     }
@@ -704,7 +704,7 @@ final class SideBySideManager: ObservableObject {
 
     // MARK: - A custom .ipa
 
-    /// Where picked IPAs are copied, one folder each. Emptied when SideInstaller
+    /// Where picked IPAs are copied, one folder each. Emptied when iLoader X
     /// opens, as nothing in it outlives a launch.
     private static var customIPAFolder: URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("side-by-side-ipa", isDirectory: true)
@@ -729,7 +729,7 @@ final class SideBySideManager: ObservableObject {
             discardCustomIPA()
             customIPA = picked
             app = .custom
-            let setUp = picked.build.map { "It's \($0.displayName), so it's set up like SideInstaller's own." }
+            let setUp = picked.build.map { "It's \($0.displayName), so it's set up like iLoader X's own." }
                 ?? "Any other app is signed and installed as it is, with no pairing file."
             engine.log("Side by Side: picked \(picked.name)\(picked.version.map { " \($0)" } ?? "") (\(ByteCountFormatter.string(fromByteCount: Int64(fileSize(picked.file.path)), countStyle: .file))). \(setUp)")
         } catch IPALibrary.ImportError.notAnIPA {
@@ -773,7 +773,7 @@ final class SideBySideManager: ObservableObject {
         }
     }
 
-    /// The build of SideInstaller's own an IPA is, by its bundle ID: SideInstaller,
+    /// The build of iLoader X's own an IPA is, by its bundle ID: iLoader X,
     /// SideStore, LiveContainer carrying SideStore, or AltStore. Nil for any
     /// other app.
     private static func knownBuild(ofIPAAt url: URL, bundleID id: String) -> SideBySideApp? {
@@ -807,7 +807,7 @@ final class SideBySideManager: ObservableObject {
         if await localNetwork.request(timeout: 8) {
             engine.log("Local Network OK.")
         } else {
-            engine.log("⚠️ Local Network didn't confirm. If nothing connects, turn it on in Settings › SideInstaller › Local Network.")
+            engine.log("⚠️ Local Network didn't confirm. If nothing connects, turn it on in Settings › iLoader X › Local Network.")
         }
     }
 
@@ -896,7 +896,7 @@ final class SideBySideManager: ObservableObject {
                 hosts: [ip],
                 hostID: UUID().uuidString,
                 systemBUID: CompositePairingFile.systemBUID,
-                hostName: "SideInstaller",
+                hostName: "iLoader X",
                 onConnected: { [weak self] in self?.showTrustWait(true) })
         } catch let error as DeviceConnection.LockdownPairError {
             if error.userDeclined {
@@ -1052,7 +1052,7 @@ final class SideBySideManager: ObservableObject {
                 Task { @MainActor in PairingController.shared.cancelPeer() }
             }
         } catch PairingController.PairingError.busy {
-            throw EngineError.message(L("SideInstaller is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen SideInstaller, then try again."))
+            throw EngineError.message(L("iLoader X is already waiting for an iPhone to pair with it, from the Install tab, the Pairing page, or an earlier attempt here. Finish that pairing, or close and reopen iLoader X, then try again."))
         } catch let PairingController.PairingError.failed(message) {
             throw EngineError.message(L("Pairing with their iPhone didn't finish: %@", message))
         }
@@ -1085,7 +1085,7 @@ final class SideBySideManager: ObservableObject {
     /// the pairing their iPhone gave: from iOS 26.4 on, lockdownd hangs up on a
     /// lockdown record that comes through LocalDevVPN, and only iOS 27 pairs
     /// from its Settings, which gives the RPPairing record that works.
-    /// SideInstaller is installed all the same, without the record
+    /// iLoader X is installed all the same, without the record
     /// (`pairingLeftOutOn`): a pairing file made on a computer gets it going.
     /// So is AltStore, which pairs itself as its Remote AltServer is set up
     /// when the record is one it can't use (`handOffToAltStore`).
@@ -1096,7 +1096,7 @@ final class SideBySideManager: ObservableObject {
         guard kind.hasLockdown, !kind.hasRemotePairing, Self.version(version, isAtLeast: 26, 4) else { return }
         guard app.source != nil else {
             pairingLeftOutOn = version
-            engine.log("Their iPhone runs iOS \(version) and paired over lockdown only. From iOS 26.4 on, lockdownd hangs up on that record when it comes through LocalDevVPN, so SideInstaller is installed without it and needs a pairing file made on a computer.")
+            engine.log("Their iPhone runs iOS \(version) and paired over lockdown only. From iOS 26.4 on, lockdownd hangs up on that record when it comes through LocalDevVPN, so iLoader X is installed without it and needs a pairing file made on a computer.")
             return
         }
         engine.log("Their iPhone runs iOS \(version) and paired over lockdown only: from iOS 26.4 on, lockdownd hangs up on that record when \(app.displayName) brings it through LocalDevVPN. Stopping before anything is signed.")
@@ -1122,8 +1122,8 @@ final class SideBySideManager: ObservableObject {
     /// The address itself is worth checking only when it was typed in.
     private static func unreachableAdvice(ip: String, typed: Bool) -> String {
         typed
-            ? L("Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.", ip)
-            : L("Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for SideInstaller in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.", ip)
+            ? L("Couldn't reach their iPhone at %@. Check the address (Settings › Wi-Fi › ⓘ on their iPhone), that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.", ip)
+            : L("Couldn't reach their iPhone at %@. Check that both iPhones are on the same Wi-Fi network, and that Local Network is on for iLoader X in this iPhone's Settings. Guest and public networks often keep devices from reaching each other.", ip)
     }
 
     // MARK: - Step 2: Apple ID sign-in
@@ -1283,7 +1283,7 @@ final class SideBySideManager: ObservableObject {
     }
 
     /// One sign-in attempt against a specific anisette server. Uses the machine
-    /// name `SideInstaller`, so an existing certificate is recognized as reusable.
+    /// name `iLoader X`, so an existing certificate is recognized as reusable.
     /// `team` is the one picked for an Apple ID saved here (`Engine.answerTeam`).
     private func performSignIn(id: String, pw: String, anisette: String, dir: String,
                                team: String?, ticket: AppleSignInTicket) throws -> String {
@@ -1293,7 +1293,7 @@ final class SideBySideManager: ObservableObject {
         var summary: UnsafeMutablePointer<CChar>?
         var error: UnsafeMutablePointer<CChar>?
         // 0 = don't save the session: it may be someone else's Apple ID.
-        let rc = si_apple_signin(id, pw, anisette, "SideInstaller", dir, 0, team ?? "",
+        let rc = si_apple_signin(id, pw, anisette, "iLoader X", dir, 0, team ?? "",
                                  appleSignInTwoFactorCallback, appleSignInTeamCallback, ticket.context,
                                  &session, &summary, &error)
         if rc == 0 {
@@ -1350,10 +1350,10 @@ final class SideBySideManager: ObservableObject {
         setStep(.download, .done)
     }
 
-    /// SideInstaller's latest release, into a staging folder of its own.
+    /// iLoader X's latest release, into a staging folder of its own.
     @MainActor
     private func downloadSideInstaller() async throws -> URL {
-        engine.log("Fetching the latest SideInstaller release from \(Self.releaseIPA.absoluteString) …")
+        engine.log("Fetching the latest iLoader X release from \(Self.releaseIPA.absoluteString) …")
         do {
             let file = try await SideStoreDownloader.fetchDirect(
                 Self.releaseIPA, named: Self.ipaFileName) { fraction in
@@ -1367,7 +1367,7 @@ final class SideBySideManager: ObservableObject {
             }
             return file
         } catch let error as SideStoreDownloader.DownloadError {
-            throw EngineError.message(L("Couldn't download the latest SideInstaller release: %@", error.description))
+            throw EngineError.message(L("Couldn't download the latest iLoader X release: %@", error.description))
         }
     }
 
@@ -1427,7 +1427,7 @@ final class SideBySideManager: ObservableObject {
         guard let session = signSession else { throw EngineError.message(L("Not signed in.")) }
         guard let ipa = downloadedIPA else {
             throw EngineError.message(app == .custom ? L("Pick an .ipa to install.")
-                                      : app.source == nil ? L("No SideInstaller IPA downloaded.")
+                                      : app.source == nil ? L("No iLoader X IPA downloaded.")
                                                           : L("No SideStore IPA downloaded."))
         }
         // Their UDID is registered with the team before the profile is asked
@@ -1455,7 +1455,7 @@ final class SideBySideManager: ObservableObject {
         var error: UnsafeMutablePointer<CChar>?
         // No bundled pairing file: only AltStore 2.3 read one, and from 2.3.1
         // on it takes the file `setUp` writes into its Documents. No Increased
-        // Memory Limit: SideInstaller has no use for it, and the SideStore
+        // Memory Limit: iLoader X has no use for it, and the SideStore
         // builds and AltStore re-register their App IDs without it. Every app
         // gets its app group, as on the Install tab.
         let rc = si_sign_ipa(session, ipa, udid, deviceName, nil, 0, 1, &signed, &error)
@@ -1540,7 +1540,7 @@ final class SideBySideManager: ObservableObject {
     /// Puts the pair record into the app on their iPhone, so it opens ready to
     /// go without pairing itself: into SideStore as the Install tab hands over
     /// this iPhone's (`handOffToSideStore`), into AltStore where AltServer
-    /// puts it (`handOffToAltStore`), and into SideInstaller as an imported
+    /// puts it (`handOffToAltStore`), and into iLoader X as an imported
     /// pairing file (`handOffToSideInstaller`), which it connects with below
     /// iOS 27 too.
     @MainActor
@@ -1624,16 +1624,16 @@ final class SideBySideManager: ObservableObject {
         }
     }
 
-    /// Where SideInstaller keeps its pairing file (`PrivateStore.pairingFile`)
+    /// Where iLoader X keeps its pairing file (`PrivateStore.pairingFile`)
     /// and the merged file it builds from it (`PrivateStore.combinedPairingFile`),
     /// relative to its container. Release 1.6.5 keeps them there too.
     private static let sideInstallerPairingPath = "Library/Application Support/rp_pairing_file.plist"
     private static let sideInstallerMergedPath = "Library/Application Support/combined_pairing_file.plist"
-    /// The name SideInstaller shows the handed-over file under, as it shows a
+    /// The name iLoader X shows the handed-over file under, as it shows a
     /// picked file's (and “SideStore.plist” for the one SideStore sends).
     static let handedOverPairingName = "SideBySide.plist"
 
-    /// Hands SideInstaller on their iPhone the pair record as an imported
+    /// Hands iLoader X on their iPhone the pair record as an imported
     /// pairing file, left as its own import (`Engine.importPairingFile`) leaves
     /// one: the record where it keeps its pairing file, replacing any there,
     /// the merged file built from an older one deleted, and the file's name
@@ -1642,13 +1642,13 @@ final class SideBySideManager: ObservableObject {
     /// mark has it ask for Local Network first, as an imported file needs.
     ///
     /// Written into Application Support itself, not Documents: at launch
-    /// SideInstaller moves a pairing file from Documents only when it has none,
+    /// iLoader X moves a pairing file from Documents only when it has none,
     /// and deletes it otherwise. Only the record is required; the rest only
     /// logs. Nothing when their iPhone can't use the record (`pairingLeftOutOn`).
     @MainActor
     private func handOffToSideInstaller(ip: String, record: String, bundleID: String) async throws {
         if let version = pairingLeftOutOn {
-            engine.log("Not handing SideInstaller the pairing: their iPhone runs iOS \(version), where lockdownd hangs up on a lockdown record that comes through LocalDevVPN.")
+            engine.log("Not handing iLoader X the pairing: their iPhone runs iOS \(version), where lockdownd hangs up on a lockdown record that comes through LocalDevVPN.")
             return
         }
         let udid = targetUDID
@@ -1657,20 +1657,20 @@ final class SideBySideManager: ObservableObject {
             let pairing = try Self.pairingFileToHandOver(at: record, udid: udid)
             let path = Self.sideInstallerPairingPath
             let written = try self.connection.writeFile(intoBundleID: bundleID, containerPath: path, data: pairing)
-            self.engine.log("Pairing file written into SideInstaller on their iPhone (/\(path), \(written) bytes, read back VERIFIED).")
+            self.engine.log("Pairing file written into iLoader X on their iPhone (/\(path), \(written) bytes, read back VERIFIED).")
             do {
                 try self.connection.removeFile(inBundleID: bundleID, containerPath: Self.sideInstallerMergedPath)
             } catch {
-                self.engine.log("⚠️ Couldn't delete the merged pairing file an earlier SideInstaller left (\(self.short(error))). It may hand other apps the older pairing until it pairs again.")
+                self.engine.log("⚠️ Couldn't delete the merged pairing file an earlier iLoader X left (\(self.short(error))). It may hand other apps the older pairing until it pairs again.")
             }
             let prefsPath = "Library/Preferences/\(bundleID).plist"
             do {
                 try self.connection.updatePlist(inBundleID: bundleID, containerPath: prefsPath) { prefs in
                     prefs[Engine.importedPairingNameKey] = Self.handedOverPairingName
                 }
-                self.engine.log("Marked it as the imported pairing file “\(Self.handedOverPairingName)” (/\(prefsPath)), as SideInstaller's own import does.")
+                self.engine.log("Marked it as the imported pairing file “\(Self.handedOverPairingName)” (/\(prefsPath)), as iLoader X's own import does.")
             } catch {
-                self.engine.log("⚠️ Couldn't mark the pairing file as imported (\(self.short(error))). SideInstaller still connects with it; on iOS 27 it may pair itself instead.")
+                self.engine.log("⚠️ Couldn't mark the pairing file as imported (\(self.short(error))). iLoader X still connects with it; on iOS 27 it may pair itself instead.")
             }
         }
     }
@@ -2197,7 +2197,7 @@ struct SideBySideView: View {
                         .transition(.opacity)
                 } else if let picked = manager.customIPA {
                     Text(picked.build.map {
-                        L("SideInstaller recognizes this as %@ and sets it up just like its own download.", $0.displayName)
+                        L("iLoader X recognizes this as %@ and sets it up just like its own download.", $0.displayName)
                     } ?? L("Signed with the Apple ID and installed as it is, without a pairing file."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -2235,7 +2235,7 @@ struct SideBySideView: View {
             VStack(spacing: 12) {
                 OptionRow(symbol: "network",
                           title: L("Yes"),
-                          detail: L("SideInstaller asks their iPhone to pair directly. Needed below iOS 27."),
+                          detail: L("iLoader X asks their iPhone to pair directly. Needed below iOS 27."),
                           selected: manager.knowsAddress,
                           wrapsDetail: true) {
                     manager.knowsAddress = true
@@ -2822,7 +2822,7 @@ struct SideBySideView: View {
             if let version = manager.pairingLeftOutOn {
                 PanelCard {
                     Label {
-                        Text(L("Their iPhone runs iOS %@. From iOS 26.4 on, SideInstaller can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.",
+                        Text(L("Their iPhone runs iOS %@. From iOS 26.4 on, iLoader X can't use the pairing their iPhone gives over Wi-Fi, so it needs a pairing file made on a computer.",
                                version))
                             .font(.footnote)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2863,10 +2863,10 @@ struct SideBySideView: View {
         case nil, .custom?:
             steps.append(L("Open %@.", manager.installedAppName ?? manager.runName))
         case .sideInstaller?:
-            steps.append(L("Get LocalDevVPN from the App Store and connect it: SideInstaller works through it."))
+            steps.append(L("Get LocalDevVPN from the App Store and connect it: iLoader X works through it."))
             steps.append(manager.pairingLeftOutOn == nil
-                         ? L("Open SideInstaller. Its pairing file is already in place.")
-                         : L("Open SideInstaller and import a pairing file made on a computer."))
+                         ? L("Open iLoader X. Its pairing file is already in place.")
+                         : L("Open iLoader X and import a pairing file made on a computer."))
         case .sideStore?:
             steps.append(L("Get LocalDevVPN from the App Store and connect it: SideStore works through it."))
             steps.append(L("Open SideStore and sign in with the same Apple ID. Its pairing file is already in place."))

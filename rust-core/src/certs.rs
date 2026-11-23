@@ -445,7 +445,7 @@ pub unsafe fn cert_export(
             .cert_content
             .as_ref()
             .ok_or_else(|| (1, "Apple sent the certificate without its content".to_string()))?;
-        let name = cert.name.as_deref().filter(|n| !n.is_empty()).unwrap_or("SideInstaller");
+        let name = cert.name.as_deref().filter(|n| !n.is_empty()).unwrap_or("iLoader X");
         let p12 = crate::p12::archive(cert_der.as_ref(), &key, name, &password).map_err(|e| (1, e))?;
         std::fs::write(&out_path, &p12).map_err(|e| (1, format!("couldn't write the archive: {e}")))?;
         tracing::info!("Certs: exported certificate {serial} ({} byte p12)", p12.len());
