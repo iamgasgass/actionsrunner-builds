@@ -21,6 +21,14 @@
       "screenshotURLs": [],
       "versions": [
         {
+          "version": "1.1.0",
+          "date": "2026-11-24T19:35:56Z",
+          "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.1.0/iLoaderX.ipa",
+          "localizedDescription": "## iLoader X 1.1.0\n\nUpdated to **SideInstaller 2.2.0** by FrizzleM.\n\n### New\n- **JIT**: turn JIT on for development-signed apps from Tools.\n- **Sources**: add app sources under Tools, with updates and release notes. iLoader X's own source is built in.\n- **Shortcuts**: location spoofing, refreshing, installing and pairing as Shortcuts actions.\n- **Pairing**: the pairing file can be installed into ARMSX3.\n- New JIT and Sources tiles in the garnet glass design.\n\n### Fixed\n- **Sign-in**: reports a current Mac spelled \"Mac OS X\", which gets past Apple's HTTP 503.",
+          "size": 18530786,
+          "minOSVersion": "17.4"
+        },
+        {
           "version": "1.0.0",
           "date": "2026-11-23T12:13:52Z",
           "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
@@ -29,11 +37,11 @@
           "minOSVersion": "17.4"
         }
       ],
-      "version": "1.0.0",
-      "versionDate": "2026-11-23T12:13:52Z",
-      "versionDescription": "iLoader X 1.0.0",
-      "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.0.0/iLoaderX.ipa",
-      "size": 17845010,
+      "version": "1.1.0",
+      "versionDate": "2026-11-24T19:35:56Z",
+      "versionDescription": "## iLoader X 1.1.0\n\nUpdated to **SideInstaller 2.2.0** by FrizzleM.\n\n### New\n- **JIT**: turn JIT on for development-signed apps from Tools.\n- **Sources**: add app sources under Tools, with updates and release notes. iLoader X's own source is built in.\n- **Shortcuts**: location spoofing, refreshing, installing and pairing as Shortcuts actions.\n- **Pairing**: the pairing file can be installed into ARMSX3.\n- New JIT and Sources tiles in the garnet glass design.\n\n### Fixed\n- **Sign-in**: reports a current Mac spelled \"Mac OS X\", which gets past Apple's HTTP 503.",
+      "downloadURL": "https://github.com/iamgasgass/iLoaderX/releases/download/v1.1.0/iLoaderX.ipa",
+      "size": 18530786,
       "appPermissions": {
         "entitlements": [],
         "privacy": {
