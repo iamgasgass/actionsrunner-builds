@@ -1,0 +1,8 @@
+*.xcodeproj/
+build/
+DerivedData/
+Payload/
+*.ipa
+xcodebuild.log
+.DS_Store
+RetroRemote/Resources/Info.plist
