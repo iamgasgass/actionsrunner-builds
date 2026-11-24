@@ -96,7 +96,6 @@ jobs:
     # GitHub's Xcode 27 image (macOS 27), as in build.yml.
     runs-on: xcode-27
     timeout-minutes: 60
-    env:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
