@@ -523,7 +523,7 @@ final class Engine {
     private(set) var appIDCost: AppIDCost?
     /// Resumed with the answer to `appIDCost`: true to sign and install.
     @ObservationIgnored private var appIDCostReply: CheckedContinuation<Bool, Never>?
-    /// The `sideinstaller://` link waiting for the go-ahead.
+    /// The `iloaderx://` link waiting for the go-ahead.
     private(set) var pendingLink: DeepLink?
     /// When SideStore was last asked for its pairing file, so the file it sends
     /// back can be told from one some other link brought.
@@ -809,7 +809,7 @@ final class Engine {
         case liveContainerImport
         /// What signing an imported IPA costs in App IDs, before it's signed.
         case appIDCost(AppIDCost)
-        /// A `sideinstaller://` link, asking before it's acted on.
+        /// A `iloaderx://` link, asking before it's acted on.
         case link(DeepLink)
     }
 
@@ -2473,6 +2473,22 @@ final class Engine {
         return true
     }
 
+    /// Gives ARMSX3 the RPPairing record on its own (see
+    /// `ARMSX3PairingHandoff`). Returns false, writing nothing, when the
+    /// pairing file has none. Runs on `deviceQueue`.
+    private func handOffARMSX3Pairing(placementPath: String, bundleID: String) throws -> Bool {
+        let file = try Data(contentsOf: URL(fileURLWithPath: placementPath))
+        guard let record = ARMSX3PairingHandoff.record(from: file) else {
+            log("⚠️ This pairing file has no RPPairing record, the only kind ARMSX3's JIT reads, so nothing was written. Import a remote pairing file (from idevice_pair or iLoader) here, or generate one on iOS 27, then try again.")
+            return false
+        }
+        let rel = ARMSX3PairingHandoff.remoteRelativePath
+        log("Writing the RPPairing record into \(bundleID) /Documents/\(rel) …")
+        let written = try connection.writeFile(intoBundleID: bundleID, remoteRelativePath: rel, data: record)
+        log("Pairing file written into ARMSX3 and read-back VERIFIED (\(written) bytes). ARMSX3 takes it in the next time it opens; if it's open now, close it in the app switcher first.")
+        return true
+    }
+
     /// Gives Madeira the sign-in it renews its own signing with (see
     /// `MadeiraSigningHandoff`), as `madeiraSigningAccountJSON` built it. Returns
     /// whether it's there; failures only log. Runs on `deviceQueue`.
@@ -2821,7 +2837,7 @@ final class Engine {
     //
     // An app can't enable another app's VPN. Instead we open
     // `localdevvpn://enable?scheme=sideinstaller`; LocalDevVPN connects its tunnel
-    // and then opens `sideinstaller://` to return here.
+    // and then opens `iloaderx://` to return here.
 
     private static let localDevVPNScheme = "localdevvpn"
     /// The scheme LocalDevVPN is asked to return to, registered in Info.plist.
@@ -3057,6 +3073,22 @@ final class Engine {
         }
     }
 
+    /// Imports a pairing file a Shortcuts action was handed, as the picker's
+    /// import does, throwing what the picker would show.
+    @MainActor
+    func importPairingFile(data: Data, name: String) throws {
+        guard !isRunning else {
+            throw EngineError.message(L("An install is already running. Wait for it to finish, then try again."))
+        }
+        let kind = PairingFileKind.of(data: data)
+        guard data.count <= 1 << 20, kind.isUsable else {
+            throw EngineError.message(ErrorHelp.explained(L("%@ isn't a pairing file. Pick the file your computer made — a .mobiledevicepairing or .plist holding this iPhone's pair record.",
+                                                            name)))
+        }
+        log("Importing pairing file \(name) from Shortcuts …")
+        try adoptPairingFile(data, kind: kind, name: name)
+    }
+
     /// Makes a checked pairing file the one in use, replacing the one on disk,
     /// and shows it under `name` as the imported file.
     @MainActor
@@ -3089,8 +3121,8 @@ final class Engine {
 
     // MARK: - Links
     //
-    // `sideinstaller://install?url=`, `sideinstaller://pairingFile?data=` and
-    // `sideinstaller://certificate?data=` (see `DeepLink`). Each puts up a popup
+    // `iloaderx://install?url=`, `iloaderx://pairingFile?data=` and
+    // `iloaderx://certificate?data=` (see `DeepLink`). Each puts up a popup
     // first; only its yes acts. SideStore's certificate, sent back because
     // iLoader X asked for it, is the exception: SideStore has just asked
     // whether to export it.
@@ -3098,7 +3130,7 @@ final class Engine {
     /// How long after asking SideStore a pairing file counts as its reply.
     private static let sideStoreReplyWindow: TimeInterval = 5 * 60
 
-    /// Reads a `sideinstaller://` link and puts up its popup. Nothing is
+    /// Reads a `iloaderx://` link and puts up its popup. Nothing is
     /// downloaded or imported yet.
     @MainActor
     func receiveLink(_ url: URL) {
@@ -3109,8 +3141,8 @@ final class Engine {
         switch DeepLink.parse(url, answersSideStore: answersSideStore,
                               answersCertificateRequest: answersCertificateRequest) {
         case .ignored(let action):
-            // LocalDevVPN comes back with a bare `sideinstaller://`.
-            if let action { log("Ignored a sideinstaller://\(action) link: this version has no such action.") }
+            // LocalDevVPN comes back with a bare `iloaderx://`.
+            if let action { log("Ignored a iloaderx://\(action) link: this version has no such action.") }
         case .invalid(let message):
             log("⛔️ Link: \(message)")
             // A run's own popups come first; the log keeps the reason.
@@ -3156,7 +3188,7 @@ final class Engine {
     }
 
     /// Downloads the IPA at `url` as the custom build, then installs it signed
-    /// with the Apple ID's certificate. Used by `sideinstaller://install` links
+    /// with the Apple ID's certificate. Used by `iloaderx://install` links
     /// and the update banner.
     @MainActor
     func installLinkedIPA(_ url: URL) {
@@ -3285,7 +3317,7 @@ final class Engine {
     }
 
     /// Opens SideStore, which sends back the pairing file it has as a
-    /// `sideinstaller://pairingFile` link. That link asks before importing.
+    /// `iloaderx://pairingFile` link. That link asks before importing.
     /// Inside LiveContainer, which the link can't reach, the pairing file the
     /// built-in SideStore keeps is read instead, and the same popup asks.
     @MainActor
@@ -3330,7 +3362,7 @@ final class Engine {
     }
 
     /// Opens SideStore, which asks whether to export its certificate and sends
-    /// it back as a `sideinstaller://certificate` link. `retryInstall` runs the
+    /// it back as a `iloaderx://certificate` link. `retryInstall` runs the
     /// install again once the certificate is in. Calls `failed` when SideStore
     /// can't be opened.
     @MainActor
@@ -3451,7 +3483,10 @@ final class Engine {
         guard connection.isConnected else { throw EngineError.message(L("Device link dropped — reconnect.")) }
         let bundleID = target.bundleID
         if target.app.takesRemoteRecordOnly {
-            guard try handOffMadeiraPairing(placementPath: placementPath, bundleID: bundleID) else {
+            let handed = try target.name == ARMSX3PairingHandoff.appName
+                ? handOffARMSX3Pairing(placementPath: placementPath, bundleID: bundleID)
+                : handOffMadeiraPairing(placementPath: placementPath, bundleID: bundleID)
+            guard handed else {
                 throw EngineError.message(L("This pairing file has no RPPairing record, the only kind %@ reads.", target.name))
             }
             return
@@ -3505,8 +3540,8 @@ final class Engine {
     }
 
     /// Sets SideStore up to sign in the way its users got past Apple's -80046
-    /// (`SideStoreAnisetteHandoff`). After the install, as `handOffSplitPairing`;
-    /// failures only log. Runs on `deviceQueue`.
+    /// and HTTP 503s (`SideStoreAnisetteHandoff`). After the install, as
+    /// `handOffSplitPairing`; failures only log. Runs on `deviceQueue`.
     private func handOffSideStoreAnisette(bundleID: String, appName: String, home: SideStoreHome) {
         let prefsPath = home.preferencesPath(hostBundleID: bundleID)
         do {
@@ -3515,10 +3550,12 @@ final class Engine {
                 changes = SideStoreAnisetteHandoff.applySettings(to: &prefs)
             }
             guard !changes.isEmpty else { return }
-            log("Set \(appName)'s anisette the way SideStore's users get past Apple's -80046: \(changes.joined(separator: ", ")) (/\(prefsPath)).")
-            log("If \(appName)'s own sign-in still fails, use its Settings › User Customizations › Reset adi.pb, with “Keep header customizations” unticked, then sign in again.")
+            log("Set \(appName)'s anisette the way SideStore's users get past Apple's -80046 and HTTP 503s: \(changes.joined(separator: ", ")) (/\(prefsPath)).")
+            // -22410 after a change of client info, until the identity is made
+            // again; unticking would put back the default, which gets 503s.
+            log("If \(appName)'s own sign-in still fails (-22410, -45061), use its Settings › User Customizations › Reset adi.pb, with “Keep header customizations” ticked, then sign in again.")
         } catch {
-            log("⚠️ Couldn't set \(appName)'s anisette settings (\(short(error))). If its sign-in fails with -80046, turn off On-device Anisette and Auto Rotation in its settings and pick “SideStore (New)”.")
+            log("⚠️ Couldn't set \(appName)'s anisette settings (\(short(error))). If its sign-in fails with -80046 or HTTP 503, turn off On-device Anisette and Auto Rotation in its settings, pick “SideStore (New)”, and set its client info to say “Mac OS X” where it says “macOS”.")
         }
     }
 
@@ -3623,11 +3660,29 @@ final class Engine {
     // image and a session kept open while the location is simulated. Same
     // approach as StikDebug, over the RPPairing tunnel.
 
-    /// Connect, and mount the developer disk image unless the device already has
-    /// one. Returns true when a mount actually ran, so the UI can say so.
+    /// Connect, mount the developer disk image unless the device already has
+    /// one, and open the location session. Returns true when a mount actually
+    /// ran, so the UI can say so.
     @MainActor
     @discardableResult
     func prepareLocationSimulation(imagePath: String,
+                                   trustcachePath: String,
+                                   manifestPath: String,
+                                   progress: @escaping (Double) -> Void) async throws -> Bool {
+        let mounted = try await prepareDeveloperDiskImage(imagePath: imagePath,
+                                                          trustcachePath: trustcachePath,
+                                                          manifestPath: manifestPath,
+                                                          progress: progress)
+        try await onDeviceQueue { try self.connection.beginLocationSimulation() }
+        return mounted
+    }
+
+    /// Connect, and mount the developer disk image unless the device already
+    /// has one. Location simulation and JIT both need it: DVT and debugserver
+    /// come with it. Returns true when a mount actually ran.
+    @MainActor
+    @discardableResult
+    func prepareDeveloperDiskImage(imagePath: String,
                                    trustcachePath: String,
                                    manifestPath: String,
                                    progress: @escaping (Double) -> Void) async throws -> Bool {
@@ -3635,7 +3690,6 @@ final class Engine {
         let mounted = try await onDeviceQueue { try self.connection.mountedDeveloperImageCount() }
         if mounted > 0 {
             log("Developer disk image already mounted (\(mounted) image(s)).")
-            try await onDeviceQueue { try self.connection.beginLocationSimulation() }
             return false
         }
         log("No developer disk image mounted — mounting the personalized one…")
@@ -3646,7 +3700,6 @@ final class Engine {
                                                                progress: progress)
         }
         log("Developer disk image mounted.")
-        try await onDeviceQueue { try self.connection.beginLocationSimulation() }
         return true
     }
 
@@ -3671,6 +3724,20 @@ final class Engine {
             self.connection.endLocationSimulation()
         }
         log("Simulated location cleared.")
+    }
+
+    // MARK: - JIT tab
+    //
+    // A JIT session runs over a tunnel of its own (`JITSession`), so only the
+    // checks and the app list go through the shared connection.
+
+    /// Every app installed on the device, as installation_proxy reports them
+    /// (the JIT page keeps those that can be debugged). Opens the device link
+    /// first.
+    @MainActor
+    func installedAppPlists() async throws -> [[String: Any]] {
+        try await ensurePairingConnection()
+        return try await onDeviceQueue { try self.connection.installedAppPlists() }
     }
 
     // MARK: - Crash logs (Report a problem)

@@ -25,6 +25,7 @@ struct RootView: View {
         case entitlements(EntitlementsManager.Popup)
         case location(ToolPopup)
         case apps(ToolPopup)
+        case jit(ToolPopup)
     }
 
     /// Popups that always come up together, so they share one card.
@@ -58,11 +59,17 @@ struct RootView: View {
     @EnvironmentObject private var accounts: AccountStore
     /// Owned here so they survive tab switches and share the one `Engine`.
     @StateObject private var certManager = CertManager()
-    @StateObject private var pairingManager = PairingManager()
-    @StateObject private var locationManager = LocationManager()
+    /// The app's own, shared with the JIT page, which generates a missing
+    /// pairing file with it.
+    @ObservedObject private var pairingManager = PairingManager.shared
+    /// The app's own, shared with the Shortcuts actions.
+    @ObservedObject private var locationManager = LocationManager.shared
     @StateObject private var entitlementsManager = EntitlementsManager()
-    @StateObject private var appsManager = SideloadedAppsManager()
+    /// The app's own, shared with the Shortcuts actions.
+    @ObservedObject private var appsManager = SideloadedAppsManager.shared
     @StateObject private var sideBySideManager = SideBySideManager()
+    @StateObject private var sourcesManager = SourcesManager()
+    @StateObject private var jitManager = JITManager()
     /// What the sign-in sheet showed last, so it keeps its content while it
     /// slides away after the sign-in clears it.
     @State private var shownSignInSheet: SignInSheet?
@@ -79,7 +86,9 @@ struct RootView: View {
                       locationManager: locationManager,
                       entitlementsManager: entitlementsManager,
                       appsManager: appsManager,
-                      sideBySideManager: sideBySideManager)
+                      sideBySideManager: sideBySideManager,
+                      sourcesManager: sourcesManager,
+                      jitManager: jitManager)
                 .tabItem { Label(L("Tools"), systemImage: "wrench.and.screwdriver") }
                 .tag(Page.tools)
             AboutView()
@@ -116,6 +125,10 @@ struct RootView: View {
             entitlementsManager.signOut()
             sideBySideManager.signOut()
         }
+        // The sources are checked for updates once when iLoader X opens,
+        // as SideInstallerApp checks iLoader X itself, so the Sources tile
+        // can show how many there are.
+        .task { await sourcesManager.checkAtLaunch(apps: appsManager) }
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         // A swipe down is a cancel; the sign-in closing it is not.
@@ -186,7 +199,8 @@ struct RootView: View {
                      certManager.popups.map(PopupItem.certificates),
                      entitlementsManager.popups.map(PopupItem.entitlements),
                      locationManager.popups.map(PopupItem.location),
-                     appsManager.popups.map(PopupItem.apps)]
+                     appsManager.popups.map(PopupItem.apps),
+                     jitManager.popups.map(PopupItem.jit)]
         let waiting = pages.filter { $0.contains(where: blocks) }
         let others = pages.filter { !$0.contains(where: blocks) }
         return Array((waiting + others).joined())
@@ -216,10 +230,11 @@ struct RootView: View {
     private func sound(for item: PopupItem) -> UISound? {
         switch item {
         case .install(.error), .install(.certConflict), .pairing(.error),
-             .certificates(.error), .entitlements(.error), .location(.error), .apps(.error):
+             .certificates(.error), .entitlements(.error), .location(.error), .apps(.error),
+             .jit(.error):
             .error
         case .install(.success), .pairing(.success),
-             .certificates(.success), .location(.success), .apps(.success):
+             .certificates(.success), .location(.success), .apps(.success), .jit(.success):
             .success
         // Apple granting nothing it was asked for is a failure.
         case .entitlements(.results(_, let outcomes)):
@@ -241,7 +256,7 @@ struct RootView: View {
         case .install(let popup):    engine.blocks(popup)
         case .pairing(let popup):    pairingManager.blocks(popup)
         // The Tools pages only report; nothing waits on their popups.
-        case .certificates, .entitlements, .location, .apps: false
+        case .certificates, .entitlements, .location, .apps, .jit: false
         }
     }
 
@@ -278,7 +293,7 @@ struct RootView: View {
             nil
         case .pairing(.pairingCode), .pairing(.pairInSettings):
             .pairingPage
-        case .pairing, .certificates, .entitlements, .location, .apps:
+        case .pairing, .certificates, .entitlements, .location, .apps, .jit:
             nil
         }
     }
@@ -316,6 +331,7 @@ struct RootView: View {
         case .entitlements(let popup): entitlementsManager.closePopup(popup)
         case .location(let popup):     locationManager.closePopup(popup)
         case .apps(let popup):         appsManager.closePopup(popup)
+        case .jit(let popup):          jitManager.closePopup(popup)
         }
     }
 
@@ -355,6 +371,8 @@ struct RootView: View {
             toolPopup(popup, successTitle: L("Location spoofing")) { locationManager.closePopup(popup) }
         case .apps(let popup):
             toolPopup(popup, successTitle: L("Sideloaded apps")) { appsManager.closePopup(popup) }
+        case .jit(let popup):
+            toolPopup(popup, successTitle: L("JIT")) { jitManager.closePopup(popup) }
         }
     }
 
@@ -544,6 +562,8 @@ struct ToolsView: View {
     @ObservedObject var entitlementsManager: EntitlementsManager
     @ObservedObject var appsManager: SideloadedAppsManager
     @ObservedObject var sideBySideManager: SideBySideManager
+    @ObservedObject var sourcesManager: SourcesManager
+    @ObservedObject var jitManager: JITManager
 
     @State private var showSettings = false
 
@@ -572,33 +592,48 @@ struct ToolsView: View {
                             .cascadeItem(2)
                         }
                         NavigationLink {
+                            JITView(manager: jitManager)
+                        } label: {
+                            ToolTile(image: "JITLogo", title: L("JIT"))
+                        }
+                        .buttonStyle(.plain, sound: .tick)
+                        .cascadeItem(rowIndex(2))
+                        NavigationLink {
                             CertsView(manager: certManager)
                         } label: {
                             ToolTile(image: "CertsLogo", title: L("Certificates"))
                         }
                         .buttonStyle(.plain, sound: .tick)
-                        .cascadeItem(rowIndex(2))
+                        .cascadeItem(rowIndex(3))
                         NavigationLink {
                             EntitlementsView(manager: entitlementsManager)
                         } label: {
                             ToolTile(image: "EntitlementsLogo", title: L("Entitlements"))
                         }
                         .buttonStyle(.plain, sound: .tick)
-                        .cascadeItem(rowIndex(3))
+                        .cascadeItem(rowIndex(4))
                         NavigationLink {
                             LocationView(manager: locationManager)
                         } label: {
                             ToolTile(image: "LocationLogo", title: L("Location spoofing"))
                         }
                         .buttonStyle(.plain, sound: .tick)
-                        .cascadeItem(rowIndex(4))
+                        .cascadeItem(rowIndex(5))
                         NavigationLink {
                             AppsView(manager: appsManager)
                         } label: {
                             ToolTile(image: "AppsLogo", title: L("Sideloaded apps"))
                         }
                         .buttonStyle(.plain, sound: .tick)
-                        .cascadeItem(rowIndex(5))
+                        .cascadeItem(rowIndex(6))
+                        NavigationLink {
+                            SourcesView(manager: sourcesManager, appsManager: appsManager)
+                        } label: {
+                            ToolTile(image: "SourcesLogo", title: L("Sources"),
+                                     count: sourcesManager.updateCount(installed: appsManager.entries))
+                        }
+                        .buttonStyle(.plain, sound: .tick)
+                        .cascadeItem(rowIndex(7))
                     }
                 }
                 // No bottom padding: the tab bar's inset already clears the last
@@ -639,6 +674,8 @@ private struct ToolTile: View {
     var title: String
     /// Shows a Beta badge in the top corner.
     var beta: Bool = false
+    /// A count in the top corner, such as the updates Sources found. 0 hides it.
+    var count: Int = 0
 
     var body: some View {
         let logo = RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -662,6 +699,16 @@ private struct ToolTile: View {
             if beta {
                 BetaBadge()
                     .padding(12)
+            }
+            if count > 0 {
+                Text("\(count)")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 24, minHeight: 24)
+                    .padding(.horizontal, count > 9 ? 4 : 0)
+                    .background(Capsule().fill(Theme.warning))
+                    .padding(12)
+                    .accessibilityLabel(count == 1 ? L("%d update", count) : L("%d updates", count))
             }
         }
         .cardSurface(in: tile)

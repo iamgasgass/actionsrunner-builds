@@ -5,7 +5,7 @@ import Security
 /// certificate” while iLoader X runs inside LiveContainer (issue #95).
 ///
 /// Asking SideStore can't work there. iOS opens only the URL schemes in
-/// LiveContainer's Info.plist, which has no `sideinstaller`, so the link
+/// LiveContainer's Info.plist, which has no `iloaderx`, so the link
 /// SideStore sends back goes nowhere. LiveContainer's own links don't help
 /// either: while a guest app runs it drops every `livecontainer://` link it
 /// doesn't handle itself, and its `open-url` forwarding wants the whole link

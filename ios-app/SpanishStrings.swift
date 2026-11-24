@@ -1131,7 +1131,7 @@ let spanishStrings: [String: String] = [
     "This Apple ID can register %d a week.":
         "Este Apple ID puede registrar %d por semana.",
 
-    // MARK: - Links (sideinstaller://install, sideinstaller://pairingFile)
+    // MARK: - Links (iloaderx://install, iloaderx://pairingFile)
 
     "Install from a link?": "¿Instalar desde un enlace?",
     "Download and install": "Descargar e instalar",
@@ -1334,4 +1334,133 @@ let spanishStrings: [String: String] = [
         "No se pudo cambiar el icono: %@",
     "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
         "Cada icono tiene versiones Oscura y Tintada, que iOS usa según el aspecto de la pantalla de inicio.",
+    // Shortcuts actions (ShortcutsSupport.swift and the *Shortcuts.swift files).
+    "%@ can't be refreshed: iLoader X has no IPA to sign it again from. Refresh it in whatever installed it, or import its .ipa into iLoader X first.":
+        "No se puede renovar %@: iLoader X no tiene un IPA con el que volver a firmarla. Renuévala en la app que la instaló o importa antes su .ipa en iLoader X.",
+    "%@ is installed.":
+        "%@ está instalado.",
+    "Apple is asking you to finish signing in. Continue in iLoader X to answer it.":
+        "Apple te pide que termines de iniciar sesión. Continúa en iLoader X para responder.",
+    "LocalDevVPN is connected.":
+        "LocalDevVPN está conectada.",
+    "LocalDevVPN isn't connected. Connect it before this action runs: Shortcuts' Set VPN action can, or turn on “Start LocalDevVPN when needed” in iLoader X's Settings.":
+        "LocalDevVPN no está conectada. Conéctala antes de que se ejecute esta acción: la acción de VPN de Atajos puede hacerlo. Si no, activa “Iniciar LocalDevVPN cuando haga falta” en los Ajustes de iLoader X.",
+    "LocalDevVPN isn't connected. Continue in iLoader X to connect it.":
+        "LocalDevVPN no está conectada. Continúa en iLoader X para conectarla.",
+    "No route is playing.":
+        "No se está reproduciendo ninguna ruta.",
+    "Open iLoader X and accept its terms first.":
+        "Primero abre iLoader X y acepta sus términos.",
+    "Pick where the route starts, or set a location first.":
+        "Elige dónde empieza la ruta o fija antes una ubicación.",
+    "Route started: %@, about %@.":
+        "Ruta iniciada: %@, unos %@.",
+    "That place has no coordinates. Pick it on the map, or type its address.":
+        "Ese lugar no tiene coordenadas. Elígelo en el mapa o escribe su dirección.",
+    "The install didn't start. Open iLoader X to see why.":
+        "La instalación no se ha iniciado. Abre iLoader X para ver por qué.",
+
+    // MARK: - Sources
+
+    "Suggested":
+        "Sugeridas",
+
+    "Paste the link of a SideStore or AltStore source, or of a .json source file. Its apps, their updates and release notes show here.":
+        "Pega el enlace de una fuente de SideStore o AltStore, o de un archivo de fuente .json. Sus apps, actualizaciones y notas aparecerán aquí.",
+
+    "Sources":
+        "Fuentes",
+    "Add a source":
+        "Añadir una fuente",
+    "Add":
+        "Añadir",
+    "Apps":
+        "Apps",
+    "Updates":
+        "Actualizaciones",
+    "Update":
+        "Actualizar",
+    "Your sources":
+        "Tus fuentes",
+    "Check for updates":
+        "Buscar actualizaciones",
+    "Copy link":
+        "Copiar enlace",
+    "Source options":
+        "Opciones de la fuente",
+    "Loading…":
+        "Cargando…",
+    "What's new":
+        "Novedades",
+    "Version history":
+        "Historial de versiones",
+    "This version has no release notes.":
+        "Esta versión no tiene notas.",
+    "%d update":
+        "%d actualización",
+    "%d updates":
+        "%d actualizaciones",
+    "%d source":
+        "%d fuente",
+    "%d sources":
+        "%d fuentes",
+    "Update to %@":
+        "Actualizar a %@",
+    "Install %@ %@?":
+        "¿Instalar %@ %@?",
+    "Version %@ · from %@":
+        "Versión %@ · de %@",
+    "%@ installed · %@ available":
+        "%@ instalada · %@ disponible",
+    "%@ installed · up to date":
+        "%@ instalada · al día",
+    "That source is already added.":
+        "Esa fuente ya está añadida.",
+    "The source answered with HTTP %d.":
+        "La fuente respondió con HTTP %d.",
+    "Couldn't reach the source: %@":
+        "No se pudo acceder a la fuente: %@",
+    "That isn't a source link. Paste the whole https:// address of the source.":
+        "Eso no es un enlace de fuente. Pega la dirección https:// completa de la fuente.",
+    "That link didn't return a source. It has to be the source's JSON file itself.":
+        "Ese enlace no devolvió una fuente. Tiene que ser el archivo JSON de la fuente.",
+    "Downloads the IPA from the source, then signs it with your Apple ID and installs it, as a custom .ipa would be.":
+        "Descarga el IPA de la fuente y luego lo firma con tu Apple ID y lo instala, como un .ipa personalizado.",
+    "This version is older than the newest one. It's installed over the copy on this iPhone, which may not open data a newer version saved.":
+        "Esta versión es más antigua que la más reciente. Se instala sobre la copia de este iPhone, que quizá no abra datos guardados por una versión más nueva.",
+    "This version is older than the one on this iPhone (%@). Installed over it, it may not open data the newer version saved.":
+        "Esta versión es más antigua que la de este iPhone (%@). Instalada encima, quizá no abra los datos guardados por la versión más nueva.",
+
+    // MARK: - JIT
+
+    "%@ has the JIT memory it asked for, so iLoader X let go of it. JIT stays on until it quits.":
+        "%@ ya tiene la memoria JIT que pidió, así que iLoader X la soltó. El JIT sigue activo hasta que se cierre.",
+    "%@ of JIT memory prepared": "%@ de memoria JIT preparada",
+    "%d app can use JIT": "%d app puede usar JIT",
+    "%d apps can use JIT": "%d apps pueden usar JIT",
+    "Attach and detach": "Adjuntar y soltar",
+    "Attaching the debugger": "Adjuntando el depurador",
+    "Auto: %@": "Automático: %@",
+    "Connecting to this iPhone's debugger": "Conectando con el depurador de este iPhone",
+    "Couldn't open %@ under the debugger: %@": "No se pudo abrir %@ con el depurador: %@",
+    "Couldn't reach the debugger on this iPhone: %@":
+        "No se pudo llegar al depurador de este iPhone: %@",
+    "Enable JIT": "Activar JIT",
+    "JIT is on for %@ until it quits.": "JIT activo para %@ hasta que se cierre.",
+    "JIT is on. iLoader X stays attached while %@ runs: keep iLoader X in the background, since closing it ends JIT.":
+        "JIT activo. iLoader X sigue adjunto mientras %@ se ejecuta: deja iLoader X en segundo plano, porque cerrarlo termina el JIT.",
+    "JIT needs Developer Mode. Turn it on under Settings › Privacy & Security › Developer Mode, and confirm it after the restart.":
+        "El JIT necesita el Modo desarrollador. Actívalo en Ajustes › Privacidad y seguridad › Modo desarrollador, y confírmalo después del reinicio.",
+    "JIT on for %@": "JIT activo para %@",
+    "Legacy": "Heredado",
+    "No app on this iPhone is signed for development, which a debugger needs. Install the app with SideStore or iLoader X, which sign apps that way, then load the apps again.":
+        "Ninguna app de este iPhone está firmada para desarrollo, algo que un depurador necesita. Instala la app con SideStore o iLoader X, que firman las apps así, y vuelve a cargar las apps.",
+    "No apps can use JIT": "Ninguna app puede usar JIT",
+    "Opening %@": "Abriendo %@",
+    "Quit %@": "Cerrar %@",
+    "The debugger couldn't attach to %@ (%@). Install it again with SideStore or iLoader X, which sign apps so a debugger can attach.":
+        "El depurador no pudo adjuntarse a %@ (%@). Vuelve a instalarla con SideStore o iLoader X, que firman las apps para que un depurador pueda adjuntarse.",
+    "The debugger lost %@ (%@). Open it with JIT again.":
+        "El depurador perdió %@ (%@). Vuelve a abrirla con JIT.",
+    "Universal": "Universal",
 ]

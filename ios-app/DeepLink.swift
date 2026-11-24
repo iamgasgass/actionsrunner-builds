@@ -1,16 +1,16 @@
 import Foundation
 
-/// A `sideinstaller://` link opened from a web page, a chat or another app.
+/// A `iloaderx://` link opened from a web page, a chat or another app.
 /// Nothing acts on one until the user says yes to its popup.
 enum DeepLink: Hashable {
-    /// `sideinstaller://install?url=<link to an .ipa>`: download that IPA as the
+    /// `iloaderx://install?url=<link to an .ipa>`: download that IPA as the
     /// custom build, then install it.
     case install(URL)
-    /// `sideinstaller://pairingFile?data=<base64 plist>`: a pairing file to
+    /// `iloaderx://pairingFile?data=<base64 plist>`: a pairing file to
     /// import. SideStore sends one back when asked with
-    /// `sidestore://pairing?urlname=sideinstaller`.
+    /// `sidestore://pairing?urlname=iloaderx`.
     case pairingFile(LinkedPairingFile)
-    /// `sideinstaller://certificate?data=<base64 PKCS#12>&password=<password>`:
+    /// `iloaderx://certificate?data=<base64 PKCS#12>&password=<password>`:
     /// a signing certificate and its private key to sign with. SideStore sends
     /// its own when asked with `sidestore://certificate?callback_template=`.
     case certificate(LinkedCertificate)
@@ -18,7 +18,7 @@ enum DeepLink: Hashable {
     /// The scheme registered in Info.plist.
     static let scheme = "iloaderx"
 
-    /// What a `sideinstaller://` URL asks for.
+    /// What a `iloaderx://` URL asks for.
     enum Parsed {
         case link(DeepLink)
         /// Nothing to do: LocalDevVPN returning to the app, or an action this

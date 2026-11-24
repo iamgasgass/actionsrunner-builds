@@ -56,7 +56,7 @@ struct SideInstallerApp: App {
             // Every switch in the app clicks on and off.
             .toggleStyle(SoundingToggleStyle())
             // Files opened in the app (share sheet, "Open with", other apps), as
-            // an alternative to the document picker, and `sideinstaller://`
+            // an alternative to the document picker, and `iloaderx://`
             // links, which ask before doing anything.
             .onOpenURL { url in
                 guard url.isFileURL else {

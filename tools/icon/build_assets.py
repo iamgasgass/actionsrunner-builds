@@ -120,7 +120,8 @@ appiconset("AppIcon", "glass-light.png", "glass-dark.png", "glass-tinted.png", d
 appiconset("AppIcon-iOS6", "ios6-light.png", "ios6-dark.png", "ios6-tinted.png")
 imageset("AppLogo", "glass-light.png", "glass-dark.png", LOGO_DARK_BG)
 imageset("IconPreviewIOS6", "ios6-light.png", "ios6-dark.png")
-for tool in ("AppsLogo", "CertsLogo", "DownloadsLogo", "EntitlementsLogo", "LocationLogo", "PairingLogo", "SideBySideLogo"):
+for tool in ("AppsLogo", "CertsLogo", "DownloadsLogo", "EntitlementsLogo", "LocationLogo", "PairingLogo", "SideBySideLogo",
+             "JITLogo", "SourcesLogo"):
     imageset(tool, f"tool-{tool}-light.png", f"tool-{tool}-dark.png")
 (root / "docs").mkdir(exist_ok=True)
 tile("glass-light.png", 512, (255, 255, 255)).save(root / "docs" / "icon.png", optimize=True)

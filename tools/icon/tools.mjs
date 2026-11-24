@@ -1,7 +1,9 @@
 // The in-app tool tiles (Apps, Certificates, Downloads, Entitlements,
-// Location, Pairing, Side by Side), redrawn in the iLoader X icon's design:
+// Location, Pairing, Side by Side, JIT, Sources), redrawn in the iLoader X icon's design:
 // the same light backdrop and garnet Liquid Glass glyph (lift shadow, inner
 // glow, specular rim, sheen) as the app icon, with a dark variant.
+//
+// JIT and Sources came with SideInstaller 2.2.0 (Tools › JIT, Tools › Sources).
 //
 // Each glyph is a function of a paint: what it fills or strokes with. Holes
 // are cut with masks, so one glass piece covers the whole glyph.
@@ -29,6 +31,7 @@ export const TOOL_DEFS = [
   cut("cutCheck", line("M392,520 L476,604 L640,436", "#000", 72)),
   cut("cutArrow", line("M512,470 L512,650 M430,580 L512,662 L594,580", "#000", 60)),
   cut("cutPin", `<circle cx="512" cy="420" r="92" fill="#000"/>`),
+  cut("cutBox", line("M232,340 L512,480 L792,340 M512,480 L512,840 M372,270 L652,410", "#000", 36)),
 ].join("");
 
 export const TOOLS = {
@@ -66,4 +69,10 @@ export const TOOLS = {
     rrect(472, 774, 80, 24, 12, `fill="${p}"`) +
     line("M396,372 Q512,280 628,372", p, 56) +
     line("M296,292 Q512,120 728,292", p, 56),
+  // A lightning bolt: JIT.
+  JITLogo: (p) =>
+    `<path d="M598,152 L318,566 L494,566 L430,872 L716,436 L538,436 L618,152 Z" fill="${p}" stroke="${p}" stroke-width="36" stroke-linejoin="round"/>`,
+  // A package: app sources.
+  SourcesLogo: (p) =>
+    `<path d="M512,196 L800,340 L800,668 L512,828 L224,668 L224,340 Z" fill="${p}" stroke="${p}" stroke-width="40" stroke-linejoin="round" mask="url(#cutBox)"/>`,
 };

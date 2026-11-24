@@ -1094,7 +1094,7 @@ let chineseStrings: [String: String] = [
         "签名时只为 App 注册一个 App ID，其扩展共用它。它会占用 7 天。",
     "This Apple ID can register %d a week.": "此 Apple ID 每周可注册 %d 个。",
 
-    // MARK: - Links (sideinstaller://install, sideinstaller://pairingFile)
+    // MARK: - Links (iloaderx://install, iloaderx://pairingFile)
 
     "Install from a link?": "从链接安装？",
     "Download and install": "下载并安装",
@@ -1286,4 +1286,131 @@ let chineseStrings: [String: String] = [
         "无法更改图标：%@",
     "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
         "每个图标都有深色和着色版本，iOS 会根据主屏幕的外观使用它们。",
+    // Shortcuts actions (ShortcutsSupport.swift and the *Shortcuts.swift files).
+    "%@ can't be refreshed: iLoader X has no IPA to sign it again from. Refresh it in whatever installed it, or import its .ipa into iLoader X first.":
+        "无法续签 %@：iLoader X 没有可用来重新签名的 IPA。请在安装它的应用里续签，或先将它的 .ipa 导入 iLoader X。",
+    "%@ is installed.":
+        "%@ 已安装。",
+    "Apple is asking you to finish signing in. Continue in iLoader X to answer it.":
+        "Apple 要求你完成登录。请在 iLoader X 中继续操作。",
+    "LocalDevVPN is connected.":
+        "LocalDevVPN 已连接。",
+    "LocalDevVPN isn't connected. Connect it before this action runs: Shortcuts' Set VPN action can, or turn on “Start LocalDevVPN when needed” in iLoader X's Settings.":
+        "LocalDevVPN 未连接。请在此操作运行前连接它：“快捷指令”的 VPN 操作可以做到；也可以在 iLoader X 的设置中打开“需要时打开 LocalDevVPN”。",
+    "LocalDevVPN isn't connected. Continue in iLoader X to connect it.":
+        "LocalDevVPN 未连接。请在 iLoader X 中继续以连接它。",
+    "No route is playing.":
+        "没有正在播放的路线。",
+    "Open iLoader X and accept its terms first.":
+        "请先打开 iLoader X 并接受其条款。",
+    "Pick where the route starts, or set a location first.":
+        "请选择路线的起点，或先设置一个位置。",
+    "Route started: %@, about %@.":
+        "路线已开始：%@，约 %@。",
+    "That place has no coordinates. Pick it on the map, or type its address.":
+        "该地点没有坐标。请在地图上选择，或输入它的地址。",
+    "The install didn't start. Open iLoader X to see why.":
+        "安装没有开始。请打开 iLoader X 查看原因。",
+
+    // MARK: - Sources
+
+    "Suggested":
+        "推荐",
+
+    "Paste the link of a SideStore or AltStore source, or of a .json source file. Its apps, their updates and release notes show here.":
+        "粘贴 SideStore 或 AltStore 源的链接，或 .json 源文件的链接。它的应用、更新和发布说明会显示在这里。",
+
+    "Sources":
+        "源",
+    "Add a source":
+        "添加源",
+    "Add":
+        "添加",
+    "Apps":
+        "应用",
+    "Updates":
+        "更新",
+    "Update":
+        "更新",
+    "Your sources":
+        "你的源",
+    "Check for updates":
+        "检查更新",
+    "Copy link":
+        "拷贝链接",
+    "Source options":
+        "源选项",
+    "Loading…":
+        "正在载入…",
+    "What's new":
+        "新功能",
+    "Version history":
+        "版本历史",
+    "This version has no release notes.":
+        "此版本没有发布说明。",
+    "%d update":
+        "%d 个更新",
+    "%d updates":
+        "%d 个更新",
+    "%d source":
+        "%d 个源",
+    "%d sources":
+        "%d 个源",
+    "Update to %@":
+        "更新到 %@",
+    "Install %@ %@?":
+        "安装 %@ %@？",
+    "Version %@ · from %@":
+        "版本 %@ · 来自 %@",
+    "%@ installed · %@ available":
+        "已安装 %@ · 可用 %@",
+    "%@ installed · up to date":
+        "已安装 %@ · 已是最新",
+    "That source is already added.":
+        "该源已添加。",
+    "The source answered with HTTP %d.":
+        "源返回了 HTTP %d。",
+    "Couldn't reach the source: %@":
+        "无法访问该源：%@",
+    "That isn't a source link. Paste the whole https:// address of the source.":
+        "这不是源链接。请粘贴源的完整 https:// 地址。",
+    "That link didn't return a source. It has to be the source's JSON file itself.":
+        "该链接未返回源。它必须是源的 JSON 文件本身。",
+    "Downloads the IPA from the source, then signs it with your Apple ID and installs it, as a custom .ipa would be.":
+        "从源下载 IPA，然后用你的 Apple 账户签名并安装，与自定义 .ipa 相同。",
+    "This version is older than the newest one. It's installed over the copy on this iPhone, which may not open data a newer version saved.":
+        "此版本比最新版本旧。它会覆盖安装在此 iPhone 上的副本，可能无法打开较新版本保存的数据。",
+    "This version is older than the one on this iPhone (%@). Installed over it, it may not open data the newer version saved.":
+        "此版本比此 iPhone 上的版本（%@）旧。覆盖安装后，它可能无法打开较新版本保存的数据。",
+
+    // MARK: - JIT
+
+    "%@ has the JIT memory it asked for, so iLoader X let go of it. JIT stays on until it quits.":
+        "%@ 已拿到所需的 JIT 内存，因此 iLoader X 已与它分离。JIT 会保持开启，直到它退出。",
+    "%@ of JIT memory prepared": "已准备 %@ JIT 内存",
+    "%d app can use JIT": "%d 个应用可使用 JIT",
+    "%d apps can use JIT": "%d 个应用可使用 JIT",
+    "Attach and detach": "附加后分离",
+    "Attaching the debugger": "正在附加调试器",
+    "Auto: %@": "自动：%@",
+    "Connecting to this iPhone's debugger": "正在连接此 iPhone 的调试器",
+    "Couldn't open %@ under the debugger: %@": "无法在调试器下打开 %@：%@",
+    "Couldn't reach the debugger on this iPhone: %@": "无法连接此 iPhone 的调试器：%@",
+    "Enable JIT": "启用 JIT",
+    "JIT is on for %@ until it quits.": "%@ 的 JIT 已开启，直到它退出。",
+    "JIT is on. iLoader X stays attached while %@ runs: keep iLoader X in the background, since closing it ends JIT.":
+        "JIT 已开启。%@ 运行期间，iLoader X 会保持附加：请让 iLoader X 留在后台，关闭它会结束 JIT。",
+    "JIT needs Developer Mode. Turn it on under Settings › Privacy & Security › Developer Mode, and confirm it after the restart.":
+        "JIT 需要开发者模式。在 设置 › 隐私与安全性 › 开发者模式 中打开它，并在重启后确认。",
+    "JIT on for %@": "%@ 的 JIT 已开启",
+    "Legacy": "旧版",
+    "No app on this iPhone is signed for development, which a debugger needs. Install the app with SideStore or iLoader X, which sign apps that way, then load the apps again.":
+        "此 iPhone 上没有以开发方式签名的应用，而调试器需要这种签名。请用 SideStore 或 iLoader X 安装该应用（它们都这样签名），然后重新加载应用。",
+    "No apps can use JIT": "没有可使用 JIT 的应用",
+    "Opening %@": "正在打开 %@",
+    "Quit %@": "退出 %@",
+    "The debugger couldn't attach to %@ (%@). Install it again with SideStore or iLoader X, which sign apps so a debugger can attach.":
+        "调试器无法附加到 %@（%@）。请用 SideStore 或 iLoader X 重新安装它，它们签名的应用可以被调试器附加。",
+    "The debugger lost %@ (%@). Open it with JIT again.": "调试器与 %@ 断开了（%@）。请再次用 JIT 打开它。",
+    "Universal": "通用",
 ]

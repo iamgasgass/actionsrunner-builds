@@ -1200,7 +1200,7 @@ struct InstallPopup: View {
 
     // MARK: Links
 
-    /// A `sideinstaller://` link, with what it would do, waiting for a yes.
+    /// A `iloaderx://` link, with what it would do, waiting for a yes.
     @ViewBuilder
     private func linkPopup(_ link: DeepLink) -> some View {
         switch link {

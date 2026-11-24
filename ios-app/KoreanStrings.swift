@@ -1101,7 +1101,7 @@ let koreanStrings: [String: String] = [
         "서명하면 앱에 App ID가 하나 등록되며 앱의 확장 기능이 이를 함께 사용합니다. 이 App ID는 7일 동안 개수에 포함됩니다.",
     "This Apple ID can register %d a week.": "이 Apple ID는 일주일에 %d개를 등록할 수 있습니다.",
 
-    // MARK: - Links (sideinstaller://install, sideinstaller://pairingFile)
+    // MARK: - Links (iloaderx://install, iloaderx://pairingFile)
 
     "Install from a link?": "링크에서 설치하시겠습니까?",
     "Download and install": "다운로드 및 설치",
@@ -1299,4 +1299,131 @@ let koreanStrings: [String: String] = [
         "아이콘을 변경할 수 없습니다: %@",
     "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
         "각 아이콘에는 다크 및 색조 버전이 있으며, iOS가 홈 화면 모양에 따라 사용합니다.",
+    // Shortcuts actions (ShortcutsSupport.swift and the *Shortcuts.swift files).
+    "%@ can't be refreshed: iLoader X has no IPA to sign it again from. Refresh it in whatever installed it, or import its .ipa into iLoader X first.":
+        "%@을(를) 갱신할 수 없습니다. iLoader X에 다시 서명할 IPA가 없습니다. 설치한 도구에서 갱신하거나, 먼저 해당 .ipa를 iLoader X로 가져오세요.",
+    "%@ is installed.":
+        "%@ 앱이 설치되었습니다.",
+    "Apple is asking you to finish signing in. Continue in iLoader X to answer it.":
+        "Apple이 로그인을 마치도록 요청하고 있습니다. iLoader X에서 계속하여 응답하세요.",
+    "LocalDevVPN is connected.":
+        "LocalDevVPN이 연결되어 있습니다.",
+    "LocalDevVPN isn't connected. Connect it before this action runs: Shortcuts' Set VPN action can, or turn on “Start LocalDevVPN when needed” in iLoader X's Settings.":
+        "LocalDevVPN이 연결되어 있지 않습니다. 이 동작이 실행되기 전에 연결하세요. 단축어의 VPN 동작으로 연결할 수 있습니다. 또는 iLoader X 설정에서 “필요할 때 LocalDevVPN 시작”을 켜세요.",
+    "LocalDevVPN isn't connected. Continue in iLoader X to connect it.":
+        "LocalDevVPN이 연결되어 있지 않습니다. 연결하려면 iLoader X에서 계속하세요.",
+    "No route is playing.":
+        "재생 중인 경로가 없습니다.",
+    "Open iLoader X and accept its terms first.":
+        "먼저 iLoader X를 열고 약관에 동의하세요.",
+    "Pick where the route starts, or set a location first.":
+        "경로의 출발 지점을 고르거나, 먼저 위치를 설정하세요.",
+    "Route started: %@, about %@.":
+        "경로를 시작했습니다: %@, 약 %@.",
+    "That place has no coordinates. Pick it on the map, or type its address.":
+        "그 장소에는 좌표가 없습니다. 지도에서 고르거나 주소를 입력하세요.",
+    "The install didn't start. Open iLoader X to see why.":
+        "설치가 시작되지 않았습니다. iLoader X를 열어 이유를 확인하세요.",
+
+    // MARK: - Sources
+
+    "Suggested":
+        "추천",
+
+    "Paste the link of a SideStore or AltStore source, or of a .json source file. Its apps, their updates and release notes show here.":
+        "SideStore 또는 AltStore 소스, 또는 .json 소스 파일의 링크를 붙여 넣으세요. 앱, 업데이트, 릴리스 노트가 여기에 표시됩니다.",
+
+    "Sources":
+        "소스",
+    "Add a source":
+        "소스 추가",
+    "Add":
+        "추가",
+    "Apps":
+        "앱",
+    "Updates":
+        "업데이트",
+    "Update":
+        "업데이트",
+    "Your sources":
+        "내 소스",
+    "Check for updates":
+        "업데이트 확인",
+    "Copy link":
+        "링크 복사",
+    "Source options":
+        "소스 옵션",
+    "Loading…":
+        "불러오는 중…",
+    "What's new":
+        "새로운 기능",
+    "Version history":
+        "버전 기록",
+    "This version has no release notes.":
+        "이 버전에는 릴리스 노트가 없습니다.",
+    "%d update":
+        "업데이트 %d개",
+    "%d updates":
+        "업데이트 %d개",
+    "%d source":
+        "소스 %d개",
+    "%d sources":
+        "소스 %d개",
+    "Update to %@":
+        "%@(으)로 업데이트",
+    "Install %@ %@?":
+        "%@ %@을(를) 설치하시겠습니까?",
+    "Version %@ · from %@":
+        "버전 %@ · 출처: %@",
+    "%@ installed · %@ available":
+        "%@ 설치됨 · %@ 사용 가능",
+    "%@ installed · up to date":
+        "%@ 설치됨 · 최신 버전",
+    "That source is already added.":
+        "이미 추가된 소스입니다.",
+    "The source answered with HTTP %d.":
+        "소스가 HTTP %d(으)로 응답했습니다.",
+    "Couldn't reach the source: %@":
+        "소스에 연결할 수 없습니다: %@",
+    "That isn't a source link. Paste the whole https:// address of the source.":
+        "소스 링크가 아닙니다. 소스의 https:// 주소 전체를 붙여 넣으세요.",
+    "That link didn't return a source. It has to be the source's JSON file itself.":
+        "그 링크는 소스를 반환하지 않았습니다. 소스의 JSON 파일 자체여야 합니다.",
+    "Downloads the IPA from the source, then signs it with your Apple ID and installs it, as a custom .ipa would be.":
+        "소스에서 IPA를 다운로드한 다음 사용자의 Apple ID로 서명하고 설치합니다. 사용자 지정 .ipa와 같습니다.",
+    "This version is older than the newest one. It's installed over the copy on this iPhone, which may not open data a newer version saved.":
+        "이 버전은 최신 버전보다 오래되었습니다. 이 iPhone의 앱 위에 설치되며, 최신 버전이 저장한 데이터를 열지 못할 수 있습니다.",
+    "This version is older than the one on this iPhone (%@). Installed over it, it may not open data the newer version saved.":
+        "이 버전은 이 iPhone에 있는 버전(%@)보다 오래되었습니다. 그 위에 설치하면 최신 버전이 저장한 데이터를 열지 못할 수 있습니다.",
+
+    // MARK: - JIT
+
+    "%@ has the JIT memory it asked for, so iLoader X let go of it. JIT stays on until it quits.":
+        "요청한 JIT 메모리를 %@에 준비했으므로 iLoader X가 분리되었습니다. 앱을 종료할 때까지 JIT가 켜져 있습니다.",
+    "%@ of JIT memory prepared": "JIT 메모리 %@ 준비됨",
+    "%d app can use JIT": "JIT를 쓸 수 있는 앱 %d개",
+    "%d apps can use JIT": "JIT를 쓸 수 있는 앱 %d개",
+    "Attach and detach": "연결 후 분리",
+    "Attaching the debugger": "디버거 연결 중",
+    "Auto: %@": "자동: %@",
+    "Connecting to this iPhone's debugger": "이 iPhone의 디버거에 연결 중",
+    "Couldn't open %@ under the debugger: %@": "디버거로 %@ 앱을 열 수 없습니다: %@",
+    "Couldn't reach the debugger on this iPhone: %@": "이 iPhone의 디버거에 연결할 수 없습니다: %@",
+    "Enable JIT": "JIT 켜기",
+    "JIT is on for %@ until it quits.": "%@ 앱은 종료할 때까지 JIT가 켜져 있습니다.",
+    "JIT is on. iLoader X stays attached while %@ runs: keep iLoader X in the background, since closing it ends JIT.":
+        "JIT가 켜졌습니다. %@ 앱이 실행되는 동안 iLoader X가 연결된 상태를 유지합니다. iLoader X를 닫으면 JIT가 끝나므로 백그라운드에 두세요.",
+    "JIT needs Developer Mode. Turn it on under Settings › Privacy & Security › Developer Mode, and confirm it after the restart.":
+        "JIT에는 개발자 모드가 필요합니다. 설정 › 개인정보 보호 및 보안 › 개발자 모드에서 켜고, 재시동 후 확인하세요.",
+    "JIT on for %@": "%@ 앱 JIT 켜짐",
+    "Legacy": "레거시",
+    "No app on this iPhone is signed for development, which a debugger needs. Install the app with SideStore or iLoader X, which sign apps that way, then load the apps again.":
+        "이 iPhone에는 개발용으로 서명된 앱이 없습니다. 디버거에는 이런 서명이 필요합니다. 그렇게 서명하는 SideStore나 iLoader X로 앱을 설치한 뒤 앱을 다시 불러오세요.",
+    "No apps can use JIT": "JIT를 쓸 수 있는 앱이 없습니다",
+    "Opening %@": "%@ 앱 여는 중",
+    "Quit %@": "%@ 앱 종료",
+    "The debugger couldn't attach to %@ (%@). Install it again with SideStore or iLoader X, which sign apps so a debugger can attach.":
+        "디버거가 %@ 앱에 연결하지 못했습니다(%@). 디버거가 연결할 수 있게 서명하는 SideStore나 iLoader X로 다시 설치하세요.",
+    "The debugger lost %@ (%@). Open it with JIT again.": "디버거가 %@ 앱과의 연결을 잃었습니다(%@). JIT로 다시 여세요.",
+    "Universal": "유니버설",
 ]

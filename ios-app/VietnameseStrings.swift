@@ -1126,7 +1126,7 @@ let vietnameseStrings: [String: String] = [
     "This Apple ID can register %d a week.":
         "Apple ID này đăng ký được %d App ID mỗi tuần.",
 
-    // MARK: - Links (sideinstaller://install, sideinstaller://pairingFile)
+    // MARK: - Links (iloaderx://install, iloaderx://pairingFile)
 
     "Install from a link?": "Cài đặt từ liên kết?",
     "Download and install": "Tải xuống và cài đặt",
@@ -1329,4 +1329,133 @@ let vietnameseStrings: [String: String] = [
         "Không thể đổi biểu tượng: %@",
     "Each icon has Dark and Tinted versions, which iOS uses with the Home Screen's appearance.":
         "Mỗi biểu tượng có phiên bản Tối và Phủ màu, iOS dùng chúng theo giao diện Màn hình chính.",
+    // Shortcuts actions (ShortcutsSupport.swift and the *Shortcuts.swift files).
+    "%@ can't be refreshed: iLoader X has no IPA to sign it again from. Refresh it in whatever installed it, or import its .ipa into iLoader X first.":
+        "Không thể gia hạn %@: iLoader X không có tệp IPA để ký lại. Hãy gia hạn trong ứng dụng đã cài nó, hoặc nhập tệp .ipa của nó vào iLoader X trước.",
+    "%@ is installed.":
+        "%@ đã được cài đặt.",
+    "Apple is asking you to finish signing in. Continue in iLoader X to answer it.":
+        "Apple đang yêu cầu bạn hoàn tất đăng nhập. Hãy tiếp tục trong iLoader X để trả lời.",
+    "LocalDevVPN is connected.":
+        "LocalDevVPN đã được kết nối.",
+    "LocalDevVPN isn't connected. Connect it before this action runs: Shortcuts' Set VPN action can, or turn on “Start LocalDevVPN when needed” in iLoader X's Settings.":
+        "LocalDevVPN chưa được kết nối. Hãy kết nối trước khi tác vụ này chạy: tác vụ VPN trong Phím tắt làm được việc đó. Hoặc bật “Khởi động LocalDevVPN khi cần” trong Cài đặt của iLoader X.",
+    "LocalDevVPN isn't connected. Continue in iLoader X to connect it.":
+        "LocalDevVPN chưa được kết nối. Hãy tiếp tục trong iLoader X để kết nối.",
+    "No route is playing.":
+        "Không có lộ trình nào đang phát.",
+    "Open iLoader X and accept its terms first.":
+        "Hãy mở iLoader X và chấp nhận điều khoản của ứng dụng trước.",
+    "Pick where the route starts, or set a location first.":
+        "Hãy chọn nơi lộ trình bắt đầu, hoặc đặt một vị trí trước.",
+    "Route started: %@, about %@.":
+        "Đã bắt đầu lộ trình: %@, khoảng %@.",
+    "That place has no coordinates. Pick it on the map, or type its address.":
+        "Địa điểm đó không có tọa độ. Hãy chọn trên bản đồ hoặc nhập địa chỉ.",
+    "The install didn't start. Open iLoader X to see why.":
+        "Việc cài đặt chưa bắt đầu. Hãy mở iLoader X để xem lý do.",
+
+    // MARK: - Sources
+
+    "Suggested":
+        "Gợi ý",
+
+    "Paste the link of a SideStore or AltStore source, or of a .json source file. Its apps, their updates and release notes show here.":
+        "Dán liên kết của một nguồn SideStore hoặc AltStore, hoặc của một tệp nguồn .json. Ứng dụng, bản cập nhật và ghi chú phát hành của nguồn sẽ hiện ở đây.",
+
+    "Sources":
+        "Nguồn",
+    "Add a source":
+        "Thêm nguồn",
+    "Add":
+        "Thêm",
+    "Apps":
+        "Ứng dụng",
+    "Updates":
+        "Cập nhật",
+    "Update":
+        "Cập nhật",
+    "Your sources":
+        "Nguồn của bạn",
+    "Check for updates":
+        "Kiểm tra cập nhật",
+    "Copy link":
+        "Sao chép liên kết",
+    "Source options":
+        "Tùy chọn nguồn",
+    "Loading…":
+        "Đang tải…",
+    "What's new":
+        "Có gì mới",
+    "Version history":
+        "Lịch sử phiên bản",
+    "This version has no release notes.":
+        "Phiên bản này không có ghi chú phát hành.",
+    "%d update":
+        "%d bản cập nhật",
+    "%d updates":
+        "%d bản cập nhật",
+    "%d source":
+        "%d nguồn",
+    "%d sources":
+        "%d nguồn",
+    "Update to %@":
+        "Cập nhật lên %@",
+    "Install %@ %@?":
+        "Cài %@ %@?",
+    "Version %@ · from %@":
+        "Phiên bản %@ · từ %@",
+    "%@ installed · %@ available":
+        "Đã cài %@ · có %@",
+    "%@ installed · up to date":
+        "Đã cài %@ · mới nhất",
+    "That source is already added.":
+        "Nguồn đó đã được thêm.",
+    "The source answered with HTTP %d.":
+        "Nguồn trả về HTTP %d.",
+    "Couldn't reach the source: %@":
+        "Không thể kết nối tới nguồn: %@",
+    "That isn't a source link. Paste the whole https:// address of the source.":
+        "Đó không phải liên kết nguồn. Hãy dán toàn bộ địa chỉ https:// của nguồn.",
+    "That link didn't return a source. It has to be the source's JSON file itself.":
+        "Liên kết đó không trả về nguồn. Nó phải là chính tệp JSON của nguồn.",
+    "Downloads the IPA from the source, then signs it with your Apple ID and installs it, as a custom .ipa would be.":
+        "Tải IPA từ nguồn, rồi ký bằng Apple ID của bạn và cài đặt, giống như một .ipa tùy chỉnh.",
+    "This version is older than the newest one. It's installed over the copy on this iPhone, which may not open data a newer version saved.":
+        "Phiên bản này cũ hơn bản mới nhất. Nó được cài đè lên bản trên iPhone này và có thể không mở được dữ liệu mà phiên bản mới hơn đã lưu.",
+    "This version is older than the one on this iPhone (%@). Installed over it, it may not open data the newer version saved.":
+        "Phiên bản này cũ hơn bản trên iPhone này (%@). Khi cài đè lên, nó có thể không mở được dữ liệu mà phiên bản mới hơn đã lưu.",
+
+    // MARK: - JIT
+
+    "%@ has the JIT memory it asked for, so iLoader X let go of it. JIT stays on until it quits.":
+        "%@ đã có bộ nhớ JIT mà nó yêu cầu, nên iLoader X đã tách khỏi nó. JIT vẫn bật cho đến khi ứng dụng thoát.",
+    "%@ of JIT memory prepared": "Đã chuẩn bị %@ bộ nhớ JIT",
+    "%d app can use JIT": "%d ứng dụng có thể dùng JIT",
+    "%d apps can use JIT": "%d ứng dụng có thể dùng JIT",
+    "Attach and detach": "Gắn rồi tách",
+    "Attaching the debugger": "Đang gắn trình gỡ lỗi",
+    "Auto: %@": "Tự động: %@",
+    "Connecting to this iPhone's debugger": "Đang kết nối tới trình gỡ lỗi của iPhone này",
+    "Couldn't open %@ under the debugger: %@": "Không thể mở %@ dưới trình gỡ lỗi: %@",
+    "Couldn't reach the debugger on this iPhone: %@":
+        "Không thể kết nối tới trình gỡ lỗi trên iPhone này: %@",
+    "Enable JIT": "Bật JIT",
+    "JIT is on for %@ until it quits.": "JIT đã bật cho %@ cho đến khi ứng dụng thoát.",
+    "JIT is on. iLoader X stays attached while %@ runs: keep iLoader X in the background, since closing it ends JIT.":
+        "JIT đã bật. iLoader X vẫn gắn vào trong khi %@ chạy: hãy để iLoader X chạy nền, vì đóng nó sẽ kết thúc JIT.",
+    "JIT needs Developer Mode. Turn it on under Settings › Privacy & Security › Developer Mode, and confirm it after the restart.":
+        "JIT cần Chế độ nhà phát triển. Hãy bật trong Cài đặt › Quyền riêng tư & Bảo mật › Chế độ nhà phát triển, và xác nhận sau khi khởi động lại.",
+    "JIT on for %@": "JIT đang bật cho %@",
+    "Legacy": "Cũ",
+    "No app on this iPhone is signed for development, which a debugger needs. Install the app with SideStore or iLoader X, which sign apps that way, then load the apps again.":
+        "Không có ứng dụng nào trên iPhone này được ký để phát triển, điều mà trình gỡ lỗi cần. Hãy cài ứng dụng bằng SideStore hoặc iLoader X, vốn ký ứng dụng theo cách đó, rồi tải lại danh sách ứng dụng.",
+    "No apps can use JIT": "Không có ứng dụng nào dùng được JIT",
+    "Opening %@": "Đang mở %@",
+    "Quit %@": "Thoát %@",
+    "The debugger couldn't attach to %@ (%@). Install it again with SideStore or iLoader X, which sign apps so a debugger can attach.":
+        "Trình gỡ lỗi không gắn được vào %@ (%@). Hãy cài lại nó bằng SideStore hoặc iLoader X, vốn ký ứng dụng để trình gỡ lỗi gắn vào được.",
+    "The debugger lost %@ (%@). Open it with JIT again.":
+        "Trình gỡ lỗi đã mất kết nối với %@ (%@). Hãy mở lại nó bằng JIT.",
+    "Universal": "Phổ quát",
 ]

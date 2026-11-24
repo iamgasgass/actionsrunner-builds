@@ -17,7 +17,7 @@ Bundle ID `com.iamgasgass.iloaderx` · iOS 17.4+ (iOS 27 pairs with itself)
 ---
 
 iLoader X is a fork of **[SideInstaller by FrizzleM](https://github.com/FrizzleM/SideInstaller)**
-(version 2.1.1, commit `141d7ee`), redistributed in source form under its
+(version 2.2.0, commit `08936ec`; first forked at 2.1.1, `141d7ee`), redistributed in source form under its
 [licence](LICENSE.md). Everything that does the work (on-device pairing,
 provisioning, signing and installing SideStore, LiveContainer and other IPAs)
 is SideInstaller's; iLoader X gives it its own name, bundle ID and icon.
@@ -94,7 +94,8 @@ SideStore / AltStore source, LiveContainer, TrollStore or the plain IPA.
 
 Drawn from scratch for iLoader X: a garnet rounded “L” with a download arrow landing on
 a tray in the notch. Two looks, each with every appearance iOS asks for; the app's tool
-tiles (Apps, Certificates, Downloads, Entitlements, Location, Pairing, Side by Side) are
+tiles (Apps, Certificates, Downloads, Entitlements, Location, Pairing, Side by Side,
+JIT, Sources) are
 drawn in the same glass design (`tools/icon/tools.mjs`), and the whole app is garnet
 (`ios-app/Theme.swift`, `AccentColor`):
 
@@ -137,7 +138,7 @@ image; `pages.yml` publishes `site/` to GitHub Pages (Settings › Pages › Sou
 
 ## What this fork changes
 
-Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
+Compared with SideInstaller 2.2.0 (`08936ec`), as its licence asks:
 
 - **Name**: “iLoader X” everywhere the app shows its name, in all ten languages
   (product/target `iLoaderX`, `iLoaderXTests`, `iLoaderXLiveActivity`; the
@@ -158,6 +159,10 @@ Compared with SideInstaller 2.1.1 (`141d7ee`), as its licence asks:
   AltStore/SideStore source `iloaderx.json`) replaces sideinstaller.net and
   `frizzlem.json`.
 - **About**: links this fork's source and credits SideInstaller by FrizzleM.
+- **SideInstaller 2.2.0** (JIT, Sources, Shortcuts, ARMSX3 pairing, a current Mac for
+  sign-in) merged in with all of the above kept: its default source is iLoader X's
+  (`site/iloaderx.json`), its links are `iloaderx://`, and its JIT and Sources tiles are
+  redrawn in the garnet glass design.
 - **How to use it**: the siboot route, with `--ipa` pointing at iLoader X's release.
 - **Removed** what only the official SideInstaller publishes: the
   sideinstaller.net pages, the AltSource (`frizzlem.json`), the DNS profile, and

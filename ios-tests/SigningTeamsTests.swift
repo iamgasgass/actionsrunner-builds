@@ -33,7 +33,7 @@ struct DeveloperTeamTests {
         #expect(teams[2].label == "PQRST13579")
     }
 
-    @Test("The question starts on the team that signed SideInstaller, else Apple's first")
+    @Test("The question starts on the team that signed iLoader X, else Apple's first")
     func suggested() throws {
         let teams = try #require(DeveloperTeam.list(json: listed))
         // siboot installed it with the paid team.

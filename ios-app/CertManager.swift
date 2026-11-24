@@ -258,7 +258,7 @@ final class CertManager: ObservableObject {
     var canUseSideStoreCertificate: Bool { engine.canUseSideStoreCertificate }
 
     /// Asks SideStore for its certificate. SideStore asks whether to export it,
-    /// then opens a `sideinstaller://certificate` link, which `RootView` hands
+    /// then opens a `iloaderx://certificate` link, which `RootView` hands
     /// to `importCertificate`. Inside LiveContainer, where that link can't come
     /// back, the certificate LiveContainer holds is imported instead.
     /// `retryInstall` runs the install again after.
