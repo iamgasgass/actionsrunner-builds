@@ -83,7 +83,7 @@ final class ChevronView: ThemedView {
         path.addLine(to: CGPoint(x: r.midX + 3, y: r.midY))
         path.addLine(to: CGPoint(x: r.midX - 3, y: r.midY + 6))
         path.lineWidth = 3
-        path.lineJoin = .miter
+        path.lineJoinStyle = .miter
         path.lineCapStyle = .square
         (highlighted ? UIColor.white : Theme.palette.chevron).setStroke()
         path.stroke()
@@ -110,7 +110,7 @@ final class CheckmarkView: ThemedView {
         path.addLine(to: CGPoint(x: r.midX - 2, y: r.midY + 5))
         path.addLine(to: CGPoint(x: r.midX + 6, y: r.midY - 6))
         path.lineWidth = 3
-        path.lineJoin = .miter
+        path.lineJoinStyle = .miter
         if !highlighted {
             ctx.setShadow(offset: p.headerShadowOffset, blur: 0, color: p.headerShadow.cgColor)
         }
@@ -156,7 +156,7 @@ final class DetailDisclosureButton: UIControl {
         chevron.addLine(to: CGPoint(x: c.x + 2.5, y: c.y))
         chevron.addLine(to: CGPoint(x: c.x - 2.5, y: c.y + 5))
         chevron.lineWidth = 2.6
-        chevron.lineJoin = .miter
+        chevron.lineJoinStyle = .miter
         UIColor.white.setStroke()
         chevron.stroke()
     }
