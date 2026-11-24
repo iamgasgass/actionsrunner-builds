@@ -217,6 +217,8 @@ final class ClassicCell: UITableViewCell {
         backgroundView = bgView
         selectionStyle = .none
         titleLabel.backgroundColor = .clear
+        titleLabel.adjustsFontSizeToFitWidth = true
+        titleLabel.minimumScaleFactor = 0.6
         valueLabel.backgroundColor = .clear
         valueLabel.textAlignment = .right
         iconView.contentMode = .scaleAspectFit

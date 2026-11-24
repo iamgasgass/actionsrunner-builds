@@ -51,6 +51,16 @@ final class RootViewController: UIViewController {
             tabBar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -ClassicTabBar.barHeight)
         ])
 
+        ConnectionManager.shared.pinPrompt = { [weak self] title, message, hex, reply in
+            guard let self = self else { reply(nil); return }
+            let alert = ClassicAlertController(title: title, message: message)
+            alert.addTextField(placeholder: hex ? "Es. A1B2C3" : "PIN",
+                               keyboard: hex ? .asciiCapable : .numberPad,
+                               capitalization: hex ? .allCharacters : .none)
+            alert.addAction("Annulla", style: .cancel) { _ in reply(nil) }
+            alert.addAction("Associa") { a in reply(a.textFields.first?.text) }
+            alert.show(from: self)
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(prefsChanged),
                                                name: Preferences.didChange, object: nil)
         selectTab(DeviceStore.shared.devices.isEmpty ? 2 : 0)

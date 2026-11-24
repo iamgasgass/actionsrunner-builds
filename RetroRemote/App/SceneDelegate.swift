@@ -12,12 +12,15 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         ThemeManager.shared.apply()
         Preferences.shared.applyIdleTimer()
+        HardwareVolume.shared.onPress = { key in ConnectionManager.shared.press(key) }
+        Preferences.shared.applyHardwareVolume(window: window)
         ConnectionManager.shared.activateSelected()
     }
 
     func sceneWillEnterForeground(_ scene: UIScene) {
         ThemeManager.shared.refresh()
         ConnectionManager.shared.reconnect()
+        HardwareVolume.shared.refresh()
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {

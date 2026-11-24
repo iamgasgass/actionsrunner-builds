@@ -37,6 +37,10 @@ final class NetworkScanner {
     }()
 
     func scan(found: @escaping (TVDevice) -> Void) async {
+        await MainActor.run {
+            BonjourDiscovery.shared.browse(type: "_androidtvremote2._tcp", brand: .androidTV, found: found)
+            BonjourDiscovery.shared.browse(type: "_amzn-wplay._tcp", brand: .fireTV, found: found)
+        }
         guard let ip = LocalNetwork.wifiIPv4() else { return }
         let parts = ip.split(separator: ".")
         guard parts.count == 4 else { return }
@@ -66,8 +70,24 @@ final class NetworkScanner {
         async let roku = probeRoku(host)
         async let samsung = probeSamsung(host)
         async let lg = probeLG(host)
-        let results: [TVDevice?] = [await roku, await samsung, await lg]
+        async let android = probePort(host, 6466, name: "Android TV", brand: .androidTV)
+        async let fire = probePort(host, 5555, name: "Fire TV", brand: .fireTV)
+        async let vizio = probePort(host, 7345, name: "VIZIO TV", brand: .vizio)
+        async let panasonic = probePanasonic(host)
+        let results: [TVDevice?] = [await roku, await samsung, await lg, await android,
+                                    await fire, await vizio, await panasonic]
         return results.compactMap { $0 }
+    }
+
+    private func probePort(_ host: String, _ port: UInt16, name: String, brand: TVBrand) async -> TVDevice? {
+        await portOpen(host, port) ? TVDevice(name: name, host: host, brand: brand) : nil
+    }
+
+    private func probePanasonic(_ host: String) async -> TVDevice? {
+        guard let data = await get("http://\(host):55000/nrc/ddd.xml"),
+              let xml = String(data: data, encoding: .utf8), xml.lowercased().contains("panasonic") else { return nil }
+        return TVDevice(name: Self.xmlValue("friendlyName", xml) ?? "Panasonic Viera", host: host, brand: .panasonic,
+                        model: Self.xmlValue("modelNumber", xml))
     }
 
     private func get(_ string: String) async -> Data? {
@@ -154,5 +174,66 @@ final class NetworkScanner {
             .replacingOccurrences(of: "&lt;", with: "<")
             .replacingOccurrences(of: "&gt;", with: ">")
             .replacingOccurrences(of: "&amp;", with: "&")
+    }
+}
+
+/// Nomi "veri" delle TV annunciate via Bonjour (Android TV, Fire TV).
+final class BonjourDiscovery {
+    static let shared = BonjourDiscovery()
+    private var browsers: [NWBrowser] = []
+
+    func browse(type: String, brand: TVBrand, duration: TimeInterval = 8, found: @escaping (TVDevice) -> Void) {
+        let browser = NWBrowser(for: .bonjour(type: type, domain: nil), using: .tcp)
+        var seen = Set<String>()
+        browser.browseResultsChangedHandler = { [weak self] results, _ in
+            for result in results {
+                guard case let .service(name, _, _, _) = result.endpoint, !seen.contains(name) else { continue }
+                seen.insert(name)
+                self?.resolve(result.endpoint) { ip in
+                    found(TVDevice(name: name, host: ip, brand: brand))
+                }
+            }
+        }
+        browsers.append(browser)
+        browser.start(queue: .main)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            browser.cancel()
+            self?.browsers.removeAll { $0 === browser }
+        }
+    }
+
+    private func resolve(_ endpoint: NWEndpoint, completion: @escaping (String) -> Void) {
+        let parameters = NWParameters.tcp
+        if let ip = parameters.defaultProtocolStack.internetProtocol as? NWProtocolIP.Options {
+            ip.version = .v4
+        }
+        let connection = NWConnection(to: endpoint, using: parameters)
+        connection.stateUpdateHandler = { [weak connection] state in
+            guard let connection = connection else { return }
+            switch state {
+            case .ready:
+                if case let .hostPort(host, _)? = connection.currentPath?.remoteEndpoint {
+                    var address: String?
+                    switch host {
+                    case .ipv4(let v4): address = "\(v4)"
+                    case .name(let name, _): address = name
+                    default: address = nil
+                    }
+                    if let raw = address {
+                        let clean = raw.split(separator: "%").first.map(String.init) ?? raw
+                        completion(clean)
+                    }
+                }
+                connection.cancel()
+            case .failed, .waiting:
+                connection.cancel()
+            case .cancelled:
+                connection.stateUpdateHandler = nil
+            default:
+                break
+            }
+        }
+        connection.start(queue: .main)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { connection.cancel() }
     }
 }

@@ -28,18 +28,22 @@ final class SettingsViewController: ClassicTableViewController {
                              })
                          }),
             TableSection(header: "Telecomando",
-                         footer: "«Schermo intero» nasconde la barra di stato per un'interfaccia senza distrazioni.",
+                         footer: "«Schermo intero» nasconde la barra di stato. Con «Tasti volume iPhone» i tasti laterali regolano il volume della TV mentre l'app è aperta.",
                          rows: [
                              TableRow(title: "Vibrazione", toggle: prefs.haptics, onToggle: { prefs.haptics = $0 }),
                              TableRow(title: "Clic dei tasti", toggle: prefs.clicks, onToggle: { prefs.clicks = $0 }),
                              TableRow(title: "Schermo intero", toggle: prefs.hideStatusBar, onToggle: { prefs.hideStatusBar = $0 }),
-                             TableRow(title: "Schermo sempre attivo", toggle: prefs.keepAwake, onToggle: { prefs.keepAwake = $0 })
+                             TableRow(title: "Schermo sempre attivo", toggle: prefs.keepAwake, onToggle: { prefs.keepAwake = $0 }),
+                             TableRow(title: "Tasti volume iPhone", toggle: prefs.hardwareVolume, onToggle: { prefs.hardwareVolume = $0 })
                          ]),
             TableSection(header: "Informazioni",
-                         footer: "RetroRemote non è affiliato con Roku, Samsung o LG. I marchi appartengono ai rispettivi proprietari.",
+                         footer: "RetroRemote non è affiliato con i produttori delle TV. I marchi appartengono ai rispettivi proprietari.",
                          rows: [
                              TableRow(title: "Versione", value: "\(version) (\(build))"),
-                             TableRow(title: "TV compatibili", value: "Roku · Samsung · LG")
+                             TableRow(title: "TV compatibili", value: "\(TVBrand.allCases.count) piattaforme", accessory: .chevron,
+                                      onSelect: { [weak self] in
+                                          self?.navigationController?.pushViewController(SupportedTVsViewController(), animated: true)
+                                      })
                          ])
         ]
     }

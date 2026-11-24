@@ -132,10 +132,10 @@ final class AppsViewController: ClassicViewController, UICollectionViewDataSourc
         }
         refreshButton.isSpinning = true
         let deviceID = DeviceStore.shared.selectedID
-        controller.fetchApps { [weak self] apps in
+        controller.fetchApps { [weak self, weak controller] apps in
             guard let self = self else { return }
             self.refreshButton.isSpinning = false
-            self.apps = apps
+            self.apps = apps.isEmpty ? (controller?.quickApps ?? []) : apps
             self.loadedForDevice = deviceID
             self.collection.reloadData()
             self.updateEmpty()

@@ -31,6 +31,7 @@ final class DeviceStore {
 
     func add(_ device: TVDevice, select: Bool) {
         if let existing = devices.first(where: { $0.host == device.host && $0.brand == device.brand }) {
+            if existing.mac == nil, let mac = device.mac { updateMAC(id: existing.id, mac: mac) }
             if select { self.select(existing.id) }
             return
         }
@@ -51,6 +52,13 @@ final class DeviceStore {
         guard let index = devices.firstIndex(where: { $0.id == id }) else { return }
         devices[index].token = token
         save()
+    }
+
+    func updateMAC(id: UUID, mac: String?) {
+        guard let index = devices.firstIndex(where: { $0.id == id }) else { return }
+        devices[index].mac = mac
+        save()
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
 
     func remove(id: UUID) {

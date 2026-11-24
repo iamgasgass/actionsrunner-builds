@@ -70,7 +70,7 @@ final class DevicesViewController: ClassicTableViewController {
                 rows = [TableRow(title: scanning ? "Ricerca in corso…" : "Nessuna nuova TV trovata", style: .placeholder)]
             }
             result.append(TableSection(header: "Trovate in rete",
-                                       footer: scanning ? nil : "Compatibili: Roku, Samsung Smart TV (2016 e successive), LG webOS. Se la TV non compare, aggiungila a mano con +.",
+                                       footer: scanning ? nil : "Compatibili: Samsung, LG, Roku, Android TV / Google TV (Sony, Philips, TCL, Hisense, Xiaomi…), Fire TV, VIZIO e Panasonic. Se la TV non compare, aggiungila a mano con +.",
                                        rows: rows,
                                        headerSpinner: scanning))
         }
@@ -87,7 +87,13 @@ final class DevicesViewController: ClassicTableViewController {
             guard let scanner = self?.scanner else { return }
             await scanner.scan { device in
                 guard let self = self else { return }
-                if !self.found.contains(where: { $0.host == device.host && $0.brand == device.brand }) {
+                if let index = self.found.firstIndex(where: { $0.host == device.host && $0.brand == device.brand }) {
+                    // Bonjour fornisce il nome reale: sostituisce quello generico della scansione
+                    if Self.genericNames.contains(self.found[index].name) && !Self.genericNames.contains(device.name) {
+                        self.found[index].name = device.name
+                        self.rebuild()
+                    }
+                } else {
                     self.found.append(device)
                     self.rebuild()
                 }
@@ -99,6 +105,8 @@ final class DevicesViewController: ClassicTableViewController {
             self.rebuild()
         }
     }
+
+    private static let genericNames: Set<String> = ["Android TV", "Fire TV", "VIZIO TV", "LG webOS TV"]
 
     @objc private func addManually() {
         let alert = ClassicAlertController(title: "Aggiungi TV", message: "Scegli il tipo di TV.")

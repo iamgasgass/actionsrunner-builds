@@ -1,6 +1,6 @@
 import UIKit
 
-private final class AlertDimView: UIView {
+final class ClassicAlertDimView: UIView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
@@ -20,7 +20,7 @@ private final class AlertDimView: UIView {
     }
 }
 
-private final class AlertBoxView: ThemedView {
+final class ClassicAlertBoxView: ThemedView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
@@ -51,7 +51,7 @@ private final class AlertBoxView: ThemedView {
     }
 }
 
-private final class AlertButton: UIControl {
+final class ClassicAlertButton: UIControl {
     let isCancel: Bool
     private let title: String
 
@@ -153,11 +153,11 @@ final class ClassicAlertController: UIViewController, UITextFieldDelegate {
     private let alertTitle: String?
     private let message: String?
     private var actions: [Action] = []
-    private var fieldSpecs: [(placeholder: String, text: String?, keyboard: UIKeyboardType)] = []
+    private var fieldSpecs: [(placeholder: String, text: String?, keyboard: UIKeyboardType, caps: UITextAutocapitalizationType)] = []
     private(set) var textFields: [UITextField] = []
 
-    private let dimView = AlertDimView()
-    private let box = AlertBoxView()
+    private let dimView = ClassicAlertDimView()
+    private let box = ClassicAlertBoxView()
 
     init(title: String?, message: String?) {
         alertTitle = title
@@ -172,8 +172,9 @@ final class ClassicAlertController: UIViewController, UITextFieldDelegate {
         actions.append(Action(title: title, style: style, handler: handler))
     }
 
-    func addTextField(placeholder: String, text: String? = nil, keyboard: UIKeyboardType = .default) {
-        fieldSpecs.append((placeholder, text, keyboard))
+    func addTextField(placeholder: String, text: String? = nil, keyboard: UIKeyboardType = .default,
+                      capitalization: UITextAutocapitalizationType = .none) {
+        fieldSpecs.append((placeholder: placeholder, text: text, keyboard: keyboard, caps: capitalization))
     }
 
     func show(from presenter: UIViewController) {
@@ -214,6 +215,7 @@ final class ClassicAlertController: UIViewController, UITextFieldDelegate {
             container.field.placeholder = spec.placeholder
             container.field.text = spec.text
             container.field.keyboardType = spec.keyboard
+            container.field.autocapitalizationType = spec.caps
             container.field.delegate = self
             container.field.returnKeyType = .done
             container.heightAnchor.constraint(equalToConstant: 31).isActive = true
@@ -222,8 +224,8 @@ final class ClassicAlertController: UIViewController, UITextFieldDelegate {
         }
         if let last = stack.arrangedSubviews.last { stack.setCustomSpacing(16, after: last) }
 
-        let buttons = actions.enumerated().map { index, action -> AlertButton in
-            let b = AlertButton(title: action.title, cancel: action.style == .cancel)
+        let buttons = actions.enumerated().map { index, action -> ClassicAlertButton in
+            let b = ClassicAlertButton(title: action.title, cancel: action.style == .cancel)
             b.tag = index
             b.addTarget(self, action: #selector(buttonTapped(_:)), for: .touchUpInside)
             b.heightAnchor.constraint(equalToConstant: 43).isActive = true

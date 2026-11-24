@@ -126,6 +126,11 @@ final class LGController: BaseController, URLSessionWebSocketDelegate {
                 if let key = payload["client-key"] as? String { saveToken(key) }
                 setState(.connected)
                 requestPointerSocket()
+                request("ssap://com.webos.service.connectionmanager/getinfo") { [weak self] info in
+                    let wifi = (info["wifiInfo"] as? [String: Any])?["macAddress"] as? String
+                    let wired = (info["wiredInfo"] as? [String: Any])?["macAddress"] as? String
+                    if let mac = wired ?? wifi { self?.saveMAC(mac) }
+                }
             } else if type == "response", payload["pairingType"] as? String == "PROMPT" {
                 setState(.pairing)
             } else if type == "error" {
@@ -191,6 +196,7 @@ final class LGController: BaseController, URLSessionWebSocketDelegate {
         case .green: return "GREEN"
         case .yellow: return "YELLOW"
         case .blue: return "BLUE"
+        case .settings: return "QMENU"
         case .digit(let n): return "\(n)"
         default: return nil
         }
@@ -216,6 +222,16 @@ final class LGController: BaseController, URLSessionWebSocketDelegate {
         default:
             if let name = buttonName(key) { button(name) }
         }
+    }
+
+    override var supportsPointer: Bool { true }
+
+    override func pointerMove(dx: Int, dy: Int) {
+        pointerTask?.send(.string("type:move\ndx:\(dx)\ndy:\(dy)\ndown:0\n\n")) { _ in }
+    }
+
+    override func pointerClick() {
+        pointerTask?.send(.string("type:click\n\n")) { _ in }
     }
 
     override func sendText(_ text: String) {

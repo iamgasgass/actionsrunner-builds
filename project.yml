@@ -55,10 +55,14 @@ targets:
               - UISceneConfigurationName: Default Configuration
                 UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
         NSLocalNetworkUsageDescription: RetroRemote cerca e controlla le Smart TV presenti sulla tua rete Wi-Fi.
+        NSMicrophoneUsageDescription: RetroRemote usa il microfono per la ricerca vocale sulla TV.
+        NSSpeechRecognitionUsageDescription: La tua voce viene trascritta per cercare contenuti sulla TV.
         NSBonjourServices:
           - _roku-ecp._tcp
           - _samsungmsf._tcp
           - _webos-second-screen._tcp
+          - _androidtvremote2._tcp
+          - _amzn-wplay._tcp
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true

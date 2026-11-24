@@ -13,6 +13,7 @@ final class SamsungController: BaseController, URLSessionWebSocketDelegate {
 
     override func connect() {
         teardown()
+        fetchMACIfNeeded()
         setState(device.token == nil ? .pairing : .connecting)
         var comps = URLComponents()
         comps.scheme = useLegacyPort ? "ws" : "wss"
@@ -32,6 +33,16 @@ final class SamsungController: BaseController, URLSessionWebSocketDelegate {
         task = t
         t.resume()
         receive(on: t)
+    }
+
+    private func fetchMACIfNeeded() {
+        guard device.mac == nil, let url = URL(string: "http://\(device.host):8001/api/v2/") else { return }
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard let data = data,
+                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let mac = (json["device"] as? [String: Any])?["wifiMac"] as? String else { return }
+            self?.saveMAC(mac)
+        }.resume()
     }
 
     override func disconnect() {
@@ -156,6 +167,7 @@ final class SamsungController: BaseController, URLSessionWebSocketDelegate {
         case .green: return "KEY_GREEN"
         case .yellow: return "KEY_YELLOW"
         case .blue: return "KEY_CYAN"
+        case .settings: return "KEY_TOOLS"
         case .digit(let n): return "KEY_\(n)"
         }
     }

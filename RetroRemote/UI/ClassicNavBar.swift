@@ -21,6 +21,14 @@ final class ClassicNavBar: ThemedView {
         }
     }
 
+    /// Tocco sul titolo (usato per scegliere rapidamente la TV).
+    var onTitleTap: (() -> Void)? {
+        didSet {
+            titleLabel.isUserInteractionEnabled = onTitleTap != nil
+            subtitleLabel.isUserInteractionEnabled = onTitleTap != nil
+        }
+    }
+
     var leftView: UIView? {
         didSet {
             oldValue?.removeFromSuperview()
@@ -51,10 +59,14 @@ final class ClassicNavBar: ThemedView {
         subtitleLabel.isHidden = true
         addSubview(titleLabel)
         addSubview(subtitleLabel)
+        titleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(titleTapped)))
+        subtitleLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(titleTapped)))
         applyTheme()
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
+
+    @objc private func titleTapped() { onTitleTap?() }
 
     override func applyTheme() {
         let p = Theme.palette

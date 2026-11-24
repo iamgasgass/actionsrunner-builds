@@ -8,10 +8,21 @@ Telecomando Wi‑Fi per Smart TV con interfaccia **iOS 6** disegnata interamente
 
 | | |
 |---|---|
-| **TV compatibili** | Roku (ECP, porta 8060) · Samsung Tizen 2016+ (WebSocket 8002/8001) · LG webOS (SSAP 3001/3000) |
-| **Ricerca automatica** | scansione della sottorete Wi‑Fi /24 + aggiunta manuale per IP |
+| **Samsung** | Tizen 2016+ (WebSocket 8002/8001), tastiera, app, accensione Wake‑on‑LAN |
+| **LG** | webOS (SSAP 3001/3000), tastiera, app, touchpad come mouse, Wake‑on‑LAN |
+| **Roku** | Roku e Roku TV (TCL, Hisense, Sharp…) via ECP 8060, tastiera, app |
+| **Android TV / Google TV** | Sony, Philips, TCL, Hisense, Xiaomi, Sharp, Nvidia Shield, Chromecast con Google TV: protocollo Android TV Remote v2 (TLS 6466/6467) con associazione tramite codice |
+| **Amazon Fire TV** | Fire TV Stick/Cube/Edition via ADB (TCP 5555): tasti, tastiera, elenco e avvio app |
+| **VIZIO** | SmartCast (HTTPS 7345/9000) con PIN |
+| **Panasonic** | Viera 2012–2018 (SOAP 55000) |
+| **Ricerca automatica** | scansione della sottorete Wi‑Fi /24 su tutte le porte note + nomi via Bonjour, oppure aggiunta manuale per IP |
 | **Telecomando** | accensione, input, muto, indietro/home/menu, croce direzionale con OK, bilancieri VOL/CH con ripetizione tenendo premuto, controlli multimediali |
-| **Seconda pagina** | tastierino numerico, tasti colorati, guida, stop, info, exit |
+| **Touchpad** | scorri = frecce, tocco = OK, due dita = Indietro, tieni premuto = Menu; modalità mouse su LG |
+| **App rapide** | Netflix, YouTube, Prime Video, Disney+ con un tocco |
+| **Ricerca vocale** | dettatura in italiano inviata alla TV (su Android TV apre la ricerca di YouTube) |
+| **Tasti volume iPhone** | i tasti laterali regolano il volume della TV |
+| **Cambio rapido** | tocca il titolo per passare da una TV all'altra |
+| **Terza pagina** | tastierino numerico, tasti colorati, guida, stop, info, exit |
 | **Tastiera** | invio di testo alla TV |
 | **App** | elenco e avvio delle app installate sulla TV, con icone lucide stile iOS 6 |
 | **Impostazioni** | Aspetto Automatico/Chiaro/Scuro, vibrazione, clic dei tasti, schermo intero, schermo sempre attivo |
@@ -60,6 +71,14 @@ Requisiti: iOS 15+, iPhone e iPad (solo verticale).
   Alcuni firmware webOS recenti limitano il socket "pointer" ai client firmati: in quel caso
   volume, canali, multimedia, app e accensione funzionano, mentre le frecce potrebbero non rispondere.
 - La rete locale richiede il permesso "Rete locale" di iOS (richiesto al primo avvio).
+
+- **Android TV:** alla prima connessione la TV mostra un codice di 6 caratteri da inserire nell'app.
+  L'app genera una chiave RSA e un certificato client salvati nel portachiavi.
+- **Fire TV:** attiva *Impostazioni › La mia Fire TV › Opzioni sviluppatore › Debug ADB*, poi accetta
+  la richiesta "Consentire il debug USB?" sulla TV (spunta "Consenti sempre").
+- **VIZIO:** inserisci il PIN mostrato sulla TV.
+- **Wake‑on‑LAN:** iOS può bloccare i pacchetti broadcast senza l'entitlement multicast di Apple; l'app
+  prova comunque broadcast e unicast. Roku e le Android TV di solito si accendono anche con il tasto Power.
 
 ## Icona
 

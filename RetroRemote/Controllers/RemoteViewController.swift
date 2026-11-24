@@ -5,9 +5,14 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
     private let scroll = UIScrollView()
     private let pageControl = UIPageControl()
     private let page1 = UIView()
+    private let pageTouch = UIView()
     private let page2 = UIView()
     private let led = StatusLEDView()
-    private let keyboardButton = ClassicBarButton(symbol: "keyboard")
+    private let voiceButton = ClassicBarButton(symbol: "mic.fill")
+    private let touchpad = TouchpadView()
+    private let pointerSwitch = ClassicSwitch(frame: .zero)
+    private let pointerRow = UIStackView()
+    private let quickRow = UIStackView()
 
     init() {
         super.init(nibName: nil, bundle: nil)
@@ -31,12 +36,12 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
         contentView.addSubview(scroll)
 
         pageControl.translatesAutoresizingMaskIntoConstraints = false
-        pageControl.numberOfPages = 2
+        pageControl.numberOfPages = 3
         pageControl.isUserInteractionEnabled = true
         pageControl.addTarget(self, action: #selector(pageChanged), for: .valueChanged)
         contentView.addSubview(pageControl)
 
-        [page1, page2].forEach {
+        [page1, pageTouch, page2].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             scroll.addSubview($0)
         }
@@ -64,19 +69,26 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
             page1.widthAnchor.constraint(equalTo: frame.widthAnchor),
             page1.heightAnchor.constraint(equalTo: frame.heightAnchor),
 
-            page2.leadingAnchor.constraint(equalTo: page1.trailingAnchor),
+            pageTouch.leadingAnchor.constraint(equalTo: page1.trailingAnchor),
+            pageTouch.topAnchor.constraint(equalTo: content.topAnchor),
+            pageTouch.widthAnchor.constraint(equalTo: frame.widthAnchor),
+            pageTouch.heightAnchor.constraint(equalTo: frame.heightAnchor),
+
+            page2.leadingAnchor.constraint(equalTo: pageTouch.trailingAnchor),
             page2.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             page2.topAnchor.constraint(equalTo: content.topAnchor),
             page2.widthAnchor.constraint(equalTo: frame.widthAnchor),
             page2.heightAnchor.constraint(equalTo: frame.heightAnchor)
         ])
 
-        keyboardButton.addTarget(self, action: #selector(showKeyboard), for: .touchUpInside)
-        navBar.leftView = keyboardButton
+        voiceButton.addTarget(self, action: #selector(showVoice), for: .touchUpInside)
+        navBar.leftView = voiceButton
+        navBar.onTitleTap = { [weak self] in self?.showDevicePicker() }
         led.addTarget(self, action: #selector(reconnect), for: .touchUpInside)
         navBar.rightView = led
 
         buildMainPage()
+        buildTouchPage()
         buildNumberPage()
 
         let center = NotificationCenter.default
@@ -91,6 +103,11 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
         let p = Theme.palette
         pageControl.pageIndicatorTintColor = p.pageDot
         pageControl.currentPageIndicatorTintColor = p.pageDotCurrent
+        if let label = pointerRow.viewWithTag(901) as? UILabel {
+            label.textColor = p.surfaceText
+            label.shadowColor = p.surfaceTextShadow
+            label.shadowOffset = p.surfaceTextShadowOffset
+        }
     }
 
     // MARK: - Costruzione
@@ -187,6 +204,86 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
         }
     }
 
+    private func buildTouchPage() {
+        let stack = column(in: pageTouch)
+        stack.distribution = .fill
+        stack.spacing = 14
+
+        touchpad.translatesAutoresizingMaskIntoConstraints = false
+        touchpad.onKey = { ConnectionManager.shared.press($0) }
+        touchpad.onPointerMove = { dx, dy in ConnectionManager.shared.controller?.pointerMove(dx: dx, dy: dy) }
+        touchpad.onPointerClick = { ConnectionManager.shared.controller?.pointerClick() }
+        stack.addArrangedSubview(touchpad)
+        touchpad.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+
+        let mouseLabel = UILabel()
+        mouseLabel.text = "Modalità mouse"
+        mouseLabel.font = Fonts.bold(15)
+        mouseLabel.tag = 901
+        pointerSwitch.addTarget(self, action: #selector(pointerModeChanged), for: .valueChanged)
+        pointerSwitch.translatesAutoresizingMaskIntoConstraints = false
+        pointerSwitch.widthAnchor.constraint(equalToConstant: ClassicSwitch.size.width).isActive = true
+        pointerSwitch.heightAnchor.constraint(equalToConstant: ClassicSwitch.size.height).isActive = true
+        pointerRow.addArrangedSubview(mouseLabel)
+        pointerRow.addArrangedSubview(pointerSwitch)
+        pointerRow.axis = .horizontal
+        pointerRow.spacing = 12
+        pointerRow.alignment = .center
+        stack.addArrangedSubview(pointerRow)
+
+        quickRow.axis = .horizontal
+        quickRow.distribution = .fillEqually
+        quickRow.spacing = 6
+        quickRow.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        stack.addArrangedSubview(quickRow)
+        quickRow.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+
+        let tools = row([
+            key(.back, symbol: "arrow.uturn.backward", shape: .rounded, size: CGSize(width: 70, height: 40)),
+            key(.home, symbol: "house.fill", shape: .rounded, size: CGSize(width: 70, height: 40)),
+            keyboardKey(),
+            voiceKey()
+        ])
+        stack.addArrangedSubview(tools)
+        tools.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        rebuildQuickApps()
+    }
+
+    private func keyboardKey() -> RemoteKeyButton {
+        let b = key(.ok, symbol: "keyboard", shape: .rounded, size: CGSize(width: 70, height: 40))
+        b.onPress = { [weak self] _ in self?.showKeyboard() }
+        return b
+    }
+
+    private func voiceKey() -> RemoteKeyButton {
+        let b = key(.ok, symbol: "mic.fill", shape: .rounded, size: CGSize(width: 70, height: 40))
+        b.onPress = { [weak self] _ in self?.showVoice() }
+        return b
+    }
+
+    private func rebuildQuickApps() {
+        quickRow.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        let apps = ConnectionManager.shared.controller?.quickApps
+            ?? DeviceStore.shared.selected.map { QuickApps.apps(for: $0.brand) } ?? []
+        for app in apps {
+            let b = RemoteKeyButton(key: .ok, title: app.name, shape: .pill)
+            b.fontSize = 12
+            b.onPress = { _ in ConnectionManager.shared.controller?.launch(app) }
+            quickRow.addArrangedSubview(b)
+        }
+        quickRow.isHidden = apps.isEmpty
+        let pointer = ConnectionManager.shared.controller?.supportsPointer ?? false
+        pointerRow.isHidden = !pointer
+        if !pointer {
+            touchpad.pointerMode = false
+            pointerSwitch.setOn(false, animated: false)
+        }
+    }
+
+    @objc private func pointerModeChanged() {
+        touchpad.pointerMode = pointerSwitch.isOn
+    }
+
     private func buildNumberPage() {
         let stack = column(in: page2)
         let size = CGSize(width: 62, height: 62)
@@ -226,7 +323,8 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
         let device = DeviceStore.shared.selected
         navBar.title = device?.name ?? "Telecomando"
         let state = ConnectionManager.shared.state
-        navBar.subtitle = device == nil ? "Nessun dispositivo" : state.label
+        navBar.subtitle = device == nil ? "Nessun dispositivo" : state.label + "  ▾"
+        rebuildQuickApps()
         switch (device, state) {
         case (nil, _): led.led = .off
         case (_, .connected): led.led = .green
@@ -254,13 +352,60 @@ final class RemoteViewController: ClassicViewController, UIScrollViewDelegate {
             alert.show(from: self)
             return
         }
-        let alert = ClassicAlertController(title: "Invia testo", message: "Il testo verrà scritto nel campo attivo sulla TV.")
+        let supportsText = ConnectionManager.shared.controller?.supportsText ?? false
+        let isAndroid = DeviceStore.shared.selected?.brand == .androidTV
+        guard supportsText || isAndroid else {
+            let alert = ClassicAlertController(title: "Non disponibile",
+                                               message: "Questa TV non accetta testo dalla rete.")
+            alert.addAction("OK", style: .cancel)
+            alert.show(from: self)
+            return
+        }
+        let alert = ClassicAlertController(title: supportsText ? "Invia testo" : "Cerca su YouTube",
+                                           message: supportsText ? "Il testo verrà scritto nel campo attivo sulla TV."
+                                                                 : "La ricerca verrà aperta su YouTube.")
         alert.addTextField(placeholder: "Testo")
         alert.addAction("Annulla", style: .cancel)
-        alert.addAction("Invia") { a in
+        alert.addAction("Invia") { [weak self] a in
             guard let text = a.textFields.first?.text, !text.isEmpty else { return }
-            ConnectionManager.shared.controller?.sendText(text)
+            self?.submit(text)
         }
+        alert.show(from: self)
+    }
+
+    /// Testo libero: digitato sulla TV, oppure ricerca su YouTube per le Android TV.
+    private func submit(_ text: String) {
+        guard let controller = ConnectionManager.shared.controller else { return }
+        if controller.supportsText {
+            controller.sendText(text)
+        } else if controller.device.brand == .androidTV {
+            let query = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+            controller.launch(TVApp(id: "https://www.youtube.com/results?search_query=\(query)", name: "YouTube", iconURL: nil))
+        }
+    }
+
+    @objc private func showVoice() {
+        guard DeviceStore.shared.selected != nil else {
+            showKeyboard()
+            return
+        }
+        let voice = VoiceSearchViewController()
+        voice.onResult = { [weak self] text in self?.submit(text) }
+        present(voice, animated: false)
+    }
+
+    private func showDevicePicker() {
+        let devices = DeviceStore.shared.devices
+        guard devices.count > 1 else {
+            rootController?.selectTab(2)
+            return
+        }
+        let alert = ClassicAlertController(title: "Scegli la TV", message: nil)
+        for device in devices {
+            let mark = device.id == DeviceStore.shared.selectedID ? "✓ " : ""
+            alert.addAction(mark + device.name) { _ in DeviceStore.shared.select(device.id) }
+        }
+        alert.addAction("Annulla", style: .cancel)
         alert.show(from: self)
     }
 
