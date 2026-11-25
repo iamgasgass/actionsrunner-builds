@@ -1,8 +1,22 @@
 # RetroRemote
 
-Telecomando Wi‑Fi per Smart TV con interfaccia **iOS 6** disegnata interamente a codice
-(nessuna immagine esterna), **modalità scura** e layout **a tutto schermo** per gli iPhone moderni
-(notch / Dynamic Island / home indicator).
+Telecomando Wi‑Fi per Smart TV con **due interfacce** selezionabili dal menu **«…»**:
+
+- **Liquid Glass** — superfici di vetro (`UIGlassEffect` su iOS 26, materiale traslucido su iOS 15–18),
+  controlli e tabelle di sistema;
+- **iOS 6** — interfaccia scheuomorfica disegnata interamente a codice (nessuna immagine esterna).
+
+Entrambe hanno **modalità scura** (Automatico / Chiaro / Scuro) e layout **a tutto schermo** per gli
+iPhone moderni (notch / Dynamic Island / home indicator).
+
+## Schermata principale
+
+- Testata con la TV corrente e lo stato (tocca per scegliere un'altra TV), menu «…» e pulsante
+  **«Tocca per connetterti»** quando la TV non è connessa.
+- Cinque modalità nella barra in basso: **Tasti**, **Touchpad**, **Numeri**, **App**, **Testo**.
+- Riga di **app rapide** configurabile (fino a 3) sotto tasti, touchpad e tastierino.
+- Menu «…»: scegli TV, ricerca vocale, connetti/disconnetti, accendi (Wake‑on‑LAN),
+  **Interfaccia** (Liquid Glass / iOS 6), **Aspetto** e Impostazioni.
 
 ## Funzioni
 
@@ -17,6 +31,7 @@ Telecomando Wi‑Fi per Smart TV con interfaccia **iOS 6** disegnata interamente
 | **Panasonic** | Viera 2012–2018 (SOAP 55000) |
 | **Ricerca automatica** | scansione della sottorete Wi‑Fi /24 su tutte le porte note + nomi via Bonjour, oppure aggiunta manuale per IP |
 | **Telecomando** | accensione, input, muto, indietro/home/menu, croce direzionale con OK, bilancieri VOL/CH con ripetizione tenendo premuto, controlli multimediali |
+| **Testo** | digitazione dal vivo (ogni lettera arriva subito alla TV), cancella, invio, dettatura |
 | **Touchpad** | scorri = frecce, tocco = OK, due dita = Indietro, tieni premuto = Menu; modalità mouse su LG |
 | **App rapide** | Netflix, YouTube, Prime Video, Disney+ con un tocco |
 | **Ricerca vocale** | dettatura in italiano inviata alla TV (su Android TV apre la ricerca di YouTube) |

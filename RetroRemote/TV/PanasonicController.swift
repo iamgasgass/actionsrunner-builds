@@ -82,6 +82,8 @@ final class PanasonicController: BaseController {
         case .yellow: return "NRC_YELLOW"
         case .blue: return "NRC_BLUE"
         case .digit(let n): return "NRC_D\(n)"
+        case .enter: return "NRC_ENTER"
+        case .backspace, .previousChannel, .dash: return nil
         }
     }
 

@@ -48,7 +48,8 @@ final class VoiceSearchViewController: UIViewController {
     var onResult: ((String) -> Void)?
 
     private let dim = ClassicAlertDimView()
-    private let box = ClassicAlertBoxView()
+    private let glassMode = InterfaceStyle.isGlass
+    private lazy var box: UIView = glassMode ? (GlassView(cornerRadius: 30) as UIView) : (ClassicAlertBoxView() as UIView)
     private let titleLabel = UILabel()
     private let transcript = UILabel()
     private let mic = MicrophoneView()
@@ -62,7 +63,7 @@ final class VoiceSearchViewController: UIViewController {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
+    override var preferredStatusBarStyle: UIStatusBarStyle { glassMode ? .default : .lightContent }
     override var prefersStatusBarHidden: Bool { Preferences.shared.hideStatusBar }
 
     override func viewDidLoad() {
@@ -72,6 +73,7 @@ final class VoiceSearchViewController: UIViewController {
         dim.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         dim.alpha = 0
         view.addSubview(dim)
+        if glassMode { box.isUserInteractionEnabled = true }
 
         box.translatesAutoresizingMaskIntoConstraints = false
         box.alpha = 0
@@ -80,21 +82,38 @@ final class VoiceSearchViewController: UIViewController {
         titleLabel.text = "Parla ora"
         transcript.text = "Di' il nome di un film, di una serie o di un'app…"
         [titleLabel, transcript].forEach {
-            $0.textColor = .white
             $0.textAlignment = .center
             $0.numberOfLines = 0
-            $0.shadowColor = UIColor(0, 0, 0, 0.6)
-            $0.shadowOffset = CGSize(width: 0, height: -1)
+            if glassMode {
+                $0.textColor = .label
+            } else {
+                $0.textColor = .white
+                $0.shadowColor = UIColor(0, 0, 0, 0.6)
+                $0.shadowOffset = CGSize(width: 0, height: -1)
+            }
         }
-        titleLabel.font = Fonts.bold(18)
-        transcript.font = Fonts.regular(16)
+        titleLabel.font = glassMode ? .systemFont(ofSize: 20, weight: .bold) : Fonts.bold(18)
+        transcript.font = glassMode ? .systemFont(ofSize: 16) : Fonts.regular(16)
         mic.heightAnchor.constraint(equalToConstant: 110).isActive = true
         mic.isUserInteractionEnabled = true
         mic.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(micTapped)))
 
-        let cancel = ClassicAlertButton(title: "Annulla", cancel: true)
+        let cancel: UIControl
+        let send: UIControl
+        if glassMode {
+            var cancelConfig = UIButton.Configuration.gray()
+            cancelConfig.title = "Annulla"
+            cancelConfig.cornerStyle = .capsule
+            var sendConfig = UIButton.Configuration.filled()
+            sendConfig.title = "Invia"
+            sendConfig.cornerStyle = .capsule
+            cancel = UIButton(configuration: cancelConfig)
+            send = UIButton(configuration: sendConfig)
+        } else {
+            cancel = ClassicAlertButton(title: "Annulla", cancel: true)
+            send = ClassicAlertButton(title: "Invia", cancel: false)
+        }
         cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-        let send = ClassicAlertButton(title: "Cerca", cancel: false)
         send.addTarget(self, action: #selector(sendTapped), for: .touchUpInside)
         let buttons = UIStackView(arrangedSubviews: [cancel, send])
         buttons.axis = .horizontal

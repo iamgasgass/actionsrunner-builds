@@ -1,27 +1,26 @@
 import UIKit
 
-final class DevicesViewController: ClassicTableViewController {
-    private let scanButton = ClassicBarButton(symbol: "arrow.clockwise")
-    private let addButton = ClassicBarButton(symbol: "plus")
+/// "Scegli una TV": TV salvate, ricerca in rete e aggiunta manuale.
+final class DevicesViewController: StyledTableViewController {
     private let scanner = NetworkScanner()
     private var found: [TVDevice] = []
     private var scanning = false
     private var didScan = false
     private var scanTask: Task<Void, Never>?
+    private static let genericNames: Set<String> = ["Android TV", "Fire TV", "VIZIO TV", "LG webOS TV"]
 
     init() {
         super.init(nibName: nil, bundle: nil)
-        title = "Dispositivi"
+        title = "Scegli una TV"
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
 
+    deinit { scanTask?.cancel() }
+
     override func viewDidLoad() {
         super.viewDidLoad()
-        scanButton.addTarget(self, action: #selector(startScan), for: .touchUpInside)
-        addButton.addTarget(self, action: #selector(addManually), for: .touchUpInside)
-        navBar.leftView = scanButton
-        navBar.rightView = addButton
+        setBarButton(.right, symbol: "plus", action: #selector(addManually))
         let center = NotificationCenter.default
         center.addObserver(self, selector: #selector(rebuild), name: DeviceStore.didChange, object: nil)
         center.addObserver(self, selector: #selector(rebuild), name: DeviceStore.selectionDidChange, object: nil)
@@ -34,6 +33,10 @@ final class DevicesViewController: ClassicTableViewController {
         if !didScan && !scanning { startScan() }
     }
 
+    private func close() {
+        navigationController?.popToRootViewController(animated: true)
+    }
+
     @objc private func rebuild() {
         let store = DeviceStore.shared
         let state = ConnectionManager.shared.state
@@ -43,44 +46,50 @@ final class DevicesViewController: ClassicTableViewController {
                             value: isSelected ? state.shortLabel : device.brand.shortName,
                             accessory: .detail,
                             onSelect: { [weak self] in
-                                store.select(device.id)
-                                if isSelected { ConnectionManager.shared.reconnect() }
-                                self?.rootController?.selectTab(0)
+                                if isSelected {
+                                    if state != .connected { ConnectionManager.shared.reconnect() }
+                                } else {
+                                    store.select(device.id)
+                                }
+                                self?.close()
                             },
                             onDetail: { [weak self] in
-                                self?.navigationController?.pushViewController(DeviceDetailViewController(deviceID: device.id), animated: true)
+                                self?.navigationController?.pushViewController(DeviceDetailViewController(deviceID: device.id),
+                                                                               animated: true)
                             })
         }
         if saved.isEmpty {
-            saved = [TableRow(title: "Nessun dispositivo", style: .placeholder)]
+            saved = [TableRow(title: "Nessuna TV salvata", style: .placeholder)]
         }
         var result = [TableSection(header: "Le mie TV",
                                    footer: "Tocca una TV per usarla. iPhone e TV devono essere collegati alla stessa rete Wi-Fi.",
                                    rows: saved)]
 
         let newOnes = found.filter { !store.isSaved($0) }
-        if scanning || didScan {
-            var rows = newOnes.map { device in
-                TableRow(title: device.name, value: device.brand.shortName, accessory: .chevron, onSelect: { [weak self] in
-                    DeviceStore.shared.add(device, select: true)
-                    self?.rootController?.selectTab(0)
-                })
-            }
-            if rows.isEmpty {
-                rows = [TableRow(title: scanning ? "Ricerca in corso…" : "Nessuna nuova TV trovata", style: .placeholder)]
-            }
-            result.append(TableSection(header: "Trovate in rete",
-                                       footer: scanning ? nil : "Compatibili: Samsung, LG, Roku, Android TV / Google TV (Sony, Philips, TCL, Hisense, Xiaomi…), Fire TV, VIZIO e Panasonic. Se la TV non compare, aggiungila a mano con +.",
-                                       rows: rows,
-                                       headerSpinner: scanning))
+        var rows = newOnes.map { device in
+            TableRow(title: device.name, value: device.brand.shortName, accessory: .chevron, onSelect: { [weak self] in
+                DeviceStore.shared.add(device, select: true)
+                self?.close()
+            })
         }
+        if rows.isEmpty {
+            rows = [TableRow(title: scanning ? "Ricerca in corso…" : (didScan ? "Nessuna nuova TV trovata" : "Ricerca non ancora avviata"),
+                             style: .placeholder)]
+        }
+        if !scanning {
+            rows.append(TableRow(title: "Cerca di nuovo", style: .button, onSelect: { [weak self] in self?.startScan() }))
+        }
+        rows.append(TableRow(title: "Aggiungi a mano…", style: .button, onSelect: { [weak self] in self?.addManually() }))
+        result.append(TableSection(header: scanning ? "Ricerca in rete…" : "Trovate in rete",
+                                   footer: "Compatibili: Samsung, LG, Roku, Android TV / Google TV (Sony, Philips, TCL, Hisense, Xiaomi…), Fire TV, VIZIO e Panasonic.",
+                                   rows: rows,
+                                   headerSpinner: scanning))
         sections = result
     }
 
-    @objc private func startScan() {
+    private func startScan() {
         guard !scanning else { return }
         scanning = true
-        scanButton.isSpinning = true
         found = []
         rebuild()
         scanTask = Task { [weak self] in
@@ -101,15 +110,13 @@ final class DevicesViewController: ClassicTableViewController {
             guard let self = self else { return }
             self.scanning = false
             self.didScan = true
-            self.scanButton.isSpinning = false
             self.rebuild()
         }
     }
 
-    private static let genericNames: Set<String> = ["Android TV", "Fire TV", "VIZIO TV", "LG webOS TV"]
-
     @objc private func addManually() {
-        let alert = ClassicAlertController(title: "Aggiungi TV", message: "Scegli il tipo di TV.")
+        let alert = StyledAlert(title: "Aggiungi TV", message: "Scegli il tipo di TV.")
+        alert.prefersSheet = true
         for brand in TVBrand.allCases {
             alert.addAction(brand.displayName) { [weak self] _ in self?.askAddress(for: brand) }
         }
@@ -118,20 +125,34 @@ final class DevicesViewController: ClassicTableViewController {
     }
 
     private func askAddress(for brand: TVBrand) {
-        let alert = ClassicAlertController(title: brand.displayName,
-                                           message: "Inserisci l'indirizzo IP indicato nelle impostazioni di rete della TV.")
+        let alert = StyledAlert(title: brand.displayName,
+                                message: "Inserisci l'indirizzo IP indicato nelle impostazioni di rete della TV.")
         alert.addTextField(placeholder: "Es. 192.168.1.20", keyboard: .numbersAndPunctuation)
-        alert.addTextField(placeholder: "Nome (facoltativo)")
+        alert.addTextField(placeholder: "Nome (facoltativo)", capitalization: .words)
         alert.addAction("Annulla", style: .cancel)
         alert.addAction("Aggiungi") { [weak self] a in
-            let host = (a.textFields[0].text ?? "").trimmingCharacters(in: .whitespaces)
-            let name = (a.textFields[1].text ?? "").trimmingCharacters(in: .whitespaces)
-            guard !host.isEmpty else { return }
+            let host = a.value(0)
+            let name = a.value(1)
+            guard Self.isValidHost(host) else {
+                let error = StyledAlert(title: "Indirizzo non valido", message: "Scrivi un indirizzo come 192.168.1.20.")
+                error.addAction("OK", style: .cancel)
+                if let self = self { error.show(from: self) }
+                return
+            }
             DeviceStore.shared.add(TVDevice(name: name.isEmpty ? brand.displayName : name, host: host, brand: brand),
                                    select: true)
-            self?.rootController?.selectTab(0)
+            self?.close()
         }
         alert.show(from: self)
+    }
+
+    /// IPv4 (o nome host locale) senza spazi né schema.
+    static func isValidHost(_ host: String) -> Bool {
+        guard !host.isEmpty, !host.contains(" "), !host.contains("/"), !host.contains(":") else { return false }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        if parts.count == 4, parts.allSatisfy({ Int($0).map { (0...255).contains($0) } ?? false }) { return true }
+        return host.contains(".local") || host.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "." }
+            && host.contains(where: { $0.isLetter })
     }
 }
 

@@ -115,6 +115,10 @@ class BaseController: NSObject {
         case .yellow: return 185
         case .blue: return 186
         case .exit: return 111
+        case .backspace: return 67
+        case .enter: return 66
+        case .previousChannel: return 229
+        case .dash: return 69
         case .digit(let n): return 7 + n
         }
     }

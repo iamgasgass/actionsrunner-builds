@@ -14,7 +14,8 @@ final class AndroidTVController: BaseController {
     private var attemptedPairing = false
     private var configured = false
 
-    override var supportsText: Bool { false }
+    /// Il testo viene digitato carattere per carattere (lettere, cifre e punteggiatura comune).
+    override var supportsText: Bool { true }
 
     override func connect() {
         attemptedPairing = false
@@ -297,6 +298,36 @@ final class AndroidTVController: BaseController {
             if connection == nil && pairingConnection == nil { connect() }
             return
         }
+        inject(code)
+    }
+
+    override func sendText(_ text: String) {
+        for character in text.lowercased() {
+            guard let code = Self.characterKeyCode(character) else { continue }
+            inject(code)
+        }
+    }
+
+    static func characterKeyCode(_ c: Character) -> Int? {
+        guard let ascii = c.asciiValue else { return nil }
+        switch c {
+        case "a"..."z": return 29 + Int(ascii - 97)
+        case "0"..."9": return 7 + Int(ascii - 48)
+        case " ": return 62
+        case ".": return 56
+        case ",": return 55
+        case "-": return 69
+        case "=": return 70
+        case "/": return 76
+        case "@": return 77
+        case "'": return 75
+        case ";": return 74
+        case "+": return 81
+        default: return nil
+        }
+    }
+
+    private func inject(_ code: Int) {
         sendRemote { w in
             w.message(10) { k in
                 k.varint(1, UInt64(code))

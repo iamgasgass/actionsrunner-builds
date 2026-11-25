@@ -1,7 +1,7 @@
 import UIKit
 
 /// Elenco delle piattaforme supportate con le istruzioni di configurazione.
-final class SupportedTVsViewController: ClassicTableViewController {
+final class SupportedTVsViewController: StyledTableViewController {
     init() {
         super.init(nibName: nil, bundle: nil)
         title = "TV compatibili"

@@ -61,6 +61,13 @@ final class DeviceStore {
         NotificationCenter.default.post(name: Self.didChange, object: nil)
     }
 
+    /// Cancella i token/chiavi di associazione di tutte le TV.
+    func forgetAllPairings() {
+        for index in devices.indices { devices[index].token = nil }
+        save()
+        NotificationCenter.default.post(name: Self.didChange, object: nil)
+    }
+
     func remove(id: UUID) {
         devices.removeAll { $0.id == id }
         let wasSelected = selectedID == id

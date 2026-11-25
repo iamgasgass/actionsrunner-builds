@@ -2,11 +2,21 @@ import Foundation
 
 /// VIZIO SmartCast: API HTTPS (porta 7345, o 9000 sui firmware vecchi) con PIN di associazione.
 final class VizioController: BaseController, URLSessionDelegate {
-    private lazy var session: URLSession = {
+    private var activeSession: URLSession?
+    private var session: URLSession {
+        if let s = activeSession { return s }
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 5
-        return URLSession(configuration: config, delegate: self, delegateQueue: .main)
-    }()
+        let s = URLSession(configuration: config, delegate: self, delegateQueue: .main)
+        activeSession = s
+        return s
+    }
+
+    override func disconnect() {
+        activeSession?.invalidateAndCancel()
+        activeSession = nil
+        setState(.idle)
+    }
 
     private var port = 7345
     private var base: String { "https://\(device.host):\(port)" }
@@ -117,6 +127,7 @@ final class VizioController: BaseController, URLSessionDelegate {
         case .input: return (7, 1)
         case .channelDown: return (8, 0)
         case .channelUp: return (8, 1)
+        case .previousChannel: return (8, 2)
         case .exit: return (9, 0)
         case .power: return (11, 2)
         default: return nil

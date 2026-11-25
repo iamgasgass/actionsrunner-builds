@@ -6,23 +6,27 @@ final class ConnectionManager {
     static let stateDidChange = Notification.Name("RetroRemote.ConnectionStateDidChange")
 
     private(set) var controller: BaseController?
+    private var wasConnectedBeforeSuspend = false
 
-    /// Impostato dall'interfaccia: mostra la richiesta del codice di associazione.
+    /// Impostato dall'interfaccia: chiede il codice di associazione mostrato sulla TV.
     var pinPrompt: ((_ title: String, _ message: String, _ hex: Bool, _ reply: @escaping (String?) -> Void) -> Void)?
 
     var state: ConnectionState { controller?.state ?? .idle }
+    var isConnected: Bool { state == .connected }
 
     private init() {
         NotificationCenter.default.addObserver(self, selector: #selector(selectionChanged),
                                                name: DeviceStore.selectionDidChange, object: nil)
     }
 
-    @objc private func selectionChanged() { activateSelected() }
+    @objc private func selectionChanged() { activateSelected(connect: true) }
 
-    func activateSelected() {
+    /// Crea il controller per la TV selezionata; con `connect` avvia subito la connessione.
+    func activateSelected(connect: Bool = true) {
         if let old = controller {
             old.onStateChange = nil
             old.onTokenUpdate = nil
+            old.onMACUpdate = nil
             old.disconnect()
         }
         controller = nil
@@ -44,17 +48,29 @@ final class ConnectionManager {
             c.onTokenUpdate = { token in DeviceStore.shared.updateToken(id: id, token: token) }
             c.onMACUpdate = { mac in DeviceStore.shared.updateMAC(id: id, mac: mac) }
             controller = c
-            c.connect()
+            if connect { c.connect() }
         }
         NotificationCenter.default.post(name: Self.stateDidChange, object: nil)
     }
 
     func reconnect() {
-        if let c = controller { c.connect() } else { activateSelected() }
+        if let c = controller { c.connect() } else { activateSelected(connect: true) }
     }
 
-    func suspend() {
+    func disconnect() {
         controller?.disconnect()
+    }
+
+    /// Chiamato quando l'app va in background.
+    func suspend() {
+        wasConnectedBeforeSuspend = isConnected
+        controller?.disconnect()
+    }
+
+    /// Chiamato al ritorno in primo piano.
+    func resume() {
+        if wasConnectedBeforeSuspend || Preferences.shared.autoReconnect { reconnect() }
+        wasConnectedBeforeSuspend = false
     }
 
     func press(_ key: RemoteKey) {
@@ -63,7 +79,13 @@ final class ConnectionManager {
             wake(device)
             return
         }
+        if controller == nil, DeviceStore.shared.selected != nil { activateSelected(connect: true) }
         controller?.send(key)
+    }
+
+    func launch(_ app: TVApp) {
+        Feedback.tap()
+        controller?.launch(app)
     }
 
     /// Accende la TV con Wake-on-LAN e poi si riconnette.

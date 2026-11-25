@@ -71,6 +71,7 @@ enum RemoteKey: Hashable {
     case volumeUp, volumeDown, mute, channelUp, channelDown
     case play, pause, playPause, rewind, fastForward, stop
     case red, green, yellow, blue, settings
+    case backspace, enter, previousChannel, dash
     case digit(Int)
 }
 

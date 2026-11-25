@@ -19,22 +19,26 @@ final class KeyRepeater {
     deinit { stop() }
 }
 
-/// Tasto fisico del telecomando: plastica lucida (tema chiaro) o vetro nero (tema scuro).
+/// Tasto del telecomando: plastica lucida / vetro nero (iOS 6) oppure vetro (Liquid Glass).
 final class RemoteKeyButton: ThemedControl {
     enum Shape { case circle, rounded, pill }
-    enum Tint { case normal, power, red, green, yellow, blue }
+    enum Tint { case normal, power, red, green, yellow, blue, accent }
 
     let key: RemoteKey
-    var shape: Shape
-    var tint: Tint
-    var title: String?
-    var symbol: String?
-    var symbolSize: CGFloat = 17
-    var fontSize: CGFloat = 13
+    var shape: Shape { didSet { refresh() } }
+    var tint: Tint { didSet { glass?.tint = glassTint; refresh() } }
+    var title: String? { didSet { refresh() } }
+    var symbol: String? { didSet { refresh() } }
+    var symbolSize: CGFloat = 17 { didSet { refresh() } }
+    var fontSize: CGFloat = 13 { didSet { refresh() } }
     var repeats = false
     var onPress: ((RemoteKey) -> Void)?
 
     private let repeater = KeyRepeater()
+    private let glassMode = InterfaceStyle.isGlass
+    private var glass: GlassView?
+    private let iconView = UIImageView()
+    private let label = UILabel()
 
     init(key: RemoteKey, title: String? = nil, symbol: String? = nil,
          shape: Shape = .circle, tint: Tint = .normal, repeats: Bool = false) {
@@ -48,12 +52,72 @@ final class RemoteKeyButton: ThemedControl {
         isOpaque = false
         backgroundColor = .clear
         isExclusiveTouch = true
+        accessibilityTraits = .button
+        accessibilityLabel = title ?? symbol
+        if glassMode {
+            let g = GlassView(cornerRadius: 14, tint: glassTint)
+            glass = g
+            addSubview(g)
+            iconView.contentMode = .center
+            label.textAlignment = .center
+            label.adjustsFontSizeToFitWidth = true
+            label.minimumScaleFactor = 0.6
+            addSubview(iconView)
+            addSubview(label)
+            refresh()
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
 
+    private var glassTint: UIColor? {
+        switch tint {
+        case .normal: return nil
+        case .power, .red: return .systemRed
+        case .green: return .systemGreen
+        case .yellow: return .systemYellow
+        case .blue, .accent: return .systemBlue
+        }
+    }
+
+    private func refresh() {
+        guard glassMode else {
+            setNeedsDisplay()
+            return
+        }
+        let color: UIColor = tint == .normal ? .label : .white
+        if let s = symbol, let image = systemSymbol(s, size: symbolSize, weight: .semibold) {
+            iconView.image = image
+            iconView.tintColor = color
+            label.text = nil
+        } else {
+            iconView.image = nil
+            label.text = title
+            label.font = .systemFont(ofSize: fontSize, weight: .semibold)
+            label.textColor = color
+        }
+        setNeedsLayout()
+    }
+
     override var isHighlighted: Bool {
-        didSet { if oldValue != isHighlighted { setNeedsDisplay() } }
+        didSet {
+            guard oldValue != isHighlighted else { return }
+            if glassMode { animatePress(self, pressed: isHighlighted) } else { setNeedsDisplay() }
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let g = glass else { return }
+        var r = bounds.insetBy(dx: 2, dy: 2)
+        if shape == .circle {
+            let d = min(r.width, r.height)
+            r = CGRect(x: r.midX - d / 2, y: r.midY - d / 2, width: d, height: d)
+        }
+        g.frame = r
+        g.cornerRadius = shape == .rounded ? min(16, r.height / 2.6) : min(r.width, r.height) / 2
+        iconView.frame = r
+        label.frame = r.insetBy(dx: 6, dy: 0)
     }
 
     override func beginTracking(_ touch: UITouch, with event: UIEvent?) -> Bool {
@@ -94,7 +158,7 @@ final class RemoteKeyButton: ThemedControl {
 
     private var bodyColors: [UIColor] {
         let p = Theme.palette
-        var colors: [UIColor]
+        let colors: [UIColor]
         switch tint {
         case .normal:
             return isHighlighted ? [p.keyPressedTop, p.keyPressedBottom] : [p.keyTop, p.keyBottom]
@@ -102,13 +166,13 @@ final class RemoteKeyButton: ThemedControl {
         case .red: colors = [UIColor(244, 98, 88), UIColor(186, 28, 24)]
         case .green: colors = [UIColor(122, 214, 98), UIColor(36, 146, 40)]
         case .yellow: colors = [UIColor(255, 228, 96), UIColor(214, 164, 16)]
-        case .blue: colors = [UIColor(98, 168, 252), UIColor(22, 86, 206)]
+        case .blue, .accent: colors = [UIColor(98, 168, 252), UIColor(22, 86, 206)]
         }
         return isHighlighted ? colors.map { $0.scaled(0.72) } : colors
     }
 
     override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        guard !glassMode, let ctx = UIGraphicsGetCurrentContext() else { return }
         let p = Theme.palette
         let r = bounds.insetBy(dx: 3, dy: 3).offsetBy(dx: 0, dy: -1)
         let outer = shapePath(r)
@@ -154,14 +218,84 @@ final class RemoteKeyButton: ThemedControl {
 /// Croce direzionale circolare con tasto OK centrale.
 final class DPadView: ThemedControl {
     var onPress: ((RemoteKey) -> Void)?
-    private var pressed: RemoteKey?
+    private var pressed: RemoteKey? { didSet { updateGlassPress() } }
     private let repeater = KeyRepeater()
+
+    private let glassMode = InterfaceStyle.isGlass
+    private var ring: GlassView?
+    private var centerGlass: GlassView?
+    private let pressOverlay = UIView()
+    private let pressMask = CAShapeLayer()
+    private var arrows: [UIImageView] = []
+    private let okLabel = UILabel()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
         backgroundColor = .clear
         isExclusiveTouch = true
+        accessibilityLabel = "Croce direzionale"
+        if glassMode {
+            let ringView = GlassView(cornerRadius: 100)
+            let centerView = GlassView(cornerRadius: 40)
+            ring = ringView
+            centerGlass = centerView
+            addSubview(ringView)
+            pressOverlay.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+            pressOverlay.isUserInteractionEnabled = false
+            pressOverlay.layer.mask = pressMask
+            pressOverlay.isHidden = true
+            addSubview(pressOverlay)
+            for name in ["chevron.up", "chevron.right", "chevron.down", "chevron.left"] {
+                let arrow = UIImageView(image: systemSymbol(name, size: 15, weight: .bold))
+                arrow.tintColor = .secondaryLabel
+                arrow.contentMode = .center
+                addSubview(arrow)
+                arrows.append(arrow)
+            }
+            addSubview(centerView)
+            okLabel.text = "OK"
+            okLabel.textAlignment = .center
+            okLabel.textColor = .label
+            addSubview(okLabel)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard glassMode, let ring = ring, let centerView = centerGlass else { return }
+        let c = center0
+        let R = outerRadius
+        let ri = innerRadius
+        ring.frame = CGRect(x: c.x - R, y: c.y - R, width: R * 2, height: R * 2)
+        ring.cornerRadius = R
+        centerView.frame = CGRect(x: c.x - ri, y: c.y - ri, width: ri * 2, height: ri * 2)
+        centerView.cornerRadius = ri
+        okLabel.frame = centerView.frame
+        okLabel.font = .systemFont(ofSize: max(15, ri * 0.4), weight: .semibold)
+        pressOverlay.frame = bounds
+        let dist = (R + ri) / 2
+        for (index, arrow) in arrows.enumerated() {
+            let angle = -CGFloat.pi / 2 + CGFloat(index) * .pi / 2
+            arrow.frame = CGRect(x: c.x + cos(angle) * dist - 15, y: c.y + sin(angle) * dist - 15, width: 30, height: 30)
+        }
+        updateGlassPress()
+    }
+
+    private func updateGlassPress() {
+        guard glassMode else { return }
+        guard let k = pressed else {
+            pressOverlay.isHidden = true
+            if let centerView = centerGlass { animatePress(centerView, pressed: false) }
+            return
+        }
+        if k == .ok {
+            pressOverlay.isHidden = true
+            if let centerView = centerGlass { animatePress(centerView, pressed: true) }
+        } else {
+            pressMask.path = wedge(k).cgPath
+            pressOverlay.isHidden = false
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
@@ -235,7 +369,7 @@ final class DPadView: ThemedControl {
     }
 
     override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        guard !glassMode, let ctx = UIGraphicsGetCurrentContext() else { return }
         let p = Theme.palette
         let c = center0
         let R = outerRadius
@@ -330,8 +464,15 @@ final class RockerView: ThemedControl {
     let downKey: RemoteKey
     let label: String
     var onPress: ((RemoteKey) -> Void)?
-    private var pressed: RemoteKey?
+    private var pressed: RemoteKey? { didSet { updateGlassPress() } }
     private let repeater = KeyRepeater()
+
+    private let glassMode = InterfaceStyle.isGlass
+    private var glass: GlassView?
+    private let plusView = UIImageView()
+    private let minusView = UIImageView()
+    private let captionLabel = UILabel()
+    private let pressOverlay = UIView()
 
     init(up: RemoteKey, down: RemoteKey, label: String) {
         upKey = up
@@ -341,6 +482,60 @@ final class RockerView: ThemedControl {
         isOpaque = false
         backgroundColor = .clear
         isExclusiveTouch = true
+        accessibilityLabel = label
+        if glassMode {
+            let g = GlassView(cornerRadius: 30)
+            glass = g
+            addSubview(g)
+            pressOverlay.backgroundColor = UIColor.label.withAlphaComponent(0.14)
+            pressOverlay.isUserInteractionEnabled = false
+            pressOverlay.isHidden = true
+            addSubview(pressOverlay)
+            plusView.image = systemSymbol("plus", size: 18, weight: .bold)
+            minusView.image = systemSymbol("minus", size: 18, weight: .bold)
+            [plusView, minusView].forEach {
+                $0.tintColor = .label
+                $0.contentMode = .center
+                addSubview($0)
+            }
+            captionLabel.text = label
+            captionLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+            captionLabel.textColor = .secondaryLabel
+            captionLabel.textAlignment = .center
+            addSubview(captionLabel)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let g = glass else { return }
+        let r = bounds.insetBy(dx: 3, dy: 3)
+        g.frame = r
+        g.cornerRadius = r.width / 2
+        let quarter = r.height / 4
+        plusView.frame = CGRect(x: r.minX, y: r.minY + quarter * 0.25, width: r.width, height: quarter * 1.2)
+        minusView.frame = CGRect(x: r.minX, y: r.maxY - quarter * 1.45, width: r.width, height: quarter * 1.2)
+        captionLabel.frame = CGRect(x: r.minX, y: r.midY - 10, width: r.width, height: 20)
+        updateGlassPress()
+    }
+
+    private func updateGlassPress() {
+        guard let g = glass else { return }
+        guard let k = pressed else {
+            pressOverlay.isHidden = true
+            return
+        }
+        let r = g.frame
+        pressOverlay.frame = k == upKey
+            ? CGRect(x: r.minX, y: r.minY, width: r.width, height: r.height / 2)
+            : CGRect(x: r.minX, y: r.midY, width: r.width, height: r.height / 2)
+        let corners: CACornerMask = k == upKey
+            ? [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+            : [.layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+        pressOverlay.layer.cornerRadius = r.width / 2
+        pressOverlay.layer.maskedCorners = corners
+        pressOverlay.layer.cornerCurve = .continuous
+        pressOverlay.isHidden = false
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
@@ -376,7 +571,7 @@ final class RockerView: ThemedControl {
     }
 
     override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        guard !glassMode, let ctx = UIGraphicsGetCurrentContext() else { return }
         let p = Theme.palette
         let r = bounds.insetBy(dx: 4, dy: 4).offsetBy(dx: 0, dy: -1)
         let radius = r.width / 2

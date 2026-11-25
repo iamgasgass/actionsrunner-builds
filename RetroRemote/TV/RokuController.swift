@@ -71,7 +71,9 @@ final class RokuController: BaseController {
         case .rewind: return "Rev"
         case .fastForward: return "Fwd"
         case .stop: return "InstantReplay"
-        case .red, .green, .yellow, .blue, .settings: return nil
+        case .red, .green, .yellow, .blue, .settings, .previousChannel, .dash: return nil
+        case .backspace: return "Backspace"
+        case .enter: return "Enter"
         case .digit(let n): return "Lit_\(n)"
         }
     }

@@ -184,7 +184,7 @@ struct TableSection {
 
 final class ClassicCell: UITableViewCell {
     enum AccessoryKind { case none, chevron, checkmark, detail }
-    enum TitleStyle { case normal, button, placeholder }
+    enum TitleStyle { case normal, button, destructive, placeholder }
 
     static func sideInset(for width: CGFloat) -> CGFloat {
         if width > 700 { return 45 }
@@ -275,6 +275,10 @@ final class ClassicCell: UITableViewCell {
             titleLabel.font = Fonts.bold(17)
             titleLabel.textAlignment = .center
             titleLabel.textColor = hl ? .white : p.cellDetail
+        case .destructive:
+            titleLabel.font = Fonts.bold(17)
+            titleLabel.textAlignment = .center
+            titleLabel.textColor = hl ? .white : UIColor(204, 24, 24)
         case .placeholder:
             titleLabel.font = Fonts.regular(17)
             titleLabel.textAlignment = .center

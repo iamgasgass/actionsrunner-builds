@@ -6,7 +6,13 @@ final class TouchpadView: ThemedView {
     var onKey: ((RemoteKey) -> Void)?
     var onPointerMove: ((Int, Int) -> Void)?
     var onPointerClick: (() -> Void)?
-    var pointerMode = false { didSet { setNeedsDisplay() } }
+    var pointerMode = false { didSet { setNeedsDisplay(); updateGlassHints() } }
+
+    private let glassMode = InterfaceStyle.isGlass
+    private var glass: GlassView?
+    private let hintLabel = UILabel()
+    private let subHintLabel = UILabel()
+    private let glow = UIView()
 
     private var anchor: CGPoint = .zero
     private var lastPoint: CGPoint = .zero
@@ -34,6 +40,51 @@ final class TouchpadView: ThemedView {
         long.minimumPressDuration = 0.6
         addGestureRecognizer(long)
         tap.require(toFail: long)
+
+        if glassMode {
+            let g = GlassView(cornerRadius: 28)
+            glass = g
+            addSubview(g)
+            glow.backgroundColor = UIColor.label.withAlphaComponent(0.16)
+            glow.isUserInteractionEnabled = false
+            glow.isHidden = true
+            addSubview(glow)
+            hintLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+            subHintLabel.font = .systemFont(ofSize: 13)
+            [hintLabel, subHintLabel].forEach {
+                $0.textAlignment = .center
+                $0.numberOfLines = 0
+                $0.textColor = .secondaryLabel
+                addSubview($0)
+            }
+            updateGlassHints()
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard let g = glass else { return }
+        g.frame = bounds.insetBy(dx: 2, dy: 2)
+        hintLabel.frame = CGRect(x: 16, y: bounds.midY - 26, width: bounds.width - 32, height: 24)
+        subHintLabel.frame = CGRect(x: 16, y: bounds.midY + 2, width: bounds.width - 32, height: 36)
+    }
+
+    private func updateGlassHints() {
+        guard glassMode else { return }
+        hintLabel.text = pointerMode ? "Muovi il puntatore · Tocca per cliccare" : "Scorri per muoverti · Tocca per OK"
+        subHintLabel.text = "Due dita: Indietro · Tieni premuto: Menu"
+    }
+
+    private func showGlow(at point: CGPoint?) {
+        guard glassMode else { return }
+        guard let p = point else {
+            UIView.animate(withDuration: 0.2) { self.glow.alpha = 0 } completion: { _ in self.glow.isHidden = true }
+            return
+        }
+        glow.frame = CGRect(x: p.x - 30, y: p.y - 30, width: 60, height: 60)
+        glow.layer.cornerRadius = 30
+        glow.alpha = 1
+        glow.isHidden = false
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) non supportato") }
@@ -84,6 +135,7 @@ final class TouchpadView: ThemedView {
             touchPoint = nil
         }
         setNeedsDisplay()
+        showGlow(at: touchPoint)
     }
 
     private func fire(_ key: RemoteKey) {
@@ -94,14 +146,16 @@ final class TouchpadView: ThemedView {
     private func flash(at point: CGPoint) {
         touchPoint = point
         setNeedsDisplay()
+        showGlow(at: point)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
             self?.touchPoint = nil
             self?.setNeedsDisplay()
+            self?.showGlow(at: nil)
         }
     }
 
     override func draw(_ rect: CGRect) {
-        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        guard !glassMode, let ctx = UIGraphicsGetCurrentContext() else { return }
         let p = Theme.palette
         let r = bounds.insetBy(dx: 2, dy: 2)
         let path = UIBezierPath(roundedRect: r, cornerRadius: 14)

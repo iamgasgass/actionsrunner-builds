@@ -197,6 +197,7 @@ final class LGController: BaseController, URLSessionWebSocketDelegate {
         case .yellow: return "YELLOW"
         case .blue: return "BLUE"
         case .settings: return "QMENU"
+        case .dash: return "DASH"
         case .digit(let n): return "\(n)"
         default: return nil
         }
@@ -219,6 +220,8 @@ final class LGController: BaseController, URLSessionWebSocketDelegate {
         case .fastForward: request("ssap://media.controls/fastForward")
         case .stop: request("ssap://media.controls/stop")
         case .input: request("ssap://system.launcher/launch", ["id": "com.webos.app.inputpicker"])
+        case .backspace: request("ssap://com.webos.service.ime/deleteCharacters", ["count": 1])
+        case .enter: request("ssap://com.webos.service.ime/sendEnterKey")
         default:
             if let name = buttonName(key) { button(name) }
         }

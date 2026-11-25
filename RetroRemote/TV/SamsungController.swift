@@ -168,6 +168,10 @@ final class SamsungController: BaseController, URLSessionWebSocketDelegate {
         case .yellow: return "KEY_YELLOW"
         case .blue: return "KEY_CYAN"
         case .settings: return "KEY_TOOLS"
+        case .backspace: return nil
+        case .enter: return "KEY_ENTER"
+        case .previousChannel: return "KEY_PRECH"
+        case .dash: return "KEY_PLUS100"
         case .digit(let n): return "KEY_\(n)"
         }
     }
