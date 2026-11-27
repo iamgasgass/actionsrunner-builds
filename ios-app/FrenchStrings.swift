@@ -1467,4 +1467,8 @@ let frenchStrings: [String: String] = [
     "The debugger lost %@ (%@). Open it with JIT again.":
         "Le débogueur a perdu %@ (%@). Rouvrez-la avec le JIT.",
     "Universal": "Universel",
+    "For SideInstaller, the base iLoader X is built on.":
+        "Pour SideInstaller, la base sur laquelle iLoader X est construit.",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "L'app dont iLoader X est un fork : association, signature et installation sur l'appareil. Par FrizzleM, SideInstaller License.",
 ]

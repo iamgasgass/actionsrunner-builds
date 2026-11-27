@@ -1458,4 +1458,8 @@ let vietnameseStrings: [String: String] = [
     "The debugger lost %@ (%@). Open it with JIT again.":
         "Trình gỡ lỗi đã mất kết nối với %@ (%@). Hãy mở lại nó bằng JIT.",
     "Universal": "Phổ quát",
+    "For SideInstaller, the base iLoader X is built on.":
+        "Vì SideInstaller, nền tảng mà iLoader X được xây dựng.",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "Ứng dụng mà iLoader X là bản fork: ghép đôi, ký và cài đặt trên thiết bị. Của FrizzleM, SideInstaller License.",
 ]

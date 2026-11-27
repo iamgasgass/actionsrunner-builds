@@ -155,9 +155,13 @@ Compared with SideInstaller 2.2.0 (`08936ec`), as its licence asks:
   terms use `iamgasgass/iLoaderX` and its install page, not FrizzleM's.
 - **Official-source check**: points to iamgasgass.github.io/iLoaderX instead of
   sideinstaller.net.
-- **Install page and source**: `site/` (install page in English and Italian, terms,
-  AltStore/SideStore source `iloaderx.json`) replaces sideinstaller.net and
-  `frizzlem.json`.
+- **Install site and source**: `site/` replaces sideinstaller.net and `frizzlem.json`:
+  Overview (`index.html`, with the app's Install screen drawn in CSS), Install
+  (`install.html`: siboot, SideStore/AltStore/LiveContainer, IPA and TrollStore), Help
+  (`help.html`), Terms, in English and Italian, dark garnet like the app; written for
+  iLoader X (`assets/site.css`, `assets/site.js`), plus the source `iloaderx.json`.
+- **About**: Support the project opens PayPal.me/iamgasgass (no Discord or crypto
+  wallets); FrizzleM in Special thanks, SideInstaller first under Built with.
 - **About**: links this fork's source and credits SideInstaller by FrizzleM.
 - **SideInstaller 2.2.0** (JIT, Sources, Shortcuts, ARMSX3 pairing, a current Mac for
   sign-in) merged in with all of the above kept: its default source is iLoader X's

@@ -1424,4 +1424,8 @@ let japaneseStrings: [String: String] = [
         "デバッガは %@ にアタッチできませんでした（%@）。デバッガがアタッチできるように署名する SideStore か iLoader X で再インストールしてください。",
     "The debugger lost %@ (%@). Open it with JIT again.": "デバッガが %@ を見失いました（%@）。もう一度 JIT で開いてください。",
     "Universal": "ユニバーサル",
+    "For SideInstaller, the base iLoader X is built on.":
+        "iLoader X の土台となった SideInstaller に。",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "iLoader X のフォーク元のアプリ：デバイス上でのペアリング、署名、インストール。FrizzleM 作、SideInstaller License。",
 ]

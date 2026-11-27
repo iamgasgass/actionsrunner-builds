@@ -1413,4 +1413,8 @@ let chineseStrings: [String: String] = [
         "调试器无法附加到 %@（%@）。请用 SideStore 或 iLoader X 重新安装它，它们签名的应用可以被调试器附加。",
     "The debugger lost %@ (%@). Open it with JIT again.": "调试器与 %@ 断开了（%@）。请再次用 JIT 打开它。",
     "Universal": "通用",
+    "For SideInstaller, the base iLoader X is built on.":
+        "感谢 SideInstaller，iLoader X 构建于其上。",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "iLoader X 所分支的应用：在设备上完成配对、签名和安装。作者 FrizzleM，SideInstaller License。",
 ]

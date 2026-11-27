@@ -1322,4 +1322,8 @@ let turkishStrings: [String: String] = [
     "The debugger lost %@ (%@). Open it with JIT again.":
         "Hata ayıklayıcı %@ ile bağlantıyı kaybetti (%@). Onu yeniden JIT ile aç.",
     "Universal": "Evrensel",
+    "For SideInstaller, the base iLoader X is built on.":
+        "iLoader X'in üzerine kurulduğu SideInstaller için.",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "iLoader X'in çatallandığı uygulama: cihazda eşleştirme, imzalama ve yükleme. FrizzleM tarafından, SideInstaller License.",
 ]

@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Install iLoader X</title>
+<meta name="description" content="Install iLoader X on your iPhone: with siboot and no computer on iOS 27, or from SideStore, AltStore, LiveContainer or TrollStore.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14060a">
+<meta property="og:title" content="Install iLoader X">
+<meta property="og:image" content="https://iamgasgass.github.io/iLoaderX/icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<script>document.documentElement.className = "js"; window.ILOADERX_TITLE = "Install iLoader X";</script>
+<script src="assets/i18n-it.js" defer></script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+    <nav class="nav-links" id="navLinks" aria-label="Site">
+      <a href="index.html" data-i18n="nav.overview">Overview</a>
+      <a href="install.html" data-i18n="nav.install">Install</a>
+      <a href="help.html" data-i18n="nav.help">Help</a>
+      <a href="https://github.com/iamgasgass/iLoaderX" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="it">IT</button></div>
+    <button type="button" class="nav-menu" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><svg class="icon"><use href="assets/icons.svg#menu"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section class="page-head">
+    <div class="wrap">
+      <p class="eyebrow rise" data-version>…</p>
+      <h1 class="headline rise" style="--i:1" data-i18n="inst.title">Install iLoader X</h1>
+      <p class="lead rise" style="--i:2" data-i18n="inst.lead">Open this page on the iPhone you're setting up. Pick how: with no computer at all, or from an app that already sideloads.</p>
+      <div class="tabs rise" style="--i:3" role="tablist" aria-label="How to install">
+        <button type="button" role="tab" aria-controls="siboot" aria-selected="true" data-i18n="inst.tab1">No computer</button>
+        <button type="button" role="tab" aria-controls="apps" aria-selected="false" data-i18n="inst.tab2">Already sideloading</button>
+        <button type="button" role="tab" aria-controls="ipa" aria-selected="false" data-i18n="inst.tab3">IPA &amp; TrollStore</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:36px">
+    <div class="wrap">
+
+      <!-- siboot: iOS 27, no computer -->
+      <div class="panel" id="siboot" role="tabpanel">
+        <p class="note" data-i18n="sb.lead"><a href="https://github.com/FrizzleM/siboot">siboot</a> (by FrizzleM, MIT) installs iLoader X from the iPhone itself, signed with your own Apple account: no computer and no certificate.</p>
+        <div class="need">
+          <span class="chip"><b>iOS 27+</b></span>
+          <span class="chip" data-i18n="sb.need1">Wi-Fi</span>
+          <span class="chip" data-i18n="sb.need2">Developer Mode on</span>
+          <span class="chip" data-i18n="sb.need3">An Apple account</span>
+        </div>
+        <ol class="steps">
+          <li data-reveal><b class="t" data-i18n="sb.1t">Get the apps</b>
+            <p data-i18n="sb.1">Install <a href="https://apps.apple.com/app/id6755794662">rootshell</a>, <a href="https://apps.apple.com/app/id6759188481">Open Minis</a> and <a href="https://apps.apple.com/app/id6755608044">LocalDevVPN</a>, all free on the App Store.</p></li>
+          <li data-reveal><b class="t" data-i18n="sb.2t">Pair in rootshell</b>
+            <p data-i18n="sb.2">In rootshell turn on Settings › Location Diary Mode › Session Only, then tap Local Shell and Open at the top right, and run these one line at a time:</p>
+            <div class="cmd"><code>curl -fsSLO https://raw.githubusercontent.com/FrizzleM/siboot/main/rootshell/bin/siboot-pair.wasm</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>ifconfig en0 &gt; ifconfig.txt</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <div class="cmd"><code>./siboot-pair.wasm</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <p data-i18n="sb.2b">Open Settings › Privacy &amp; Security › Developer Mode, scroll to the bottom, tap <b>Pair with siboot</b>, and enter your passcode and the code rootshell shows. Leave rootshell running.</p></li>
+          <li data-reveal><b class="t" data-i18n="sb.3t">Install from Open Minis</b>
+            <p data-i18n="sb.3">Connect LocalDevVPN. In Open Minis tap the console icon at the top right, then Shell Terminal, and run:</p>
+            <div class="cmd"><code>wget -qO- https://raw.githubusercontent.com/FrizzleM/siboot/main/minis/install.sh | sh -s -- --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+            <p data-i18n="sb.3b">The <code>--ipa</code> part makes siboot install iLoader X instead of SideInstaller. Type the transfer code rootshell shows (only the first time), then your Apple account email, password and verification code. Keep Minis open until it says it's done. The first time, trust your Apple account in Settings › General › VPN &amp; Device Management.</p></li>
+          <li data-reveal><b class="t" data-i18n="sb.4t">Open iLoader X</b>
+            <p data-i18n="sb.4">Open it from the Home Screen (siboot's “Open SideInstaller” link is for SideInstaller: ignore it). With LocalDevVPN connected, sign in with your Apple account and tap Install SideStore or Install SideStore + LiveContainer.</p></li>
+        </ol>
+        <p class="note" style="margin-top:22px" data-i18n="sb.note">To reinstall or refresh iLoader X later, run this in Open Minis (plain <code>siboot</code> would install SideInstaller):</p>
+        <div class="cmd"><code>siboot --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+        <p class="note" data-i18n="sb.dev">No Developer Mode switch in Settings? Once paired, <code>siboot developer-mode</code> makes it appear, and <code>siboot developer-mode --turn-on</code> turns it on.</p>
+      </div>
+
+      <!-- From an app that already sideloads -->
+      <div class="panel" id="apps" role="tabpanel" hidden>
+        <p class="note" data-i18n="ap.lead">Add iLoader X's source once: the app installs from it and shows each update.</p>
+        <div class="actions" style="margin-top:18px">
+          <a class="action primary" data-href="sidestore">
+            <img src="assets/img/sidestore.png" alt="">
+            <span><b data-i18n="ap.ss">Add to SideStore</b><small data-i18n="ap.ss.s">Adds the source; install and refresh iLoader X from it</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#arrow"/></svg></a>
+          <a class="action" data-href="altstore">
+            <img src="assets/img/altstore.png" alt="">
+            <span><b data-i18n="ap.as">Add to AltStore</b><small data-i18n="ap.as.s">The same source, for AltStore Classic and PAL</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#arrow"/></svg></a>
+          <a class="action" data-href="livecontainer">
+            <img src="assets/img/livecontainer.png" alt="">
+            <span><b data-i18n="ap.lc">Install in LiveContainer</b><small data-i18n="ap.lc.s">Runs inside LiveContainer, without an App ID of its own</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#arrow"/></svg></a>
+        </div>
+        <p class="note" style="margin-top:22px" data-i18n="ap.manual">Or add the source by hand (Sources › +):</p>
+        <div class="cmd"><code data-text="source">https://iamgasgass.github.io/iLoaderX/iloaderx.json</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
+      </div>
+
+      <!-- IPA and TrollStore -->
+      <div class="panel" id="ipa" role="tabpanel" hidden>
+        <p class="note" data-i18n="ipa.lead">iLoader X is an unsigned IPA: a signing app signs it with your certificate when it installs it.</p>
+        <div class="actions" style="margin-top:18px">
+          <a class="action primary" data-href="trollstore">
+            <span class="glyph"><svg class="icon"><use href="assets/icons.svg#star"/></svg></span>
+            <span><b data-i18n="ipa.ts">Install with TrollStore</b><small data-i18n="ipa.ts.s">iLoaderX.tipa: permanent, on the iOS versions TrollStore supports</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#arrow"/></svg></a>
+          <a class="action" data-href="ipa">
+            <span class="glyph"><svg class="icon"><use href="assets/icons.svg#download"/></svg></span>
+            <span><b data-i18n="ipa.dl">Download iLoaderX.ipa</b><small data-i18n="ipa.dl.s">For Sideloadly, iLoader, Feather, KSign…</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#arrow"/></svg></a>
+          <a class="action" href="https://github.com/iamgasgass/iLoaderX/releases">
+            <span class="glyph"><svg class="icon"><use href="assets/icons.svg#github"/></svg></span>
+            <span><b data-i18n="ipa.all">All releases</b><small data-i18n="ipa.all.s">Older versions and release notes, on GitHub</small></span>
+            <svg class="icon go"><use href="assets/icons.svg#external"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="first-run">
+    <div class="wrap split">
+      <div class="section-head sticky-head" data-reveal>
+        <p class="eyebrow" data-i18n="fr.eyebrow">After the install</p>
+        <h2 class="headline" data-i18n="fr.title">First run</h2>
+        <p class="lead" data-i18n="fr.lead">The app walks you through it; this is what to expect.</p>
+      </div>
+      <ol class="steps">
+        <li data-reveal><b class="t" data-i18n="fr.1t">Connect LocalDevVPN</b><p data-i18n="fr.1">Get <a href="https://apps.apple.com/app/id6755608044">LocalDevVPN</a> from the App Store and connect it: iLoader X works through it.</p></li>
+        <li data-reveal><b class="t" data-i18n="fr.2t">Pair</b><p data-i18n="fr.2">On iOS 27 the iPhone pairs with itself: type the code into Settings › Privacy &amp; Security › Developer Mode. On iOS 17.4 to 26, import a pairing file made on a computer.</p></li>
+        <li data-reveal><b class="t" data-i18n="fr.3t">Sign in and install</b><p data-i18n="fr.3">Sign in with your Apple ID, then pick SideStore, LiveContainer or your own IPA under Install.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="warn" data-reveal>
+        <svg class="icon"><use href="assets/icons.svg#alert"/></svg>
+        <div><b data-i18n="warn.b">Not the official SideInstaller</b><br><span data-i18n="warn.s">iLoader X is a fork of <a href="https://github.com/FrizzleM/SideInstaller">SideInstaller by FrizzleM</a>, with its own name, bundle ID and icon, and isn't affiliated with FrizzleM. Only install iLoader X from this page or from github.com/iamgasgass/iLoaderX: a copy from anywhere else may have been changed to steal your Apple ID.</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+      <p data-i18n="foot.credit">A fork of <a href="https://github.com/FrizzleM/SideInstaller">SideInstaller by FrizzleM</a>, under the SideInstaller License. Not the official SideInstaller.</p>
+    </div>
+    <nav aria-label="Footer">
+      <a href="index.html" data-i18n="nav.overview">Overview</a>
+      <a href="help.html" data-i18n="nav.help">Help</a>
+      <a href="terms.html" data-i18n="foot.terms">Terms</a>
+      <a href="https://github.com/iamgasgass/iLoaderX">GitHub</a>
+      <a href="https://paypal.me/iamgasgass" data-i18n="foot.support">Support the project</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>

@@ -4,276 +4,205 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>iLoader X</title>
-<meta name="description" content="Install SideStore and LiveContainer directly on your iPhone. No PC required. A fork of SideInstaller by FrizzleM.">
-<meta name="theme-color" content="#F8F4F5" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#100608" media="(prefers-color-scheme: dark)">
-<link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-<meta property="og:title" content="iLoader X">
-<meta property="og:description" content="Install SideStore and LiveContainer directly on your iPhone. No PC required.">
+<meta name="description" content="iLoader X sets up SideStore, LiveContainer, AltStore or Madeira on your iPhone or iPad. The pairing, signing and installing happen on the device, with no computer.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14060a">
+<meta property="og:site_name" content="iLoader X">
+<meta property="og:title" content="iLoader X: sideloading, without the computer">
+<meta property="og:description" content="SideStore, LiveContainer, AltStore or Madeira on your iPhone, with no computer.">
 <meta property="og:image" content="https://iamgasgass.github.io/iLoaderX/icon.png">
-<style>
-  :root {
-    --bg: #F8F4F5; --card: rgba(255,255,255,.72); --card-solid: #fff; --text: #1A0E11; --dim: #6E5A5F;
-    --line: rgba(26,14,17,.10); --accent: #AC1A32; --accent-2: #D42444; --accent-text: #fff;
-    --warn-bg: #FFF6E0; --warn-line: #F1D79A; --warn-text: #6B4D00; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 12px 32px rgba(70,10,20,.08);
-    color-scheme: light dark;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #100608; --card: rgba(36,18,22,.72); --card-solid: #1E1013; --text: #F4EAEC; --dim: #B09095;
-      --line: rgba(255,255,255,.09); --accent: #FF7082; --accent-2: #D42444; --accent-text: #1E0408;
-      --warn-bg: #2A2310; --warn-line: #5A4A1C; --warn-text: #F3D58A; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.35);
-    }
-  }
-  * { box-sizing: border-box; }
-  html { -webkit-text-size-adjust: 100%; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    background-image: radial-gradient(900px 500px at 85% -10%, rgba(212,36,68,.18), transparent 60%),
-                      radial-gradient(700px 400px at -10% 10%, rgba(212,36,68,.10), transparent 60%);
-    background-attachment: fixed; min-height: 100vh;
-  }
-  main { max-width: 680px; margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 16px 48px; }
-  .lang { display: flex; justify-content: flex-end; gap: 6px; }
-  .lang button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--card); color: var(--dim);
-    border-radius: 999px; padding: 4px 12px; cursor: pointer; }
-  .lang button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
-  header { text-align: center; padding: 18px 0 8px; }
-  header img { width: 128px; height: 128px; border-radius: 28.5px; box-shadow: 0 10px 30px rgba(110,10,30,.25), 0 0 0 1px var(--line); }
-  h1 { font-size: 40px; letter-spacing: -.8px; margin: 18px 0 4px; line-height: 1.1; }
-  .tagline { color: var(--dim); font-size: 18px; margin: 0 0 12px; }
-  .meta { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; color: var(--dim); }
-  .meta span { border: 1px solid var(--line); background: var(--card); padding: 3px 10px; border-radius: 999px; }
-  .card { background: var(--card); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4);
-    border: 1px solid var(--line); border-radius: 22px; padding: 20px; margin-top: 18px; box-shadow: var(--shadow); }
-  h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.2px; }
-  .card > p { margin: 0 0 14px; color: var(--dim); }
-  .actions { display: grid; gap: 10px; }
-  a.btn, button.btn { display: flex; align-items: center; gap: 12px; width: 100%; text-decoration: none; font: inherit; text-align: left;
-    padding: 13px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--card-solid); color: var(--text); cursor: pointer; }
-  a.btn:active, button.btn:active { transform: scale(.985); }
-  .btn.primary { background: linear-gradient(180deg, #D42444, #9E1530); color: #fff; border-color: transparent; font-weight: 600; }
-  .btn .ic { width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center; background: rgba(212,36,68,.14); }
-  .btn.primary .ic { background: rgba(255,255,255,.22); }
-  .btn .ic svg { width: 20px; height: 20px; }
-  .btn b { display: block; font-weight: 600; }
-  .btn small { display: block; color: var(--dim); font-size: 13px; line-height: 1.3; }
-  .btn.primary small { color: inherit; opacity: .85; }
-  .src { display: flex; gap: 8px; margin-top: 12px; }
-  .src code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
-    padding: 10px 12px; border-radius: 10px; background: var(--card-solid); border: 1px solid var(--line); }
-  .src button { font: inherit; font-size: 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-solid); color: var(--text); padding: 0 14px; cursor: pointer; }
-  ol { margin: 0; padding-left: 22px; } ol li { margin: 6px 0; } ol li::marker { color: var(--accent); font-weight: 700; }
-  .warn { background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-text); border-radius: 16px; padding: 14px 16px; margin-top: 18px; font-size: 14px; }
-  .warn b { display: block; margin-bottom: 2px; }
-  a { color: var(--accent); }
-  footer { text-align: center; color: var(--dim); font-size: 13px; margin-top: 28px; }
-  footer a { color: inherit; }
-  .cmd { display: flex; gap: 8px; margin: 8px 0 4px; }
-  .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: pre; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-    padding: 9px 11px; border-radius: 10px; background: var(--card-solid); border: 1px solid var(--line); }
-  .cmd button { font: inherit; font-size: 13px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-solid); color: var(--text); padding: 0 12px; cursor: pointer; flex: none; }
-  .steps > li { margin: 14px 0; } .steps b.t { display: block; }
-  .note { color: var(--dim); font-size: 14px; margin-top: 12px; }
-  .hide { display: none !important; }
-</style>
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<script>document.documentElement.className = "js"; window.ILOADERX_TITLE = "iLoader X";</script>
+<script src="assets/i18n-it.js" defer></script>
+<script src="assets/site.js" defer></script>
 </head>
 <body>
-<main>
-  <div class="lang"><button data-set-lang="en">English</button><button data-set-lang="it">Italiano</button></div>
 
-  <header>
-    <img src="icon.png" alt="" width="128" height="128">
-    <h1>iLoader X</h1>
-    <p class="tagline" data-i18n="tagline">Install SideStore and LiveContainer directly on your iPhone. No PC required.</p>
-    <div class="meta">
-      <span id="version">…</span>
-      <span>iOS 17.4+</span>
-      <span>com.iamgasgass.iloaderx</span>
-    </div>
-  </header>
-
-  <section class="card">
-    <h2 data-i18n="install.title">Install</h2>
-    <p data-i18n="install.lead">iLoader X is an unsigned IPA: install it with an app that signs, or with TrollStore.</p>
-    <div class="actions">
-      <a class="btn primary" id="add-sidestore">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
-        <span><b data-i18n="sidestore.b">Add to SideStore</b><small data-i18n="sidestore.s">Adds the source; install and refresh iLoader X from it</small></span>
-      </a>
-      <a class="btn" id="add-altstore">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
-        <span><b data-i18n="altstore.b">Add to AltStore</b><small data-i18n="altstore.s">Same source, for AltStore Classic and PAL</small></span>
-      </a>
-      <a class="btn" id="open-livecontainer">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 12h6M12 9v6"/></svg></span>
-        <span><b data-i18n="lc.b">Install in LiveContainer</b><small data-i18n="lc.s">Runs it inside LiveContainer, without its own App ID</small></span>
-      </a>
-      <a class="btn" id="open-trollstore">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6L20 9.3l-4 4 1 5.7-5-2.8-5 2.8 1-5.7-4-4 5.4-.7z"/></svg></span>
-        <span><b data-i18n="ts.b">Install with TrollStore</b><small data-i18n="ts.s">Permanent, on the iOS versions TrollStore supports</small></span>
-      </a>
-      <a class="btn" id="download-ipa">
-        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></span>
-        <span><b data-i18n="ipa.b">Download the IPA</b><small data-i18n="ipa.s">For Sideloadly, iLoader, Feather, KSign…</small></span>
-      </a>
-    </div>
-    <div class="src">
-      <code id="source-url"></code>
-      <button id="copy" type="button" data-i18n="copy">Copy</button>
-    </div>
-  </section>
-
-  <section class="card" id="siboot">
-    <h2 data-i18n="sb.title">Without a computer: siboot</h2>
-    <p data-i18n="sb.lead"><a href="https://github.com/FrizzleM/siboot">siboot</a> installs iLoader X from the iPhone itself, signed with your own Apple account: no computer and no certificate. You need iOS 27 or later, Wi-Fi and Developer Mode on.</p>
-    <ol class="steps">
-      <li><b class="t" data-i18n="sb.1t">Get the apps</b>
-        <span data-i18n="sb.1">Install <a href="https://apps.apple.com/app/id6755794662">rootshell</a>, <a href="https://apps.apple.com/app/id6759188481">Open Minis</a> and <a href="https://apps.apple.com/app/id6755608044">LocalDevVPN</a>, all free on the App Store.</span></li>
-      <li><b class="t" data-i18n="sb.2t">Pair in rootshell</b>
-        <span data-i18n="sb.2">Turn on Settings › Location Diary Mode › Session Only in rootshell, then tap Local Shell and Open at the top right, and run these one line at a time:</span>
-        <div class="cmd"><code>curl -fsSLO https://raw.githubusercontent.com/FrizzleM/siboot/main/rootshell/bin/siboot-pair.wasm</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
-        <div class="cmd"><code>ifconfig en0 &gt; ifconfig.txt</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
-        <div class="cmd"><code>./siboot-pair.wasm</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
-        <span data-i18n="sb.2b">Open Settings › Privacy &amp; Security › Developer Mode, scroll to the bottom, tap <b>Pair with siboot</b>, and enter your passcode and the code rootshell shows. Leave rootshell running.</span></li>
-      <li><b class="t" data-i18n="sb.3t">Install from Open Minis</b>
-        <span data-i18n="sb.3">Connect LocalDevVPN. In Open Minis, tap the console icon at the top right, then Shell Terminal, and run:</span>
-        <div class="cmd"><code>wget -qO- https://raw.githubusercontent.com/FrizzleM/siboot/main/minis/install.sh | sh -s -- --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
-        <span data-i18n="sb.3b">The <code>--ipa</code> part makes siboot install iLoader X instead of SideInstaller. Type the transfer code rootshell shows (only the first time: after that, siboot uses the pairing file it saved), then your Apple account email, password and verification code. Keep Minis open until it says it's done. The first time, trust your Apple account in Settings › General › VPN &amp; Device Management.</span></li>
-      <li><b class="t" data-i18n="sb.4t">Open iLoader X</b>
-        <span data-i18n="sb.4">Open it from the Home Screen (siboot's “Open SideInstaller” link is for SideInstaller: ignore it). With LocalDevVPN connected, log in with your Apple account and tap Install SideStore or Install SideStore + LiveContainer.</span></li>
-    </ol>
-    <p class="note" data-i18n="sb.note">To reinstall or refresh iLoader X later, run this in Open Minis (plain <code>siboot</code> would install SideInstaller). Once paired, <code>siboot developer-mode</code> asks the iPhone to show the Developer Mode switch in Settings, or with <code>--turn-on</code> turns it on.</p>
-    <div class="cmd"><code>siboot --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa</code><button type="button" data-copy data-i18n="copy">Copy</button></div>
-  </section>
-
-  <section class="card">
-    <h2 data-i18n="first.title">First run</h2>
-    <ol>
-      <li data-i18n="first.1">Get <a href="https://apps.apple.com/app/id6755608044">LocalDevVPN</a> from the App Store and connect it: iLoader X works through it.</li>
-      <li data-i18n="first.2">On iOS 27, the iPhone pairs with itself: follow the steps in the app and type the code into Settings › Privacy &amp; Security › Developer Mode.</li>
-      <li data-i18n="first.3">On iOS 17.4 to 26, import a pairing file made on a computer (jitterbugpair or pymobiledevice3); the app walks you through it.</li>
-      <li data-i18n="first.4">Sign in with your Apple ID, then pick SideStore, LiveContainer or your own IPA under Install.</li>
-    </ol>
-  </section>
-
-  <div class="warn">
-    <b data-i18n="warn.b">Not the official SideInstaller</b>
-    <span data-i18n="warn.s">iLoader X is a fork of <a href="https://github.com/FrizzleM/SideInstaller">SideInstaller by FrizzleM</a>, with its own name, bundle ID and icon, and isn't affiliated with FrizzleM. Only install iLoader X from this page or from github.com/iamgasgass/iLoaderX: a copy from anywhere else may have been changed to steal your Apple ID.</span>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+    <nav class="nav-links" id="navLinks" aria-label="Site">
+      <a href="index.html" data-i18n="nav.overview">Overview</a>
+      <a href="install.html" data-i18n="nav.install">Install</a>
+      <a href="help.html" data-i18n="nav.help">Help</a>
+      <a href="https://github.com/iamgasgass/iLoaderX" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="it">IT</button></div>
+    <button type="button" class="nav-menu" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><svg class="icon"><use href="assets/icons.svg#menu"/></svg></button>
   </div>
+</header>
 
-  <footer>
-    <a href="https://github.com/iamgasgass/iLoaderX" data-i18n="f.src">Source code</a> ·
-    <a href="https://github.com/iamgasgass/iLoaderX/releases" data-i18n="f.rel">Releases</a> ·
-    <a href="https://github.com/iamgasgass/iLoaderX/issues" data-i18n="f.issues">Report a problem</a> ·
-    <a href="terms.html" data-i18n="f.terms">Terms</a>
-    <br><span data-i18n="f.credit">Based on SideInstaller © 2026 FrizzleM, under the SideInstaller License.</span>
-  </footer>
+<main>
+  <section class="hero">
+    <div class="hero-glow" aria-hidden="true"></div>
+    <div class="wrap hero-grid">
+      <div>
+        <img class="hero-icon rise" src="assets/img/app-icon.png" width="84" height="84" alt="iLoader X">
+        <h1 class="display rise grad" style="--i:1" data-i18n="hero.title">Sideloading, without the computer</h1>
+        <p class="lead rise" style="--i:2" data-i18n="hero.lead">iLoader X sets up SideStore, LiveContainer, AltStore or Madeira on your iPhone or iPad. The pairing, signing and installing that used to need a Mac or PC happen on the device.</p>
+        <div class="hero-actions rise" style="--i:3">
+          <a class="btn btn-lg btn-primary" href="install.html"><svg class="icon"><use href="assets/icons.svg#install"/></svg><span data-i18n="cta.install">Install iLoader X</span></a>
+          <a class="btn btn-lg btn-secondary" href="https://github.com/iamgasgass/iLoaderX" target="_blank" rel="noopener"><svg class="icon"><use href="assets/icons.svg#github"/></svg>GitHub</a>
+        </div>
+        <div class="hero-meta rise" style="--i:4">
+          <span class="chip" data-version>…</span>
+          <span class="chip"><b>iOS 17.4+</b> · <span data-i18n="hero.ios27">pairs itself on iOS 27</span></span>
+          <span class="chip"><span data-i18n="hero.free">Free</span> · <span data-i18n="hero.open">open source</span></span>
+        </div>
+      </div>
+
+      <!-- The app's Install screen, drawn here; the bar plays a run. -->
+      <div class="phone rise" style="--i:2" role="img" aria-label="iLoader X's Install screen on an iPhone" data-i18n-attr="aria-label:ph.label">
+        <div class="ph" aria-hidden="true">
+          <div class="ph-island"></div>
+          <div class="ph-status"><span>9:41</span><span class="ph-sys"><s></s><i></i></span></div>
+          <div class="ph-gear"><svg class="icon"><use href="assets/icons.svg#gear"/></svg></div>
+          <div class="ph-body">
+            <img class="ph-logo" src="assets/img/app-icon.png" alt="">
+            <div class="ph-name">iLoader X</div>
+            <div class="ph-state"><i></i><span data-i18n="ph.tunnel">Tunnel connected</span></div>
+            <div class="ph-card">
+              <div class="ph-sec"><svg class="icon"><use href="assets/icons.svg#install"/></svg><span data-i18n="nav.install">Install</span></div>
+              <div class="ph-field"><img src="assets/img/sidestore.png" alt="">SideStore<svg class="icon"><use href="assets/icons.svg#updown"/></svg></div>
+              <div class="ph-seg"><span class="on" data-i18n="ph.stable">Stable</span><span>Nightly</span></div>
+            </div>
+            <div class="ph-btn"><svg class="icon"><use href="assets/icons.svg#install"/></svg><span data-i18n="ph.btn">Install SideStore</span></div>
+            <div class="ph-run">
+              <div class="ph-run-head"><b data-i18n="ph.installing">Installing</b><span>0%</span></div>
+              <div class="ph-bar"><i></i></div>
+              <div class="ph-step"></div>
+            </div>
+            <div class="ph-credit" data-i18n="ph.credit">an app by iamgasgass</div>
+          </div>
+          <div class="ph-tabs">
+            <span class="on"><svg class="icon"><use href="assets/icons.svg#install"/></svg><span data-i18n="nav.install">Install</span></span>
+            <span><svg class="icon"><use href="assets/icons.svg#wrench"/></svg><span data-i18n="ph.tools">Tools</span></span>
+            <span><svg class="icon"><use href="assets/icons.svg#info"/></svg><span data-i18n="ph.about">About</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" id="apps">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="apps.eyebrow">What it installs</p>
+        <h2 class="headline" data-i18n="apps.title">Pick what goes on your iPhone</h2>
+        <p class="lead" data-i18n="apps.lead">iLoader X downloads the app from the project that makes it, signs it with your Apple ID and installs it.</p>
+      </div>
+      <div class="apps">
+        <article class="card app wide" data-reveal>
+          <img src="assets/img/sidestore.png" width="76" height="76" alt="">
+          <h3 class="title">SideStore</h3>
+          <p data-i18n="apps.sidestore">An app store for sideloaded apps. It installs them and keeps them refreshed, all on the device.</p>
+        </article>
+        <article class="card app wide" data-reveal style="--i:1">
+          <img src="assets/img/livecontainer.png" width="76" height="76" alt="">
+          <h3 class="title">LiveContainer + SideStore</h3>
+          <p data-i18n="apps.lc">Runs your apps inside one container, so they don't count toward a free Apple ID's three-app limit. SideStore is built in.</p>
+        </article>
+        <article class="card app" data-reveal>
+          <img src="assets/img/altstore.png" width="60" height="60" alt="">
+          <h3 class="title">AltStore</h3>
+          <p data-i18n="apps.altstore">AltStore Classic, with the pairing file already in place for its Remote AltServer.</p>
+        </article>
+        <article class="card app" data-reveal style="--i:1">
+          <img src="assets/img/madeira.png" width="60" height="60" alt="">
+          <h3 class="title">Madeira</h3>
+          <p data-i18n="apps.madeira">Runs Windows PC games on iPhone and iPad.</p>
+        </article>
+        <article class="card app" data-reveal style="--i:2">
+          <span class="glyph"><svg class="icon"><use href="assets/icons.svg#file"/></svg></span>
+          <h3 class="title" data-i18n="apps.custom.t">Custom .ipa</h3>
+          <p data-i18n="apps.custom">Any .ipa of your own, picked from Files or pasted as a link.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="how">
+    <div class="wrap split">
+      <div class="section-head sticky-head" data-reveal>
+        <p class="eyebrow" data-i18n="how.eyebrow">How it works</p>
+        <h2 class="headline" data-i18n="how.title">One run, start to finish</h2>
+        <p class="lead" data-i18n="how.lead">No cable and no desktop tool. What a computer used to do is a few taps in the app.</p>
+      </div>
+      <ol class="steps live">
+        <li data-reveal><b class="t" data-i18n="how.1t">Connect LocalDevVPN</b><p data-i18n="how.1">A free app from the App Store that gives the iPhone a tunnel back to itself. That tunnel is how iLoader X reaches the device without a computer.</p></li>
+        <li data-reveal><b class="t" data-i18n="how.2t">Sign in with your Apple ID</b><p data-i18n="how.2">It signs the app the way Apple signs one for a developer. Your details stay on the iPhone and are used only to sign and install.</p></li>
+        <li data-reveal><b class="t" data-i18n="how.3t">Tap Install</b><p data-i18n="how.3">On iOS 27 the iPhone pairs with itself: it shows a code, you type it into the prompt in Settings, and the run carries on. From iOS 17.4 you import a pairing file once.</p></li>
+        <li data-reveal><b class="t" data-i18n="how.4t">Open your new app</b><p data-i18n="how.4">The app lands on the Home Screen, with the pairing file already handed over, ready to sideload on its own.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="section alt" id="privacy">
+    <div class="wrap">
+      <div class="section-head center" data-reveal>
+        <p class="eyebrow" data-i18n="priv.eyebrow">Privacy</p>
+        <h2 class="headline" data-i18n="priv.title">Your Apple ID stays on your iPhone</h2>
+      </div>
+      <div class="band">
+        <div class="card" data-reveal><svg class="icon"><use href="assets/icons.svg#lock"/></svg><h3 class="title" data-i18n="priv.1t">Stored in the keychain</h3><p data-i18n="priv.1">The password is kept in this iPhone's keychain and nowhere else. Nothing is sent to iamgasgass.</p></div>
+        <div class="card" data-reveal style="--i:1"><svg class="icon"><use href="assets/icons.svg#shield"/></svg><h3 class="title" data-i18n="priv.2t">Straight to Apple</h3><p data-i18n="priv.2">Sign-in goes to Apple directly, through the anisette server you pick in Settings.</p></div>
+        <div class="card" data-reveal style="--i:2"><svg class="icon"><use href="assets/icons.svg#github"/></svg><h3 class="title" data-i18n="priv.3t">Open source</h3><p data-i18n="priv.3">Every line is on GitHub, so you can read exactly what runs on your iPhone.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="tools">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <p class="eyebrow" data-i18n="tools.eyebrow">Tools</p>
+        <h2 class="headline" data-i18n="tools.title">Tools for after the install</h2>
+        <p class="lead" data-i18n="tools.lead">Everything a computer used to be needed for, under the Tools tab.</p>
+      </div>
+      <div class="tools">
+        <div class="card tool" data-reveal><img src="assets/img/tool-sidebyside.png" alt=""><div><h3 class="title">Side by Side</h3><p data-i18n="tools.sbs">Installs iLoader X, SideStore or any IPA on a friend's iPhone over Wi-Fi.</p></div></div>
+        <div class="card tool" data-reveal style="--i:1"><img src="assets/img/tool-pairing.png" alt=""><div><h3 class="title" data-i18n="tools.pair.t">Pairing</h3><p data-i18n="tools.pair">Makes, exports and hands the pairing file to SideStore, StikDebug and other apps.</p></div></div>
+        <div class="card tool" data-reveal style="--i:2"><img src="assets/img/tool-certs.png" alt=""><div><h3 class="title" data-i18n="tools.certs.t">Certificates</h3><p data-i18n="tools.certs">Shares one certificate with SideStore, so a free Apple ID never revokes the other's.</p></div></div>
+        <div class="card tool" data-reveal><img src="assets/img/tool-jit.png" alt=""><div><h3 class="title">JIT</h3><p data-i18n="tools.jit">Turns JIT on for development-signed apps, emulators included.</p></div></div>
+        <div class="card tool" data-reveal style="--i:1"><img src="assets/img/tool-sources.png" alt=""><div><h3 class="title" data-i18n="tools.src.t">Sources</h3><p data-i18n="tools.src">AltStore-style sources, with updates and release notes.</p></div></div>
+        <div class="card tool" data-reveal style="--i:2"><img src="assets/img/tool-location.png" alt=""><div><h3 class="title" data-i18n="tools.loc.t">Location spoofing</h3><p data-i18n="tools.loc">Moves the iPhone's location anywhere, or plays a route.</p></div></div>
+        <div class="card tool" data-reveal><img src="assets/img/tool-apps.png" alt=""><div><h3 class="title" data-i18n="tools.apps.t">Sideloaded apps</h3><p data-i18n="tools.apps">Sees when each app expires and refreshes them in one go.</p></div></div>
+        <div class="card tool" data-reveal style="--i:1"><img src="assets/img/tool-entitlements.png" alt=""><div><h3 class="title">Entitlements</h3><p data-i18n="tools.ent">Shows what an app is allowed to do, and what your Apple ID can grant.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="wrap">
+      <div class="cta" data-reveal>
+        <p class="eyebrow" data-i18n="cta.eyebrow">Made for iOS 27</p>
+        <h2 class="headline" data-i18n="cta.title">Start on your iPhone</h2>
+        <p class="lead" data-i18n="cta.lead">Open this page on the iPhone you want to set up, and follow the install steps.</p>
+        <div class="hero-actions">
+          <a class="btn btn-lg btn-primary" href="install.html"><svg class="icon"><use href="assets/icons.svg#install"/></svg><span data-i18n="cta.install">Install iLoader X</span></a>
+          <a class="btn btn-lg btn-secondary" href="help.html"><span data-i18n="nav.help">Help</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
 </main>
 
-<script>
-(() => {
-  const REPO = "iamgasgass/iLoaderX";
-  const base = new URL(".", location.href).href;
-  const sourceURL = base + "iloaderx.json";
-  const ipaURL = `https://github.com/${REPO}/releases/latest/download/iLoaderX.ipa`;
-  const enc = encodeURIComponent;
-
-  document.getElementById("add-sidestore").href = "sidestore://source?url=" + enc(sourceURL);
-  document.getElementById("add-altstore").href = "altstore://source?url=" + enc(sourceURL);
-  document.getElementById("open-livecontainer").href = "livecontainer://install?url=" + enc(ipaURL);
-  document.getElementById("open-trollstore").href = "apple-magnifier://install?url=" + enc(ipaURL);
-  document.getElementById("download-ipa").href = ipaURL;
-  document.getElementById("source-url").textContent = sourceURL;
-
-  const IT = {
-    "tagline": "Installa SideStore e LiveContainer direttamente sul tuo iPhone. Senza PC.",
-    "install.title": "Installa",
-    "install.lead": "iLoader X è un IPA non firmato: installalo con un'app che firma, oppure con TrollStore.",
-    "sidestore.b": "Aggiungi a SideStore", "sidestore.s": "Aggiunge la sorgente; installa e rinnova iLoader X da lì",
-    "altstore.b": "Aggiungi ad AltStore", "altstore.s": "Stessa sorgente, per AltStore Classic e PAL",
-    "lc.b": "Installa in LiveContainer", "lc.s": "Gira dentro LiveContainer, senza un App ID suo",
-    "ts.b": "Installa con TrollStore", "ts.s": "Permanente, sulle versioni di iOS supportate da TrollStore",
-    "ipa.b": "Scarica l'IPA", "ipa.s": "Per Sideloadly, iLoader, Feather, KSign…",
-    "copy": "Copia", "copied": "Copiato",
-    "sb.title": "Senza computer: siboot",
-    "sb.lead": "<a href=\"https://github.com/FrizzleM/siboot\">siboot</a> installa iLoader X dall'iPhone stesso, firmato con il tuo account Apple: niente computer e niente certificato. Servono iOS 27 o successivo, il Wi-Fi e la Modalità sviluppatore attiva.",
-    "sb.1t": "Scarica le app",
-    "sb.1": "Installa <a href=\"https://apps.apple.com/app/id6755794662\">rootshell</a>, <a href=\"https://apps.apple.com/app/id6759188481\">Open Minis</a> e <a href=\"https://apps.apple.com/app/id6755608044\">LocalDevVPN</a>, tutte gratis sull'App Store.",
-    "sb.2t": "Abbina in rootshell",
-    "sb.2": "In rootshell attiva Impostazioni › Location Diary Mode › Session Only, poi tocca Local Shell e Open in alto a destra ed esegui queste righe una alla volta:",
-    "sb.2b": "Apri Impostazioni › Privacy e sicurezza › Modalità sviluppatore, scorri in fondo, tocca <b>Pair with siboot</b> e inserisci il codice del telefono e il codice che mostra rootshell. Lascia rootshell aperta.",
-    "sb.3t": "Installa da Open Minis",
-    "sb.3": "Collega LocalDevVPN. In Open Minis tocca l'icona della console in alto a destra, poi Shell Terminal, ed esegui:",
-    "sb.3b": "La parte <code>--ipa</code> fa installare a siboot iLoader X invece di SideInstaller. Inserisci il codice di trasferimento che mostra rootshell (solo la prima volta: dopo siboot usa il file di abbinamento salvato), poi email, password e codice di verifica del tuo account Apple. Tieni Minis aperta finché non dice che ha finito. La prima volta autorizza il tuo account Apple in Impostazioni › Generali › VPN e gestione dispositivi.",
-    "sb.4t": "Apri iLoader X",
-    "sb.4": "Aprila dalla schermata Home (il link “Open SideInstaller” di siboot è per SideInstaller: ignoralo). Con LocalDevVPN collegata, accedi con il tuo account Apple e tocca Installa SideStore o Installa SideStore + LiveContainer.",
-    "sb.note": "Per reinstallare o rinnovare iLoader X in seguito, esegui questo in Open Minis (<code>siboot</code> da solo installerebbe SideInstaller). Dopo l'abbinamento, <code>siboot developer-mode</code> fa comparire l'interruttore Modalità sviluppatore in Impostazioni, oppure con <code>--turn-on</code> lo attiva.",
-    "first.title": "Primo avvio",
-    "first.1": "Scarica <a href=\"https://apps.apple.com/app/id6755608044\">LocalDevVPN</a> dall'App Store e collegala: iLoader X lavora attraverso di essa.",
-    "first.2": "Su iOS 27 l'iPhone si abbina da solo: segui i passaggi nell'app e inserisci il codice in Impostazioni › Privacy e sicurezza › Modalità sviluppatore.",
-    "first.3": "Da iOS 17.4 a 26 importa un file di abbinamento creato su un computer (jitterbugpair o pymobiledevice3); l'app ti guida.",
-    "first.4": "Accedi con il tuo ID Apple, poi scegli SideStore, LiveContainer o un tuo IPA in Installa.",
-    "warn.b": "Non è il SideInstaller ufficiale",
-    "warn.s": "iLoader X è un fork di <a href=\"https://github.com/FrizzleM/SideInstaller\">SideInstaller di FrizzleM</a>, con nome, bundle ID e icona propri, e non è affiliato a FrizzleM. Installa iLoader X solo da questa pagina o da github.com/iamgasgass/iLoaderX: una copia presa altrove potrebbe essere stata modificata per rubare il tuo ID Apple.",
-    "f.src": "Codice sorgente", "f.rel": "Release", "f.issues": "Segnala un problema", "f.terms": "Termini",
-    "f.credit": "Basato su SideInstaller © 2026 FrizzleM, secondo la SideInstaller License.",
-    "latest": "Versione", "none": "Nessuna release ancora",
-  };
-  const EN = { copied: "Copied", latest: "Version", none: "No release yet" };
-  const originals = {};
-  document.querySelectorAll("[data-i18n]").forEach(el => originals[el.dataset.i18n] = el.innerHTML);
-  let lang = "en";
-  try { lang = localStorage.getItem("lang") || ""; } catch {}
-  if (!lang) lang = (navigator.language || "en").toLowerCase().startsWith("it") ? "it" : "en";
-  const t = (k) => (lang === "it" ? IT[k] : EN[k]) ?? originals[k] ?? k;
-  let versionText = null;
-
-  function apply() {
-    document.documentElement.lang = lang;
-    document.querySelectorAll("[data-i18n]").forEach(el => {
-      const k = el.dataset.i18n;
-      el.innerHTML = lang === "it" && IT[k] ? IT[k] : originals[k];
-    });
-    document.querySelectorAll("[data-set-lang]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.setLang === lang)));
-    document.getElementById("version").textContent = versionText ? `${t("latest")} ${versionText}` : (versionText === "" ? t("none") : "…");
-  }
-  document.querySelectorAll("[data-set-lang]").forEach(b => b.addEventListener("click", () => {
-    lang = b.dataset.setLang;
-    try { localStorage.setItem("lang", lang); } catch {}
-    apply();
-  }));
-
-  document.getElementById("copy").addEventListener("click", async (e) => {
-    try { await navigator.clipboard.writeText(sourceURL); } catch {
-      const r = document.createRange(); r.selectNodeContents(document.getElementById("source-url"));
-      const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand("copy");
-    }
-    e.target.textContent = t("copied");
-    setTimeout(() => (e.target.textContent = t("copy")), 1600);
-  });
-
-  document.querySelectorAll("[data-copy]").forEach(btn => btn.addEventListener("click", async () => {
-    const text = btn.previousElementSibling.textContent;
-    try { await navigator.clipboard.writeText(text); } catch {
-      const r = document.createRange(); r.selectNodeContents(btn.previousElementSibling);
-      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); document.execCommand("copy");
-    }
-    btn.textContent = t("copied");
-    setTimeout(() => (btn.textContent = t("copy")), 1600);
-  }));
-
-  // The version: the latest release's tag, else what the source lists.
-  fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: "application/vnd.github+json" } })
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(r => { versionText = String(r.tag_name || "").replace(/^v/i, ""); })
-    .catch(() => fetch(sourceURL).then(r => r.json()).then(s => { versionText = s.apps[0].version || ""; }).catch(() => { versionText = ""; }))
-    .finally(apply);
-
-  apply();
-})();
-</script>
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+      <p data-i18n="foot.credit">A fork of <a href="https://github.com/FrizzleM/SideInstaller">SideInstaller by FrizzleM</a>, under the SideInstaller License. Not the official SideInstaller.</p>
+    </div>
+    <nav aria-label="Footer">
+      <a href="install.html" data-i18n="nav.install">Install</a>
+      <a href="help.html" data-i18n="nav.help">Help</a>
+      <a href="terms.html" data-i18n="foot.terms">Terms</a>
+      <a href="https://github.com/iamgasgass/iLoaderX">GitHub</a>
+      <a href="https://paypal.me/iamgasgass" data-i18n="foot.support">Support the project</a>
+    </nav>
+  </div>
+</footer>
 </body>
 </html>

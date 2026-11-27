@@ -1426,4 +1426,8 @@ let koreanStrings: [String: String] = [
         "디버거가 %@ 앱에 연결하지 못했습니다(%@). 디버거가 연결할 수 있게 서명하는 SideStore나 iLoader X로 다시 설치하세요.",
     "The debugger lost %@ (%@). Open it with JIT again.": "디버거가 %@ 앱과의 연결을 잃었습니다(%@). JIT로 다시 여세요.",
     "Universal": "유니버설",
+    "For SideInstaller, the base iLoader X is built on.":
+        "iLoader X의 기반이 된 SideInstaller에 감사드립니다.",
+    "The app iLoader X is a fork of: pairing, signing and installing on the device. By FrizzleM, SideInstaller License.":
+        "iLoader X가 포크한 앱: 기기에서의 페어링, 서명, 설치. FrizzleM 제작, SideInstaller License.",
 ]

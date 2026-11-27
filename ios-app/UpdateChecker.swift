@@ -16,7 +16,7 @@ final class UpdateChecker: ObservableObject {
     /// The latest release's unsigned IPA, for the banner's other two ways:
     /// signed with the Apple ID's certificate, or installed in LiveContainer.
     static let releaseIPAURL =
-        "https://iamgasgass.github.io/iLoaderX/iLoaderX/releases/latest/download/iLoaderX.ipa"
+        "https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa"
 
     /// The newest version GitHub advertises, once fetched.
     @Published private(set) var latestVersion: String?

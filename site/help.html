@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>iLoader X Help</title>
+<meta name="description" content="Answers about iLoader X: pairing, certificates, free Apple ID limits, updates and reporting a problem.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14060a">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png">
+<link rel="apple-touch-icon" href="assets/img/app-icon.png">
+<link rel="stylesheet" href="assets/site.css">
+<script>document.documentElement.className = "js"; window.ILOADERX_TITLE = "iLoader X Help";</script>
+<script src="assets/i18n-it.js" defer></script>
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+    <nav class="nav-links" id="navLinks" aria-label="Site">
+      <a href="index.html" data-i18n="nav.overview">Overview</a>
+      <a href="install.html" data-i18n="nav.install">Install</a>
+      <a href="help.html" data-i18n="nav.help">Help</a>
+      <a href="https://github.com/iamgasgass/iLoaderX" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language"><button type="button" data-lang="en">EN</button><button type="button" data-lang="it">IT</button></div>
+    <button type="button" class="nav-menu" aria-label="Menu" aria-expanded="false" aria-controls="navLinks"><svg class="icon"><use href="assets/icons.svg#menu"/></svg></button>
+  </div>
+</header>
+
+<main>
+  <section class="page-head">
+    <div class="wrap">
+      <h1 class="headline rise" data-i18n="help.title">Help</h1>
+      <p class="lead rise" style="--i:1" data-i18n="help.lead">Answers to what comes up most. Still stuck? Report it from the app: it attaches the log for you.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:36px" id="questions">
+    <div class="wrap faq">
+      <details id="revoked" data-reveal>
+        <summary data-i18n="q.revoked">A certificate shows as revoked, and apps won't install</summary>
+        <div class="a" data-i18n="a.revoked"><p>On a free Apple ID each signing app tends to ask Apple for a certificate of its own, and a new one can revoke the others. Use one certificate everywhere:</p>
+          <ol><li>In iLoader X, Tools › Certificates › Load certificates: check that one says “iLoader X signs with this one”.</li>
+          <li>Install <b>SideStore + LiveContainer</b> from iLoader X: SideStore gets iLoader X's certificate.</li>
+          <li>Open SideStore inside LiveContainer once, then in LiveContainer's Settings tap <b>Import Certificate From SideStore</b>.</li>
+          <li>Don't sign with another tool that makes its own certificate on the same Apple ID.</li></ol></div>
+      </details>
+      <details id="pairing" data-reveal>
+        <summary data-i18n="q.pair">How do I pair on iOS 17.4 to 26?</summary>
+        <div class="a" data-i18n="a.pair"><p>Only iOS 27 pairs with itself. Below it, make a pairing file once on a computer with jitterbugpair or pymobiledevice3, then import it in iLoader X (Tools › Pairing). From iOS 26.4, use a remote pairing file.</p></div>
+      </details>
+      <details id="free" data-reveal>
+        <summary data-i18n="q.free">What are the limits of a free Apple ID?</summary>
+        <div class="a" data-i18n="a.free"><p>Apps signed with a free Apple ID last 7 days and must be refreshed; SideStore and iLoader X can do it on the device. A free account can have 3 sideloaded apps at once and register 10 App IDs a week. LiveContainer runs many apps in one, so they don't count toward the 3.</p></div>
+      </details>
+      <details id="devmode" data-reveal>
+        <summary data-i18n="q.dev">There's no Developer Mode switch in Settings</summary>
+        <div class="a" data-i18n="a.dev"><p>iLoader X can make it appear: Settings › Developer Mode in the app. With siboot, run <code>siboot developer-mode</code> in Open Minis, or <code>siboot developer-mode --turn-on</code> to turn it on (the iPhone restarts).</p></div>
+      </details>
+      <details id="update" data-reveal>
+        <summary data-i18n="q.update">How do I update iLoader X?</summary>
+        <div class="a" data-i18n="a.update"><p>The app shows a banner when a new version is out. With the source added, SideStore or AltStore shows the update too. With siboot, run <code>siboot --ipa https://github.com/iamgasgass/iLoaderX/releases/latest/download/iLoaderX.ipa</code>.</p></div>
+      </details>
+      <details id="sideinstaller" data-reveal>
+        <summary data-i18n="q.si">How is iLoader X related to SideInstaller?</summary>
+        <div class="a" data-i18n="a.si"><p>iLoader X is a fork of SideInstaller by FrizzleM, kept up to date with it, with its own name, bundle ID, icon and look. It installs beside SideInstaller and shares nothing with it. Problems with iLoader X belong in its own GitHub issues, not SideInstaller's.</p></div>
+      </details>
+      <details id="safe" data-reveal>
+        <summary data-i18n="q.safe">Is it safe to type my Apple ID into it?</summary>
+        <div class="a" data-i18n="a.safe"><p>The official builds are only on this site and on github.com/iamgasgass/iLoaderX, built in the open by GitHub Actions from the source you can read there. The password stays in the iPhone's keychain and goes only to Apple. A copy from anywhere else may have been changed.</p></div>
+      </details>
+    </div>
+  </section>
+
+  <section class="section alt" id="community">
+    <div class="wrap">
+      <div class="section-head" data-reveal>
+        <h2 class="headline" data-i18n="help.more">More help</h2>
+      </div>
+      <div class="band">
+        <a class="card" data-reveal href="https://github.com/iamgasgass/iLoaderX/issues" style="text-decoration:none;color:inherit">
+          <svg class="icon"><use href="assets/icons.svg#bubble"/></svg>
+          <h3 class="title" data-i18n="help.report.t">Report a problem</h3>
+          <p data-i18n="help.report">In iLoader X, About › Report a problem opens a GitHub issue with the app's details and log. Or open one here.</p></a>
+        <a class="card" data-reveal style="--i:1;text-decoration:none;color:inherit" href="https://github.com/iamgasgass/iLoaderX">
+          <svg class="icon"><use href="assets/icons.svg#github"/></svg>
+          <h3 class="title">GitHub</h3>
+          <p data-i18n="help.gh">Source code, releases and what changed in each one.</p></a>
+        <a class="card" data-reveal style="--i:2;text-decoration:none;color:inherit" href="https://paypal.me/iamgasgass" id="donate">
+          <svg class="icon"><use href="assets/icons.svg#cup"/></svg>
+          <h3 class="title" data-i18n="foot.support">Support the project</h3>
+          <p data-i18n="help.donate">iLoader X is free. If it helped, you can support it on PayPal.me/iamgasgass.</p></a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <div>
+      <a class="brand" href="index.html"><img src="assets/img/favicon-192.png" width="30" height="30" alt="">iLoader X</a>
+      <p data-i18n="foot.credit">A fork of <a href="https://github.com/FrizzleM/SideInstaller">SideInstaller by FrizzleM</a>, under the SideInstaller License. Not the official SideInstaller.</p>
+    </div>
+    <nav aria-label="Footer">
+      <a href="index.html" data-i18n="nav.overview">Overview</a>
+      <a href="install.html" data-i18n="nav.install">Install</a>
+      <a href="terms.html" data-i18n="foot.terms">Terms</a>
+      <a href="https://github.com/iamgasgass/iLoaderX">GitHub</a>
+      <a href="https://paypal.me/iamgasgass" data-i18n="foot.support">Support the project</a>
+    </nav>
+  </div>
+</footer>
+</body>
+</html>
